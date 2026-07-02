@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAMASHA — Indian Cinema</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#170907; --panel:#230F0B; --marigold:#F2A63B; --marigold-deep:#D97B1F;
+    --vermilion:#D9451B; --cream:#F6E9D7; --cream-dim:#C9B79E; --gold-line: rgba(242,166,59,0.35);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;}
+  a{color:inherit;text-decoration:none;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:18px 44px;border-bottom:1px solid var(--gold-line);}
+  .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:26px;color:var(--marigold);}
+  .brand a{color:var(--cream-dim);font-size:14px;border:1px solid var(--gold-line);padding:8px 16px;border-radius:999px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:18px;padding:30px 44px;}
+  .card{cursor:pointer;}
+  .poster{width:100%;aspect-ratio:2/3;border-radius:10px;background:linear-gradient(150deg,#7A2E12,#D9451B);
+    display:flex;align-items:flex-end;padding:12px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,0.08);}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%);}
+  .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:17px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
+  .meta{font-size:12.5px;color:var(--cream-dim);padding-top:8px;display:flex;justify-content:space-between;}
+  .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
+  .empty a{color:var(--marigold);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,4,3,0.85);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;}
+  .modal video{width:100%;display:block;background:#000;max-height:60vh;}
+  .modal-body{padding:20px 24px;}
+  .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 8px;}
+  .modal-body p{color:var(--cream-dim);line-height:1.6;}
+  .modal-close{float:right;background:transparent;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:6px 14px;cursor:pointer;}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">◆ TAMASHA</div>
+  <a href="/admin.html">+ Upload a film</a>
+</header>
+<div id="grid" class="grid"></div>
+
+<div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal">
+    <video id="player" controls></video>
+    <div class="modal-body">
+      <button class="modal-close" onclick="closeModal()">Close</button>
+      <h2 id="mTitle"></h2>
+      <p id="mMeta" style="color:var(--marigold);"></p>
+      <p id="mDesc"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadFilms(){
+  const res = await fetch('/api/films');
+  const films = await res.json();
+  const grid = document.getElementById('grid');
+  if(films.length === 0){
+    grid.outerHTML = '<div class="empty">Abhi koi film upload nahi hui. <a href="/admin.html">Pehli film upload karo</a></div>';
+    return;
+  }
+  grid.innerHTML = films.map(f => `
+    <div class="card" onclick="playFilm('${f.id}')">
+      <div class="poster">
+        ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+        <div class="ptitle">${f.title}</div>
+      </div>
+      <div class="meta"><span>${f.language || ''} ${f.genre ? '· '+f.genre : ''}</span><span>${f.year || ''}</span></div>
+    </div>
+  `).join('');
+}
+
+async function playFilm(id){
+  const res = await fetch('/api/films/' + id);
+  const f = await res.json();
+  document.getElementById('player').src = f.videoUrl;
+  document.getElementById('mTitle').textContent = f.title;
+  document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
+  document.getElementById('mDesc').textContent = f.description || '';
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('player').pause();
+  document.getElementById('player').src = '';
+}
+loadFilms();
+</script>
+</body>
+</html>

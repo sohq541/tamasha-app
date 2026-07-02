@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAMASHA — Upload a film</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#170907;--panel:#230F0B;--marigold:#F2A63B;--cream:#F6E9D7;--cream-dim:#C9B79E;--gold-line:rgba(242,166,59,0.35);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;display:flex;justify-content:center;padding:50px 20px;}
+  .card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:32px;max-width:520px;width:100%;}
+  h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:26px;margin:0 0 6px;}
+  p.sub{color:var(--cream-dim);font-size:14px;margin:0 0 24px;}
+  label{display:block;font-size:13.5px;color:var(--cream-dim);margin:16px 0 6px;}
+  input[type=text], textarea, input[type=file]{
+    width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  .row{display:flex;gap:12px;}
+  .row > div{flex:1;}
+  button{margin-top:24px;width:100%;background:var(--marigold);color:#2C1410;border:none;border-radius:8px;
+    padding:13px;font-weight:600;font-size:15.5px;cursor:pointer;font-family:'Mukta',sans-serif;}
+  button:disabled{opacity:0.6;cursor:not-allowed;}
+  #status{margin-top:14px;font-size:13.5px;}
+  #status.ok{color:#8fd19e;}
+  #status.err{color:#e88a8a;}
+  a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="back" href="/">← Back to Tamasha</a>
+  <h1>Upload a film</h1>
+  <p class="sub">Video aur details bharo. Upload hone ke baad ye film sabko homepage pe dikhegi.</p>
+  <form id="form">
+    <label>Title *</label>
+    <input type="text" name="title" required placeholder="e.g. Sholay">
+
+    <div class="row">
+      <div>
+        <label>Year</label>
+        <input type="text" name="year" placeholder="2024">
+      </div>
+      <div>
+        <label>Language</label>
+        <input type="text" name="language" placeholder="Hindi / Tamil / Bengali...">
+      </div>
+    </div>
+
+    <label>Genre</label>
+    <input type="text" name="genre" placeholder="Action / Drama / Romance">
+
+    <label>Description</label>
+    <textarea name="description" placeholder="Short synopsis..."></textarea>
+
+    <label>Poster image (optional)</label>
+    <input type="file" name="poster" accept="image/*">
+
+    <label>Video file *</label>
+    <input type="file" name="video" accept="video/*" required>
+
+    <button type="submit" id="submitBtn">Upload film</button>
+    <div id="status"></div>
+  </form>
+</div>
+
+<script>
+document.getElementById('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+  status.className = ''; status.textContent = '';
+
+  const formData = new FormData(e.target);
+  try {
+    const res = await fetch('/api/films', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    status.className = 'ok';
+    status.textContent = 'Uploaded! Redirecting to homepage...';
+    setTimeout(() => window.location.href = '/', 1000);
+  } catch (err) {
+    status.className = 'err';
+    status.textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = 'Upload film';
+  }
+});
+</script>
+</body>
+</html>
