@@ -234,32 +234,6 @@ function requireAuth(req, res, next) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               res.status(500).json({ error: err.message });
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 }
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 });// Track a view (called once when someone opens a film to play it)
-app.post('/api/films/:id/view', async (req, res) => {
-  try {
-    const films = await readFilms();
-    const f = films.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).json({ error: 'Film not found' });
-    f.views = (f.views || 0) + 1;
-    await writeFilms(films);
-    res.json({ views: f.views });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Like a film
-app.post('/api/films/:id/like', async (req, res) => {
-  try {
-    const films = await readFilms();
-    const f = films.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).json({ error: 'Film not found' });
-    f.likes = (f.likes || 0) + 1;
-    await writeFilms(films);
-    res.json({ likes: f.likes });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 app.delete('/api/films/:id', requireAuth, async (req, res) => {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   try {
