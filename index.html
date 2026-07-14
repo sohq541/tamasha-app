@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TAMASHA — Indian Cinema</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#170907">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -34,6 +38,15 @@
   .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 8px;}
   .modal-body p{color:var(--cream-dim);line-height:1.6;}
   .modal-close{float:right;background:transparent;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:6px 14px;cursor:pointer;}
+  .action-row{display:flex;align-items:center;gap:14px;margin:16px 0 4px;}
+  .action-btn{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);
+    color:var(--cream);padding:9px 16px;border-radius:999px;cursor:pointer;font-family:'Mukta',sans-serif;font-size:14px;}
+  .action-btn:hover{background:rgba(255,255,255,0.12);}
+  .action-btn.liked{background:var(--vermilion);border-color:var(--vermilion);color:#fff;}
+  .action-btn:disabled{cursor:default;}
+  .view-count{font-size:13px;color:var(--cream-dim);margin-left:auto;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--marigold);color:#2C1410;
+    padding:10px 20px;border-radius:999px;font-size:14px;font-weight:600;z-index:200;display:none;}
 </style>
 </head>
 <body>
@@ -51,11 +64,20 @@
       <h2 id="mTitle"></h2>
       <p id="mMeta" style="color:var(--marigold);"></p>
       <p id="mDesc"></p>
+      <div class="action-row">
+        <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
+        <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
+        <span class="view-count" id="viewCount"></span>
+      </div>
     </div>
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
+let currentFilm = null;
+
 async function loadFilms(){
   const res = await fetch('/api/films');
   const films = await res.json();
@@ -73,23 +95,83 @@ async function loadFilms(){
       <div class="meta"><span>${f.language || ''} ${f.genre ? '· '+f.genre : ''}</span><span>${f.year || ''}</span></div>
     </div>
   `).join('');
+
+  const params = new URLSearchParams(location.search);
+  const sharedId = params.get('film');
+  if (sharedId) playFilm(sharedId);
 }
 
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
+  currentFilm = f;
+
   document.getElementById('player').src = f.videoUrl;
   document.getElementById('mTitle').textContent = f.title;
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
+  document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
+
+  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+  const likeBtn = document.getElementById('likeBtn');
+  const alreadyLiked = likedList.includes(f.id);
+  likeBtn.classList.toggle('liked', alreadyLiked);
+  likeBtn.disabled = alreadyLiked;
+  document.getElementById('likeCount').textContent = f.likes || 0;
+
   document.getElementById('overlay').classList.add('open');
+
+  fetch('/api/films/' + id + '/view', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; })
+    .catch(() => {});
 }
+
 function closeModal(){
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
+  history.replaceState(null, '', location.pathname);
 }
+
+async function likeCurrentFilm(){
+  if (!currentFilm) return;
+  const likeBtn = document.getElementById('likeBtn');
+  likeBtn.disabled = true;
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id + '/like', { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('likeCount').textContent = data.likes;
+    likeBtn.classList.add('liked');
+    const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+    likedList.push(currentFilm.id);
+    localStorage.setItem('likedFilms', JSON.stringify(likedList));
+  } catch (err) {
+    likeBtn.disabled = false;
+  }
+}
+
+function shareCurrentFilm(){
+  if (!currentFilm) return;
+  const url = location.origin + '/?film=' + currentFilm.id;
+  if (navigator.share) {
+    navigator.share({ title: currentFilm.title, text: 'Dekho ' + currentFilm.title + ' Tamasha pe!', url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2000);
+}
+
 loadFilms();
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
