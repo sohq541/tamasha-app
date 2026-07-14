@@ -122,18 +122,30 @@ function requireAuth(req, res, next) {
                                                                                                                                                                                                                       }
 
                                                                                                                                                                                                                       // ---------------- Films "database" stored as a JSON file inside B2 ----------------
-                                                                                                                                                                                                                      async function readFilms() {
-                                                                                                                                                                                                                        const { authToken, downloadUrl } = await b2Authorize();
-                                                                                                                                                                                                                          const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/films.json`;
-                                                                                                                                                                                                                            const res = await fetch(url, { headers: { Authorization: authToken } });
-                                                                                                                                                                                                                              if (res.status === 404) return [];
-                                                                                                                                                                                                                             if (!res.ok) throw new Error('Could not read films.json from B2 (status ' + res.status + '): ' + (await res.text()));
-                                                                                                                                                                                                                                  }
+let filmsCache = { data: null, expiresAt: 0 };
+const FILMS_CACHE_MS = 15000;
 
-                                                                                                                                                                                                                                  async function writeFilms(films) {
-                                                                                                                                                                                                                                    const buffer = Buffer.from(JSON.stringify(films, null, 2));
-                                                                                                                                                                                                                                      await b2UploadBuffer(buffer, 'films.json', 'application/json');
-                                                                                                                                                                                                                                      }
+async function readFilms() {
+  if (filmsCache.data && Date.now() < filmsCache.expiresAt) return filmsCache.data;
+
+  const { authToken, downloadUrl } = await b2Authorize();
+  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/films.json`;
+  const res = await fetch(url, { headers: { Authorization: authToken } });
+
+  let films;
+  if (res.status === 404) films = [];
+  else if (!res.ok) throw new Error('Could not read films.json from B2 (status ' + res.status + '): ' + (await res.text()));
+  else films = await res.json();
+
+  filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
+  return films;
+}
+
+async function writeFilms(films) {
+  const buffer = Buffer.from(JSON.stringify(films, null, 2));
+  await b2UploadBuffer(buffer, 'films.json', 'application/json');
+  filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
+}
 
                                                                                                                                                                                                                                       // ---------------- Express setup ----------------
                                                                                                                                                                                                                                       const upload = multer({
