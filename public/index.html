@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TAMASHA — Indian Cinema</title>
+<title>TAMASHA — Indian Cinema</title><link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#170907">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -89,7 +92,9 @@ function closeModal(){
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
 }
-loadFilms();
+loadFilms();if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
