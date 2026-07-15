@@ -1,127 +1,159 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { Readable } = require('stream');
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---- Admin login (set these in Render > Environment) ----
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme123';
 
-// ---- Backblaze B2 credentials (set these in Render > Environment) ----
 const B2_KEY_ID = process.env.B2_KEY_ID;
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
 const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
 const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
 
-// ---------------- Auth middleware ----------------
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
-    if (!header || !header.startsWith('Basic ')) {
-        res.set('WWW-Authenticate', 'Basic realm="Tamasha Admin"');
-            return res.status(401).send('Login required');
-              }
-                const decoded = Buffer.from(header.split(' ')[1], 'base64').toString();
-                  const [user, pass] = decoded.split(':');
-                    if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
-                      res.set('WWW-Authenticate', 'Basic realm="Tamasha Admin"');
-                        return res.status(401).send('Wrong username or password');
-                        }
+  if (!header || !header.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="Tamasha Admin"');
+    return res.status(401).send('Login required');
+  }
+  const decoded = Buffer.from(header.split(' ')[1], 'base64').toString();
+  const [user, pass] = decoded.split(':');
+  if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
+  res.set('WWW-Authenticate', 'Basic realm="Tamasha Admin"');
+  return res.status(401).send('Wrong username or password');
+}
 
-                        // ---------------- Backblaze B2 helper ----------------
-                        let b2Cache = { authToken: null, apiUrl: null, downloadUrl: null, expiresAt: 0 };
+let b2Cache = { authToken: null, apiUrl: null, downloadUrl: null, expiresAt: 0 };
 
-                        async function b2Authorize() {
-                          if (b2Cache.authToken && Date.now() < b2Cache.expiresAt) return b2Cache;
+async function b2Authorize() {
+  if (b2Cache.authToken && Date.now() < b2Cache.expiresAt) return b2Cache;
 
-                            const credentials = Buffer.from(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`).toString('base64');
-                              const res = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
-                                  headers: { Authorization: `Basic ${credentials}` }
-                                    });
-                                      if (!res.ok) throw new Error('B2 authorization failed: ' + (await res.text()));
-                                        const data = await res.json();
+  const credentials = Buffer.from(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`).toString('base64');
+  const res = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
+    headers: { Authorization: `Basic ${credentials}` }
+  });
+  if (!res.ok) throw new Error('B2 authorization failed: ' + (await res.text()));
+  const data = await res.json();
 
-                                          b2Cache = {
-                                              authToken: data.authorizationToken,
-                                                  apiUrl: data.apiInfo.storageApi.apiUrl,
-                                                      downloadUrl: data.apiInfo.storageApi.downloadUrl,
-                                                          expiresAt: Date.now() + 12 * 60 * 60 * 1000 // refresh every 12h
-                                                            };
-                                                              return b2Cache;
-                                                              }
+  b2Cache = {
+    authToken: data.authorizationToken,
+    apiUrl: data.apiInfo.storageApi.apiUrl,
+    downloadUrl: data.apiInfo.storageApi.downloadUrl,
+    expiresAt: Date.now() + 12 * 60 * 60 * 1000
+  };
+  return b2Cache;
+}
 
-                                                              async function b2GetUploadUrl() {
-                                                                const { authToken, apiUrl } = await b2Authorize();
-                                                                  const res = await fetch(`${apiUrl}/b2api/v3/b2_get_upload_url`, {
-                                                                      method: 'POST',
-                                                                          headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-                                                                              body: JSON.stringify({ bucketId: B2_BUCKET_ID })
-                                                                                });
-                                                                                  if (!res.ok) throw new Error('B2 get upload url failed: ' + (await res.text()));
-                                                                                    return res.json();
-                                                                                    }
+async function b2GetUploadUrl() {
+  const { authToken, apiUrl } = await b2Authorize();
+  const res = await fetch(`${apiUrl}/b2api/v3/b2_get_upload_url`, {
+    method: 'POST',
+    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: B2_BUCKET_ID })
+  });
+  if (!res.ok) throw new Error('B2 get upload url failed: ' + (await res.text()));
+  return res.json();
+}
 
-                                                                                    async function b2UploadBuffer(buffer, fileName, contentType) {
-                                                                                      const { uploadUrl, authorizationToken } = await b2GetUploadUrl();
-                                                                                        const res = await fetch(uploadUrl, {
-                                                                                            method: 'POST',
-                                                                                                headers: {
-                                                                                                      Authorization: authorizationToken,
-                                                                                                            'X-Bz-File-Name': encodeURIComponent(fileName),
-                                                                                                                  'Content-Type': contentType || 'b2/x-auto',
-                                                                                                                        'X-Bz-Content-Sha1': 'do_not_verify',
-                                                                                                                              'Content-Length': buffer.length
-                                                                                                                                  },
-                                                                                                                                      body: buffer
-                                                                                                                                        });
-                                                                                                                                          if (!res.ok) throw new Error('B2 upload failed: ' + (await res.text()));
-                                                                                                                                            return res.json();
-                                                                                                                                            }
+async function b2UploadBuffer(buffer, fileName, contentType) {
+  const { uploadUrl, authorizationToken } = await b2GetUploadUrl();
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: authorizationToken,
+      'X-Bz-File-Name': encodeURIComponent(fileName),
+      'Content-Type': contentType || 'b2/x-auto',
+      'X-Bz-Content-Sha1': 'do_not_verify',
+      'Content-Length': buffer.length
+    },
+    body: buffer
+  });
+  if (!res.ok) throw new Error('B2 upload failed: ' + (await res.text()));
+  return res.json();
+}
 
-                                                                                                                                            // Fetch a file from B2 (private bucket) and stream it to the client.
-                                                                                                                                            // Forwards the Range header so <video> seeking/scrubbing works.
-                                                                                                                                            async function b2StreamToResponse(fileName, req, res) {
-                                                                                                                                              const { authToken, downloadUrl } = await b2Authorize();
-                                                                                                                                                const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
+async function b2StreamToResponse(fileName, req, res) {
+  const { authToken, downloadUrl } = await b2Authorize();
+  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
 
-                                                                                                                                                  const headers = { Authorization: authToken };
-                                                                                                                                                    if (req.headers.range) headers.Range = req.headers.range;
+  const headers = { Authorization: authToken };
+  if (req.headers.range) headers.Range = req.headers.range;
 
-                                                                                                                                                      const b2res = await fetch(url, { headers });
-                                                                                                                                                        if (!b2res.ok && b2res.status !== 206) {
-                                                                                                                                                            return res.status(b2res.status === 404 ? 404 : 502).send('Could not fetch file from storage');
-                                                                                                                                                              }
+  const b2res = await fetch(url, { headers });
+  if (!b2res.ok && b2res.status !== 206) {
+    return res.status(b2res.status === 404 ? 404 : 502).send('Could not fetch file from storage');
+  }
 
-                                                                                                                                                                res.status(b2res.status);
-                                                                                                                                                                  ['content-type', 'content-length', 'content-range', 'accept-ranges'].forEach(h => {
-                                                                                                                                                                      const v = b2res.headers.get(h);
-                                                                                                                                                                          if (v) res.set(h, v);
-                                                                                                                                                                            });
+  res.status(b2res.status);
+  ['content-type', 'content-length', 'content-range', 'accept-ranges'].forEach(h => {
+    const v = b2res.headers.get(h);
+    if (v) res.set(h, v);
+  });
 
-                                                                                                                                                                              Readable.fromWeb(b2res.body).pipe(res);
-                                                                                                                                                                              }
+  Readable.fromWeb(b2res.body).pipe(res);
+}
 
-                                                                                                                                                                              async function b2DeleteFile(fileName) {
-                                                                                                                                                                                const { authToken, apiUrl } = await b2Authorize();
-                                                                                                                                                                                  const listRes = await fetch(`${apiUrl}/b2api/v3/b2_list_file_names`, {
-                                                                                                                                                                                      method: 'POST',
-                                                                                                                                                                                          headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-                                                                                                                                                                                              body: JSON.stringify({ bucketId: B2_BUCKET_ID, startFileName: fileName, maxFileCount: 1 })
-                                                                                                                                                                                                });
-                                                                                                                                                                                                  const listData = await listRes.json();
-                                                                                                                                                                                                    const match = listData.files && listData.files.find(f => f.fileName === fileName);
-                                                                                                                                                                                                      if (!match) return;
+async function b2DeleteFile(fileName) {
+  const { authToken, apiUrl } = await b2Authorize();
+  const listRes = await fetch(`${apiUrl}/b2api/v3/b2_list_file_names`, {
+    method: 'POST',
+    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: B2_BUCKET_ID, startFileName: fileName, maxFileCount: 1 })
+  });
+  const listData = await listRes.json();
+  const match = listData.files && listData.files.find(f => f.fileName === fileName);
+  if (!match) return;
 
-                                                                                                                                                                                                        await fetch(`${apiUrl}/b2api/v3/b2_delete_file_version`, {
-                                                                                                                                                                                                            method: 'POST',
-                                                                                                                                                                                                                headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-                                                                                                                                                                                                                    body: JSON.stringify({ fileName, fileId: match.fileId })
-                                                                                                                                                                                                                      });
-                                                                                                                                                                                                                      }
+  await fetch(`${apiUrl}/b2api/v3/b2_delete_file_version`, {
+    method: 'POST',
+    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName, fileId: match.fileId })
+  });
+}
 
-                                                                                                                                                                                                                      // ---------------- Films "database" stored as a JSON file inside B2 ----------------
+function generateThumbnail(videoBuffer, ext) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = os.tmpdir();
+    const uniq = Date.now() + '-' + Math.random().toString(36).slice(2);
+    const inputPath = path.join(tmpDir, `in-${uniq}${ext || '.mp4'}`);
+    const outputName = `thumb-${uniq}.jpg`;
+    const outputPath = path.join(tmpDir, outputName);
+
+    fs.writeFileSync(inputPath, videoBuffer);
+
+    ffmpeg(inputPath)
+      .on('end', () => {
+        try {
+          const buf = fs.readFileSync(outputPath);
+          fs.unlinkSync(inputPath);
+          fs.unlinkSync(outputPath);
+          resolve(buf);
+        } catch (err) {
+          reject(err);
+        }
+      })
+      .on('error', (err) => {
+        try { fs.unlinkSync(inputPath); } catch (e) {}
+        reject(err);
+      })
+      .screenshots({
+        count: 1,
+        timemarks: ['2'],
+        filename: outputName,
+        folder: tmpDir,
+        size: '640x?'
+      });
+  });
+}
+
 let filmsCache = { data: null, expiresAt: 0 };
 const FILMS_CACHE_MS = 15000;
 
@@ -147,122 +179,180 @@ async function writeFilms(films) {
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
 }
 
-                                                                                                                                                                                                                                      // ---------------- Express setup ----------------
-                                                                                                                                                                                                                                      const upload = multer({
-                                                                                                                                                                                                                                        storage: multer.memoryStorage(),
-                                                                                                                                                                                                                                          limits: { fileSize: 500 * 1024 * 1024 } // 500MB per file — free hosting has limited RAM
-                                                                                                                                                                                                                                          });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 }
+});
 
-                                                                                                                                                                                                                                          app.use(express.json());
+app.use(express.json());
 
-                                                                                                                                                                                                                                          app.get('/admin.html', requireAuth, (req, res) => {
-                                                                                                                                                                                                                                            res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-                                                                                                                                                                                                                                            });
+app.get('/admin.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
 
-                                                                                                                                                                                                                                            app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
-                                                                                                                                                                                                                                            app.get('/api/films', async (req, res) => {
-                                                                                                                                                                                                                                              try {
-                                                                                                                                                                                                                                                  const films = await readFilms();
-                                                                                                                                                                                                                                                      const out = films.map(f => ({
-                                                                                                                                                                                                                                                            ...f,
-                                                                                                                                                                                                                                                                  videoUrl: '/media/video/' + f.id,
-                                                                                                                                                                                                                                                                        posterUrl: f.posterFile ? '/media/poster/' + f.id : null
-                                                                                                                                                                                                                                                                            }));
-                                                                                                                                                                                                                                                                                res.json(out);
-                                                                                                                                                                                                                                                                                  } catch (err) {
-                                                                                                                                                                                                                                                                                      res.status(500).json({ error: err.message });
-                                                                                                                                                                                                                                                                                        }
-                                                                                                                                                                                                                                                                                        });
+app.get('/api/films', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const out = films.map(f => ({
+      ...f,
+      videoUrl: '/media/video/' + f.id,
+      posterUrl: f.posterFile ? '/media/poster/' + f.id : null
+    }));
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-                                                                                                                                                                                                                                                                                        app.get('/api/films/:id', async (req, res) => {
-                                                                                                                                                                                                                                                                                          try {
-                                                                                                                                                                                                                                                                                              const films = await readFilms();
-                                                                                                                                                                                                                                                                                                  const f = films.find(x => x.id === req.params.id);
-                                                                                                                                                                                                                                                                                                      if (!f) return res.status(404).json({ error: 'Film not found' });
-                                                                                                                                                                                                                                                                                                          res.json({
-                                                                                                                                                                                                                                                                                                                ...f,
-                                                                                                                                                                                                                                                                                                                      videoUrl: '/media/video/' + f.id,
-                                                                                                                                                                                                                                                                                                                            posterUrl: f.posterFile ? '/media/poster/' + f.id : null
-                                                                                                                                                                                                                                                                                                                                });
-                                                                                                                                                                                                                                                                                                                                  } catch (err) {
-                                                                                                                                                                                                                                                                                                                                      res.status(500).json({ error: err.message });
-                                                                                                                                                                                                                                                                                                                                        }
-                                                                                                                                                                                                                                                                                                                                        });
+app.get('/api/films/:id', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    res.json({
+      ...f,
+      videoUrl: '/media/video/' + f.id,
+      posterUrl: f.posterFile ? '/media/poster/' + f.id : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                        app.get('/media/video/:id', async (req, res) => {
-                                                                                                                                                                                                                                                                                                                                          try {
-                                                                                                                                                                                                                                                                                                                                              const films = await readFilms();
-                                                                                                                                                                                                                                                                                                                                                  const f = films.find(x => x.id === req.params.id);
-                                                                                                                                                                                                                                                                                                                                                      if (!f) return res.status(404).send('Not found');
-                                                                                                                                                                                                                                                                                                                                                          await b2StreamToResponse(f.videoFile, req, res);
-                                                                                                                                                                                                                                                                                                                                                            } catch (err) {
-                                                                                                                                                                                                                                                                                                                                                                res.status(500).send(err.message);
-                                                                                                                                                                                                                                                                                                                                                                  }
-                                                                                                                                                                                                                                                                                                                                                                  });
+app.get('/media/video/:id', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).send('Not found');
+    await b2StreamToResponse(f.videoFile, req, res);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                                                  app.get('/media/poster/:id', async (req, res) => {
-                                                                                                                                                                                                                                                                                                                                                                    try {
-                                                                                                                                                                                                                                                                                                                                                                        const films = await readFilms();
-                                                                                                                                                                                                                                                                                                                                                                            const f = films.find(x => x.id === req.params.id);
-                                                                                                                                                                                                                                                                                                                                                                                if (!f || !f.posterFile) return res.status(404).send('Not found');
-                                                                                                                                                                                                                                                                                                                                                                                    await b2StreamToResponse(f.posterFile, req, res);
-                                                                                                                                                                                                                                                                                                                                                                                      } catch (err) {
-                                                                                                                                                                                                                                                                                                                                                                                          res.status(500).send(err.message);
-                                                                                                                                                                                                                                                                                                                                                                                            }
-                                                                                                                                                                                                                                                                                                                                                                                            });
+app.get('/media/poster/:id', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f || !f.posterFile) return res.status(404).send('Not found');
+    await b2StreamToResponse(f.posterFile, req, res);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                                                                            app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
-                                                                                                                                                                                                                                                                                                                                                                                              try {
-                                                                                                                                                                                                                                                                                                                                                                                                  const { title, year, language, genre, description } = req.body;
-                                                                                                                                                                                                                                                                                                                                                                                                      if (!title || !req.files || !req.files.video) {
-                                                                                                                                                                                                                                                                                                                                                                                                            return res.status(400).json({ error: 'Title and video file are required' });
-                                                                                                                                                                                                                                                                                                                                                                                                                }
+app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
+  try {
+    const { title, year, language, genre, description } = req.body;
+    if (!title || !req.files || !req.files.video) {
+      return res.status(400).json({ error: 'Title and video file are required' });
+    }
 
-                                                                                                                                                                                                                                                                                                                                                                                                                    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-                                                                                                                                                                                                                                                                                                                                                                                                                        const videoFile = req.files.video[0];
-                                                                                                                                                                                                                                                                                                                                                                                                                            const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
-                                                                                                                                                                                                                                                                                                                                                                                                                                await b2UploadBuffer(videoFile.buffer, videoKey, videoFile.mimetype);
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const videoFile = req.files.video[0];
+    const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
+    await b2UploadBuffer(videoFile.buffer, videoKey, videoFile.mimetype);
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                    let posterKey = null;
-                                                                                                                                                                                                                                                                                                                                                                                                                                        if (req.files.poster) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                              const posterFile = req.files.poster[0];
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                          await b2UploadBuffer(posterFile.buffer, posterKey, posterFile.mimetype);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                              }
+    let posterKey = null;
+    if (req.files.poster) {
+      const posterFile = req.files.poster[0];
+      posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
+      await b2UploadBuffer(posterFile.buffer, posterKey, posterFile.mimetype);
+    } else {
+      try {
+        const thumbBuffer = await generateThumbnail(videoFile.buffer, path.extname(videoFile.originalname));
+        posterKey = `posters/${id}.jpg`;
+        await b2UploadBuffer(thumbBuffer, posterKey, 'image/jpeg');
+      } catch (err) {
+        console.error('Auto-thumbnail failed:', err.message);
+      }
+    }
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                  const films = await readFilms();
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                      const newFilm = {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            id, title, year: year || '', language: language || '', genre: genre || '',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  description: description || '', videoFile: videoKey, posterFile: posterKey,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        uploadedAt: new Date().toISOString()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            };
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                films.unshift(newFilm);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    await writeFilms(films);
+    const films = await readFilms();
+    const newFilm = {
+      id, title, year: year || '', language: language || '', genre: genre || '',
+      description: description || '', videoFile: videoKey, posterFile: posterKey,
+      views: 0, likes: 0, comments: [],
+      uploadedAt: new Date().toISOString()
+    };
+    films.unshift(newFilm);
+    await writeFilms(films);
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        res.status(201).json(newFilm);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          } catch (err) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              res.status(500).json({ error: err.message });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                });// Track a view (called once when someone opens a film to play it)
+    res.status(201).json(newFilm);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                app.delete('/api/films/:id', requireAuth, async (req, res) => {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  try {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      const films = await readFilms();
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          const f = films.find(x => x.id === req.params.id);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              if (!f) return res.status(404).json({ error: 'Film not found' });
+app.post('/api/films/:id/view', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    f.views = (f.views || 0) + 1;
+    await writeFilms(films);
+    res.json({ views: f.views });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  await b2DeleteFile(f.videoFile);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      if (f.posterFile) await b2DeleteFile(f.posterFile);
+app.post('/api/films/:id/like', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    f.likes = (f.likes || 0) + 1;
+    await writeFilms(films);
+    res.json({ likes: f.likes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          const remaining = films.filter(x => x.id !== req.params.id);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              await writeFilms(remaining);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  res.json({ success: true });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    } catch (err) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        res.status(500).json({ error: err.message });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          });
+app.post('/api/films/:id/comments', async (req, res) => {
+  try {
+    const { name, text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment likhna zaroori hai' });
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          app.listen(PORT, () => {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            console.log(`Tamasha server running on port ${PORT}`);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    if (!f.comments) f.comments = [];
+    const comment = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: (name || 'Anonymous').trim().slice(0, 40),
+      text: text.trim().slice(0, 500),
+      createdAt: new Date().toISOString()
+    };
+    f.comments.push(comment);
+    await writeFilms(films);
+    res.status(201).json(comment);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/films/:id', requireAuth, async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    await b2DeleteFile(f.videoFile);
+    if (f.posterFile) await b2DeleteFile(f.posterFile);
+
+    const remaining = films.filter(x => x.id !== req.params.id);
+    await writeFilms(remaining);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Tamasha server running on port ${PORT}`);
+});                                                                                                                                                                                                                                   //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 if (!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          res.status(500).
