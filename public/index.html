@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TAMASHA — Indian Cinema</title><link rel="manifest" href="/manifest.json">
+<title>TAMASHA — Indian Cinema</title>
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#170907">
-<link rel="icon" href="/icon-192.png">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -29,14 +30,39 @@
   .meta{font-size:12.5px;color:var(--cream-dim);padding-top:8px;display:flex;justify-content:space-between;}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
-  .modal-overlay{position:fixed;inset:0;background:rgba(10,4,3,0.85);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,4,3,0.85);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;overflow-y:auto;}
   .modal-overlay.open{display:flex;}
-  .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;}
+  .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;margin:auto;}
   .modal video{width:100%;display:block;background:#000;max-height:60vh;}
   .modal-body{padding:20px 24px;}
   .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 8px;}
   .modal-body p{color:var(--cream-dim);line-height:1.6;}
   .modal-close{float:right;background:transparent;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:6px 14px;cursor:pointer;}
+  .action-row{display:flex;align-items:center;gap:14px;margin:16px 0 4px;}
+  .action-btn{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);
+    color:var(--cream);padding:9px 16px;border-radius:999px;cursor:pointer;font-family:'Mukta',sans-serif;font-size:14px;}
+  .action-btn:hover{background:rgba(255,255,255,0.12);}
+  .action-btn.liked{background:var(--vermilion);border-color:var(--vermilion);color:#fff;}
+  .action-btn:disabled{cursor:default;}
+  .view-count{font-size:13px;color:var(--cream-dim);margin-left:auto;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--marigold);color:#2C1410;
+    padding:10px 20px;border-radius:999px;font-size:14px;font-weight:600;z-index:200;display:none;}
+
+  .comments-section{margin-top:22px;border-top:1px solid var(--gold-line);padding-top:16px;}
+  .comments-section h3{font-family:'Baloo 2',sans-serif;font-size:16px;margin:0 0 12px;color:var(--marigold);}
+  .comment-form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+  .comment-form input, .comment-form textarea{
+    background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;
+  }
+  .comment-form textarea{resize:vertical;min-height:50px;}
+  .comment-form button{align-self:flex-end;background:var(--marigold);color:#2C1410;border:none;border-radius:8px;
+    padding:8px 18px;font-weight:600;cursor:pointer;font-size:13.5px;}
+  .comment-list{display:flex;flex-direction:column;gap:12px;max-height:220px;overflow-y:auto;}
+  .comment-item{background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 12px;}
+  .comment-name{font-weight:600;font-size:13.5px;color:var(--marigold);}
+  .comment-text{font-size:13.5px;color:var(--cream);margin-top:3px;line-height:1.5;}
+  .comment-empty{color:var(--cream-dim);font-size:13.5px;}
 </style>
 </head>
 <body>
@@ -54,11 +80,30 @@
       <h2 id="mTitle"></h2>
       <p id="mMeta" style="color:var(--marigold);"></p>
       <p id="mDesc"></p>
+      <div class="action-row">
+        <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
+        <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
+        <span class="view-count" id="viewCount"></span>
+      </div>
+
+      <div class="comments-section">
+        <h3>Comments</h3>
+        <form class="comment-form" id="commentForm">
+          <input type="text" id="commentName" placeholder="Naam (optional)" maxlength="40">
+          <textarea id="commentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
+          <button type="submit">Post</button>
+        </form>
+        <div class="comment-list" id="commentList"></div>
+      </div>
     </div>
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
+let currentFilm = null;
+
 async function loadFilms(){
   const res = await fetch('/api/films');
   const films = await res.json();
@@ -76,23 +121,128 @@ async function loadFilms(){
       <div class="meta"><span>${f.language || ''} ${f.genre ? '· '+f.genre : ''}</span><span>${f.year || ''}</span></div>
     </div>
   `).join('');
+
+  const params = new URLSearchParams(location.search);
+  const sharedId = params.get('film');
+  if (sharedId) playFilm(sharedId);
+}
+
+function renderComments(comments){
+  const listEl = document.getElementById('commentList');
+  if (!comments || comments.length === 0) {
+    listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>';
+    return;
+  }
+  listEl.innerHTML = comments.slice().reverse().map(c => `
+    <div class="comment-item">
+      <div class="comment-name">${escapeHtml(c.name)}</div>
+      <div class="comment-text">${escapeHtml(c.text)}</div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
+  currentFilm = f;
+
   document.getElementById('player').src = f.videoUrl;
   document.getElementById('mTitle').textContent = f.title;
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
+  document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
+
+  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+  const likeBtn = document.getElementById('likeBtn');
+  const alreadyLiked = likedList.includes(f.id);
+  likeBtn.classList.toggle('liked', alreadyLiked);
+  likeBtn.disabled = alreadyLiked;
+  document.getElementById('likeCount').textContent = f.likes || 0;
+
+  renderComments(f.comments);
+
   document.getElementById('overlay').classList.add('open');
+
+  fetch('/api/films/' + id + '/view', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; })
+    .catch(() => {});
 }
+
 function closeModal(){
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
+  history.replaceState(null, '', location.pathname);
 }
-loadFilms();if ('serviceWorker' in navigator) {
+
+async function likeCurrentFilm(){
+  if (!currentFilm) return;
+  const likeBtn = document.getElementById('likeBtn');
+  likeBtn.disabled = true;
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id + '/like', { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('likeCount').textContent = data.likes;
+    likeBtn.classList.add('liked');
+    const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+    likedList.push(currentFilm.id);
+    localStorage.setItem('likedFilms', JSON.stringify(likedList));
+  } catch (err) {
+    likeBtn.disabled = false;
+  }
+}
+
+function shareCurrentFilm(){
+  if (!currentFilm) return;
+  const url = location.origin + '/?film=' + currentFilm.id;
+  if (navigator.share) {
+    navigator.share({ title: currentFilm.title, text: 'Dekho ' + currentFilm.title + ' Tamasha pe!', url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+  }
+}
+
+document.getElementById('commentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!currentFilm) return;
+  const nameInput = document.getElementById('commentName');
+  const textInput = document.getElementById('commentText');
+  if (!textInput.value.trim()) return;
+
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameInput.value, text: textInput.value })
+    });
+    const comment = await res.json();
+    if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
+
+    if (!currentFilm.comments) currentFilm.comments = [];
+    currentFilm.comments.push(comment);
+    renderComments(currentFilm.comments);
+    textInput.value = '';
+  } catch (err) {
+    showToast(err.message);
+  }
+});
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2000);
+}
+
+loadFilms();
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 </script>
