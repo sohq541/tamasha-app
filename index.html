@@ -30,9 +30,9 @@
   .meta{font-size:12.5px;color:var(--cream-dim);padding-top:8px;display:flex;justify-content:space-between;}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
-  .modal-overlay{position:fixed;inset:0;background:rgba(10,4,3,0.85);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,4,3,0.85);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;overflow-y:auto;}
   .modal-overlay.open{display:flex;}
-  .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;}
+  .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;margin:auto;}
   .modal video{width:100%;display:block;background:#000;max-height:60vh;}
   .modal-body{padding:20px 24px;}
   .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 8px;}
@@ -47,6 +47,22 @@
   .view-count{font-size:13px;color:var(--cream-dim);margin-left:auto;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--marigold);color:#2C1410;
     padding:10px 20px;border-radius:999px;font-size:14px;font-weight:600;z-index:200;display:none;}
+
+  .comments-section{margin-top:22px;border-top:1px solid var(--gold-line);padding-top:16px;}
+  .comments-section h3{font-family:'Baloo 2',sans-serif;font-size:16px;margin:0 0 12px;color:var(--marigold);}
+  .comment-form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+  .comment-form input, .comment-form textarea{
+    background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;
+  }
+  .comment-form textarea{resize:vertical;min-height:50px;}
+  .comment-form button{align-self:flex-end;background:var(--marigold);color:#2C1410;border:none;border-radius:8px;
+    padding:8px 18px;font-weight:600;cursor:pointer;font-size:13.5px;}
+  .comment-list{display:flex;flex-direction:column;gap:12px;max-height:220px;overflow-y:auto;}
+  .comment-item{background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 12px;}
+  .comment-name{font-weight:600;font-size:13.5px;color:var(--marigold);}
+  .comment-text{font-size:13.5px;color:var(--cream);margin-top:3px;line-height:1.5;}
+  .comment-empty{color:var(--cream-dim);font-size:13.5px;}
 </style>
 </head>
 <body>
@@ -68,6 +84,16 @@
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <span class="view-count" id="viewCount"></span>
+      </div>
+
+      <div class="comments-section">
+        <h3>Comments</h3>
+        <form class="comment-form" id="commentForm">
+          <input type="text" id="commentName" placeholder="Naam (optional)" maxlength="40">
+          <textarea id="commentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
+          <button type="submit">Post</button>
+        </form>
+        <div class="comment-list" id="commentList"></div>
       </div>
     </div>
   </div>
@@ -101,6 +127,26 @@ async function loadFilms(){
   if (sharedId) playFilm(sharedId);
 }
 
+function renderComments(comments){
+  const listEl = document.getElementById('commentList');
+  if (!comments || comments.length === 0) {
+    listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>';
+    return;
+  }
+  listEl.innerHTML = comments.slice().reverse().map(c => `
+    <div class="comment-item">
+      <div class="comment-name">${escapeHtml(c.name)}</div>
+      <div class="comment-text">${escapeHtml(c.text)}</div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
@@ -118,6 +164,8 @@ async function playFilm(id){
   likeBtn.classList.toggle('liked', alreadyLiked);
   likeBtn.disabled = alreadyLiked;
   document.getElementById('likeCount').textContent = f.likes || 0;
+
+  renderComments(f.comments);
 
   document.getElementById('overlay').classList.add('open');
 
@@ -160,6 +208,31 @@ function shareCurrentFilm(){
     navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
   }
 }
+
+document.getElementById('commentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!currentFilm) return;
+  const nameInput = document.getElementById('commentName');
+  const textInput = document.getElementById('commentText');
+  if (!textInput.value.trim()) return;
+
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nameInput.value, text: textInput.value })
+    });
+    const comment = await res.json();
+    if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
+
+    if (!currentFilm.comments) currentFilm.comments = [];
+    currentFilm.comments.push(comment);
+    renderComments(currentFilm.comments);
+    textInput.value = '';
+  } catch (err) {
+    showToast(err.message);
+  }
+});
 
 function showToast(msg){
   const t = document.getElementById('toast');
