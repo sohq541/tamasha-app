@@ -245,7 +245,7 @@ app.get('/media/poster/:id', async (req, res) => {
 
 app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
   try {
-    const { title, year, language, genre, description } = req.body;
+    const { title, year, language, genre, description, type } = req.body;
     if (!title || !req.files || !req.files.video) {
       return res.status(400).json({ error: 'Title and video file are required' });
     }
@@ -272,11 +272,12 @@ app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 
 
     const films = await readFilms();
     const newFilm = {
-      id, title, year: year || '', language: language || '', genre: genre || '',
-      description: description || '', videoFile: videoKey, posterFile: posterKey,
-      views: 0, likes: 0, comments: [],
-      uploadedAt: new Date().toISOString()
-    };
+  id, title, year: year || '', language: language || '', genre: genre || '',
+  description: description || '', videoFile: videoKey, posterFile: posterKey,
+  type: type === 'short' ? 'short' : 'film',
+  views: 0, likes: 0, comments: [],
+  uploadedAt: new Date().toISOString()
+};
     films.unshift(newFilm);
     await writeFilms(films);
 
