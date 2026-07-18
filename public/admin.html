@@ -50,7 +50,15 @@
     <form id="form">
       <label>Title *</label>
       <input type="text" name="title" required placeholder="e.g. Sholay">
-
+<label>Video Type</label>
+<div class="row">
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+    <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
+  </label>
+  <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+    <input type="radio" name="type" value="short" style="width:auto;"> Short
+  </label>
+</div>
       <div class="row">
         <div>
           <label>Year</label>
