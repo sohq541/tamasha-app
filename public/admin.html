@@ -171,7 +171,16 @@ async function loadFilmList() {
 
           <label>Genre</label>
           <input type="text" id="edit-genre-${f.id}" value="${escapeHtml(f.genre || '')}">
-
+<label>Video Type</label>
+          <div class="row">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+              <input type="radio" name="edit-type-${f.id}" value="film" ${f.type !== 'short' ? 'checked' : ''} onclick="document.getElementById('edit-type-val-${f.id}').value='film'" style="width:auto;"> Full Film
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+              <input type="radio" name="edit-type-${f.id}" value="short" ${f.type === 'short' ? 'checked' : ''} onclick="document.getElementById('edit-type-val-${f.id}').value='short'" style="width:auto;"> Short
+            </label>
+          </div>
+          <input type="hidden" id="edit-type-val-${f.id}" value="${f.type === 'short' ? 'short' : 'film'}">
           <label>Description</label>
           <textarea id="edit-description-${f.id}">${escapeHtml(f.description || '')}</textarea>
 
