@@ -338,7 +338,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
 });
 app.put('/api/films/:id', requireAuth, upload.fields([{ name: 'poster', maxCount: 1 }]), async (req, res) => {
   try {
-    const { title, year, language, genre, description } = req.body;
+    const { title, year, language, genre, description, type } = req.body;
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
@@ -348,7 +348,7 @@ app.put('/api/films/:id', requireAuth, upload.fields([{ name: 'poster', maxCount
     if (language !== undefined) f.language = language;
     if (genre !== undefined) f.genre = genre;
     if (description !== undefined) f.description = description;
-
+if (type !== undefined) f.type = type === 'short' ? 'short' : 'film';
     if (req.files && req.files.poster) {
       const posterFile = req.files.poster[0];
       const newPosterKey = `posters/${f.id}-edit${Date.now()}${path.extname(posterFile.originalname)}`;
