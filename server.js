@@ -336,6 +336,36 @@ app.post('/api/films/:id/comments', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.put('/api/films/:id', requireAuth, upload.fields([{ name: 'poster', maxCount: 1 }]), async (req, res) => {
+  try {
+    const { title, year, language, genre, description } = req.body;
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    if (title !== undefined) f.title = title;
+    if (year !== undefined) f.year = year;
+    if (language !== undefined) f.language = language;
+    if (genre !== undefined) f.genre = genre;
+    if (description !== undefined) f.description = description;
+
+    if (req.files && req.files.poster) {
+      const posterFile = req.files.poster[0];
+      const newPosterKey = `posters/${f.id}-edit${Date.now()}${path.extname(posterFile.originalname)}`;
+      await b2UploadBuffer(posterFile.buffer, newPosterKey, posterFile.mimetype);
+      const oldPoster = f.posterFile;
+      f.posterFile = newPosterKey;
+      if (oldPoster) {
+        b2DeleteFile(oldPoster).catch(() => {});
+      }
+    }
+
+    await writeFilms(films);
+    res.json(f);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.delete('/api/films/:id', requireAuth, async (req, res) => {
   try {
