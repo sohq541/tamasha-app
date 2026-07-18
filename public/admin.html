@@ -220,6 +220,7 @@ async function saveEdit(id){
   formData.append('language', document.getElementById('edit-language-' + id).value);
   formData.append('genre', document.getElementById('edit-genre-' + id).value);
   formData.append('description', document.getElementById('edit-description-' + id).value);
+  formData.append('type', document.getElementById('edit-type-val-' + id).value);
   const posterInput = document.getElementById('edit-poster-' + id);
   if (posterInput.files[0]) formData.append('poster', posterInput.files[0]);
 
