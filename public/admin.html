@@ -22,7 +22,7 @@
   textarea{resize:vertical;min-height:70px;}
   .row{display:flex;gap:12px;}
   .row > div{flex:1;}
-  button{margin-top:24px;width:100%;background:var(--marigold);color:#2C1410;border:none;border-radius:8px;
+  button{margin-top:24px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;
     padding:13px;font-weight:600;font-size:15.5px;cursor:pointer;font-family:'Mukta',sans-serif;}
   button:disabled{opacity:0.6;cursor:not-allowed;}
   #status{margin-top:14px;font-size:13.5px;}
@@ -30,19 +30,29 @@
   #status.err{color:#e88a8a;}
   a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
 
-  .film-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
+  .film-row{padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
   .film-row:last-child{border-bottom:none;}
+  .film-row-top{display:flex;align-items:center;justify-content:space-between;}
   .film-info{display:flex;flex-direction:column;}
   .film-title{font-weight:600;font-size:15px;}
   .film-meta{font-size:12.5px;color:var(--cream-dim);}
-  .del-btn{width:auto;margin:0;background:transparent;border:1px solid #B23A46;color:#e88a8a;padding:7px 14px;font-size:13px;border-radius:6px;}
-  .del-btn:hover{background:rgba(178,58,70,0.15);}
+  .row-btns{display:flex;gap:8px;}
+  .small-btn{width:auto;margin:0;padding:7px 14px;font-size:13px;border-radius:6px;font-weight:600;cursor:pointer;}
+  .edit-btn{background:transparent;border:1px solid var(--marigold);color:var(--marigold);}
+  .edit-btn:hover{background:rgba(124,92,255,0.15);}
+  .del-btn{background:transparent;border:1px solid #E63950;color:#e88a8a;}
+  .del-btn:hover{background:rgba(230,57,80,0.15);}
   .empty-msg{color:var(--cream-dim);font-size:14px;}
+
+  .edit-form{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--gold-line);}
+  .edit-form.open{display:block;}
+  .edit-form button{margin-top:14px;}
+  .edit-cancel{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);margin-top:8px;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="/">← Back to Tamasha</a>
+  <a class="back" href="/">← Back to YouSeries</a>
 
   <div class="card">
     <h1>Upload a film</h1>
@@ -50,15 +60,17 @@
     <form id="form">
       <label>Title *</label>
       <input type="text" name="title" required placeholder="e.g. Sholay">
-<label>Video Type</label>
-<div class="row">
-  <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-    <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
-  </label>
-  <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-    <input type="radio" name="type" value="short" style="width:auto;"> Short
-  </label>
-</div>
+
+      <label>Video Type</label>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+          <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+          <input type="radio" name="type" value="short" style="width:auto;"> Short
+        </label>
+      </div>
+
       <div class="row">
         <div>
           <label>Year</label>
@@ -76,7 +88,7 @@
       <label>Description</label>
       <textarea name="description" placeholder="Short synopsis..."></textarea>
 
-      <label>Poster image (optional)</label>
+      <label>Poster image (optional — auto-generated from video if left empty)</label>
       <input type="file" name="poster" accept="image/*">
 
       <label>Video file *</label>
@@ -118,26 +130,100 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   }
 });
 
+let filmsData = [];
+
 async function loadFilmList() {
   const listEl = document.getElementById('filmList');
   try {
     const res = await fetch('/api/films');
-    const films = await res.json();
-    if (films.length === 0) {
+    filmsData = await res.json();
+    if (filmsData.length === 0) {
       listEl.innerHTML = '<p class="empty-msg">Koi film upload nahi hui abhi tak.</p>';
       return;
     }
-    listEl.innerHTML = films.map(f => `
+    listEl.innerHTML = filmsData.map(f => `
       <div class="film-row" id="row-${f.id}">
-        <div class="film-info">
-          <span class="film-title">${f.title}</span>
-          <span class="film-meta">${f.year || ''} ${f.language ? '· ' + f.language : ''}</span>
+        <div class="film-row-top">
+          <div class="film-info">
+            <span class="film-title">${escapeHtml(f.title)}</span>
+            <span class="film-meta">${escapeHtml(f.year || '')} ${f.language ? '· ' + escapeHtml(f.language) : ''} ${f.type === 'short' ? '· Short' : ''}</span>
+          </div>
+          <div class="row-btns">
+            <button class="small-btn edit-btn" onclick="toggleEdit('${f.id}')">Edit</button>
+            <button class="small-btn del-btn" onclick="deleteFilm('${f.id}', '${escapeHtml(f.title).replace(/'/g, "\\'")}')">Delete</button>
+          </div>
         </div>
-        <button class="del-btn" onclick="deleteFilm('${f.id}', '${f.title.replace(/'/g, "\\'")}')">Delete</button>
+
+        <div class="edit-form" id="edit-${f.id}">
+          <label>Title</label>
+          <input type="text" id="edit-title-${f.id}" value="${escapeHtml(f.title)}">
+
+          <div class="row">
+            <div>
+              <label>Year</label>
+              <input type="text" id="edit-year-${f.id}" value="${escapeHtml(f.year || '')}">
+            </div>
+            <div>
+              <label>Language</label>
+              <input type="text" id="edit-language-${f.id}" value="${escapeHtml(f.language || '')}">
+            </div>
+          </div>
+
+          <label>Genre</label>
+          <input type="text" id="edit-genre-${f.id}" value="${escapeHtml(f.genre || '')}">
+
+          <label>Description</label>
+          <textarea id="edit-description-${f.id}">${escapeHtml(f.description || '')}</textarea>
+
+          <label>Replace thumbnail (optional)</label>
+          <input type="file" id="edit-poster-${f.id}" accept="image/*">
+
+          <button onclick="saveEdit('${f.id}')">Save changes</button>
+          <button class="edit-cancel" onclick="toggleEdit('${f.id}')">Cancel</button>
+          <div id="edit-status-${f.id}" style="margin-top:8px;font-size:13px;"></div>
+        </div>
       </div>
     `).join('');
   } catch (err) {
     listEl.innerHTML = '<p class="empty-msg">List load nahi ho payi.</p>';
+  }
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function toggleEdit(id){
+  const el = document.getElementById('edit-' + id);
+  el.classList.toggle('open');
+}
+
+async function saveEdit(id){
+  const statusEl = document.getElementById('edit-status-' + id);
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--cream-dim)';
+
+  const formData = new FormData();
+  formData.append('title', document.getElementById('edit-title-' + id).value);
+  formData.append('year', document.getElementById('edit-year-' + id).value);
+  formData.append('language', document.getElementById('edit-language-' + id).value);
+  formData.append('genre', document.getElementById('edit-genre-' + id).value);
+  formData.append('description', document.getElementById('edit-description-' + id).value);
+  const posterInput = document.getElementById('edit-poster-' + id);
+  if (posterInput.files[0]) formData.append('poster', posterInput.files[0]);
+
+  try {
+    const res = await fetch('/api/films/' + id, { method: 'PUT', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Save failed');
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = 'Saved!';
+    setTimeout(() => loadFilmList(), 800);
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
   }
 }
 
