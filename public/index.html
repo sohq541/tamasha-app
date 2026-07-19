@@ -220,6 +220,8 @@ function switchTab(tab){
 
   if (tab === 'shorts') {
     setupShortsObserver();
+    const firstVideo = document.querySelector('.short-item video');
+    if (firstVideo) firstVideo.play().catch(() => {});
   } else {
     document.querySelectorAll('.short-item video').forEach(v => v.pause());
   }
@@ -265,7 +267,7 @@ function renderShorts(shorts){
     <div class="short-item" data-id="${f.id}">
       <video src="${f.videoUrl}" loop playsinline data-id="${f.id}" onclick="toggleShortPlay(this)"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
-      <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔇</button>
+      <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
@@ -316,7 +318,12 @@ function setupShortsObserver(){
     entries.forEach(entry => {
       const video = entry.target;
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-        video.play().catch(() => {});
+        video.play().catch(() => {
+          video.muted = true;
+          const btn = video.closest('.short-item').querySelector('.short-mute-btn');
+          if (btn) btn.textContent = '🔇';
+          video.play().catch(() => {});
+        });
         const id = video.dataset.id;
         if (markViewed(id)) {
           fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
