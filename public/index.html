@@ -27,16 +27,37 @@
     border-radius:999px;font-family:'Mukta',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
   .tab-btn.active{background:var(--marigold);color:#fff;border-color:var(--marigold);}
 
+  .shorts-header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px 0;}
+  .search-wrap{flex:1;max-width:220px;}
+  .search-wrap input{
+    width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:999px;
+    padding:9px 16px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;
+  }
+  .search-results{padding:0 24px 10px;}
+  .search-result-item{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;}
+  .search-result-thumb{width:44px;height:62px;border-radius:6px;object-fit:cover;background:linear-gradient(150deg,#3A2E7A,#4361EE);flex-shrink:0;}
+  .search-result-info{display:flex;flex-direction:column;}
+  .search-result-title{font-size:14px;font-weight:600;color:var(--cream);}
+  .search-result-tag{font-size:12px;color:var(--marigold);}
+
+  .section-title{font-family:'Baloo 2',sans-serif;font-size:18px;color:var(--marigold);margin:0;white-space:nowrap;}
+  .shorts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 24px 10px;}
+  .shorts-grid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);cursor:pointer;}
+  .shorts-grid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+  .shorts-grid-play{position:absolute;top:8px;left:8px;color:#fff;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,0.7);}
+  .shorts-grid-views{position:absolute;bottom:8px;left:8px;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.7);display:flex;align-items:center;gap:4px;}
+
   body.shorts-mode header, body.shorts-mode .tabs{display:none;}
 
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:18px;padding:30px 44px;}
-  .card{cursor:pointer;}
-  .poster{width:100%;aspect-ratio:2/3;border-radius:10px;background:linear-gradient(150deg,#3A2E7A,#4361EE);
-    display:flex;align-items:flex-end;padding:12px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,0.08);}
-  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%);}
+  .grid{display:flex;flex-direction:column;gap:0;padding:10px 0 30px;max-width:600px;margin:0 auto;}
+  .card{cursor:pointer;border-bottom:1px solid var(--gold-line);padding-bottom:18px;margin-bottom:18px;}
+  .poster{width:100%;aspect-ratio:16/10;border-radius:0;background:linear-gradient(150deg,#3A2E7A,#4361EE);
+    display:flex;align-items:flex-end;padding:14px;position:relative;overflow:hidden;}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,0.55) 100%);}
   .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-  .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:17px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
-  .meta{font-size:12.5px;color:var(--cream-dim);padding-top:8px;display:flex;justify-content:space-between;}
+  .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:20px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
+  .meta{font-size:13px;color:var(--marigold);padding:10px 16px 0;font-weight:600;}
+  .card-desc{font-size:14px;color:var(--cream-dim);padding:6px 16px 0;line-height:1.5;}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
 
@@ -83,10 +104,10 @@
   .short-item{
     height:100vh; width:100vw; scroll-snap-align:start; scroll-snap-stop:always; position:relative;
     display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden;
-    .short-item::after{
-  content:""; position:absolute; left:0; right:0; bottom:0; height:260px; z-index:4;
-  background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%); pointer-events:none;
-    }
+  }
+  .short-item::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:260px; z-index:4;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%); pointer-events:none;
   }
   .short-item video{width:100%;height:100%;object-fit:contain;background:#000;}
   .short-exit{
@@ -95,19 +116,18 @@
   }
   .short-info{position:absolute;left:18px;bottom:34px;right:100px;color:#fff;z-index:5;}
   .short-info h3{font-family:'Baloo 2',sans-serif;font-size:36px;font-weight:800;margin:0 0 12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
-.short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
+  .short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
   .short-actions{
-  position:absolute; right:14px; bottom:40px; display:flex; flex-direction:column; gap:24px;
-  align-items:center; z-index:5;
-  }
+    position:absolute; right:14px; bottom:40px; display:flex; flex-direction:column; gap:24px;
+    align-items:center; z-index:5;
   }
   .short-action-btn{
-  background:transparent; border:none; color:#fff; width:44px;height:44px;
-  display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;
-  text-shadow:0 2px 6px rgba(0,0,0,0.6);
-}
-.short-action-btn.liked{color:var(--vermilion);}
-.short-action-count{font-size:14px;font-weight:700;color:#fff;text-align:center;margin-top:5px;text-shadow:0 1px 5px rgba(0,0,0,0.8);}
+    background:transparent; border:none; color:#fff; width:44px;height:44px;
+    display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;
+    text-shadow:0 2px 6px rgba(0,0,0,0.6);
+  }
+  .short-action-btn.liked{color:var(--vermilion);}
+  .short-action-count{font-size:14px;font-weight:700;color:#fff;text-align:center;margin-top:5px;text-shadow:0 1px 5px rgba(0,0,0,0.8);}
   .short-center-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:60px;
     color:rgba(255,255,255,0.9);z-index:6;pointer-events:none;text-shadow:0 4px 16px rgba(0,0,0,0.6);}
   .short-mute-btn{position:absolute;top:18px;right:18px;z-index:6;background:rgba(255,255,255,0.2);border:none;
@@ -137,7 +157,20 @@
 </div>
 
 <div id="homeView">
-  <div id="grid" class="grid"></div>
+  <div class="search-results hidden" id="searchResults"></div>
+
+  <div id="homeMainContent">
+    <div class="shorts-header-row">
+      <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search..." oninput="doSearch(this.value)">
+      </div>
+    </div>
+    <div class="shorts-grid" id="shortsGrid"></div>
+
+    <h3 class="section-title" id="filmsGridTitle" style="display:none;">Films</h3>
+    <div id="grid" class="grid"></div>
+  </div>
 </div>
 
 <div id="shortsView">
@@ -232,12 +265,71 @@ async function loadFilms(){
   const res = await fetch('/api/films');
   allFilms = await res.json();
 
-  renderHome(allFilms.filter(f => f.type !== 'short'));
-  renderShorts(allFilms.filter(f => f.type === 'short'));
+  const shorts = allFilms.filter(f => f.type === 'short');
+  const films = allFilms.filter(f => f.type !== 'short');
+
+  renderShortsGrid(shorts);
+  renderHome(films);
+  renderShorts(shorts);
+
+  document.getElementById('shortsGridTitle').style.display = shorts.length ? 'block' : 'none';
+  document.getElementById('filmsGridTitle').style.display = (shorts.length && films.length) ? 'block' : 'none';
 
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
+  const shortId = params.get('short');
   if (sharedId) playFilm(sharedId);
+  if (shortId) openShortAt(shortId);
+}
+
+function renderShortsGrid(shorts){
+  const grid = document.getElementById('shortsGrid');
+  grid.innerHTML = shorts.map(f => `
+    <div class="shorts-grid-item" onclick="openShortAt('${f.id}')">
+      ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+      <div class="shorts-grid-play">▶</div>
+      <div class="shorts-grid-views">▶ ${f.views || 0}</div>
+    </div>
+  `).join('');
+}
+
+function openShortAt(id){
+  switchTab('shorts');
+  setTimeout(() => {
+    const item = document.querySelector('.short-item[data-id="' + id + '"]');
+    if (item) item.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }, 50);
+}
+
+function doSearch(query){
+  const resultsEl = document.getElementById('searchResults');
+  const mainEl = document.getElementById('homeMainContent');
+  const q = query.trim().toLowerCase();
+
+  if (!q) {
+    resultsEl.classList.add('hidden');
+    mainEl.classList.remove('hidden');
+    return;
+  }
+
+  const matches = allFilms.filter(f => f.title.toLowerCase().includes(q));
+  mainEl.classList.add('hidden');
+  resultsEl.classList.remove('hidden');
+
+  if (matches.length === 0) {
+    resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>';
+    return;
+  }
+
+  resultsEl.innerHTML = matches.map(f => `
+    <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+      <img class="search-result-thumb" src="${f.posterUrl || ''}">
+      <div class="search-result-info">
+        <span class="search-result-title">${escapeHtml(f.title)}</span>
+        <span class="search-result-tag">${f.type === 'short' ? 'Short' : 'Film'}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 function renderHome(films){
@@ -252,7 +344,8 @@ function renderHome(films){
         ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
         <div class="ptitle">${escapeHtml(f.title)}</div>
       </div>
-      <div class="meta"><span>${escapeHtml(f.language || '')} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</span><span>${escapeHtml(f.year || '')}</span></div>
+      <div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>
+      ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
   `).join('');
 }
