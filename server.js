@@ -34,21 +34,22 @@ async function writeUsers(users) {
 // Temporary in-memory store for signups awaiting OTP verification (expires in 10 min)
 const pendingSignups = new Map();
 
+const nodemailer = require('nodemailer');
+const gmailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
+
 async function sendOtpEmail(toEmail, otp) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      from: 'YouSeries <onboarding@resend.dev>',
-      to: [toEmail],
-      subject: 'Your YouSeries verification code',
-      html: `<p>Your verification code is: <b>${otp}</b></p><p>This code expires in 10 minutes.</p>`
-    })
+  await gmailTransporter.sendMail({
+    from: `"YouSeries" <${process.env.GMAIL_USER}>`,
+    to: toEmail,
+    subject: 'Your YouSeries verification code',
+    html: `<p>Your verification code is: <b>${otp}</b></p><p>This code expires in 10 minutes.</p>`
   });
-  if (!res.ok) throw new Error('Failed to send OTP email: ' + (await res.text()));
 }
 
 function signToken(user) {
