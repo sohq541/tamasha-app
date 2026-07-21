@@ -349,10 +349,19 @@ const upload = multer({
 });
 
 app.use(express.json());
+function getUserFromReq(req) {
+  const token = req.cookies.token;
+  if (!token) return null;
+  try { return jwt.verify(token, JWT_SECRET); } catch (e) { return null; }
+}
 
-app.get('/admin.html', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
+function isAdminBasicAuth(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Basic ')) return false;
+  const decoded = Buffer.from(header.split(' ')[1], 'base64').toString();
+  const [user, pass] = decoded.split(':');
+  return user === ADMIN_USER && pass === ADMIN_PASS;
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -407,7 +416,13 @@ app.get('/media/poster/:id', async (req, res) => {
   }
 });
 
-app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
+app.post('/api/films', (req, res, next) => {
+  req.currentUser = getUserFromReq(req);
+  if (!req.currentUser && !isAdminBasicAuth(req)) {
+    return res.status(401).json({ error: 'Upload karne ke liye login zaroori hai' });
+  }
+  next();
+}, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, year, language, genre, description, type } = req.body;
     if (!title || !req.files || !req.files.video) {
@@ -436,12 +451,14 @@ app.post('/api/films', requireAuth, upload.fields([{ name: 'video', maxCount: 1 
 
     const films = await readFilms();
     const newFilm = {
-  id, title, year: year || '', language: language || '', genre: genre || '',
-  description: description || '', videoFile: videoKey, posterFile: posterKey,
-  type: type === 'short' ? 'short' : 'film',
-  views: 0, likes: 0, comments: [],
-  uploadedAt: new Date().toISOString()
-};
+      id, title, year: year || '', language: language || '', genre: genre || '',
+      description: description || '', videoFile: videoKey, posterFile: posterKey,
+      type: type === 'short' ? 'short' : 'film',
+      ownerId: req.currentUser ? req.currentUser.id : 'admin',
+      ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
+      views: 0, likes: 0, comments: [],
+      uploadedAt: new Date().toISOString()
+    };
     films.unshift(newFilm);
     await writeFilms(films);
 
@@ -500,12 +517,20 @@ app.post('/api/films/:id/comments', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-app.put('/api/films/:id', requireAuth, upload.fields([{ name: 'poster', maxCount: 1 }]), async (req, res) => {
+app.put('/api/films/:id', (req, res, next) => {
+  req.currentUser = getUserFromReq(req);
+  next();
+}, upload.fields([{ name: 'poster', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, year, language, genre, description, type } = req.body;
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
+    if (!isOwner && !isAdminBasicAuth(req)) {
+      return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
+    }
 
     if (title !== undefined) f.title = title;
     if (year !== undefined) f.year = year;
@@ -531,11 +556,19 @@ if (type !== undefined) f.type = type === 'short' ? 'short' : 'film';
   }
 });
 
-app.delete('/api/films/:id', requireAuth, async (req, res) => {
+app.delete('/api/films/:id', (req, res, next) => {
+  req.currentUser = getUserFromReq(req);
+  next();
+}, async (req, res) => {
   try {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
+    if (!isOwner && !isAdminBasicAuth(req)) {
+      return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
+    }
 
     await b2DeleteFile(f.videoFile);
     if (f.posterFile) await b2DeleteFile(f.posterFile);
@@ -547,7 +580,25 @@ app.delete('/api/films/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+app.post('/api/claim-existing-films', async (req, res) => {
+  try {
+    const user = getUserFromReq(req);
+    if (!user) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    let count = 0;
+    films.forEach(f => {
+      if (!f.ownerId) {
+        f.ownerId = user.id;
+        f.ownerUsername = user.username;
+        count++;
+      }
+    });
+    await writeFilms(films);
+    res.json({ claimed: count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`Tamasha server running on port ${PORT}`);
 });                                                                                                                                                                                                                                   //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 if (!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          res.status(500).
