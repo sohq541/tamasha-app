@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — YouSeries</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;display:flex;justify-content:center;padding:50px 20px;}
+  .card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:32px;max-width:420px;width:100%;}
+  h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:26px;margin:0 0 6px;}
+  p.sub{color:var(--cream-dim);font-size:14px;margin:0 0 24px;}
+  label{display:block;font-size:13.5px;color:var(--cream-dim);margin:16px 0 6px;}
+  input[type=email],input[type=password]{
+    width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;
+  }
+  button{margin-top:22px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;
+    padding:13px;font-weight:600;font-size:15.5px;cursor:pointer;font-family:'Mukta',sans-serif;}
+  button:disabled{opacity:0.6;cursor:not-allowed;}
+  #status{margin-top:14px;font-size:13.5px;}
+  #status.err{color:#e88a8a;}
+  a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
+  a.link{color:var(--marigold);}
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="back" href="/">← Back to YouSeries</a>
+  <h1>Login</h1>
+  <p class="sub">Apne account me wapas aao.</p>
+
+  <form id="loginForm">
+    <label>Email</label>
+    <input type="email" id="email" required placeholder="you@example.com">
+
+    <label>Password</label>
+    <input type="password" id="password" required placeholder="Password">
+
+    <button type="submit" id="submitBtn">Login</button>
+    <div id="status"></div>
+  </form>
+
+  <p style="margin-top:20px;font-size:13.5px;color:var(--cream-dim);">Account nahi hai? <a class="link" href="/signup.html">Sign up karo</a></p>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true; btn.textContent = 'Logging in...';
+  status.className = ''; status.textContent = '';
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    window.location.href = '/';
+  } catch (err) {
+    status.className = 'err';
+    status.textContent = err.message;
+    btn.disabled = false; btn.textContent = 'Login';
+  }
+});
+</script>
+</body>
+</html>

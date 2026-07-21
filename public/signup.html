@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — YouSeries</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;display:flex;justify-content:center;padding:50px 20px;}
+  .card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:32px;max-width:420px;width:100%;}
+  h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:26px;margin:0 0 6px;}
+  p.sub{color:var(--cream-dim);font-size:14px;margin:0 0 24px;}
+  label{display:block;font-size:13.5px;color:var(--cream-dim);margin:16px 0 6px;}
+  input[type=text],input[type=email],input[type=password]{
+    width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;
+  }
+  .checkbox-row{display:flex;align-items:flex-start;gap:10px;margin-top:16px;}
+  .checkbox-row input{width:auto;margin-top:3px;}
+  .checkbox-row label{margin:0;font-size:13px;color:var(--cream-dim);}
+  button{margin-top:22px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;
+    padding:13px;font-weight:600;font-size:15.5px;cursor:pointer;font-family:'Mukta',sans-serif;}
+  button:disabled{opacity:0.6;cursor:not-allowed;}
+  #status{margin-top:14px;font-size:13.5px;}
+  #status.ok{color:#8fd19e;}
+  #status.err{color:#e88a8a;}
+  a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
+  a.link{color:var(--marigold);}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="back" href="/">← Back to YouSeries</a>
+  <h1 id="heading">Create account</h1>
+  <p class="sub" id="subtext">Sign up karo aur apne videos share karo.</p>
+
+  <form id="signupForm">
+    <label>Username</label>
+    <input type="text" id="username" required maxlength="20" placeholder="e.g. sohail_films">
+
+    <label>Email</label>
+    <input type="email" id="email" required placeholder="you@example.com">
+
+    <label>Password</label>
+    <input type="password" id="password" required minlength="6" placeholder="Kam se kam 6 characters">
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="ageConfirm" required>
+      <label for="ageConfirm">Main confirm karta/karti hoon ki main 18+ (adult) content upload nahi karunga/karungi.</label>
+    </div>
+
+    <button type="submit" id="submitBtn">Sign up</button>
+    <div id="status"></div>
+  </form>
+
+  <form id="otpForm" class="hidden">
+    <label>Email pe bheja gaya 6-digit code daalo</label>
+    <input type="text" id="otpInput" required maxlength="6" placeholder="123456">
+    <button type="submit" id="otpBtn">Verify</button>
+    <div id="otpStatus"></div>
+  </form>
+
+  <p style="margin-top:20px;font-size:13.5px;color:var(--cream-dim);">Already account hai? <a class="link" href="/login.html">Login karo</a></p>
+</div>
+
+<script>
+let signupToken = null;
+
+document.getElementById('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true; btn.textContent = 'Sending OTP...';
+  status.className = ''; status.textContent = '';
+
+  try {
+    const res = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+        ageConfirm: document.getElementById('ageConfirm').checked
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Signup failed');
+
+    signupToken = data.signupToken;
+    document.getElementById('signupForm').classList.add('hidden');
+    document.getElementById('otpForm').classList.remove('hidden');
+    document.getElementById('heading').textContent = 'Verify your email';
+    document.getElementById('subtext').textContent = 'Humne aapke email pe ek 6-digit code bheja hai.';
+  } catch (err) {
+    status.className = 'err';
+    status.textContent = err.message;
+    btn.disabled = false; btn.textContent = 'Sign up';
+  }
+});
+
+document.getElementById('otpForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('otpBtn');
+  const status = document.getElementById('otpStatus');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  status.className = ''; status.textContent = '';
+
+  try {
+    const res = await fetch('/api/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signupToken, otp: document.getElementById('otpInput').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Verification failed');
+
+    status.className = 'ok';
+    status.textContent = 'Account ban gaya! Redirecting...';
+    setTimeout(() => window.location.href = '/', 1000);
+  } catch (err) {
+    status.className = 'err';
+    status.textContent = err.message;
+    btn.disabled = false; btn.textContent = 'Verify';
+  }
+});
+</script>
+</body>
+</html>
