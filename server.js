@@ -8,6 +8,170 @@ const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 
 const app = express();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+app.use(cookieParser());
+
+// ---- Users "database" stored as a JSON file inside B2 (reuses the same B2 helpers as films) ----
+async function readUsers() {
+  const { authToken, downloadUrl } = await b2Authorize();
+  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/users.json`;
+  const res = await fetch(url, { headers: { Authorization: authToken } });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Could not read users.json from B2');
+  return res.json();
+}
+async function writeUsers(users) {
+  const buffer = Buffer.from(JSON.stringify(users, null, 2));
+  await b2UploadBuffer(buffer, 'users.json', 'application/json');
+}
+
+// Temporary in-memory store for signups awaiting OTP verification (expires in 10 min)
+const pendingSignups = new Map();
+
+async function sendOtpEmail(toEmail, otp) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'YouSeries <onboarding@resend.dev>',
+      to: [toEmail],
+      subject: 'Your YouSeries verification code',
+      html: `<p>Your verification code is: <b>${otp}</b></p><p>This code expires in 10 minutes.</p>`
+    })
+  });
+  if (!res.ok) throw new Error('Failed to send OTP email: ' + (await res.text()));
+}
+
+function signToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+}
+
+function requireUser(req, res, next) {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: 'Login required' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired, please log in again' });
+  }
+}
+
+// Start signup — sends an OTP to the given email
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { email, password, username, ageConfirm } = req.body;
+    if (!email || !password || !username) {
+      return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
+    }
+    if (!ageConfirm) {
+      return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
+    }
+
+    const users = await readUsers();
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+      return res.status(400).json({ error: 'Ye email already registered hai' });
+    }
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+      return res.status(400).json({ error: 'Ye username already liya gaya hai' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const signupToken = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    pendingSignups.set(signupToken, {
+      email, username, passwordHash, otp,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    await sendOtpEmail(email, otp);
+    res.json({ signupToken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify OTP — creates the account and logs the user in
+app.post('/api/verify-otp', async (req, res) => {
+  try {
+    const { signupToken, otp } = req.body;
+    const pending = pendingSignups.get(signupToken);
+    if (!pending) return res.status(400).json({ error: 'Signup session expired, dubara try karo' });
+    if (Date.now() > pending.expiresAt) {
+      pendingSignups.delete(signupToken);
+      return res.status(400).json({ error: 'OTP expire ho gaya, dubara signup karo' });
+    }
+    if (pending.otp !== otp) {
+      return res.status(400).json({ error: 'Galat OTP' });
+    }
+
+    const users = await readUsers();
+    const newUser = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      email: pending.email,
+      username: pending.username,
+      passwordHash: pending.passwordHash,
+      usernameChanges: [],
+      createdAt: new Date().toISOString()
+    };
+    users.push(newUser);
+    await writeUsers(users);
+    pendingSignups.delete(signupToken);
+
+    const token = signToken(newUser);
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.json({ id: newUser.id, email: newUser.email, username: newUser.username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const users = await readUsers();
+    const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
+    if (!user) return res.status(401).json({ error: 'Email ya password galat hai' });
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Email ya password galat hai' });
+
+    const token = signToken(user);
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.json({ id: user.id, email: user.email, username: user.username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  res.clearCookie('token');
+  res.json({ success: true });
+});
+
+app.get('/api/me', (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.json(null);
+  try {
+    const user = jwt.verify(token, JWT_SECRET);
+    res.json(user);
+  } catch (err) {
+    res.json(null);
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
