@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouSeries — Upload a film</title>
+<title>YouSeries — Upload</title>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);}
@@ -29,6 +29,7 @@
   #status.ok{color:#8fd19e;}
   #status.err{color:#e88a8a;}
   a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
+  a.link{color:var(--marigold);}
 
   .film-row{padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);}
   .film-row:last-child{border-bottom:none;}
@@ -39,73 +40,104 @@
   .row-btns{display:flex;gap:8px;}
   .small-btn{width:auto;margin:0;padding:7px 14px;font-size:13px;border-radius:6px;font-weight:600;cursor:pointer;}
   .edit-btn{background:transparent;border:1px solid var(--marigold);color:var(--marigold);}
-  .edit-btn:hover{background:rgba(124,92,255,0.15);}
   .del-btn{background:transparent;border:1px solid #E63950;color:#e88a8a;}
-  .del-btn:hover{background:rgba(230,57,80,0.15);}
   .empty-msg{color:var(--cream-dim);font-size:14px;}
 
   .edit-form{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--gold-line);}
   .edit-form.open{display:block;}
-  .edit-form button{margin-top:14px;}
   .edit-cancel{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);margin-top:8px;}
+  .hidden{display:none !important;}
+  .claim-btn{background:transparent;border:1px solid var(--marigold);color:var(--marigold);margin-top:10px;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="back" href="/">← Back to YouSeries</a>
 
-  <div class="card">
-    <h1>Upload a film</h1>
-    <p class="sub">Video aur details bharo. Upload hone ke baad ye film sabko homepage pe dikhegi.</p>
-    <form id="form">
-      <label>Title *</label>
-      <input type="text" name="title" required placeholder="e.g. Sholay">
-
-      <label>Video Type</label>
-      <div class="row">
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-          <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-          <input type="radio" name="type" value="short" style="width:auto;"> Short
-        </label>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Year</label>
-          <input type="text" name="year" placeholder="2024">
-        </div>
-        <div>
-          <label>Language</label>
-          <input type="text" name="language" placeholder="Hindi / Tamil / Bengali...">
-        </div>
-      </div>
-
-      <label>Genre</label>
-      <input type="text" name="genre" placeholder="Action / Drama / Romance">
-
-      <label>Description</label>
-      <textarea name="description" placeholder="Short synopsis..."></textarea>
-
-      <label>Poster image (optional — auto-generated from video if left empty)</label>
-      <input type="file" name="poster" accept="image/*">
-
-      <label>Video file *</label>
-      <input type="file" name="video" accept="video/*" required>
-
-      <button type="submit" id="submitBtn">Upload film</button>
-      <div id="status"></div>
-    </form>
+  <div id="loginGate" class="card hidden">
+    <h1>Login required</h1>
+    <p class="sub">Upload karne ke liye pehle login ya signup karo.</p>
+    <a class="link" href="/login.html">Login karo</a> &nbsp;|&nbsp;
+    <a class="link" href="/signup.html">Sign up karo</a>
   </div>
 
-  <div class="card">
-    <h2>Manage films</h2>
-    <div id="filmList"><p class="empty-msg">Loading...</p></div>
+  <div id="uploadArea" class="hidden">
+    <div class="card">
+      <h1>Upload a film</h1>
+      <p class="sub" id="welcomeText"></p>
+      <form id="form">
+        <label>Title *</label>
+        <input type="text" name="title" required placeholder="e.g. Sholay">
+
+        <label>Video Type</label>
+        <div class="row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+            <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+            <input type="radio" name="type" value="short" style="width:auto;"> Short
+          </label>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Year</label>
+            <input type="text" name="year" placeholder="2024">
+          </div>
+          <div>
+            <label>Language</label>
+            <input type="text" name="language" placeholder="Hindi / Tamil / Bengali...">
+          </div>
+        </div>
+
+        <label>Genre</label>
+        <input type="text" name="genre" placeholder="Action / Drama / Romance">
+
+        <label>Description</label>
+        <textarea name="description" placeholder="Short synopsis..."></textarea>
+
+        <label>Poster image (optional — auto-generated from video if left empty)</label>
+        <input type="file" name="poster" accept="image/*">
+
+        <label>Video file *</label>
+        <input type="file" name="video" accept="video/*" required>
+
+        <button type="submit" id="submitBtn">Upload</button>
+        <div id="status"></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Purana content claim karo</h2>
+      <p class="sub" style="margin-bottom:0;">Agar app pe pehle se koi content hai jiska koi owner set nahi hai, use apne account me le lo (ek baar karna hai).</p>
+      <button class="small-btn claim-btn" onclick="claimOldFilms()">Claim old uploads</button>
+      <div id="claimStatus" style="margin-top:8px;font-size:13px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Manage my uploads</h2>
+      <div id="filmList"><p class="empty-msg">Loading...</p></div>
+    </div>
   </div>
 </div>
 
 <script>
+let currentUser = null;
+
+async function init(){
+  const res = await fetch('/api/me');
+  currentUser = await res.json();
+
+  if (!currentUser) {
+    document.getElementById('loginGate').classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('uploadArea').classList.remove('hidden');
+  document.getElementById('welcomeText').textContent = `Logged in as @${currentUser.username}. Video upload karo.`;
+  loadFilmList();
+}
+
 document.getElementById('form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
@@ -120,15 +152,33 @@ document.getElementById('form').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     status.className = 'ok';
-    status.textContent = 'Uploaded! Redirecting to homepage...';
-    setTimeout(() => window.location.href = '/', 1000);
+    status.textContent = 'Uploaded!';
+    e.target.reset();
+    loadFilmList();
   } catch (err) {
     status.className = 'err';
     status.textContent = err.message;
+  } finally {
     btn.disabled = false;
-    btn.textContent = 'Upload film';
+    btn.textContent = 'Upload';
   }
 });
+
+async function claimOldFilms(){
+  const statusEl = document.getElementById('claimStatus');
+  statusEl.textContent = 'Claiming...';
+  try {
+    const res = await fetch('/api/claim-existing-films', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = data.claimed + ' films claimed!';
+    loadFilmList();
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
+  }
+}
 
 let filmsData = [];
 
@@ -136,9 +186,11 @@ async function loadFilmList() {
   const listEl = document.getElementById('filmList');
   try {
     const res = await fetch('/api/films');
-    filmsData = await res.json();
+    const allFilms = await res.json();
+    filmsData = allFilms.filter(f => f.ownerId === currentUser.id);
+
     if (filmsData.length === 0) {
-      listEl.innerHTML = '<p class="empty-msg">Koi film upload nahi hui abhi tak.</p>';
+      listEl.innerHTML = '<p class="empty-msg">Tumne abhi koi upload nahi ki.</p>';
       return;
     }
     listEl.innerHTML = filmsData.map(f => `
@@ -157,7 +209,6 @@ async function loadFilmList() {
         <div class="edit-form" id="edit-${f.id}">
           <label>Title</label>
           <input type="text" id="edit-title-${f.id}" value="${escapeHtml(f.title)}">
-
           <div class="row">
             <div>
               <label>Year</label>
@@ -168,10 +219,11 @@ async function loadFilmList() {
               <input type="text" id="edit-language-${f.id}" value="${escapeHtml(f.language || '')}">
             </div>
           </div>
-
           <label>Genre</label>
           <input type="text" id="edit-genre-${f.id}" value="${escapeHtml(f.genre || '')}">
-<label>Video Type</label>
+          <label>Description</label>
+          <textarea id="edit-description-${f.id}">${escapeHtml(f.description || '')}</textarea>
+          <label>Video Type</label>
           <div class="row">
             <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
               <input type="radio" name="edit-type-${f.id}" value="film" ${f.type !== 'short' ? 'checked' : ''} onclick="document.getElementById('edit-type-val-${f.id}').value='film'" style="width:auto;"> Full Film
@@ -181,12 +233,8 @@ async function loadFilmList() {
             </label>
           </div>
           <input type="hidden" id="edit-type-val-${f.id}" value="${f.type === 'short' ? 'short' : 'film'}">
-          <label>Description</label>
-          <textarea id="edit-description-${f.id}">${escapeHtml(f.description || '')}</textarea>
-
           <label>Replace thumbnail (optional)</label>
           <input type="file" id="edit-poster-${f.id}" accept="image/*">
-
           <button onclick="saveEdit('${f.id}')">Save changes</button>
           <button class="edit-cancel" onclick="toggleEdit('${f.id}')">Cancel</button>
           <div id="edit-status-${f.id}" style="margin-top:8px;font-size:13px;"></div>
@@ -205,8 +253,7 @@ function escapeHtml(str){
 }
 
 function toggleEdit(id){
-  const el = document.getElementById('edit-' + id);
-  el.classList.toggle('open');
+  document.getElementById('edit-' + id).classList.toggle('open');
 }
 
 async function saveEdit(id){
@@ -254,7 +301,7 @@ async function deleteFilm(id, title) {
   }
 }
 
-loadFilmList();
+init();
 </script>
 </body>
 </html>
