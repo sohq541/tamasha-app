@@ -148,9 +148,35 @@
 <body>
 <header>
   <div class="brand">◆ YOUSERIES</div>
-  <div class="header-right">
-  <a href="/login.html" style="margin-right:14px;">Login</a>
-  <a href="/signup.html" style="margin-right:14px;">Sign up</a>
+  async function loadProfile(){
+  try {
+    const res = await fetch('/api/me');
+    const user = await res.json();
+    const headerRight = document.getElementById('headerRight');
+    if (user) {
+      headerRight.innerHTML = `
+        <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(user.username)}</span>
+        <a href="#" onclick="logout(event)" style="margin-right:14px;">Logout</a>
+        <a href="/admin.html">+ Upload</a>
+      `;
+    } else {
+      headerRight.innerHTML = `
+        <a href="/login.html" style="margin-right:14px;">Login</a>
+        <a href="/signup.html" style="margin-right:14px;">Sign up</a>
+        <a href="/admin.html">+ Upload</a>
+      `;
+    }
+  } catch (err) {}
+}
+
+async function logout(e){
+  e.preventDefault();
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.reload();
+}
+
+loadProfile();
+  <div class="header-right" id="headerRight">
   <a href="/admin.html">+ Upload</a>
   </div>
 </header>
