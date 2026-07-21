@@ -16,7 +16,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 app.use(cookieParser());
-
+app.use(express.json());
 // ---- Users "database" stored as a JSON file inside B2 (reuses the same B2 helpers as films) ----
 async function readUsers() {
   const { authToken, downloadUrl } = await b2Authorize();
