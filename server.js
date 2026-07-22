@@ -116,7 +116,18 @@ app.post('/api/signup', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
     }
-
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { email, password, username, ageConfirm } = req.body;
+    if (!email || !password || !username) {
+      return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
+    }
+    if (!ageConfirm) {
+      return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
+    }
     const users = await readUsers();
     if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
       return res.status(400).json({ error: 'Ye email already registered hai' });
