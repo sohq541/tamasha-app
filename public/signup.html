@@ -24,18 +24,16 @@
     padding:13px;font-weight:600;font-size:15.5px;cursor:pointer;font-family:'Mukta',sans-serif;}
   button:disabled{opacity:0.6;cursor:not-allowed;}
   #status{margin-top:14px;font-size:13.5px;}
-  #status.ok{color:#8fd19e;}
   #status.err{color:#e88a8a;}
   a.back{color:var(--cream-dim);font-size:13px;display:inline-block;margin-bottom:18px;}
   a.link{color:var(--marigold);}
-  .hidden{display:none !important;}
 </style>
 </head>
 <body>
 <div class="card">
   <a class="back" href="/">← Back to YouSeries</a>
-  <h1 id="heading">Create account</h1>
-  <p class="sub" id="subtext">Sign up karo aur apne videos share karo.</p>
+  <h1>Create account</h1>
+  <p class="sub">Sign up karo aur apne videos share karo.</p>
 
   <form id="signupForm">
     <label>Username</label>
@@ -56,24 +54,15 @@
     <div id="status"></div>
   </form>
 
-  <form id="otpForm" class="hidden">
-    <label>Email pe bheja gaya 6-digit code daalo</label>
-    <input type="text" id="otpInput" required maxlength="6" placeholder="123456">
-    <button type="submit" id="otpBtn">Verify</button>
-    <div id="otpStatus"></div>
-  </form>
-
   <p style="margin-top:20px;font-size:13.5px;color:var(--cream-dim);">Already account hai? <a class="link" href="/login.html">Login karo</a></p>
 </div>
 
 <script>
-let signupToken = null;
-
 document.getElementById('signupForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
   const status = document.getElementById('status');
-  btn.disabled = true; btn.textContent = 'Sending OTP...';
+  btn.disabled = true; btn.textContent = 'Creating account...';
   status.className = ''; status.textContent = '';
 
   try {
@@ -89,42 +78,11 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');
-
-    signupToken = data.signupToken;
-    document.getElementById('signupForm').classList.add('hidden');
-    document.getElementById('otpForm').classList.remove('hidden');
-    document.getElementById('heading').textContent = 'Verify your email';
-    document.getElementById('subtext').textContent = 'Humne aapke email pe ek 6-digit code bheja hai.';
+    window.location.href = '/';
   } catch (err) {
     status.className = 'err';
     status.textContent = err.message;
     btn.disabled = false; btn.textContent = 'Sign up';
-  }
-});
-
-document.getElementById('otpForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = document.getElementById('otpBtn');
-  const status = document.getElementById('otpStatus');
-  btn.disabled = true; btn.textContent = 'Verifying...';
-  status.className = ''; status.textContent = '';
-
-  try {
-    const res = await fetch('/api/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signupToken, otp: document.getElementById('otpInput').value })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Verification failed');
-
-    status.className = 'ok';
-    status.textContent = 'Account ban gaya! Redirecting...';
-    setTimeout(() => window.location.href = '/', 1000);
-  } catch (err) {
-    status.className = 'err';
-    status.textContent = err.message;
-    btn.disabled = false; btn.textContent = 'Verify';
   }
 });
 </script>
