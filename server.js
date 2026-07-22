@@ -67,9 +67,45 @@ function requireUser(req, res, next) {
   }
 }
 
-// Start signup — sends an OTP to the given email
+// Signup — creates the account immediately and logs the user in (no email verification)
 app.post('/api/signup', async (req, res) => {
   try {
+    const { email, password, username, ageConfirm } = req.body;
+    if (!email || !password || !username) {
+      return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
+    }
+    if (!ageConfirm) {
+      return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
+    }
+
+    const users = await readUsers();
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+      return res.status(400).json({ error: 'Ye email already registered hai' });
+    }
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+      return res.status(400).json({ error: 'Ye username already liya gaya hai' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const newUser = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      email, username, passwordHash,
+      usernameChanges: [],
+      createdAt: new Date().toISOString()
+    };
+    users.push(newUser);
+    await writeUsers(users);
+
+    const token = signToken(newUser);
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.json({ id: newUser.id, email: newUser.email, username: newUser.username });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
     const { email, password, username, ageConfirm } = req.body;
     if (!email || !password || !username) {
       return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
@@ -104,10 +140,6 @@ app.post('/api/signup', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// Verify OTP — creates the account and logs the user in
-app.post('/api/verify-otp', async (req, res) => {
-  try {
     const { signupToken, otp } = req.body;
     const pending = pendingSignups.get(signupToken);
     if (!pending) return res.status(400).json({ error: 'Signup session expired, dubara try karo' });
