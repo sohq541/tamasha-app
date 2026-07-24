@@ -19,15 +19,17 @@
   a{color:inherit;text-decoration:none;}
   header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--gold-line);}
   .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:24px;color:var(--marigold);}
-  .brand a{color:var(--cream-dim);font-size:13px;border:1px solid var(--gold-line);padding:7px 14px;border-radius:999px;}
   .header-right{display:flex;align-items:center;gap:14px;}
 
   .tabs{display:flex;justify-content:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--gold-line);}
-  .tab-btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:8px 22px;
+  .tab-btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:8px 18px;
     border-radius:999px;font-family:'Mukta',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
   .tab-btn.active{background:var(--marigold);color:#fff;border-color:var(--marigold);}
 
+  body.shorts-mode header, body.shorts-mode .tabs{display:none;}
+
   .shorts-header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px 0;}
+  .section-title{font-family:'Baloo 2',sans-serif;font-size:18px;color:var(--marigold);margin:0;white-space:nowrap;}
   .search-wrap{flex:1;max-width:220px;}
   .search-wrap input{
     width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:999px;
@@ -40,14 +42,11 @@
   .search-result-title{font-size:14px;font-weight:600;color:var(--cream);}
   .search-result-tag{font-size:12px;color:var(--marigold);}
 
-  .section-title{font-family:'Baloo 2',sans-serif;font-size:18px;color:var(--marigold);margin:0;white-space:nowrap;}
   .shorts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 24px 10px;}
   .shorts-grid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);cursor:pointer;}
   .shorts-grid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
   .shorts-grid-play{position:absolute;top:8px;left:8px;color:#fff;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,0.7);}
   .shorts-grid-views{position:absolute;bottom:8px;left:8px;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.7);display:flex;align-items:center;gap:4px;}
-
-  body.shorts-mode header, body.shorts-mode .tabs{display:none;}
 
   .grid{display:flex;flex-direction:column;gap:0;padding:10px 0 30px;max-width:600px;margin:0 auto;}
   .card{cursor:pointer;border-bottom:1px solid var(--gold-line);padding-bottom:18px;margin-bottom:18px;}
@@ -57,6 +56,7 @@
   .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:20px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
   .meta{font-size:13px;color:var(--marigold);padding:10px 16px 0;font-weight:600;}
+  .card-owner{font-size:12.5px;color:var(--cream-dim);padding:4px 16px 0;}
   .card-desc{font-size:14px;color:var(--cream-dim);padding:6px 16px 0;line-height:1.5;}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
@@ -66,7 +66,8 @@
   .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;margin:auto;}
   .modal video{width:100%;display:block;background:#000;max-height:60vh;}
   .modal-body{padding:20px 24px;}
-  .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 8px;}
+  .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 4px;}
+  .modal-owner{font-size:13px;color:var(--marigold);margin:0 0 8px;}
   .modal-body p{color:var(--cream-dim);line-height:1.6;}
   .modal-close{float:right;background:transparent;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:6px 14px;cursor:pointer;}
   .action-row{display:flex;align-items:center;gap:14px;margin:16px 0 4px;}
@@ -95,35 +96,33 @@
   .comment-text{font-size:13.5px;color:var(--cream);margin-top:3px;line-height:1.5;}
   .comment-empty{color:var(--cream-dim);font-size:13.5px;}
 
-  /* -------- Shorts feed (Instagram Reels style, full-bleed) -------- */
   #shortsView{position:fixed;inset:0;z-index:40;display:none;}
   #shortsView.active{display:block;}
-  .shorts-container{
-    height:100vh; width:100vw; overflow-y:scroll; scroll-snap-type:y mandatory; background:#000;
-  }
+  .shorts-container{height:100vh;width:100vw;overflow-y:scroll;scroll-snap-type:y mandatory;background:#000;}
   .short-item{
-    height:100vh; width:100vw; scroll-snap-align:start; scroll-snap-stop:always; position:relative;
-    display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden;
+    height:100vh;width:100vw;scroll-snap-align:start;scroll-snap-stop:always;position:relative;
+    display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;
   }
   .short-item::after{
-    content:""; position:absolute; left:0; right:0; bottom:0; height:260px; z-index:4;
-    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%); pointer-events:none;
+    content:"";position:absolute;left:0;right:0;bottom:0;height:260px;z-index:4;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%);pointer-events:none;
   }
   .short-item video{width:100%;height:100%;object-fit:contain;background:#000;}
   .short-exit{
-  position:fixed; top:18px; left:16px; z-index:60; background:rgba(0,0,0,0.45); border:none;
-  color:#fff; width:50px;height:50px;border-radius:50%;font-size:28px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,0.5);
+    position:fixed;top:18px;left:16px;z-index:60;background:rgba(0,0,0,0.45);border:none;
+    color:#fff;width:50px;height:50px;border-radius:50%;font-size:28px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,0.5);
   }
   .short-info{position:absolute;left:18px;bottom:34px;right:100px;color:#fff;z-index:5;}
+  .short-owner{font-family:'Baloo 2',sans-serif;font-size:16px;font-weight:700;margin:0 0 6px;text-shadow:0 2px 10px rgba(0,0,0,0.9);}
   .short-info h3{font-family:'Baloo 2',sans-serif;font-size:36px;font-weight:800;margin:0 0 12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
   .short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
   .short-actions{
-    position:absolute; right:14px; bottom:40px; display:flex; flex-direction:column; gap:24px;
-    align-items:center; z-index:5;
+    position:absolute;right:14px;bottom:40px;display:flex;flex-direction:column;gap:24px;
+    align-items:center;z-index:5;
   }
   .short-action-btn{
-    background:transparent; border:none; color:#fff; width:44px;height:44px;
+    background:transparent;border:none;color:#fff;width:44px;height:44px;
     display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;
     text-shadow:0 2px 6px rgba(0,0,0,0.6);
   }
@@ -143,20 +142,37 @@
   .sheet-header h3{font-family:'Baloo 2',sans-serif;margin:0;color:var(--marigold);font-size:16px;}
   .sheet-close{background:transparent;border:none;color:var(--cream);font-size:20px;cursor:pointer;}
 
+  .menu-sheet .sheet{padding:10px 0;}
+  .menu-item{display:flex;align-items:center;gap:14px;padding:16px 22px;font-size:15px;color:var(--cream);cursor:pointer;}
+  .menu-item:hover{background:rgba(255,255,255,0.06);}
+
+  .profile-wrap{max-width:500px;margin:0 auto;padding:30px 24px;}
+  .profile-card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:26px;text-align:center;margin-bottom:24px;}
+  .profile-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
+    display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:30px;font-weight:800;
+    margin:0 auto 14px;}
+  .profile-username{font-family:'Baloo 2',sans-serif;font-size:20px;color:var(--marigold);}
+  .profile-email{font-size:13px;color:var(--cream-dim);margin-top:4px;}
+  .profile-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;}
+  .profile-btn{background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:600;font-size:14px;cursor:pointer;}
+  .profile-btn.secondary{background:transparent;border:1px solid var(--gold-line);color:var(--cream);}
+  .profile-mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .profile-mygrid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);}
+  .profile-mygrid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+
   .hidden{display:none !important;}
 </style>
 </head>
 <body>
 <header>
   <div class="brand">◆ YOUSERIES</div>
-  <div class="header-right" id="headerRight">
-  <a href="/admin.html">+ Upload</a>
-  </div>
+  <div class="header-right" id="headerRight"><a href="/admin.html">+ Upload</a></div>
 </header>
 
 <div class="tabs">
   <button class="tab-btn active" id="tabHome" onclick="switchTab('home')">🏠 Home</button>
   <button class="tab-btn" id="tabShorts" onclick="switchTab('shorts')">▶ Shorts</button>
+  <button class="tab-btn" id="tabProfile" onclick="switchTab('profile')">👤 Profile</button>
 </div>
 
 <div id="homeView">
@@ -171,7 +187,7 @@
     </div>
     <div class="shorts-grid" id="shortsGrid"></div>
 
-    <h3 class="section-title" id="filmsGridTitle" style="display:none;">Films</h3>
+    <h3 class="section-title" id="filmsGridTitle" style="display:none;padding:20px 24px 0;">Films</h3>
     <div id="grid" class="grid"></div>
   </div>
 </div>
@@ -181,6 +197,10 @@
   <div class="shorts-container" id="shortsContainer"></div>
 </div>
 
+<div id="profileView" class="hidden">
+  <div class="profile-wrap" id="profileContent"></div>
+</div>
+
 <!-- Home modal player -->
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
@@ -188,6 +208,7 @@
     <div class="modal-body">
       <button class="modal-close" onclick="closeModal()">Close</button>
       <h2 id="mTitle"></h2>
+      <p class="modal-owner" id="mOwner"></p>
       <p id="mMeta" style="color:var(--marigold);"></p>
       <p id="mDesc"></p>
       <div class="action-row">
@@ -224,12 +245,21 @@
   </div>
 </div>
 
+<!-- 3-dot menu sheet: Download / Copy link -->
+<div class="sheet-overlay menu-sheet" id="menuOverlay" onclick="if(event.target===this) closeMenu()">
+  <div class="sheet">
+    <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
+    <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 let currentFilm = null;
 let currentShortId = null;
 let allFilms = [];
+let currentUser = null;
 
 function escapeHtml(str){
   const div = document.createElement('div');
@@ -251,8 +281,10 @@ function markViewed(id){
 function switchTab(tab){
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
+  document.getElementById('tabProfile').classList.toggle('active', tab === 'profile');
   document.getElementById('homeView').classList.toggle('hidden', tab !== 'home');
   document.getElementById('shortsView').classList.toggle('active', tab === 'shorts');
+  document.getElementById('profileView').classList.toggle('hidden', tab !== 'profile');
   document.body.classList.toggle('shorts-mode', tab === 'shorts');
 
   if (tab === 'shorts') {
@@ -262,6 +294,69 @@ function switchTab(tab){
   } else {
     document.querySelectorAll('.short-item video').forEach(v => v.pause());
   }
+
+  if (tab === 'profile') renderProfile();
+}
+
+async function loadProfile(){
+  try {
+    const res = await fetch('/api/me');
+    currentUser = await res.json();
+    const headerRight = document.getElementById('headerRight');
+    if (currentUser) {
+      headerRight.innerHTML = `
+        <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(currentUser.username)}</span>
+        <a href="/admin.html">+ Upload</a>
+      `;
+    } else {
+      headerRight.innerHTML = `
+        <a href="/login.html" style="margin-right:14px;">Login</a>
+        <a href="/admin.html">+ Upload</a>
+      `;
+    }
+  } catch (err) {}
+}
+
+async function renderProfile(){
+  const el = document.getElementById('profileContent');
+  if (!currentUser) {
+    el.innerHTML = `
+      <div class="profile-card">
+        <p style="color:var(--cream-dim);margin-bottom:16px;">Profile dekhne ke liye login karo.</p>
+        <div class="profile-actions">
+          <a class="profile-btn" href="/login.html">Login</a>
+          <a class="profile-btn secondary" href="/signup.html">Sign up</a>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const myFilms = allFilms.filter(f => f.ownerId === currentUser.id);
+  el.innerHTML = `
+    <div class="profile-card">
+      <div class="profile-avatar">${escapeHtml(currentUser.username[0].toUpperCase())}</div>
+      <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
+      <div class="profile-email">${escapeHtml(currentUser.email)}</div>
+      <div class="profile-actions">
+        <a class="profile-btn" href="/admin.html">Upload</a>
+        <button class="profile-btn secondary" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <h3 class="section-title" style="padding:0 0 12px;">My uploads (${myFilms.length})</h3>
+    <div class="profile-mygrid">
+      ${myFilms.map(f => `
+        <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+          ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+        </div>
+      `).join('') || '<p class="comment-empty">Abhi koi upload nahi.</p>'}
+    </div>
+  `;
+}
+
+async function logout(){
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.reload();
 }
 
 async function loadFilms(){
@@ -348,6 +443,7 @@ function renderHome(films){
         <div class="ptitle">${escapeHtml(f.title)}</div>
       </div>
       <div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>
+      ${f.ownerUsername ? `<div class="card-owner">@${escapeHtml(f.ownerUsername)}</div>` : ''}
       ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
   `).join('');
@@ -366,6 +462,7 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
+        ${f.ownerUsername ? `<div class="short-owner">@${escapeHtml(f.ownerUsername)}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
@@ -381,6 +478,9 @@ function renderShorts(shorts){
         <div>
           <button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button>
           <div class="short-action-count">Share</div>
+        </div>
+        <div>
+          <button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button>
         </div>
       </div>
     </div>
@@ -448,12 +548,37 @@ async function likeShort(id, btn){
 
 function shareShort(id){
   const film = allFilms.find(f => f.id === id);
-  const url = location.origin + '/?film=' + id;
+  const url = location.origin + '/?short=' + id;
   if (navigator.share) {
     navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
   } else {
     navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
   }
+}
+
+function openMenu(id){
+  currentShortId = id;
+  document.getElementById('menuOverlay').classList.add('open');
+}
+function closeMenu(){
+  document.getElementById('menuOverlay').classList.remove('open');
+}
+function downloadCurrentShort(){
+  const film = allFilms.find(f => f.id === currentShortId);
+  if (film) {
+    const a = document.createElement('a');
+    a.href = film.videoUrl;
+    a.download = film.title + '.mp4';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  closeMenu();
+}
+function copyCurrentShortLink(){
+  const url = location.origin + '/?short=' + currentShortId;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+  closeMenu();
 }
 
 function openSheet(id){
@@ -464,7 +589,6 @@ function openSheet(id){
 }
 function closeSheet(){
   document.getElementById('sheetOverlay').classList.remove('open');
-  currentShortId = null;
 }
 
 document.getElementById('sheetCommentForm').addEventListener('submit', async (e) => {
@@ -507,7 +631,6 @@ function renderCommentListInto(elId, comments){
   `).join('');
 }
 
-// ---------------- Home modal (full films) ----------------
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
@@ -515,6 +638,7 @@ async function playFilm(id){
 
   document.getElementById('player').src = f.videoUrl;
   document.getElementById('mTitle').textContent = f.title;
+  document.getElementById('mOwner').textContent = f.ownerUsername ? '@' + f.ownerUsername : '';
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
@@ -600,35 +724,13 @@ function showToast(msg){
   t.style.display = 'block';
   setTimeout(() => t.style.display = 'none', 2000);
 }
-async function loadProfile(){
-  try {
-    const res = await fetch('/api/me');
-    const user = await res.json();
-    const headerRight = document.getElementById('headerRight');
-    if (user) {
-      headerRight.innerHTML = `
-        <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(user.username)}</span>
-        <a href="#" onclick="logout(event)" style="margin-right:14px;">Logout</a>
-        <a href="/admin.html">+ Upload</a>
-      `;
-    } else {
-      headerRight.innerHTML = `
-        <a href="/login.html" style="margin-right:14px;">Login</a>
-        <a href="/signup.html" style="margin-right:14px;">Sign up</a>
-        <a href="/admin.html">+ Upload</a>
-      `;
-    }
-  } catch (err) {}
-}
 
-async function logout(e){
-  e.preventDefault();
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.reload();
+async function init(){
+  await loadProfile();
+  await loadFilms();
 }
+init();
 
-loadProfile();
-loadFilms();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
