@@ -48,6 +48,7 @@
   .edit-cancel{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);margin-top:8px;}
   .hidden{display:none !important;}
   .claim-btn{background:transparent;border:1px solid var(--marigold);color:var(--marigold);margin-top:10px;}
+  .hidden{display:none !important;}
 </style>
 </head>
 <body>
@@ -69,13 +70,16 @@
         <label>Title *</label>
         <input type="text" name="title" required placeholder="e.g. Sholay">
 
-        <label>Video Type</label>
+        <label>Content Type</label>
         <div class="row">
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-            <input type="radio" name="type" value="film" checked style="width:auto;"> Full Film
+            <input type="radio" name="type" value="film" checked style="width:auto;" onclick="toggleUploadType('film')"> Full Film
           </label>
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-            <input type="radio" name="type" value="short" style="width:auto;"> Short
+            <input type="radio" name="type" value="short" style="width:auto;" onclick="toggleUploadType('short')"> Short
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
+            <input type="radio" name="type" value="photo" style="width:auto;" onclick="toggleUploadType('photo')"> Photo
           </label>
         </div>
 
@@ -96,11 +100,17 @@
         <label>Description</label>
         <textarea name="description" placeholder="Short synopsis..."></textarea>
 
-        <label>Poster image (optional — auto-generated from video if left empty)</label>
-        <input type="file" name="poster" accept="image/*">
+        <div id="videoFields">
+          <label>Poster image (optional — auto-generated from video if left empty)</label>
+          <input type="file" name="poster" accept="image/*">
 
-        <label>Video file *</label>
-        <input type="file" name="video" accept="video/*" required>
+          <label>Video file *</label>
+          <input type="file" name="video" accept="video/*" id="videoInput" required>
+        </div>
+        <div id="photoFields" class="hidden">
+          <label>Photo *</label>
+          <input type="file" name="photo" accept="image/*" id="photoInput">
+        </div>
 
         <button type="submit" id="submitBtn">Upload</button>
         <div id="status"></div>
@@ -123,6 +133,24 @@
 
 <script>
 let currentUser = null;
+
+function toggleUploadType(type){
+  const videoFields = document.getElementById('videoFields');
+  const photoFields = document.getElementById('photoFields');
+  const videoInput = document.getElementById('videoInput');
+  const photoInput = document.getElementById('photoInput');
+  if (type === 'photo') {
+    videoFields.classList.add('hidden');
+    photoFields.classList.remove('hidden');
+    videoInput.required = false;
+    photoInput.required = true;
+  } else {
+    videoFields.classList.remove('hidden');
+    photoFields.classList.add('hidden');
+    videoInput.required = true;
+    photoInput.required = false;
+  }
+}
 
 async function init(){
   const res = await fetch('/api/me');

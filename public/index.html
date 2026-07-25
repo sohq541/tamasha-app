@@ -110,11 +110,11 @@
   .short-item video{width:100%;height:100%;object-fit:contain;background:#000;}
   .short-exit{
     position:fixed;top:18px;left:16px;z-index:60;background:rgba(0,0,0,0.45);border:none;
-    color:#fff;width:65px;height:65px;border-radius:50%;font-size:38px;font-weight:700;
+    color:#fff;width:50px;height:50px;border-radius:50%;font-size:28px;font-weight:700;
     display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,0.5);
   }
   .short-info{position:absolute;left:18px;bottom:34px;right:100px;color:#fff;z-index:5;}
-  .short-owner{font-family:'Baloo 2',sans-serif;font-size:22px;font-weight:800;margin:0 0 10px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
+  .short-owner{font-family:'Baloo 2',sans-serif;font-size:16px;font-weight:700;margin:0 0 6px;text-shadow:0 2px 10px rgba(0,0,0,0.9);}
   .short-info h3{font-family:'Baloo 2',sans-serif;font-size:36px;font-weight:800;margin:0 0 12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
   .short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
   .short-actions{
@@ -205,6 +205,7 @@
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <video id="player" controls></video>
+    <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
     <div class="modal-body">
       <button class="modal-close" onclick="closeModal()">Close</button>
       <h2 id="mTitle"></h2>
@@ -440,9 +441,9 @@ function renderHome(films){
     <div class="card" onclick="playFilm('${f.id}')">
       <div class="poster">
         ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-        <div class="ptitle">${escapeHtml(f.title)}</div>
+        ${f.type !== 'photo' ? `<div class="ptitle">${escapeHtml(f.title)}</div>` : ''}
       </div>
-      <div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>
+      ${f.type === 'photo' ? `<div class="meta" style="color:var(--cream);font-weight:700;">${escapeHtml(f.title)}</div>` : `<div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>`}
       ${f.ownerUsername ? `<div class="card-owner">@${escapeHtml(f.ownerUsername)}</div>` : ''}
       ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
@@ -636,7 +637,19 @@ async function playFilm(id){
   const f = await res.json();
   currentFilm = f;
 
-  document.getElementById('player').src = f.videoUrl;
+  const playerEl = document.getElementById('player');
+  const imgEl = document.getElementById('playerImg');
+  if (f.type === 'photo') {
+    playerEl.style.display = 'none';
+    playerEl.src = '';
+    imgEl.style.display = 'block';
+    imgEl.src = f.posterUrl || '';
+  } else {
+    imgEl.style.display = 'none';
+    imgEl.src = '';
+    playerEl.style.display = 'block';
+    playerEl.src = f.videoUrl;
+  }
   document.getElementById('mTitle').textContent = f.title;
   document.getElementById('mOwner').textContent = f.ownerUsername ? '@' + f.ownerUsername : '';
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
@@ -666,6 +679,7 @@ function closeModal(){
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
+  document.getElementById('playerImg').src = '';
   history.replaceState(null, '', location.pathname);
 }
 
