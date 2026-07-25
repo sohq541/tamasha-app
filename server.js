@@ -315,7 +315,7 @@ app.get('/api/films', async (req, res) => {
     const films = await readFilms();
     const out = films.map(f => ({
       ...f,
-      videoUrl: '/media/video/' + f.id,
+      videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
       posterUrl: f.posterFile ? '/media/poster/' + f.id : null
     }));
     res.json(out);
@@ -367,14 +367,40 @@ app.post('/api/films', (req, res, next) => {
     return res.status(401).json({ error: 'Upload karne ke liye login zaroori hai' });
   }
   next();
-}, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]), async (req, res) => {
+}, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, year, language, genre, description, type } = req.body;
-    if (!title || !req.files || !req.files.video) {
-      return res.status(400).json({ error: 'Title and video file are required' });
-    }
+    if (!title) return res.status(400).json({ error: 'Title zaroori hai' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+    if (type === 'photo') {
+      if (!req.files || !req.files.photo) {
+        return res.status(400).json({ error: 'Photo file zaroori hai' });
+      }
+      const photoFile = req.files.photo[0];
+      const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
+      await b2UploadBuffer(photoFile.buffer, photoKey, photoFile.mimetype);
+
+      const films = await readFilms();
+      const newFilm = {
+        id, title, year: year || '', language: language || '', genre: genre || '',
+        description: description || '', videoFile: null, posterFile: photoKey,
+        type: 'photo',
+        ownerId: req.currentUser ? req.currentUser.id : 'admin',
+        ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
+        views: 0, likes: 0, comments: [],
+        uploadedAt: new Date().toISOString()
+      };
+      films.unshift(newFilm);
+      await writeFilms(films);
+      return res.status(201).json(newFilm);
+    }
+
+    if (!req.files || !req.files.video) {
+      return res.status(400).json({ error: 'Video file zaroori hai' });
+    }
+
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
     await b2UploadBuffer(videoFile.buffer, videoKey, videoFile.mimetype);
