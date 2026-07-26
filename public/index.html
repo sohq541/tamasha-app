@@ -253,6 +253,29 @@
   </div>
 </div>
 
+<!-- Inline edit sheet for a short's own uploader -->
+<div class="sheet-overlay" id="editSheetOverlay" onclick="if(event.target===this) closeEditSheet()">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto;">
+    <div class="sheet-header">
+      <h3>Edit</h3>
+      <button class="sheet-close" onclick="closeEditSheet()">✕</button>
+    </div>
+    <form id="editShortForm">
+      <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Title</label>
+      <input type="text" id="editShortTitle" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
+
+      <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Description</label>
+      <textarea id="editShortDesc" style="width:100%;min-height:60px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;"></textarea>
+
+      <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Replace thumbnail (optional)</label>
+      <input type="file" id="editShortPoster" accept="image/*" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
+
+      <button type="submit" style="margin-top:16px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Save changes</button>
+      <div id="editShortStatus" style="margin-top:8px;font-size:13px;"></div>
+    </form>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -576,8 +599,57 @@ function openMenu(id){
 }
 
 function editCurrentShort(){
-  window.location.href = '/admin.html';
+  const film = allFilms.find(f => f.id === currentShortId);
+  if (!film) return;
+  closeMenu();
+  document.getElementById('editShortTitle').value = film.title || '';
+  document.getElementById('editShortDesc').value = film.description || '';
+  document.getElementById('editShortPoster').value = '';
+  document.getElementById('editShortStatus').textContent = '';
+  document.getElementById('editSheetOverlay').classList.add('open');
 }
+function closeEditSheet(){
+  document.getElementById('editSheetOverlay').classList.remove('open');
+}
+
+document.getElementById('editShortForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('editShortStatus');
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--cream-dim)';
+
+  const formData = new FormData();
+  formData.append('title', document.getElementById('editShortTitle').value);
+  formData.append('description', document.getElementById('editShortDesc').value);
+  const posterInput = document.getElementById('editShortPoster');
+  if (posterInput.files[0]) formData.append('poster', posterInput.files[0]);
+
+  try {
+    const res = await fetch('/api/films/' + currentShortId, { method: 'PUT', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Save failed');
+
+    const film = allFilms.find(f => f.id === currentShortId);
+    if (film) {
+      film.title = data.title;
+      film.description = data.description;
+      const item = document.querySelector('.short-item[data-id="' + currentShortId + '"]');
+      if (item) {
+        const h3 = item.querySelector('.short-info h3');
+        const p = item.querySelector('.short-info p');
+        if (h3) h3.textContent = film.title;
+        if (p) p.textContent = film.description || '';
+      }
+    }
+
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = 'Saved!';
+    setTimeout(() => closeEditSheet(), 800);
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
+  }
+});
 
 async function deleteCurrentShort(){
   if (!confirm('Ye video permanently delete karni hai?')) return;
