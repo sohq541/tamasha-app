@@ -332,11 +332,13 @@ async function loadProfile(){
     if (currentUser) {
       headerRight.innerHTML = `
         <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(currentUser.username)}</span>
+        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
+        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
     }
