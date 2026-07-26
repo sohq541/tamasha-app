@@ -246,11 +246,10 @@
   </div>
 </div>
 
-<!-- 3-dot menu sheet: Download / Copy link -->
+<!-- 3-dot menu sheet: Download / Copy link / Edit / Delete -->
 <div class="sheet-overlay menu-sheet" id="menuOverlay" onclick="if(event.target===this) closeMenu()">
   <div class="sheet">
-    <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
-    <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
+    <div id="menuItemsContainer"></div>
   </div>
 </div>
 
@@ -559,7 +558,43 @@ function shareShort(id){
 
 function openMenu(id){
   currentShortId = id;
+  const film = allFilms.find(f => f.id === id);
+  const isOwner = currentUser && film && film.ownerId === currentUser.id;
+
+  let itemsHtml = `
+    <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
+    <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
+  `;
+  if (isOwner) {
+    itemsHtml += `
+      <div class="menu-item" onclick="editCurrentShort()">✏️ Edit</div>
+      <div class="menu-item" onclick="deleteCurrentShort()" style="color:#e88a8a;">🗑️ Delete</div>
+    `;
+  }
+  document.getElementById('menuItemsContainer').innerHTML = itemsHtml;
   document.getElementById('menuOverlay').classList.add('open');
+}
+
+function editCurrentShort(){
+  window.location.href = '/admin.html';
+}
+
+async function deleteCurrentShort(){
+  if (!confirm('Ye video permanently delete karni hai?')) return;
+  try {
+    const res = await fetch('/api/films/' + currentShortId, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Delete failed');
+    }
+    closeMenu();
+    showToast('Delete ho gaya');
+    const item = document.querySelector('.short-item[data-id="' + currentShortId + '"]');
+    if (item) item.remove();
+    allFilms = allFilms.filter(f => f.id !== currentShortId);
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 function closeMenu(){
   document.getElementById('menuOverlay').classList.remove('open');
