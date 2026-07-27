@@ -150,7 +150,9 @@
   .profile-card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:26px;text-align:center;margin-bottom:24px;}
   .profile-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
     display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:30px;font-weight:800;
-    margin:0 auto 14px;}
+    margin:0 auto 14px;overflow:hidden;position:relative;cursor:pointer;}
+  .profile-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+  .avatar-camera{position:absolute;bottom:0;right:0;background:var(--marigold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
   .profile-username{font-family:'Baloo 2',sans-serif;font-size:20px;color:var(--marigold);}
   .profile-email{font-size:13px;color:var(--cream-dim);margin-top:4px;}
   .profile-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;}
@@ -351,9 +353,18 @@ async function renderProfile(){
     const theirVideos = theirFilms.filter(f => f.type !== 'photo');
     const theirPhotos = theirFilms.filter(f => f.type === 'photo');
 
+    let theirAvatarUrl = null;
+    try {
+      const pubRes = await fetch('/api/users/' + viewingProfile.id + '/public');
+      const pubData = await pubRes.json();
+      theirAvatarUrl = pubData.profileImage;
+    } catch (err) {}
+
     el.innerHTML = `
       <div class="profile-card">
-        <div class="profile-avatar">${escapeHtml(viewingProfile.username[0].toUpperCase())}</div>
+        <div class="profile-avatar" style="cursor:default;">
+          ${theirAvatarUrl ? `<img src="${theirAvatarUrl}">` : escapeHtml(viewingProfile.username[0].toUpperCase())}
+        </div>
         <div class="profile-username">@${escapeHtml(viewingProfile.username)}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;">
@@ -395,9 +406,20 @@ async function renderProfile(){
   const myVideos = myFilms.filter(f => f.type !== 'photo');
   const myPhotos = myFilms.filter(f => f.type === 'photo');
 
+  let avatarUrl = null;
+  try {
+    const pubRes = await fetch('/api/users/' + currentUser.id + '/public');
+    const pubData = await pubRes.json();
+    avatarUrl = pubData.profileImage;
+  } catch (err) {}
+
   el.innerHTML = `
     <div class="profile-card">
-      <div class="profile-avatar">${escapeHtml(currentUser.username[0].toUpperCase())}</div>
+      <div class="profile-avatar" onclick="document.getElementById('avatarFileInput').click()">
+        ${avatarUrl ? `<img src="${avatarUrl}">` : escapeHtml(currentUser.username[0].toUpperCase())}
+        <div class="avatar-camera">📷</div>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
       <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
       <div class="profile-email">${escapeHtml(currentUser.email)}</div>
       <div class="profile-actions">
@@ -436,6 +458,21 @@ function switchProfileGrid(which){
 async function logout(){
   await fetch('/api/logout', { method: 'POST' });
   window.location.reload();
+}
+
+async function uploadAvatar(input){
+  if (!input.files[0]) return;
+  const formData = new FormData();
+  formData.append('avatar', input.files[0]);
+  try {
+    const res = await fetch('/api/me/avatar', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    showToast('Profile photo updated!');
+    renderProfile();
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 
 function viewProfile(userId, username){
