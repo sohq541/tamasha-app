@@ -287,7 +287,54 @@ app.get('/api/me', (req, res) => {
   const user = getUserFromReq(req);
   res.json(user);
 });
+// Get public info about any user (used to show avatars on profiles)
+app.get('/api/users/:id/public', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const user = users.find(u => u.id === req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      id: user.id,
+      username: user.username,
+      profileImage: user.profileImage ? '/media/avatar/' + user.id : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
+// Upload / change your own profile photo
+app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (!req.file) return res.status(400).json({ error: 'Photo file zaroori hai' });
+
+    const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
+    await b2UploadBuffer(req.file.buffer, key, req.file.mimetype);
+
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    user.profileImage = key;
+    await writeUsers(users);
+
+    res.json({ profileImage: '/media/avatar/' + currentUser.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/media/avatar/:id', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const user = users.find(u => u.id === req.params.id);
+    if (!user || !user.profileImage) return res.status(404).send('Not found');
+    await b2StreamToResponse(user.profileImage, req, res);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 app.post('/api/claim-existing-films', async (req, res) => {
   try {
     const user = getUserFromReq(req);
