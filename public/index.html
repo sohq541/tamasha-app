@@ -153,6 +153,7 @@
     margin:0 auto 14px;overflow:hidden;position:relative;cursor:pointer;}
   .profile-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
   .avatar-camera{position:absolute;bottom:0;right:0;background:var(--marigold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  .mini-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;}
   .profile-username{font-family:'Baloo 2',sans-serif;font-size:20px;color:var(--marigold);}
   .profile-email{font-size:13px;color:var(--cream-dim);margin-top:4px;}
   .profile-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;}
@@ -331,13 +332,25 @@ async function loadProfile(){
     currentUser = await res.json();
     const headerRight = document.getElementById('headerRight');
     if (currentUser) {
+      let avatarUrl = null;
+      try {
+        const pubRes = await fetch('/api/users/' + currentUser.id + '/public');
+        const pubData = await pubRes.json();
+        avatarUrl = pubData.profileImage;
+      } catch (err) {}
+
       headerRight.innerHTML = `
-        <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(currentUser.username)}</span>
+        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
+
+      document.getElementById('tabProfile').innerHTML = avatarUrl
+        ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
+        : '👤 Profile';
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
+        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
     }
