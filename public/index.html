@@ -166,10 +166,7 @@
 <body>
 <header>
   <div class="brand">◆ YOUSERIES</div>
-  <div class="header-right" id="headerRight">
-  <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
-  <a href="/admin.html">+ Upload</a>
-  </div>
+  <div class="header-right" id="headerRight"><a href="/admin.html">+ Upload</a></div>
 </header>
 
 <div class="tabs">
@@ -286,6 +283,7 @@ let currentFilm = null;
 let currentShortId = null;
 let allFilms = [];
 let currentUser = null;
+let viewingProfile = null; // { id, username } when viewing someone else's profile
 
 function escapeHtml(str){
   const div = document.createElement('div');
@@ -305,6 +303,7 @@ function markViewed(id){
 }
 
 function switchTab(tab){
+  if (tab === 'profile') viewingProfile = null; // tab click always means "my profile"
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
   document.getElementById('tabProfile').classList.toggle('active', tab === 'profile');
@@ -332,13 +331,11 @@ async function loadProfile(){
     if (currentUser) {
       headerRight.innerHTML = `
         <span style="color:var(--cream-dim);font-size:14px;margin-right:14px;">👤 ${escapeHtml(currentUser.username)}</span>
-        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
-        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
     }
@@ -347,6 +344,40 @@ async function loadProfile(){
 
 async function renderProfile(){
   const el = document.getElementById('profileContent');
+
+  // Viewing someone else's public profile
+  if (viewingProfile && (!currentUser || viewingProfile.id !== currentUser.id)) {
+    const theirFilms = allFilms.filter(f => f.ownerId === viewingProfile.id);
+    const theirVideos = theirFilms.filter(f => f.type !== 'photo');
+    const theirPhotos = theirFilms.filter(f => f.type === 'photo');
+
+    el.innerHTML = `
+      <div class="profile-card">
+        <div class="profile-avatar">${escapeHtml(viewingProfile.username[0].toUpperCase())}</div>
+        <div class="profile-username">@${escapeHtml(viewingProfile.username)}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
+        <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
+      </div>
+      <div class="profile-mygrid" id="profileGridVideos">
+        ${theirVideos.map(f => `
+          <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+            ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+          </div>
+        `).join('') || '<p class="comment-empty">Koi video nahi.</p>'}
+      </div>
+      <div class="profile-mygrid hidden" id="profileGridPhotos">
+        ${theirPhotos.map(f => `
+          <div class="profile-mygrid-item" onclick="playFilm('${f.id}')">
+            ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+          </div>
+        `).join('') || '<p class="comment-empty">Koi photo nahi.</p>'}
+      </div>
+    `;
+    return;
+  }
+
   if (!currentUser) {
     el.innerHTML = `
       <div class="profile-card">
@@ -361,6 +392,9 @@ async function renderProfile(){
   }
 
   const myFilms = allFilms.filter(f => f.ownerId === currentUser.id);
+  const myVideos = myFilms.filter(f => f.type !== 'photo');
+  const myPhotos = myFilms.filter(f => f.type === 'photo');
+
   el.innerHTML = `
     <div class="profile-card">
       <div class="profile-avatar">${escapeHtml(currentUser.username[0].toUpperCase())}</div>
@@ -371,20 +405,43 @@ async function renderProfile(){
         <button class="profile-btn secondary" onclick="logout()">Logout</button>
       </div>
     </div>
-    <h3 class="section-title" style="padding:0 0 12px;">My uploads (${myFilms.length})</h3>
-    <div class="profile-mygrid">
-      ${myFilms.map(f => `
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
+      <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
+    </div>
+    <div class="profile-mygrid" id="profileGridVideos">
+      ${myVideos.map(f => `
         <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
           ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
         </div>
-      `).join('') || '<p class="comment-empty">Abhi koi upload nahi.</p>'}
+      `).join('') || '<p class="comment-empty">Abhi koi video upload nahi.</p>'}
+    </div>
+    <div class="profile-mygrid hidden" id="profileGridPhotos">
+      ${myPhotos.map(f => `
+        <div class="profile-mygrid-item" onclick="playFilm('${f.id}')">
+          ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+        </div>
+      `).join('') || '<p class="comment-empty">Abhi koi photo upload nahi.</p>'}
     </div>
   `;
+}
+
+function switchProfileGrid(which){
+  document.getElementById('profileTabVideos').classList.toggle('active', which === 'videos');
+  document.getElementById('profileTabPhotos').classList.toggle('active', which === 'photos');
+  document.getElementById('profileGridVideos').classList.toggle('hidden', which !== 'videos');
+  document.getElementById('profileGridPhotos').classList.toggle('hidden', which !== 'photos');
 }
 
 async function logout(){
   await fetch('/api/logout', { method: 'POST' });
   window.location.reload();
+}
+
+function viewProfile(userId, username){
+  if (!userId) return;
+  viewingProfile = { id: userId, username: username };
+  switchTab('profile');
 }
 
 async function loadFilms(){
@@ -471,7 +528,7 @@ function renderHome(films){
         ${f.type !== 'photo' ? `<div class="ptitle">${escapeHtml(f.title)}</div>` : ''}
       </div>
       ${f.type === 'photo' ? `<div class="meta" style="color:var(--cream);font-weight:700;">${escapeHtml(f.title)}</div>` : `<div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>`}
-      ${f.ownerUsername ? `<div class="card-owner">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;text-decoration:underline;">@${escapeHtml(f.ownerUsername)}</div>` : ''}
       ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
   `).join('');
@@ -490,7 +547,7 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
@@ -763,7 +820,16 @@ async function playFilm(id){
     playerEl.src = f.videoUrl;
   }
   document.getElementById('mTitle').textContent = f.title;
-  document.getElementById('mOwner').textContent = f.ownerUsername ? '@' + f.ownerUsername : '';
+  const mOwnerEl = document.getElementById('mOwner');
+  if (f.ownerUsername) {
+    mOwnerEl.textContent = '@' + f.ownerUsername;
+    mOwnerEl.style.cursor = 'pointer';
+    mOwnerEl.style.textDecoration = 'underline';
+    mOwnerEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
+  } else {
+    mOwnerEl.textContent = '';
+    mOwnerEl.onclick = null;
+  }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
