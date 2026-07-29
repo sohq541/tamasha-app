@@ -223,7 +223,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.post('/api/signup', async (req, res) => {
   try {
-    const { email, password, username, ageConfirm } = req.body;
+    const { email, password, username, ageConfirm, securityQuestion, securityAnswer } = req.body;
     if (!email || !password || !username) {
       return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
     }
@@ -232,6 +232,9 @@ app.post('/api/signup', async (req, res) => {
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
+    }
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) {
+      return res.status(400).json({ error: 'Security question aur answer zaroori hai (password bhoolne pe kaam aayega)' });
     }
 
     const users = await readUsers();
@@ -243,9 +246,11 @@ app.post('/api/signup', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
     const newUser = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       email, username, passwordHash,
+      securityQuestion, securityAnswerHash,
       usernameChanges: [],
       createdAt: new Date().toISOString()
     };
@@ -333,6 +338,95 @@ app.get('/media/avatar/:id', async (req, res) => {
     await b2StreamToResponse(user.profileImage, req, res);
   } catch (err) {
     res.status(500).send(err.message);
+  }
+});
+app.put('/api/me/username', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { username } = req.body;
+    if (!username || !username.trim()) return res.status(400).json({ error: 'Username zaroori hai' });
+
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (users.find(u => u.id !== user.id && u.username.toLowerCase() === username.toLowerCase())) {
+      return res.status(400).json({ error: 'Ye username already liya gaya hai' });
+    }
+
+    if (!user.usernameChanges) user.usernameChanges = [];
+    const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const changesThisYear = user.usernameChanges.filter(t => new Date(t).getTime() > oneYearAgo);
+    if (changesThisYear.length >= 3) {
+      return res.status(400).json({ error: 'Aap saal me sirf 3 baar username badal sakte hain. Limit ho gayi.' });
+    }
+
+    user.username = username.trim();
+    user.usernameChanges.push(new Date().toISOString());
+    await writeUsers(users);
+
+    const token = signToken(user);
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.json({ username: user.username, changesLeft: 3 - changesThisYear.length - 1 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/me/password', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Dono password fields zaroori hain' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
+
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Current password galat hai' });
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await writeUsers(users);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/forgot-password/question', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const users = await readUsers();
+    const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
+    res.json({ securityQuestion: user.securityQuestion });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/forgot-password/reset', async (req, res) => {
+  try {
+    const { email, securityAnswer, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
+    }
+    const users = await readUsers();
+    const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
+
+    const ok = await bcrypt.compare((securityAnswer || '').trim().toLowerCase(), user.securityAnswerHash);
+    if (!ok) return res.status(401).json({ error: 'Security answer galat hai' });
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await writeUsers(users);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 app.post('/api/claim-existing-films', async (req, res) => {
