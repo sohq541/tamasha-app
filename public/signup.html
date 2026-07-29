@@ -45,6 +45,18 @@
     <label>Password</label>
     <input type="password" id="password" required minlength="6" placeholder="Kam se kam 6 characters">
 
+    <label>Security question (password bhoolne pe kaam aayega)</label>
+    <select id="securityQuestion" required style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;">
+      <option value="">-- Select a question --</option>
+      <option value="Aapke pehle pet ka naam?">Aapke pehle pet ka naam?</option>
+      <option value="Aapke school ka naam?">Aapke school ka naam?</option>
+      <option value="Aapki favorite movie?">Aapki favorite movie?</option>
+      <option value="Aapke shehar ka naam jahan aap bade hue?">Aapke shehar ka naam jahan aap bade hue?</option>
+    </select>
+
+    <label>Answer</label>
+    <input type="text" id="securityAnswer" required placeholder="Apna answer likho">
+
     <div class="checkbox-row">
       <input type="checkbox" id="ageConfirm" required>
       <label for="ageConfirm">Main confirm karta/karti hoon ki main 18+ (adult) content upload nahi karunga/karungi.</label>
@@ -73,7 +85,9 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
         username: document.getElementById('username').value,
         email: document.getElementById('email').value,
         password: document.getElementById('password').value,
-        ageConfirm: document.getElementById('ageConfirm').checked
+        ageConfirm: document.getElementById('ageConfirm').checked,
+        securityQuestion: document.getElementById('securityQuestion').value,
+        securityAnswer: document.getElementById('securityAnswer').value
       })
     });
     const data = await res.json();

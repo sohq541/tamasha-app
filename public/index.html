@@ -437,8 +437,25 @@ async function renderProfile(){
       <div class="profile-email">${escapeHtml(currentUser.email)}</div>
       <div class="profile-actions">
         <a class="profile-btn" href="/admin.html">Upload</a>
+        <button class="profile-btn secondary" onclick="toggleSettings()">Settings</button>
         <button class="profile-btn secondary" onclick="logout()">Logout</button>
       </div>
+    </div>
+
+    <div class="profile-card hidden" id="settingsCard">
+      <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Change username</h3>
+      <input type="text" id="newUsernameInput" placeholder="Naya username" value="${escapeHtml(currentUser.username)}"
+        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+      <button class="profile-btn" style="width:100%;" onclick="changeUsername()">Save username</button>
+      <div id="usernameStatus" style="margin-top:8px;font-size:13px;"></div>
+
+      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change password</h3>
+      <input type="password" id="currentPasswordInput" placeholder="Current password"
+        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+      <input type="password" id="newPasswordInput" placeholder="Naya password (kam se kam 6 characters)"
+        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+      <button class="profile-btn" style="width:100%;" onclick="changePassword()">Save password</button>
+      <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
@@ -485,6 +502,56 @@ async function uploadAvatar(input){
     renderProfile();
   } catch (err) {
     showToast(err.message);
+  }
+}
+
+function toggleSettings(){
+  document.getElementById('settingsCard').classList.toggle('hidden');
+}
+
+async function changeUsername(){
+  const statusEl = document.getElementById('usernameStatus');
+  const newUsername = document.getElementById('newUsernameInput').value.trim();
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--cream-dim)';
+  try {
+    const res = await fetch('/api/me/username', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: newUsername })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = `Saved! ${data.changesLeft} change(s) left this year.`;
+    await loadProfile();
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
+  }
+}
+
+async function changePassword(){
+  const statusEl = document.getElementById('passwordStatus');
+  const currentPassword = document.getElementById('currentPasswordInput').value;
+  const newPassword = document.getElementById('newPasswordInput').value;
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--cream-dim)';
+  try {
+    const res = await fetch('/api/me/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = 'Password changed!';
+    document.getElementById('currentPasswordInput').value = '';
+    document.getElementById('newPasswordInput').value = '';
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
   }
 }
 
