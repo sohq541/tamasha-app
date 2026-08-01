@@ -396,7 +396,28 @@ app.put('/api/me/password', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.put('/api/me/security-question', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { securityQuestion, securityAnswer } = req.body;
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) {
+      return res.status(400).json({ error: 'Question aur answer dono zaroori hain' });
+    }
 
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    user.securityQuestion = securityQuestion;
+    user.securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
+    await writeUsers(users);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/forgot-password/question', async (req, res) => {
   try {
     const { email } = req.body;
