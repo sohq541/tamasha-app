@@ -456,6 +456,20 @@ async function renderProfile(){
         style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
       <button class="profile-btn" style="width:100%;" onclick="changePassword()">Save password</button>
       <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
+
+      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Security question set karo</h3>
+      <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 10px;">Agar password bhool jao to isi se recover hoga.</p>
+      <select id="secQuestionSelect" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+        <option value="">-- Select a question --</option>
+        <option value="Aapke pehle pet ka naam?">Aapke pehle pet ka naam?</option>
+        <option value="Aapke school ka naam?">Aapke school ka naam?</option>
+        <option value="Aapki favorite movie?">Aapki favorite movie?</option>
+        <option value="Aapke shehar ka naam jahan aap bade hue?">Aapke shehar ka naam jahan aap bade hue?</option>
+      </select>
+      <input type="text" id="secAnswerInput" placeholder="Answer"
+        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+      <button class="profile-btn" style="width:100%;" onclick="setSecurityQuestion()">Save security question</button>
+      <div id="secQuestionStatus" style="margin-top:8px;font-size:13px;"></div>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
       <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
