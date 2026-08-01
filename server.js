@@ -362,9 +362,21 @@ app.put('/api/me/username', async (req, res) => {
       return res.status(400).json({ error: 'Aap saal me sirf 3 baar username badal sakte hain. Limit ho gayi.' });
     }
 
-    user.username = username.trim();
+    const newUsername = username.trim();
+    user.username = newUsername;
     user.usernameChanges.push(new Date().toISOString());
     await writeUsers(users);
+
+    // Update ownerUsername on all their existing uploads too
+    const films = await readFilms();
+    let updated = false;
+    films.forEach(f => {
+      if (f.ownerId === user.id) {
+        f.ownerUsername = newUsername;
+        updated = true;
+      }
+    });
+    if (updated) await writeFilms(films);
 
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
