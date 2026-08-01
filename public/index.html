@@ -694,7 +694,7 @@ function renderShorts(shorts){
   const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
   container.innerHTML = shorts.map(f => `
     <div class="short-item" data-id="${f.id}">
-      <video src="${f.videoUrl}" loop playsinline data-id="${f.id}" onclick="toggleShortPlay(this)"></video>
+      <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}" onclick="toggleShortPlay(this)"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
@@ -751,6 +751,7 @@ function setupShortsObserver(){
     entries.forEach(entry => {
       const video = entry.target;
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        if (!video.src && video.dataset.src) video.src = video.dataset.src;
         video.play().catch(() => {
           video.muted = true;
           const btn = video.closest('.short-item').querySelector('.short-mute-btn');
