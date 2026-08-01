@@ -568,7 +568,27 @@ async function changePassword(){
     statusEl.textContent = err.message;
   }
 }
-
+async function setSecurityQuestion(){
+  const statusEl = document.getElementById('secQuestionStatus');
+  const question = document.getElementById('secQuestionSelect').value;
+  const answer = document.getElementById('secAnswerInput').value;
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--cream-dim)';
+  try {
+    const res = await fetch('/api/me/security-question', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ securityQuestion: question, securityAnswer: answer })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    statusEl.style.color = '#8fd19e';
+    statusEl.textContent = 'Saved! Ab forgot password use kar sakte ho.';
+  } catch (err) {
+    statusEl.style.color = '#e88a8a';
+    statusEl.textContent = err.message;
+  }
+      }
 function viewProfile(userId, username){
   if (!userId) return;
   viewingProfile = { id: userId, username: username };
