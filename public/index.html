@@ -176,6 +176,27 @@
   .settings-save-btn{width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;}
 
   .mini-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;}
+  #quickUploadForm label{display:block;font-size:13px;color:var(--cream-dim);margin:12px 0 6px;}
+#quickUploadForm input[type=text], #quickUploadForm textarea{
+  width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+  padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;
+}
+#quickUploadForm textarea{min-height:60px;resize:vertical;}
+#quickUploadForm input[type=file]{width:100%;color:var(--cream-dim);font-size:13px;margin-top:4px;}
+#quickUploadForm .row{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0;}
+#quickUploadForm .row label{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--cream);margin:0;}
+#quickUploadForm .row input[type=radio]{width:auto;}
+#quickUploadForm button[type=submit]{margin-top:18px;width:100%;background:var(--marigold);color:#fff;border:none;
+  border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;}
+
+.upload-banner{
+  position:fixed;left:12px;right:12px;bottom:12px;z-index:300;background:var(--panel);
+  border:1px solid var(--gold-line);border-radius:12px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.5);
+}
+.upload-banner-top{display:flex;justify-content:space-between;font-size:14px;font-weight:600;color:var(--cream);margin-bottom:8px;}
+.upload-progress-track{background:rgba(255,255,255,0.1);border-radius:999px;height:8px;overflow:hidden;}
+.upload-progress-fill{background:var(--marigold);height:100%;width:0%;transition:width 0.2s;}
+.upload-banner-stats{font-size:12px;color:var(--cream-dim);margin-top:6px;}
   .hidden{display:none !important;}
 </style>
 </head>
@@ -276,7 +297,49 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="sheet-overlay" id="uploadModalOverlay" onclick="if(event.target===this) closeUploadModal()">
+  <div class="sheet" style="max-height:88vh;overflow-y:auto;">
+    <div class="sheet-header"><h3>Upload</h3><button class="sheet-close" onclick="closeUploadModal()">✕</button></div>
+    <form id="quickUploadForm">
+      <label>Title *</label>
+      <input type="text" id="qTitle" required>
 
+      <label>Content Type</label>
+      <div class="row">
+        <label><input type="radio" name="qType" value="film" checked onclick="toggleQType('film')"> Full Film</label>
+        <label><input type="radio" name="qType" value="short" onclick="toggleQType('short')"> Short</label>
+        <label><input type="radio" name="qType" value="photo" onclick="toggleQType('photo')"> Photo</label>
+      </div>
+
+      <div id="qVideoFields">
+        <label>Poster (optional)</label>
+        <input type="file" id="qPoster" accept="image/*">
+        <label>Video file *</label>
+        <input type="file" id="qVideo" accept="video/*">
+      </div>
+      <div id="qPhotoFields" class="hidden">
+        <label>Photo *</label>
+        <input type="file" id="qPhoto" accept="image/*">
+      </div>
+
+      <label>Year</label><input type="text" id="qYear">
+      <label>Language</label><input type="text" id="qLanguage">
+      <label>Genre</label><input type="text" id="qGenre">
+      <label>Description</label><textarea id="qDescription"></textarea>
+
+      <button type="submit">Start Upload</button>
+    </form>
+  </div>
+</div>
+
+<div class="upload-banner hidden" id="uploadBanner">
+  <div class="upload-banner-top">
+    <span id="uploadBannerTitle">Uploading...</span>
+    <span id="uploadBannerPercent">0%</span>
+  </div>
+  <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+  <div class="upload-banner-stats" id="uploadBannerStats"></div>
+</div>
 <script>
 let currentFilm = null;
 let currentShortId = null;
@@ -1029,7 +1092,121 @@ async function init(){
   await loadFilms();
 }
 init();
+let uploadXhr = null;
 
+function toggleQType(type){
+  document.getElementById('qVideoFields').classList.toggle('hidden', type === 'photo');
+  document.getElementById('qPhotoFields').classList.toggle('hidden', type !== 'photo');
+}
+
+function openUploadModal(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  document.getElementById('uploadModalOverlay').classList.add('open');
+}
+function closeUploadModal(){
+  document.getElementById('uploadModalOverlay').classList.remove('open');
+}
+
+document.getElementById('quickUploadForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const type = document.querySelector('input[name="qType"]:checked').value;
+  const formData = new FormData();
+  formData.append('title', document.getElementById('qTitle').value);
+  formData.append('type', type);
+  formData.append('year', document.getElementById('qYear').value);
+  formData.append('language', document.getElementById('qLanguage').value);
+  formData.append('genre', document.getElementById('qGenre').value);
+  formData.append('description', document.getElementById('qDescription').value);
+
+  if (type === 'photo') {
+    const photoFile = document.getElementById('qPhoto').files[0];
+    if (!photoFile) { alert('Photo file zaroori hai'); return; }
+    formData.append('photo', photoFile);
+  } else {
+    const videoFile = document.getElementById('qVideo').files[0];
+    if (!videoFile) { alert('Video file zaroori hai'); return; }
+    formData.append('video', videoFile);
+    const posterFile = document.getElementById('qPoster').files[0];
+    if (posterFile) formData.append('poster', posterFile);
+  }
+
+  const titleForBanner = document.getElementById('qTitle').value;
+  closeUploadModal();
+  startUploadWithProgress(formData, titleForBanner);
+  document.getElementById('quickUploadForm').reset();
+  toggleQType('film');
+});
+
+function formatBytes(bytes){
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(0) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function startUploadWithProgress(formData, title){
+  const banner = document.getElementById('uploadBanner');
+  const fill = document.getElementById('uploadProgressFill');
+  const percentEl = document.getElementById('uploadBannerPercent');
+  const statsEl = document.getElementById('uploadBannerStats');
+  const titleEl = document.getElementById('uploadBannerTitle');
+
+  banner.classList.remove('hidden');
+  titleEl.textContent = 'Uploading: ' + title;
+  fill.style.width = '0%';
+  percentEl.textContent = '0%';
+  statsEl.textContent = '';
+
+  let lastLoaded = 0;
+  let lastTime = Date.now();
+
+  const xhr = new XMLHttpRequest();
+  uploadXhr = xhr;
+  xhr.open('POST', '/api/films');
+
+  xhr.upload.onprogress = function(e){
+    if (!e.lengthComputable) return;
+    const percent = Math.round((e.loaded / e.total) * 100);
+    fill.style.width = percent + '%';
+    percentEl.textContent = percent + '%';
+
+    const now = Date.now();
+    const timeDelta = (now - lastTime) / 1000;
+    const bytesDelta = e.loaded - lastLoaded;
+    if (timeDelta > 0.3) {
+      const speedMBps = (bytesDelta / timeDelta) / (1024*1024);
+      const remainingMB = ((e.total - e.loaded) / (1024*1024)).toFixed(1);
+      statsEl.textContent = `${speedMBps.toFixed(1)} MB/s · ${formatBytes(e.loaded)} / ${formatBytes(e.total)} · ${remainingMB} MB left`;
+      lastLoaded = e.loaded;
+      lastTime = now;
+    }
+  };
+
+  xhr.onload = function(){
+    uploadXhr = null;
+    if (xhr.status >= 200 && xhr.status < 300) {
+      titleEl.textContent = '✅ Upload complete: ' + title;
+      fill.style.width = '100%';
+      percentEl.textContent = '100%';
+      statsEl.textContent = 'Done!';
+      showToast('Upload successful! 🎉');
+      loadFilms();
+      setTimeout(() => banner.classList.add('hidden'), 3000);
+    } else {
+      let msg = 'Upload failed';
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e){}
+      titleEl.textContent = '❌ Failed: ' + msg;
+      statsEl.textContent = '';
+      setTimeout(() => banner.classList.add('hidden'), 4000);
+    }
+  };
+
+  xhr.onerror = function(){
+    uploadXhr = null;
+    titleEl.textContent = '❌ Upload failed (network error)';
+    setTimeout(() => banner.classList.add('hidden'), 4000);
+  };
+
+  xhr.send(formData);
+      }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 </script>
 </body>
