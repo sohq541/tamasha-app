@@ -192,14 +192,14 @@
 </div>
 
 <div id="homeView">
+  <div class="shorts-header-row">
+    <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Search..." oninput="doSearch(this.value)">
+    </div>
+  </div>
   <div class="search-results hidden" id="searchResults"></div>
   <div id="homeMainContent">
-    <div class="shorts-header-row">
-      <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
-      <div class="search-wrap">
-        <input type="text" id="searchInput" placeholder="Search..." oninput="doSearch(this.value)">
-      </div>
-    </div>
     <div class="shorts-grid" id="shortsGrid"></div>
     <h3 class="section-title" id="filmsGridTitle" style="display:none;padding:20px 24px 0;">Films</h3>
     <div id="grid" class="grid"></div>
