@@ -298,10 +298,20 @@ app.get('/api/users/:id/public', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.id === req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const currentUser = getUserFromReq(req);
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    const isFollowing = me && me.following ? me.following.includes(user.id) : false;
+    const followersCount = users.filter(u => u.following && u.following.includes(user.id)).length;
+    const followingCount = user.following ? user.following.length : 0;
+
     res.json({
       id: user.id,
       username: user.username,
-      profileImage: user.profileImage ? '/media/avatar/' + user.id : null
+      bio: user.bio || '',
+      website: user.website || '',
+      profileImage: user.profileImage ? '/media/avatar/' + user.id : null,
+      followersCount, followingCount, isFollowing
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -441,7 +451,55 @@ app.post('/api/forgot-password/question', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.put('/api/me/bio', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { bio, website } = req.body;
 
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    user.bio = (bio || '').slice(0, 150);
+    user.website = (website || '').slice(0, 100);
+    await writeUsers(users);
+
+    res.json({ bio: user.bio, website: user.website });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users/:id/follow', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (currentUser.id === req.params.id) return res.status(400).json({ error: 'Khud ko follow nahi kar sakte' });
+
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    const target = users.find(u => u.id === req.params.id);
+    if (!me || !target) return res.status(404).json({ error: 'User not found' });
+
+    if (!me.following) me.following = [];
+    const idx = me.following.indexOf(target.id);
+    let nowFollowing;
+    if (idx === -1) {
+      me.following.push(target.id);
+      nowFollowing = true;
+    } else {
+      me.following.splice(idx, 1);
+      nowFollowing = false;
+    }
+    await writeUsers(users);
+
+    const followersCount = users.filter(u => u.following && u.following.includes(target.id)).length;
+    res.json({ following: nowFollowing, followersCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/forgot-password/reset', async (req, res) => {
   try {
     const { email, securityAnswer, newPassword } = req.body;
