@@ -545,11 +545,16 @@ app.post('/api/claim-existing-films', async (req, res) => {
 app.get('/api/films', async (req, res) => {
   try {
     const films = await readFilms();
-    const out = films.map(f => ({
-      ...f,
-      videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
-      posterUrl: f.posterFile ? '/media/poster/' + f.id : null
-    }));
+    const users = await readUsers();
+    const out = films.map(f => {
+      const owner = users.find(u => u.id === f.ownerId);
+      return {
+        ...f,
+        videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
+        posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
+        ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
+      };
+    });
     res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -561,10 +566,13 @@ app.get('/api/films/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
+    const users = await readUsers();
+    const owner = users.find(u => u.id === f.ownerId);
     res.json({
       ...f,
-      videoUrl: '/media/video/' + f.id,
-      posterUrl: f.posterFile ? '/media/poster/' + f.id : null
+      videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
+      posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
+      ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
