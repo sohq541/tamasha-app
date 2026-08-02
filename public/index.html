@@ -686,7 +686,7 @@ function renderHome(films){
         ${f.type !== 'photo' ? `<div class="ptitle">${escapeHtml(f.title)}</div>` : ''}
       </div>
       ${f.type === 'photo' ? `<div class="meta" style="color:var(--cream);font-weight:700;">${escapeHtml(f.title)}</div>` : `<div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>`}
-      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;margin-right:6px;">` : ''}@${escapeHtml(f.ownerUsername)}</div>` : ''}
       ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
   `).join('');
@@ -702,7 +702,7 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}@${escapeHtml(f.ownerUsername)}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
@@ -912,8 +912,9 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.textContent = '@' + f.ownerUsername;
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;">` : '') + '@' + escapeHtml(f.ownerUsername);
     mOwnerEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
+  } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
