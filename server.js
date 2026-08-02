@@ -538,12 +538,6 @@ app.post('/api/films', (req, res, next) => {
       const posterFile = req.files.poster[0];
       posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
       await b2UploadBuffer(posterFile.buffer, posterKey, posterFile.mimetype);
-    } else {
-      try {
-        const thumbBuffer = await generateThumbnail(videoFile.buffer, path.extname(videoFile.originalname));
-        posterKey = `posters/${id}.jpg`;
-        await b2UploadBuffer(thumbBuffer, posterKey, 'image/jpeg');
-      } catch (err) { console.error('Auto-thumbnail failed:', err.message); }
     }
 
     const films = await readFilms();
@@ -558,6 +552,20 @@ app.post('/api/films', (req, res, next) => {
     films.unshift(newFilm);
     await writeFilms(films);
     res.status(201).json(newFilm);
+
+    // Generate thumbnail in the background so the upload response returns faster
+    if (!posterKey) {
+      generateThumbnail(videoFile.buffer, path.extname(videoFile.originalname))
+        .then(async (thumbBuffer) => {
+          const genPosterKey = `posters/${id}.jpg`;
+          await b2UploadBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
+          const latestFilms = await readFilms();
+          const f = latestFilms.find(x => x.id === id);
+          if (f) { f.posterFile = genPosterKey; await writeFilms(latestFilms); }
+        })
+        .catch(err => console.error('Background thumbnail failed:', err.message));
+    }
+    return;
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
