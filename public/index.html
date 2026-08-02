@@ -15,7 +15,7 @@
     --vermilion:#4361EE; --cream:#EDEBFF; --cream-dim:#A9A3C9; --gold-line: rgba(124,92,255,0.35);
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;height:100%;overscroll-behavior:none;}
+  html,body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;height:100%;overscroll-behavior:none;touch-action:manipulation;}
   a{color:inherit;text-decoration:none;}
   header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--gold-line);}
   .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:24px;color:var(--marigold);}
@@ -56,7 +56,7 @@
   .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:20px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
   .meta{font-size:13px;color:var(--marigold);padding:10px 16px 0;font-weight:600;}
-  .card-owner{font-size:12.5px;color:var(--cream-dim);padding:4px 16px 0;}
+  .card-owner{font-size:12.5px;color:var(--cream-dim);padding:4px 16px 0;cursor:pointer;text-decoration:underline;}
   .card-desc{font-size:14px;color:var(--cream-dim);padding:6px 16px 0;line-height:1.5;}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
@@ -67,7 +67,7 @@
   .modal video{width:100%;display:block;background:#000;max-height:60vh;}
   .modal-body{padding:20px 24px;}
   .modal-body h2{font-family:'Baloo 2',sans-serif;margin:0 0 4px;}
-  .modal-owner{font-size:13px;color:var(--marigold);margin:0 0 8px;}
+  .modal-owner{font-size:13px;color:var(--marigold);margin:0 0 8px;cursor:pointer;text-decoration:underline;display:inline-block;}
   .modal-body p{color:var(--cream-dim);line-height:1.6;}
   .modal-close{float:right;background:transparent;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:6px 14px;cursor:pointer;}
   .action-row{display:flex;align-items:center;gap:14px;margin:16px 0 4px;}
@@ -110,11 +110,11 @@
   .short-item video{width:100%;height:100%;object-fit:contain;background:#000;}
   .short-exit{
     position:fixed;top:18px;left:16px;z-index:60;background:rgba(0,0,0,0.45);border:none;
-    color:#fff;width:50px;height:50px;border-radius:50%;font-size:28px;font-weight:700;
+    color:#fff;width:62px;height:62px;border-radius:50%;font-size:36px;font-weight:700;
     display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,0.5);
   }
   .short-info{position:absolute;left:18px;bottom:34px;right:100px;color:#fff;z-index:5;}
-  .short-owner{font-family:'Baloo 2',sans-serif;font-size:16px;font-weight:700;margin:0 0 6px;text-shadow:0 2px 10px rgba(0,0,0,0.9);}
+  .short-owner{font-family:'Baloo 2',sans-serif;font-size:22px;font-weight:800;margin:0 0 10px;text-shadow:0 2px 12px rgba(0,0,0,0.9);cursor:pointer;}
   .short-info h3{font-family:'Baloo 2',sans-serif;font-size:36px;font-weight:800;margin:0 0 12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
   .short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
   .short-actions{
@@ -141,28 +141,41 @@
   .sheet-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .sheet-header h3{font-family:'Baloo 2',sans-serif;margin:0;color:var(--marigold);font-size:16px;}
   .sheet-close{background:transparent;border:none;color:var(--cream);font-size:20px;cursor:pointer;}
-
-  .menu-sheet .sheet{padding:10px 0;}
   .menu-item{display:flex;align-items:center;gap:14px;padding:16px 22px;font-size:15px;color:var(--cream);cursor:pointer;}
   .menu-item:hover{background:rgba(255,255,255,0.06);}
 
-  .profile-wrap{max-width:500px;margin:0 auto;padding:30px 24px;}
-  .profile-card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:26px;text-align:center;margin-bottom:24px;}
-  .profile-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
-    display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:30px;font-weight:800;
-    margin:0 auto 14px;overflow:hidden;position:relative;cursor:pointer;}
+  /* -------- Instagram-style profile -------- */
+  .profile-wrap{max-width:560px;margin:0 auto;padding:24px 20px;}
+  .profile-top-row{display:flex;align-items:center;gap:20px;margin-bottom:18px;}
+  .profile-avatar{width:84px;height:84px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
+    display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:34px;font-weight:800;
+    overflow:hidden;position:relative;flex-shrink:0;cursor:pointer;}
   .profile-avatar img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
   .avatar-camera{position:absolute;bottom:0;right:0;background:var(--marigold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
-  .mini-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;}
-  .profile-username{font-family:'Baloo 2',sans-serif;font-size:20px;color:var(--marigold);}
-  .profile-email{font-size:13px;color:var(--cream-dim);margin-top:4px;}
-  .profile-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;}
-  .profile-btn{background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:600;font-size:14px;cursor:pointer;}
-  .profile-btn.secondary{background:transparent;border:1px solid var(--gold-line);color:var(--cream);}
+  .profile-stats{display:flex;flex:1;justify-content:space-around;text-align:center;}
+  .profile-stat-num{font-family:'Baloo 2',sans-serif;font-size:19px;font-weight:800;color:var(--cream);}
+  .profile-stat-label{font-size:12.5px;color:var(--cream-dim);}
+  .profile-username{font-family:'Baloo 2',sans-serif;font-size:17px;color:var(--marigold);margin-bottom:4px;}
+  .profile-bio{font-size:14px;color:var(--cream);line-height:1.5;white-space:pre-wrap;margin-bottom:4px;}
+  .profile-link{font-size:13.5px;color:var(--marigold-deep);word-break:break-all;}
+  .profile-btn-row{display:flex;gap:8px;margin-top:16px;}
+  .profile-btn{flex:1;background:rgba(255,255,255,0.08);border:1px solid var(--gold-line);color:var(--cream);
+    border-radius:8px;padding:9px;font-weight:600;font-size:14px;cursor:pointer;text-align:center;}
+  .profile-btn.primary{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+  .profile-tabs-row{display:flex;gap:8px;margin:20px 0 12px;}
   .profile-mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .profile-mygrid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);}
   .profile-mygrid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
 
+  .settings-panel{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:22px;margin-bottom:20px;}
+  .settings-panel input, .settings-panel textarea, .settings-panel select{
+    width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
+    padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;
+  }
+  .settings-panel textarea{min-height:60px;resize:vertical;}
+  .settings-save-btn{width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;}
+
+  .mini-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;}
   .hidden{display:none !important;}
 </style>
 </head>
@@ -180,7 +193,6 @@
 
 <div id="homeView">
   <div class="search-results hidden" id="searchResults"></div>
-
   <div id="homeMainContent">
     <div class="shorts-header-row">
       <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
@@ -189,7 +201,6 @@
       </div>
     </div>
     <div class="shorts-grid" id="shortsGrid"></div>
-
     <h3 class="section-title" id="filmsGridTitle" style="display:none;padding:20px 24px 0;">Films</h3>
     <div id="grid" class="grid"></div>
   </div>
@@ -204,7 +215,6 @@
   <div class="profile-wrap" id="profileContent"></div>
 </div>
 
-<!-- Home modal player -->
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <video id="player" controls></video>
@@ -212,7 +222,7 @@
     <div class="modal-body">
       <button class="modal-close" onclick="closeModal()">Close</button>
       <h2 id="mTitle"></h2>
-      <p class="modal-owner" id="mOwner"></p>
+      <span class="modal-owner" id="mOwner"></span>
       <p id="mMeta" style="color:var(--marigold);"></p>
       <p id="mDesc"></p>
       <div class="action-row">
@@ -233,13 +243,9 @@
   </div>
 </div>
 
-<!-- Comments bottom sheet, used by Shorts feed -->
 <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
   <div class="sheet">
-    <div class="sheet-header">
-      <h3>Comments</h3>
-      <button class="sheet-close" onclick="closeSheet()">✕</button>
-    </div>
+    <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="closeSheet()">✕</button></div>
     <form class="comment-form" id="sheetCommentForm">
       <input type="text" id="sheetCommentName" placeholder="Naam (optional)" maxlength="40">
       <textarea id="sheetCommentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
@@ -249,30 +255,20 @@
   </div>
 </div>
 
-<!-- 3-dot menu sheet: Download / Copy link / Edit / Delete -->
-<div class="sheet-overlay menu-sheet" id="menuOverlay" onclick="if(event.target===this) closeMenu()">
-  <div class="sheet">
-    <div id="menuItemsContainer"></div>
-  </div>
+<div class="sheet-overlay" id="menuOverlay" onclick="if(event.target===this) closeMenu()">
+  <div class="sheet"><div id="menuItemsContainer"></div></div>
 </div>
 
-<!-- Inline edit sheet for a short's own uploader -->
 <div class="sheet-overlay" id="editSheetOverlay" onclick="if(event.target===this) closeEditSheet()">
   <div class="sheet" style="max-height:85vh;overflow-y:auto;">
-    <div class="sheet-header">
-      <h3>Edit</h3>
-      <button class="sheet-close" onclick="closeEditSheet()">✕</button>
-    </div>
+    <div class="sheet-header"><h3>Edit</h3><button class="sheet-close" onclick="closeEditSheet()">✕</button></div>
     <form id="editShortForm">
       <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Title</label>
       <input type="text" id="editShortTitle" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
-
       <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Description</label>
       <textarea id="editShortDesc" style="width:100%;min-height:60px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;"></textarea>
-
       <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Replace thumbnail (optional)</label>
       <input type="file" id="editShortPoster" accept="image/*" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
-
       <button type="submit" style="margin-top:16px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Save changes</button>
       <div id="editShortStatus" style="margin-top:8px;font-size:13px;"></div>
     </form>
@@ -286,27 +282,22 @@ let currentFilm = null;
 let currentShortId = null;
 let allFilms = [];
 let currentUser = null;
-let viewingProfile = null; // { id, username } when viewing someone else's profile
+let viewingProfile = null;
 
 function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
 }
-
 function getViewedList(){ return JSON.parse(localStorage.getItem('viewedFilms') || '[]'); }
 function markViewed(id){
   const list = getViewedList();
-  if (!list.includes(id)) {
-    list.push(id);
-    localStorage.setItem('viewedFilms', JSON.stringify(list));
-    return true;
-  }
+  if (!list.includes(id)) { list.push(id); localStorage.setItem('viewedFilms', JSON.stringify(list)); return true; }
   return false;
 }
 
 function switchTab(tab){
-  if (tab === 'profile') viewingProfile = null; // tab click always means "my profile"
+  if (tab === 'profile') viewingProfile = null;
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
   document.getElementById('tabProfile').classList.toggle('active', tab === 'profile');
@@ -318,11 +309,10 @@ function switchTab(tab){
   if (tab === 'shorts') {
     setupShortsObserver();
     const firstVideo = document.querySelector('.short-item video');
-    if (firstVideo) firstVideo.play().catch(() => {});
+    if (firstVideo) { if (!firstVideo.src && firstVideo.dataset.src) firstVideo.src = firstVideo.dataset.src; firstVideo.play().catch(() => {}); }
   } else {
     document.querySelectorAll('.short-item video').forEach(v => v.pause());
   }
-
   if (tab === 'profile') renderProfile();
 }
 
@@ -343,7 +333,6 @@ async function loadProfile(){
         <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
         <a href="/admin.html">+ Upload</a>
       `;
-
       document.getElementById('tabProfile').innerHTML = avatarUrl
         ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
         : '👤 Profile';
@@ -357,137 +346,146 @@ async function loadProfile(){
   } catch (err) {}
 }
 
+function viewProfile(userId, username){
+  if (!userId) return;
+  viewingProfile = { id: userId, username: username };
+  switchTab('profile');
+}
+
 async function renderProfile(){
   const el = document.getElementById('profileContent');
 
-  // Viewing someone else's public profile
+  // ---- Viewing someone else's public profile ----
   if (viewingProfile && (!currentUser || viewingProfile.id !== currentUser.id)) {
+    let pub = { username: viewingProfile.username, bio: '', website: '', profileImage: null, followersCount: 0, followingCount: 0, isFollowing: false };
+    try {
+      const res = await fetch('/api/users/' + viewingProfile.id + '/public');
+      pub = await res.json();
+    } catch (err) {}
+
     const theirFilms = allFilms.filter(f => f.ownerId === viewingProfile.id);
     const theirVideos = theirFilms.filter(f => f.type !== 'photo');
     const theirPhotos = theirFilms.filter(f => f.type === 'photo');
 
-    let theirAvatarUrl = null;
-    try {
-      const pubRes = await fetch('/api/users/' + viewingProfile.id + '/public');
-      const pubData = await pubRes.json();
-      theirAvatarUrl = pubData.profileImage;
-    } catch (err) {}
-
     el.innerHTML = `
-      <div class="profile-card">
-        <div class="profile-avatar" style="cursor:default;">
-          ${theirAvatarUrl ? `<img src="${theirAvatarUrl}">` : escapeHtml(viewingProfile.username[0].toUpperCase())}
+      <div class="profile-top-row">
+        <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml(pub.username[0].toUpperCase())}</div>
+        <div class="profile-stats">
+          <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
+          <div><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
+          <div><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
         </div>
-        <div class="profile-username">@${escapeHtml(viewingProfile.username)}</div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div class="profile-username">@${escapeHtml(pub.username)}</div>
+      ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
+      ${pub.website ? `<div class="profile-link">🔗 ${escapeHtml(pub.website)}</div>` : ''}
+      <div class="profile-btn-row">
+        <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${viewingProfile.id}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
+        <button class="profile-btn" onclick="copyProfileLink('${viewingProfile.id}')">Share Profile</button>
+      </div>
+      <div class="profile-tabs-row">
         <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
         <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
       </div>
       <div class="profile-mygrid" id="profileGridVideos">
-        ${theirVideos.map(f => `
-          <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
-            ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-          </div>
-        `).join('') || '<p class="comment-empty">Koi video nahi.</p>'}
+        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi video nahi.</p>'}
       </div>
       <div class="profile-mygrid hidden" id="profileGridPhotos">
-        ${theirPhotos.map(f => `
-          <div class="profile-mygrid-item" onclick="playFilm('${f.id}')">
-            ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-          </div>
-        `).join('') || '<p class="comment-empty">Koi photo nahi.</p>'}
+        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi photo nahi.</p>'}
       </div>
     `;
     return;
   }
 
+  // ---- Not logged in ----
   if (!currentUser) {
     el.innerHTML = `
-      <div class="profile-card">
+      <div class="settings-panel" style="text-align:center;">
         <p style="color:var(--cream-dim);margin-bottom:16px;">Profile dekhne ke liye login karo.</p>
-        <div class="profile-actions">
-          <a class="profile-btn" href="/login.html">Login</a>
-          <a class="profile-btn secondary" href="/signup.html">Sign up</a>
+        <div class="profile-btn-row">
+          <a class="profile-btn primary" href="/login.html">Login</a>
+          <a class="profile-btn" href="/signup.html">Sign up</a>
         </div>
       </div>
     `;
     return;
   }
+
+  // ---- Own profile ----
+  let mine = { username: currentUser.username, bio: '', website: '', profileImage: null, followersCount: 0, followingCount: 0 };
+  try {
+    const res = await fetch('/api/users/' + currentUser.id + '/public');
+    mine = await res.json();
+  } catch (err) {}
 
   const myFilms = allFilms.filter(f => f.ownerId === currentUser.id);
   const myVideos = myFilms.filter(f => f.type !== 'photo');
   const myPhotos = myFilms.filter(f => f.type === 'photo');
 
-  let avatarUrl = null;
-  try {
-    const pubRes = await fetch('/api/users/' + currentUser.id + '/public');
-    const pubData = await pubRes.json();
-    avatarUrl = pubData.profileImage;
-  } catch (err) {}
-
   el.innerHTML = `
-    <div class="profile-card">
+    <div class="profile-top-row">
       <div class="profile-avatar" onclick="document.getElementById('avatarFileInput').click()">
-        ${avatarUrl ? `<img src="${avatarUrl}">` : escapeHtml(currentUser.username[0].toUpperCase())}
+        ${mine.profileImage ? `<img src="${mine.profileImage}">` : escapeHtml(currentUser.username[0].toUpperCase())}
         <div class="avatar-camera">📷</div>
       </div>
       <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
-      <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
-      <div class="profile-email">${escapeHtml(currentUser.email)}</div>
-      <div class="profile-actions">
-        <a class="profile-btn" href="/admin.html">Upload</a>
-        <button class="profile-btn secondary" onclick="toggleSettings()">Settings</button>
-        <button class="profile-btn secondary" onclick="logout()">Logout</button>
+      <div class="profile-stats">
+        <div><div class="profile-stat-num">${myFilms.length}</div><div class="profile-stat-label">Posts</div></div>
+        <div><div class="profile-stat-num">${mine.followersCount}</div><div class="profile-stat-label">Followers</div></div>
+        <div><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
+    <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
+    ${mine.bio ? `<div class="profile-bio">${escapeHtml(mine.bio)}</div>` : ''}
+    ${mine.website ? `<div class="profile-link">🔗 ${escapeHtml(mine.website)}</div>` : ''}
+    <div class="profile-btn-row">
+      <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
+      <button class="profile-btn" onclick="copyProfileLink('${currentUser.id}')">Share Profile</button>
+    </div>
 
-    <div class="profile-card hidden" id="settingsCard">
-      <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Change username</h3>
-      <input type="text" id="newUsernameInput" placeholder="Naya username" value="${escapeHtml(currentUser.username)}"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
-      <button class="profile-btn" style="width:100%;" onclick="changeUsername()">Save username</button>
+    <div class="settings-panel hidden" id="settingsCard">
+      <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Bio & link</h3>
+      <textarea id="bioInput" placeholder="Apne baare me likho...">${escapeHtml(mine.bio)}</textarea>
+      <input type="text" id="websiteInput" placeholder="Website ya social link" value="${escapeHtml(mine.website)}">
+      <button class="settings-save-btn" onclick="saveBio()">Save bio</button>
+      <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
+
+      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change username</h3>
+      <input type="text" id="newUsernameInput" placeholder="Naya username" value="${escapeHtml(currentUser.username)}">
+      <button class="settings-save-btn" onclick="changeUsername()">Save username</button>
       <div id="usernameStatus" style="margin-top:8px;font-size:13px;"></div>
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change password</h3>
-      <input type="password" id="currentPasswordInput" placeholder="Current password"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
-      <input type="password" id="newPasswordInput" placeholder="Naya password (kam se kam 6 characters)"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
-      <button class="profile-btn" style="width:100%;" onclick="changePassword()">Save password</button>
+      <input type="password" id="currentPasswordInput" placeholder="Current password">
+      <input type="password" id="newPasswordInput" placeholder="Naya password (kam se kam 6 characters)">
+      <button class="settings-save-btn" onclick="changePassword()">Save password</button>
       <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
 
-      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Security question set karo</h3>
+      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Security question</h3>
       <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 10px;">Agar password bhool jao to isi se recover hoga.</p>
-      <select id="secQuestionSelect" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
+      <select id="secQuestionSelect">
         <option value="">-- Select a question --</option>
         <option value="Aapke pehle pet ka naam?">Aapke pehle pet ka naam?</option>
         <option value="Aapke school ka naam?">Aapke school ka naam?</option>
         <option value="Aapki favorite movie?">Aapki favorite movie?</option>
         <option value="Aapke shehar ka naam jahan aap bade hue?">Aapke shehar ka naam jahan aap bade hue?</option>
       </select>
-      <input type="text" id="secAnswerInput" placeholder="Answer"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:10px;">
-      <button class="profile-btn" style="width:100%;" onclick="setSecurityQuestion()">Save security question</button>
+      <input type="text" id="secAnswerInput" placeholder="Answer">
+      <button class="settings-save-btn" onclick="setSecurityQuestion()">Save security question</button>
       <div id="secQuestionStatus" style="margin-top:8px;font-size:13px;"></div>
+
+      <button class="profile-btn" style="width:100%;margin-top:18px;" onclick="logout()">Logout</button>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
+
+    <div class="profile-tabs-row">
       <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
       <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
-      ${myVideos.map(f => `
-        <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
-          ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-        </div>
-      `).join('') || '<p class="comment-empty">Abhi koi video upload nahi.</p>'}
+      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Abhi koi video upload nahi.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${myPhotos.map(f => `
-        <div class="profile-mygrid-item" onclick="playFilm('${f.id}')">
-          ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-        </div>
-      `).join('') || '<p class="comment-empty">Abhi koi photo upload nahi.</p>'}
+      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Abhi koi photo upload nahi.</p>'}
     </div>
   `;
 }
@@ -497,6 +495,43 @@ function switchProfileGrid(which){
   document.getElementById('profileTabPhotos').classList.toggle('active', which === 'photos');
   document.getElementById('profileGridVideos').classList.toggle('hidden', which !== 'videos');
   document.getElementById('profileGridPhotos').classList.toggle('hidden', which !== 'photos');
+}
+
+function toggleSettings(){
+  document.getElementById('settingsCard').classList.toggle('hidden');
+}
+
+async function toggleFollow(userId){
+  try {
+    const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderProfile();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function copyProfileLink(userId){
+  const url = location.origin + '/?profile=' + userId;
+  navigator.clipboard.writeText(url).then(() => showToast('Profile link copied!')).catch(() => {});
+}
+
+async function saveBio(){
+  const statusEl = document.getElementById('bioStatus');
+  statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
+  try {
+    const res = await fetch('/api/me/bio', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bio: document.getElementById('bioInput').value, website: document.getElementById('websiteInput').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    statusEl.style.color = '#8fd19e'; statusEl.textContent = 'Saved!';
+    setTimeout(() => renderProfile(), 800);
+  } catch (err) {
+    statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
+  }
 }
 
 async function logout(){
@@ -519,19 +554,13 @@ async function uploadAvatar(input){
   }
 }
 
-function toggleSettings(){
-  document.getElementById('settingsCard').classList.toggle('hidden');
-}
-
 async function changeUsername(){
   const statusEl = document.getElementById('usernameStatus');
   const newUsername = document.getElementById('newUsernameInput').value.trim();
-  statusEl.textContent = 'Saving...';
-  statusEl.style.color = 'var(--cream-dim)';
+  statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
   try {
     const res = await fetch('/api/me/username', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: newUsername })
     });
     const data = await res.json();
@@ -539,9 +568,9 @@ async function changeUsername(){
     statusEl.style.color = '#8fd19e';
     statusEl.textContent = `Saved! ${data.changesLeft} change(s) left this year.`;
     await loadProfile();
+    await loadFilms();
   } catch (err) {
-    statusEl.style.color = '#e88a8a';
-    statusEl.textContent = err.message;
+    statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
   }
 }
 
@@ -549,35 +578,30 @@ async function changePassword(){
   const statusEl = document.getElementById('passwordStatus');
   const currentPassword = document.getElementById('currentPasswordInput').value;
   const newPassword = document.getElementById('newPasswordInput').value;
-  statusEl.textContent = 'Saving...';
-  statusEl.style.color = 'var(--cream-dim)';
+  statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
   try {
     const res = await fetch('/api/me/password', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ currentPassword, newPassword })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    statusEl.style.color = '#8fd19e';
-    statusEl.textContent = 'Password changed!';
+    statusEl.style.color = '#8fd19e'; statusEl.textContent = 'Password changed!';
     document.getElementById('currentPasswordInput').value = '';
     document.getElementById('newPasswordInput').value = '';
   } catch (err) {
-    statusEl.style.color = '#e88a8a';
-    statusEl.textContent = err.message;
+    statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
   }
 }
+
 async function setSecurityQuestion(){
   const statusEl = document.getElementById('secQuestionStatus');
   const question = document.getElementById('secQuestionSelect').value;
   const answer = document.getElementById('secAnswerInput').value;
-  statusEl.textContent = 'Saving...';
-  statusEl.style.color = 'var(--cream-dim)';
+  statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
   try {
     const res = await fetch('/api/me/security-question', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ securityQuestion: question, securityAnswer: answer })
     });
     const data = await res.json();
@@ -585,20 +609,13 @@ async function setSecurityQuestion(){
     statusEl.style.color = '#8fd19e';
     statusEl.textContent = 'Saved! Ab forgot password use kar sakte ho.';
   } catch (err) {
-    statusEl.style.color = '#e88a8a';
-    statusEl.textContent = err.message;
+    statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
   }
-      }
-function viewProfile(userId, username){
-  if (!userId) return;
-  viewingProfile = { id: userId, username: username };
-  switchTab('profile');
 }
 
 async function loadFilms(){
   const res = await fetch('/api/films');
   allFilms = await res.json();
-
   const shorts = allFilms.filter(f => f.type === 'short');
   const films = allFilms.filter(f => f.type !== 'short');
 
@@ -612,8 +629,13 @@ async function loadFilms(){
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
   const shortId = params.get('short');
+  const profileId = params.get('profile');
   if (sharedId) playFilm(sharedId);
   if (shortId) openShortAt(shortId);
+  if (profileId) {
+    const f = allFilms.find(x => x.ownerId === profileId);
+    viewProfile(profileId, f ? f.ownerUsername : 'user');
+  }
 }
 
 function renderShortsGrid(shorts){
@@ -639,22 +661,10 @@ function doSearch(query){
   const resultsEl = document.getElementById('searchResults');
   const mainEl = document.getElementById('homeMainContent');
   const q = query.trim().toLowerCase();
-
-  if (!q) {
-    resultsEl.classList.add('hidden');
-    mainEl.classList.remove('hidden');
-    return;
-  }
-
+  if (!q) { resultsEl.classList.add('hidden'); mainEl.classList.remove('hidden'); return; }
   const matches = allFilms.filter(f => f.title.toLowerCase().includes(q));
-  mainEl.classList.add('hidden');
-  resultsEl.classList.remove('hidden');
-
-  if (matches.length === 0) {
-    resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>';
-    return;
-  }
-
+  mainEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
+  if (matches.length === 0) { resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>'; return; }
   resultsEl.innerHTML = matches.map(f => `
     <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
       <img class="search-result-thumb" src="${f.posterUrl || ''}">
@@ -668,10 +678,7 @@ function doSearch(query){
 
 function renderHome(films){
   const grid = document.getElementById('grid');
-  if(films.length === 0){
-    grid.outerHTML = '<div class="empty" id="grid">Abhi koi film upload nahi hui. <a href="/admin.html">Pehli film upload karo</a></div>';
-    return;
-  }
+  if(films.length === 0){ grid.outerHTML = '<div class="empty" id="grid">Abhi koi film upload nahi hui. <a href="/admin.html">Pehli film upload karo</a></div>'; return; }
   grid.innerHTML = films.map(f => `
     <div class="card" onclick="playFilm('${f.id}')">
       <div class="poster">
@@ -679,7 +686,7 @@ function renderHome(films){
         ${f.type !== 'photo' ? `<div class="ptitle">${escapeHtml(f.title)}</div>` : ''}
       </div>
       ${f.type === 'photo' ? `<div class="meta" style="color:var(--cream);font-weight:700;">${escapeHtml(f.title)}</div>` : `<div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>`}
-      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;text-decoration:underline;">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</div>` : ''}
       ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
     </div>
   `).join('');
@@ -687,10 +694,7 @@ function renderHome(films){
 
 function renderShorts(shorts){
   const container = document.getElementById('shortsContainer');
-  if (shorts.length === 0) {
-    container.innerHTML = '<div class="short-empty">Abhi koi Short upload nahi hui.<br><a href="/admin.html" style="color:var(--marigold);">Pehli Short upload karo</a></div>';
-    return;
-  }
+  if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">Abhi koi Short upload nahi hui.<br><a href="/admin.html" style="color:var(--marigold);">Pehli Short upload karo</a></div>'; return; }
   const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
   container.innerHTML = shorts.map(f => `
     <div class="short-item" data-id="${f.id}">
@@ -698,26 +702,15 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
       <div class="short-actions">
-        <div>
-          <button class="short-action-btn ${likedList.includes(f.id) ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button>
-          <div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div>
-        </div>
-        <div>
-          <button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button>
-          <div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div>
-        </div>
-        <div>
-          <button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button>
-          <div class="short-action-count">Share</div>
-        </div>
-        <div>
-          <button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button>
-        </div>
+        <div><button class="short-action-btn ${likedList.includes(f.id) ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
+        <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
+        <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
+        <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
       </div>
     </div>
   `).join('');
@@ -726,19 +719,12 @@ function renderShorts(shorts){
 function toggleShortPlay(video){
   const item = video.closest('.short-item');
   const icon = item.querySelector('.short-center-icon');
-  if (video.paused) {
-    video.play();
-    icon.style.display = 'none';
-  } else {
-    video.pause();
-    icon.style.display = 'flex';
-  }
+  if (video.paused) { video.play(); icon.style.display = 'none'; }
+  else { video.pause(); icon.style.display = 'flex'; }
 }
-
 function toggleShortMute(e, btn){
   e.stopPropagation();
-  const item = btn.closest('.short-item');
-  const video = item.querySelector('video');
+  const video = btn.closest('.short-item').querySelector('video');
   video.muted = !video.muted;
   btn.textContent = video.muted ? '🔇' : '🔊';
 }
@@ -759,9 +745,7 @@ function setupShortsObserver(){
           video.play().catch(() => {});
         });
         const id = video.dataset.id;
-        if (markViewed(id)) {
-          fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
-        }
+        if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
       } else {
         video.pause();
       }
@@ -786,18 +770,14 @@ async function likeShort(id, btn){
 function shareShort(id){
   const film = allFilms.find(f => f.id === id);
   const url = location.origin + '/?short=' + id;
-  if (navigator.share) {
-    navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
-  }
+  if (navigator.share) navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
+  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
 }
 
 function openMenu(id){
   currentShortId = id;
   const film = allFilms.find(f => f.id === id);
   const isOwner = currentUser && film && film.ownerId === currentUser.id;
-
   let itemsHtml = `
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
     <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
@@ -811,6 +791,7 @@ function openMenu(id){
   document.getElementById('menuItemsContainer').innerHTML = itemsHtml;
   document.getElementById('menuOverlay').classList.add('open');
 }
+function closeMenu(){ document.getElementById('menuOverlay').classList.remove('open'); }
 
 function editCurrentShort(){
   const film = allFilms.find(f => f.id === currentShortId);
@@ -822,31 +803,24 @@ function editCurrentShort(){
   document.getElementById('editShortStatus').textContent = '';
   document.getElementById('editSheetOverlay').classList.add('open');
 }
-function closeEditSheet(){
-  document.getElementById('editSheetOverlay').classList.remove('open');
-}
+function closeEditSheet(){ document.getElementById('editSheetOverlay').classList.remove('open'); }
 
 document.getElementById('editShortForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const statusEl = document.getElementById('editShortStatus');
-  statusEl.textContent = 'Saving...';
-  statusEl.style.color = 'var(--cream-dim)';
-
+  statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
   const formData = new FormData();
   formData.append('title', document.getElementById('editShortTitle').value);
   formData.append('description', document.getElementById('editShortDesc').value);
   const posterInput = document.getElementById('editShortPoster');
   if (posterInput.files[0]) formData.append('poster', posterInput.files[0]);
-
   try {
     const res = await fetch('/api/films/' + currentShortId, { method: 'PUT', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Save failed');
-
     const film = allFilms.find(f => f.id === currentShortId);
     if (film) {
-      film.title = data.title;
-      film.description = data.description;
+      film.title = data.title; film.description = data.description;
       const item = document.querySelector('.short-item[data-id="' + currentShortId + '"]');
       if (item) {
         const h3 = item.querySelector('.short-info h3');
@@ -855,13 +829,10 @@ document.getElementById('editShortForm').addEventListener('submit', async (e) =>
         if (p) p.textContent = film.description || '';
       }
     }
-
-    statusEl.style.color = '#8fd19e';
-    statusEl.textContent = 'Saved!';
+    statusEl.style.color = '#8fd19e'; statusEl.textContent = 'Saved!';
     setTimeout(() => closeEditSheet(), 800);
   } catch (err) {
-    statusEl.style.color = '#e88a8a';
-    statusEl.textContent = err.message;
+    statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
   }
 });
 
@@ -869,10 +840,7 @@ async function deleteCurrentShort(){
   if (!confirm('Ye video permanently delete karni hai?')) return;
   try {
     const res = await fetch('/api/films/' + currentShortId, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Delete failed');
-    }
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
     closeMenu();
     showToast('Delete ho gaya');
     const item = document.querySelector('.short-item[data-id="' + currentShortId + '"]');
@@ -882,19 +850,10 @@ async function deleteCurrentShort(){
     showToast(err.message);
   }
 }
-function closeMenu(){
-  document.getElementById('menuOverlay').classList.remove('open');
-}
+
 function downloadCurrentShort(){
   const film = allFilms.find(f => f.id === currentShortId);
-  if (film) {
-    const a = document.createElement('a');
-    a.href = film.videoUrl;
-    a.download = film.title + '.mp4';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
+  if (film) { const a = document.createElement('a'); a.href = film.videoUrl; a.download = film.title + '.mp4'; document.body.appendChild(a); a.click(); a.remove(); }
   closeMenu();
 }
 function copyCurrentShortLink(){
@@ -909,9 +868,7 @@ function openSheet(id){
   renderCommentListInto('sheetCommentList', film ? film.comments : []);
   document.getElementById('sheetOverlay').classList.add('open');
 }
-function closeSheet(){
-  document.getElementById('sheetOverlay').classList.remove('open');
-}
+function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); }
 
 document.getElementById('sheetCommentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -927,11 +884,7 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
     const comment = await res.json();
     if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
     const film = allFilms.find(f => f.id === currentShortId);
-    if (film) {
-      if (!film.comments) film.comments = [];
-      film.comments.push(comment);
-      document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length;
-    }
+    if (film) { if (!film.comments) film.comments = []; film.comments.push(comment); document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length; }
     renderCommentListInto('sheetCommentList', film ? film.comments : [comment]);
     textInput.value = '';
   } catch (err) {
@@ -941,15 +894,9 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
 
 function renderCommentListInto(elId, comments){
   const listEl = document.getElementById(elId);
-  if (!comments || comments.length === 0) {
-    listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>';
-    return;
-  }
+  if (!comments || comments.length === 0) { listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>'; return; }
   listEl.innerHTML = comments.slice().reverse().map(c => `
-    <div class="comment-item">
-      <div class="comment-name">${escapeHtml(c.name)}</div>
-      <div class="comment-text">${escapeHtml(c.text)}</div>
-    </div>
+    <div class="comment-item"><div class="comment-name">${escapeHtml(c.name)}</div><div class="comment-text">${escapeHtml(c.text)}</div></div>
   `).join('');
 }
 
@@ -957,31 +904,17 @@ async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
   currentFilm = f;
-
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
-  if (f.type === 'photo') {
-    playerEl.style.display = 'none';
-    playerEl.src = '';
-    imgEl.style.display = 'block';
-    imgEl.src = f.posterUrl || '';
-  } else {
-    imgEl.style.display = 'none';
-    imgEl.src = '';
-    playerEl.style.display = 'block';
-    playerEl.src = f.videoUrl;
-  }
+  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
+  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; }
+
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
     mOwnerEl.textContent = '@' + f.ownerUsername;
-    mOwnerEl.style.cursor = 'pointer';
-    mOwnerEl.style.textDecoration = 'underline';
     mOwnerEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
-  } else {
-    mOwnerEl.textContent = '';
-    mOwnerEl.onclick = null;
-  }
+  } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
@@ -994,14 +927,10 @@ async function playFilm(id){
   document.getElementById('likeCount').textContent = f.likes || 0;
 
   renderCommentListInto('commentList', f.comments);
-
   document.getElementById('overlay').classList.add('open');
 
   if (markViewed(f.id)) {
-    fetch('/api/films/' + id + '/view', { method: 'POST' })
-      .then(r => r.json())
-      .then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; })
-      .catch(() => {});
+    fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; }).catch(() => {});
   }
 }
 
@@ -1025,19 +954,14 @@ async function likeCurrentFilm(){
     const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
     likedList.push(currentFilm.id);
     localStorage.setItem('likedFilms', JSON.stringify(likedList));
-  } catch (err) {
-    likeBtn.disabled = false;
-  }
+  } catch (err) { likeBtn.disabled = false; }
 }
 
 function shareCurrentFilm(){
   if (!currentFilm) return;
   const url = location.origin + '/?film=' + currentFilm.id;
-  if (navigator.share) {
-    navigator.share({ title: currentFilm.title, text: 'Dekho ' + currentFilm.title + ' YouSeries pe!', url }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
-  }
+  if (navigator.share) navigator.share({ title: currentFilm.title, text: 'Dekho ' + currentFilm.title + ' YouSeries pe!', url }).catch(() => {});
+  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
 }
 
 document.getElementById('commentForm').addEventListener('submit', async (e) => {
@@ -1057,15 +981,12 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
     currentFilm.comments.push(comment);
     renderCommentListInto('commentList', currentFilm.comments);
     textInput.value = '';
-  } catch (err) {
-    showToast(err.message);
-  }
+  } catch (err) { showToast(err.message); }
 });
 
 function showToast(msg){
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.display = 'block';
+  t.textContent = msg; t.style.display = 'block';
   setTimeout(() => t.style.display = 'none', 2000);
 }
 
@@ -1075,9 +996,7 @@ async function init(){
 }
 init();
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
-}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 </script>
 </body>
 </html>
