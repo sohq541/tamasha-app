@@ -915,7 +915,6 @@ async function playFilm(id){
     mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;">` : '') + '@' + escapeHtml(f.ownerUsername);
     mOwnerEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
   } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
-  } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
