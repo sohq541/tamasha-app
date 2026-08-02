@@ -560,7 +560,6 @@ app.get('/api/films', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/api/films/:id', async (req, res) => {
   try {
     const films = await readFilms();
@@ -578,7 +577,6 @@ app.get('/api/films/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.get('/media/video/:id', async (req, res) => {
   try {
     const films = await readFilms();
