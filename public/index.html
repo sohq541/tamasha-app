@@ -188,7 +188,7 @@
 <div class="tabs">
   <button class="tab-btn active" id="tabHome" onclick="switchTab('home')">🏠 Home</button>
   <button class="tab-btn" id="tabShorts" onclick="switchTab('shorts')">▶ Shorts</button>
-  <button class="tab-btn" id="tabProfile" onclick="switchTab('profile')">👤 Profile</button>
+  <button class="tab-btn" id="tabProfile" onclick="goToMyProfile()">👤 Profile</button>
 </div>
 
 <div id="homeView">
@@ -297,7 +297,6 @@ function markViewed(id){
 }
 
 function switchTab(tab){
-  if (tab === 'profile') viewingProfile = null;
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
   document.getElementById('tabProfile').classList.toggle('active', tab === 'profile');
@@ -349,6 +348,11 @@ async function loadProfile(){
 function viewProfile(userId, username){
   if (!userId) return;
   viewingProfile = { id: userId, username: username };
+  switchTab('profile');
+}
+
+function goToMyProfile(){
+  viewingProfile = null;
   switchTab('profile');
 }
 
