@@ -666,10 +666,38 @@ function doSearch(query){
   const mainEl = document.getElementById('homeMainContent');
   const q = query.trim().toLowerCase();
   if (!q) { resultsEl.classList.add('hidden'); mainEl.classList.remove('hidden'); return; }
+
   const matches = allFilms.filter(f => f.title.toLowerCase().includes(q));
+
+  const seenUsers = new Set();
+  const userMatches = [];
+  allFilms.forEach(f => {
+    if (f.ownerUsername && f.ownerId && !seenUsers.has(f.ownerId) && f.ownerUsername.toLowerCase().includes(q)) {
+      seenUsers.add(f.ownerId);
+      userMatches.push({ id: f.ownerId, username: f.ownerUsername, profileImage: f.ownerProfileImage });
+    }
+  });
+
   mainEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
-  if (matches.length === 0) { resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>'; return; }
-  resultsEl.innerHTML = matches.map(f => `
+
+  if (matches.length === 0 && userMatches.length === 0) {
+    resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>';
+    return;
+  }
+
+  const userHtml = userMatches.map(u => `
+    <div class="search-result-item" onclick="viewProfile('${u.id}','${escapeHtml(u.username)}')">
+      ${u.profileImage
+        ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;">`
+        : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}
+      <div class="search-result-info">
+        <span class="search-result-title">@${escapeHtml(u.username)}</span>
+        <span class="search-result-tag">Profile</span>
+      </div>
+    </div>
+  `).join('');
+
+  const filmHtml = matches.map(f => `
     <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
       <img class="search-result-thumb" src="${f.posterUrl || ''}">
       <div class="search-result-info">
@@ -678,6 +706,8 @@ function doSearch(query){
       </div>
     </div>
   `).join('');
+
+  resultsEl.innerHTML = userHtml + filmHtml;
 }
 
 function renderHome(films){
