@@ -100,7 +100,11 @@
 </div>
 
 <div class="toast" id="toast"></div>
-
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  alert('JS ERROR: ' + msg + ' at line ' + line + ':' + col);
+};
+</script>
 <script>
 let currentFilm = null;
 
