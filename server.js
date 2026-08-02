@@ -13,17 +13,14 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---- Admin (legacy) credentials ----
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme123';
 
-// ---- Backblaze B2 credentials ----
 const B2_KEY_ID = process.env.B2_KEY_ID;
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
 const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
 const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
 
-// ---- Auth ----
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
 app.use(cookieParser());
@@ -52,14 +49,12 @@ let b2Cache = { authToken: null, apiUrl: null, downloadUrl: null, expiresAt: 0 }
 
 async function b2Authorize() {
   if (b2Cache.authToken && Date.now() < b2Cache.expiresAt) return b2Cache;
-
   const credentials = Buffer.from(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`).toString('base64');
   const res = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
     headers: { Authorization: `Basic ${credentials}` }
   });
   if (!res.ok) throw new Error('B2 authorization failed: ' + (await res.text()));
   const data = await res.json();
-
   b2Cache = {
     authToken: data.authorizationToken,
     apiUrl: data.apiInfo.storageApi.apiUrl,
@@ -100,21 +95,17 @@ async function b2UploadBuffer(buffer, fileName, contentType) {
 async function b2StreamToResponse(fileName, req, res) {
   const { authToken, downloadUrl } = await b2Authorize();
   const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
-
   const headers = { Authorization: authToken };
   if (req.headers.range) headers.Range = req.headers.range;
-
   const b2res = await fetch(url, { headers });
   if (!b2res.ok && b2res.status !== 206) {
     return res.status(b2res.status === 404 ? 404 : 502).send('Could not fetch file from storage');
   }
-
   res.status(b2res.status);
   ['content-type', 'content-length', 'content-range', 'accept-ranges'].forEach(h => {
     const v = b2res.headers.get(h);
     if (v) res.set(h, v);
   });
-
   Readable.fromWeb(b2res.body).pipe(res);
 }
 
@@ -128,7 +119,6 @@ async function b2DeleteFile(fileName) {
   const listData = await listRes.json();
   const match = listData.files && listData.files.find(f => f.fileName === fileName);
   if (!match) return;
-
   await fetch(`${apiUrl}/b2api/v3/b2_delete_file_version`, {
     method: 'POST',
     headers: { Authorization: authToken, 'Content-Type': 'application/json' },
@@ -143,9 +133,7 @@ function generateThumbnail(videoBuffer, ext) {
     const inputPath = path.join(tmpDir, `in-${uniq}${ext || '.mp4'}`);
     const outputName = `thumb-${uniq}.jpg`;
     const outputPath = path.join(tmpDir, outputName);
-
     fs.writeFileSync(inputPath, videoBuffer);
-
     ffmpeg(inputPath)
       .on('end', () => {
         try {
@@ -153,40 +141,29 @@ function generateThumbnail(videoBuffer, ext) {
           fs.unlinkSync(inputPath);
           fs.unlinkSync(outputPath);
           resolve(buf);
-        } catch (err) {
-          reject(err);
-        }
+        } catch (err) { reject(err); }
       })
       .on('error', (err) => {
         try { fs.unlinkSync(inputPath); } catch (e) {}
         reject(err);
       })
-      .screenshots({
-        count: 1,
-        timemarks: ['2'],
-        filename: outputName,
-        folder: tmpDir,
-        size: '640x?'
-      });
+      .screenshots({ count: 1, timemarks: ['2'], filename: outputName, folder: tmpDir, size: '640x?' });
   });
 }
 
-// ---------------- Films "database" (JSON file in B2, cached briefly) ----------------
+// ---------------- Films "database" ----------------
 let filmsCache = { data: null, expiresAt: 0 };
 const FILMS_CACHE_MS = 15000;
 
 async function readFilms() {
   if (filmsCache.data && Date.now() < filmsCache.expiresAt) return filmsCache.data;
-
   const { authToken, downloadUrl } = await b2Authorize();
   const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/films.json`;
   const res = await fetch(url, { headers: { Authorization: authToken } });
-
   let films;
   if (res.status === 404) films = [];
   else if (!res.ok) throw new Error('Could not read films.json from B2 (status ' + res.status + '): ' + (await res.text()));
   else films = await res.json();
-
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
   return films;
 }
@@ -197,7 +174,7 @@ async function writeFilms(films) {
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
 }
 
-// ---------------- Users "database" (JSON file in B2) ----------------
+// ---------------- Users "database" ----------------
 async function readUsers() {
   const { authToken, downloadUrl } = await b2Authorize();
   const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/users.json`;
@@ -212,10 +189,7 @@ async function writeUsers(users) {
 }
 
 // ---------------- Express setup ----------------
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 500 * 1024 * 1024 }
-});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -224,34 +198,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.post('/api/signup', async (req, res) => {
   try {
     const { email, password, username, ageConfirm, securityQuestion, securityAnswer } = req.body;
-    if (!email || !password || !username) {
-      return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
-    }
-    if (!ageConfirm) {
-      return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
-    }
-    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) {
-      return res.status(400).json({ error: 'Security question aur answer zaroori hai (password bhoolne pe kaam aayega)' });
-    }
+    if (!email || !password || !username) return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
+    if (!ageConfirm) return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
+    if (password.length < 6) return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'Security question aur answer zaroori hai' });
 
     const users = await readUsers();
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
-      return res.status(400).json({ error: 'Ye email already registered hai' });
-    }
-    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-      return res.status(400).json({ error: 'Ye username already liya gaya hai' });
-    }
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) return res.status(400).json({ error: 'Ye email already registered hai' });
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(400).json({ error: 'Ye username already liya gaya hai' });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
     const newUser = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      email, username, passwordHash,
-      securityQuestion, securityAnswerHash,
-      usernameChanges: [],
+      email, username, passwordHash, securityQuestion, securityAnswerHash,
+      usernameChanges: [], bio: '', website: '', following: [],
       createdAt: new Date().toISOString()
     };
     users.push(newUser);
@@ -260,9 +221,7 @@ app.post('/api/signup', async (req, res) => {
     const token = signToken(newUser);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: newUser.id, email: newUser.email, username: newUser.username });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -271,28 +230,18 @@ app.post('/api/login', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
     if (!user) return res.status(401).json({ error: 'Email ya password galat hai' });
-
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Email ya password galat hai' });
-
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: user.id, email: user.email, username: user.username });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/logout', (req, res) => {
-  res.clearCookie('token');
-  res.json({ success: true });
-});
+app.post('/api/logout', (req, res) => { res.clearCookie('token'); res.json({ success: true }); });
 
-app.get('/api/me', (req, res) => {
-  const user = getUserFromReq(req);
-  res.json(user);
-});
-// Get public info about any user (used to show avatars on profiles)
+app.get('/api/me', (req, res) => { res.json(getUserFromReq(req)); });
+
 app.get('/api/users/:id/public', async (req, res) => {
   try {
     const users = await readUsers();
@@ -306,19 +255,13 @@ app.get('/api/users/:id/public', async (req, res) => {
     const followingCount = user.following ? user.following.length : 0;
 
     res.json({
-      id: user.id,
-      username: user.username,
-      bio: user.bio || '',
-      website: user.website || '',
+      id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
       profileImage: user.profileImage ? '/media/avatar/' + user.id : null,
       followersCount, followingCount, isFollowing
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Upload / change your own profile photo
 app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -335,9 +278,7 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
     await writeUsers(users);
 
     res.json({ profileImage: '/media/avatar/' + currentUser.id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/media/avatar/:id', async (req, res) => {
@@ -346,10 +287,9 @@ app.get('/media/avatar/:id', async (req, res) => {
     const user = users.find(u => u.id === req.params.id);
     if (!user || !user.profileImage) return res.status(404).send('Not found');
     await b2StreamToResponse(user.profileImage, req, res);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 });
+
 app.put('/api/me/username', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -368,32 +308,22 @@ app.put('/api/me/username', async (req, res) => {
     if (!user.usernameChanges) user.usernameChanges = [];
     const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
     const changesThisYear = user.usernameChanges.filter(t => new Date(t).getTime() > oneYearAgo);
-    if (changesThisYear.length >= 3) {
-      return res.status(400).json({ error: 'Aap saal me sirf 3 baar username badal sakte hain. Limit ho gayi.' });
-    }
+    if (changesThisYear.length >= 3) return res.status(400).json({ error: 'Aap saal me sirf 3 baar username badal sakte hain. Limit ho gayi.' });
 
     const newUsername = username.trim();
     user.username = newUsername;
     user.usernameChanges.push(new Date().toISOString());
     await writeUsers(users);
 
-    // Update ownerUsername on all their existing uploads too
     const films = await readFilms();
     let updated = false;
-    films.forEach(f => {
-      if (f.ownerId === user.id) {
-        f.ownerUsername = newUsername;
-        updated = true;
-      }
-    });
+    films.forEach(f => { if (f.ownerId === user.id) { f.ownerUsername = newUsername; updated = true; } });
     if (updated) await writeFilms(films);
 
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ username: user.username, changesLeft: 3 - changesThisYear.length - 1 });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/me/password', async (req, res) => {
@@ -414,18 +344,15 @@ app.put('/api/me/password', async (req, res) => {
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await writeUsers(users);
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.put('/api/me/security-question', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { securityQuestion, securityAnswer } = req.body;
-    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) {
-      return res.status(400).json({ error: 'Question aur answer dono zaroori hain' });
-    }
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'Question aur answer dono zaroori hai' });
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
@@ -434,23 +361,10 @@ app.put('/api/me/security-question', async (req, res) => {
     user.securityQuestion = securityQuestion;
     user.securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
     await writeUsers(users);
-
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/forgot-password/question', async (req, res) => {
-  try {
-    const { email } = req.body;
-    const users = await readUsers();
-    const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
-    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
-    res.json({ securityQuestion: user.securityQuestion });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+
 app.put('/api/me/bio', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -464,11 +378,8 @@ app.put('/api/me/bio', async (req, res) => {
     user.bio = (bio || '').slice(0, 150);
     user.website = (website || '').slice(0, 100);
     await writeUsers(users);
-
     res.json({ bio: user.bio, website: user.website });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/users/:id/follow', async (req, res) => {
@@ -485,27 +396,29 @@ app.post('/api/users/:id/follow', async (req, res) => {
     if (!me.following) me.following = [];
     const idx = me.following.indexOf(target.id);
     let nowFollowing;
-    if (idx === -1) {
-      me.following.push(target.id);
-      nowFollowing = true;
-    } else {
-      me.following.splice(idx, 1);
-      nowFollowing = false;
-    }
+    if (idx === -1) { me.following.push(target.id); nowFollowing = true; }
+    else { me.following.splice(idx, 1); nowFollowing = false; }
     await writeUsers(users);
 
     const followersCount = users.filter(u => u.following && u.following.includes(target.id)).length;
     res.json({ following: nowFollowing, followersCount });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+app.post('/api/forgot-password/question', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const users = await readUsers();
+    const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
+    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
+    res.json({ securityQuestion: user.securityQuestion });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/forgot-password/reset', async (req, res) => {
   try {
     const { email, securityAnswer, newPassword } = req.body;
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
-    }
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
     if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
@@ -516,28 +429,19 @@ app.post('/api/forgot-password/reset', async (req, res) => {
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await writeUsers(users);
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.post('/api/claim-existing-films', async (req, res) => {
   try {
     const user = getUserFromReq(req);
     if (!user) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
     let count = 0;
-    films.forEach(f => {
-      if (!f.ownerId) {
-        f.ownerId = user.id;
-        f.ownerUsername = user.username;
-        count++;
-      }
-    });
+    films.forEach(f => { if (!f.ownerId) { f.ownerId = user.id; f.ownerUsername = user.username; count++; } });
     await writeFilms(films);
     res.json({ claimed: count });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ===================== FILMS ROUTES =====================
@@ -556,10 +460,9 @@ app.get('/api/films', async (req, res) => {
       };
     });
     res.json(out);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.get('/api/films/:id', async (req, res) => {
   try {
     const films = await readFilms();
@@ -573,19 +476,16 @@ app.get('/api/films/:id', async (req, res) => {
       posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
       ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.get('/media/video/:id', async (req, res) => {
   try {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).send('Not found');
+    if (!f || !f.videoFile) return res.status(404).send('Not found');
     await b2StreamToResponse(f.videoFile, req, res);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.get('/media/poster/:id', async (req, res) => {
@@ -594,16 +494,12 @@ app.get('/media/poster/:id', async (req, res) => {
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.posterFile) return res.status(404).send('Not found');
     await b2StreamToResponse(f.posterFile, req, res);
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 });
 
 app.post('/api/films', (req, res, next) => {
   req.currentUser = getUserFromReq(req);
-  if (!req.currentUser && !isAdminBasicAuth(req)) {
-    return res.status(401).json({ error: 'Upload karne ke liye login zaroori hai' });
-  }
+  if (!req.currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Upload karne ke liye login zaroori hai' });
   next();
 }, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), async (req, res) => {
   try {
@@ -613,9 +509,7 @@ app.post('/api/films', (req, res, next) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
     if (type === 'photo') {
-      if (!req.files || !req.files.photo) {
-        return res.status(400).json({ error: 'Photo file zaroori hai' });
-      }
+      if (!req.files || !req.files.photo) return res.status(400).json({ error: 'Photo file zaroori hai' });
       const photoFile = req.files.photo[0];
       const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
       await b2UploadBuffer(photoFile.buffer, photoKey, photoFile.mimetype);
@@ -623,21 +517,17 @@ app.post('/api/films', (req, res, next) => {
       const films = await readFilms();
       const newFilm = {
         id, title, year: year || '', language: language || '', genre: genre || '',
-        description: description || '', videoFile: null, posterFile: photoKey,
-        type: 'photo',
+        description: description || '', videoFile: null, posterFile: photoKey, type: 'photo',
         ownerId: req.currentUser ? req.currentUser.id : 'admin',
         ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
-        views: 0, likes: 0, comments: [],
-        uploadedAt: new Date().toISOString()
+        views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
       };
       films.unshift(newFilm);
       await writeFilms(films);
       return res.status(201).json(newFilm);
     }
 
-    if (!req.files || !req.files.video) {
-      return res.status(400).json({ error: 'Video file zaroori hai' });
-    }
+    if (!req.files || !req.files.video) return res.status(400).json({ error: 'Video file zaroori hai' });
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
@@ -653,9 +543,7 @@ app.post('/api/films', (req, res, next) => {
         const thumbBuffer = await generateThumbnail(videoFile.buffer, path.extname(videoFile.originalname));
         posterKey = `posters/${id}.jpg`;
         await b2UploadBuffer(thumbBuffer, posterKey, 'image/jpeg');
-      } catch (err) {
-        console.error('Auto-thumbnail failed:', err.message);
-      }
+      } catch (err) { console.error('Auto-thumbnail failed:', err.message); }
     }
 
     const films = await readFilms();
@@ -665,16 +553,12 @@ app.post('/api/films', (req, res, next) => {
       type: type === 'short' ? 'short' : 'film',
       ownerId: req.currentUser ? req.currentUser.id : 'admin',
       ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
-      views: 0, likes: 0, comments: [],
-      uploadedAt: new Date().toISOString()
+      views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
     };
     films.unshift(newFilm);
     await writeFilms(films);
-
     res.status(201).json(newFilm);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/films/:id/view', async (req, res) => {
@@ -685,9 +569,7 @@ app.post('/api/films/:id/view', async (req, res) => {
     f.views = (f.views || 0) + 1;
     await writeFilms(films);
     res.json({ views: f.views });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/films/:id/like', async (req, res) => {
@@ -698,9 +580,7 @@ app.post('/api/films/:id/like', async (req, res) => {
     f.likes = (f.likes || 0) + 1;
     await writeFilms(films);
     res.json({ likes: f.likes });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/films/:id/comments', async (req, res) => {
@@ -722,9 +602,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
     f.comments.push(comment);
     await writeFilms(films);
     res.status(201).json(comment);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/films/:id', (req, res, next) => {
@@ -738,9 +616,7 @@ app.put('/api/films/:id', (req, res, next) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
-    if (!isOwner && !isAdminBasicAuth(req)) {
-      return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
-    }
+    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
 
     if (title !== undefined) f.title = title;
     if (year !== undefined) f.year = year;
@@ -760,9 +636,7 @@ app.put('/api/films/:id', (req, res, next) => {
 
     await writeFilms(films);
     res.json(f);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/films/:id', (req, res, next) => {
@@ -775,22 +649,15 @@ app.delete('/api/films/:id', (req, res, next) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
-    if (!isOwner && !isAdminBasicAuth(req)) {
-      return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
-    }
+    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
 
-    await b2DeleteFile(f.videoFile);
+    if (f.videoFile) await b2DeleteFile(f.videoFile);
     if (f.posterFile) await b2DeleteFile(f.posterFile);
 
     const remaining = films.filter(x => x.id !== req.params.id);
     await writeFilms(remaining);
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.listen(PORT, () => {
-  console.log(`YouSeries server running on port ${PORT}`);
-});
-    
+app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
