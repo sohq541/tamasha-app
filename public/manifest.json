@@ -4,7 +4,7 @@
 "description": "YouSeries",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#0B0A1F",
 "theme_color": "#0B0A1F",
   "orientation": "portrait",
