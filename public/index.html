@@ -393,7 +393,7 @@ async function loadProfile(){
 
       headerRight.innerHTML = `
         <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
-        <a href="/admin.html">+ Upload</a>
+        <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
       document.getElementById('tabProfile').innerHTML = avatarUrl
         ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
@@ -402,7 +402,7 @@ async function loadProfile(){
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
         <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
-        <a href="/admin.html">+ Upload</a>
+        <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
     }
   } catch (err) {}
