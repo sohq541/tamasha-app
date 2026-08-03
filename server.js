@@ -189,7 +189,22 @@ async function writeUsers(users) {
 }
 
 // ---------------- Express setup ----------------
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
+const uploadTmpDir = path.join(os.tmpdir(), 'uploads');
+if (!fs.existsSync(uploadTmpDir)) fs.mkdirSync(uploadTmpDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadTmpDir,
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.random().toString(36).slice(2) + path.extname(file.originalname))
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 }
+});
+
+function readFileAsBuffer(filePath) {
+  const buf = fs.readFileSync(filePath);
+  fs.unlink(filePath, () => {});
+  return buf;
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -269,7 +284,7 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Photo file zaroori hai' });
 
     const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
-    await b2UploadBuffer(req.file.buffer, key, req.file.mimetype);
+    await b2UploadBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
@@ -512,7 +527,7 @@ app.post('/api/films', (req, res, next) => {
       if (!req.files || !req.files.photo) return res.status(400).json({ error: 'Photo file zaroori hai' });
       const photoFile = req.files.photo[0];
       const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
-      await b2UploadBuffer(photoFile.buffer, photoKey, photoFile.mimetype);
+      await b2UploadBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
 
       const films = await readFilms();
       const newFilm = {
@@ -531,13 +546,13 @@ app.post('/api/films', (req, res, next) => {
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
-    await b2UploadBuffer(videoFile.buffer, videoKey, videoFile.mimetype);
+    await b2UploadBuffer(readFileAsBuffer(videoFile.path), videoKey, videoFile.mimetype);
 
     let posterKey = null;
     if (req.files.poster) {
       const posterFile = req.files.poster[0];
       posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
-      await b2UploadBuffer(posterFile.buffer, posterKey, posterFile.mimetype);
+      await b2UploadBuffer(readFileAsBuffer(posterFile.path), posterKey, posterFile.mimetype);
     }
 
     const films = await readFilms();
@@ -555,15 +570,17 @@ app.post('/api/films', (req, res, next) => {
 
     // Generate thumbnail in the background so the upload response returns faster
     if (!posterKey) {
-      generateThumbnail(videoFile.buffer, path.extname(videoFile.originalname))
+      const videoPathForThumb = videoFile.path;
+      generateThumbnail(fs.readFileSync(videoPathForThumb), path.extname(videoFile.originalname))
         .then(async (thumbBuffer) => {
+          fs.unlink(videoPathForThumb, () => {});
           const genPosterKey = `posters/${id}.jpg`;
           await b2UploadBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
           const latestFilms = await readFilms();
           const f = latestFilms.find(x => x.id === id);
           if (f) { f.posterFile = genPosterKey; await writeFilms(latestFilms); }
         })
-        .catch(err => console.error('Background thumbnail failed:', err.message));
+        .catch(err => { console.error('Background thumbnail failed:', err.message); fs.unlink(videoPathForThumb, () => {}); });
     }
     return;
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -636,7 +653,7 @@ app.put('/api/films/:id', (req, res, next) => {
     if (req.files && req.files.poster) {
       const posterFile = req.files.poster[0];
       const newPosterKey = `posters/${f.id}-edit${Date.now()}${path.extname(posterFile.originalname)}`;
-      await b2UploadBuffer(posterFile.buffer, newPosterKey, posterFile.mimetype);
+      await b2UploadBuffer(readFileAsBuffer(posterFile.path), newPosterKey, posterFile.mimetype);
       const oldPoster = f.posterFile;
       f.posterFile = newPosterKey;
       if (oldPoster) b2DeleteFile(oldPoster).catch(() => {});
