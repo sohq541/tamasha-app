@@ -249,6 +249,8 @@
       <div class="action-row">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
+        <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
+        <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
         <span class="view-count" id="viewCount"></span>
       </div>
       <div class="comments-section">
@@ -1015,6 +1017,9 @@ async function playFilm(id){
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
+  const isOwnerOfFilm = currentUser && f.ownerId === currentUser.id;
+  document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
+  document.getElementById('modalDeleteBtn').classList.toggle('hidden', !isOwnerOfFilm);
 
   const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
   const likeBtn = document.getElementById('likeBtn');
@@ -1081,6 +1086,30 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
   } catch (err) { showToast(err.message); }
 });
 
+  function editCurrentFilmModal(){
+  if (!currentFilm) return;
+  closeModal();
+  document.getElementById('editShortTitle').value = currentFilm.title || '';
+  document.getElementById('editShortDesc').value = currentFilm.description || '';
+  document.getElementById('editShortPoster').value = '';
+  document.getElementById('editShortStatus').textContent = '';
+  currentShortId = currentFilm.id;
+  document.getElementById('editSheetOverlay').classList.add('open');
+}
+
+async function deleteCurrentFilmModal(){
+  if (!currentFilm) return;
+  if (!confirm('Ye permanently delete karni hai?')) return;
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id, { method: 'DELETE' });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
+    closeModal();
+    showToast('Delete ho gaya');
+    loadFilms();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.style.display = 'block';
