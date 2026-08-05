@@ -354,6 +354,11 @@ function escapeHtml(str){
   div.textContent = str || '';
   return div.innerHTML;
 }
+  function normalizeUrl(url){
+  if (!url) return '#';
+  if (!/^https?:\/\//i.test(url)) return 'https://' + url;
+  return url;
+  }
 function getViewedList(){ return JSON.parse(localStorage.getItem('viewedFilms') || '[]'); }
 function markViewed(id){
   const list = getViewedList();
