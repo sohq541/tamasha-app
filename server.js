@@ -546,7 +546,7 @@ app.post('/api/films', (req, res, next) => {
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
-    await b2UploadBuffer(readFileAsBuffer(videoFile.path), videoKey, videoFile.mimetype);
+    await b2UploadBuffer(fs.readFileSync(videoFile.path), videoKey, videoFile.mimetype);
 
     let posterKey = null;
     if (req.files.poster) {
