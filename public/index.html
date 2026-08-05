@@ -447,7 +447,7 @@ async function renderProfile(){
       </div>
       <div class="profile-username">@${escapeHtml(pub.username)}</div>
       ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
-      ${pub.website ? `<div class="profile-link">🔗 ${escapeHtml(pub.website)}</div>` : ''}
+      ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
       <div class="profile-btn-row">
         <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${viewingProfile.id}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
         <button class="profile-btn" onclick="copyProfileLink('${viewingProfile.id}')">Share Profile</button>
@@ -506,7 +506,7 @@ async function renderProfile(){
     </div>
     <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
     ${mine.bio ? `<div class="profile-bio">${escapeHtml(mine.bio)}</div>` : ''}
-    ${mine.website ? `<div class="profile-link">🔗 ${escapeHtml(mine.website)}</div>` : ''}
+    ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
       <button class="profile-btn" onclick="copyProfileLink('${currentUser.id}')">Share Profile</button>
