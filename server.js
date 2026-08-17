@@ -618,11 +618,13 @@ app.post('/api/films/:id/comments', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     if (!f.comments) f.comments = [];
+    const editToken = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     const comment = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       name: (name || 'Anonymous').trim().slice(0, 40),
       text: text.trim().slice(0, 500),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      editToken
     };
     f.comments.push(comment);
     await writeFilms(films);
@@ -630,6 +632,50 @@ app.post('/api/films/:id/comments', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/films/:filmId/comments/:commentId/delete', async (req, res) => {
+  try {
+    const { editToken } = req.body;
+    const currentUser = getUserFromReq(req);
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.filmId);
+    if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
+
+    const comment = f.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    const isCommentOwner = editToken && comment.editToken === editToken;
+    const isFilmOwner = currentUser && f.ownerId === currentUser.id;
+    if (!isCommentOwner && !isFilmOwner) return res.status(403).json({ error: 'Permission nahi hai' });
+
+    f.comments = f.comments.filter(c => c.id !== req.params.commentId);
+    await writeFilms(films);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:filmId/comments/:commentId/edit', async (req, res) => {
+  try {
+    const { editToken, text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment khaali nahi ho sakta' });
+
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.filmId);
+    if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
+
+    const comment = f.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    if (!editToken || comment.editToken !== editToken) return res.status(403).json({ error: 'Permission nahi hai' });
+
+    const ageMs = Date.now() - new Date(comment.createdAt).getTime();
+    if (ageMs > 24 * 60 * 60 * 1000) return res.status(400).json({ error: '24 ghante ke baad comment edit nahi kar sakte' });
+
+    comment.text = text.trim().slice(0, 500);
+    comment.edited = true;
+    await writeFilms(films);
+    res.json(comment);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.put('/api/films/:id', (req, res, next) => {
   req.currentUser = getUserFromReq(req);
   next();
