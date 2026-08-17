@@ -970,7 +970,7 @@ function copyCurrentShortLink(){
 function openSheet(id){
   currentShortId = id;
   const film = allFilms.find(f => f.id === id);
-  renderCommentListInto('sheetCommentList', film ? film.comments : []);
+  renderCommentListInto('sheetCommentList', film ? film.comments : [], id);
   document.getElementById('sheetOverlay').classList.add('open');
 }
 function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); }
@@ -990,19 +990,101 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
     if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
     const film = allFilms.find(f => f.id === currentShortId);
     if (film) { if (!film.comments) film.comments = []; film.comments.push(comment); document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length; }
-    renderCommentListInto('sheetCommentList', film ? film.comments : [comment]);
+    renderCommentListInto('sheetCommentList', film ? film.comments : [comment], currentShortid);
     textInput.value = '';
   } catch (err) {
     showToast(err.message);
   }
 });
 
-function renderCommentListInto(elId, comments){
+function getMyCommentTokens(){
+  return JSON.parse(localStorage.getItem('myCommentTokens') || '{}');
+}
+function saveMyCommentToken(commentId, editToken){
+  const tokens = getMyCommentTokens();
+  tokens[commentId] = editToken;
+  localStorage.setItem('myCommentTokens', JSON.stringify(tokens));
+}
+
+function renderCommentListInto(elId, comments, filmId){
   const listEl = document.getElementById(elId);
   if (!comments || comments.length === 0) { listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>'; return; }
-  listEl.innerHTML = comments.slice().reverse().map(c => `
-    <div class="comment-item"><div class="comment-name">${escapeHtml(c.name)}</div><div class="comment-text">${escapeHtml(c.text)}</div></div>
-  `).join('');
+
+  const myTokens = getMyCommentTokens();
+  const film = allFilms.find(f => f.id === filmId);
+  const isFilmOwner = currentUser && film && film.ownerId === currentUser.id;
+
+  listEl.innerHTML = comments.slice().reverse().map(c => {
+    const myToken = myTokens[c.id];
+    const isMine = !!myToken;
+    const ageMs = Date.now() - new Date(c.createdAt).getTime();
+    const canEdit = isMine && ageMs < 24 * 60 * 60 * 1000;
+    const canDelete = isMine || isFilmOwner;
+
+    return `
+    <div class="comment-item" id="comment-${c.id}">
+      <div class="comment-name">${escapeHtml(c.name)}${c.edited ? ' <span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}</div>
+      <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
+      ${(canEdit || canDelete) ? `
+        <div style="display:flex;gap:12px;margin-top:6px;">
+          ${canEdit ? `<span style="font-size:12px;color:var(--marigold);cursor:pointer;" onclick="startEditComment('${filmId}','${c.id}')">Edit</span>` : ''}
+          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="deleteComment('${filmId}','${c.id}','${elId}')">Delete</span>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `}).join('');
+}
+
+function startEditComment(filmId, commentId){
+  const textEl = document.getElementById('comment-text-' + commentId);
+  const currentText = textEl.textContent;
+  textEl.innerHTML = `
+    <textarea id="edit-comment-input-${commentId}" style="width:100%;min-height:50px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:8px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:13.5px;">${currentText}</textarea>
+    <button onclick="saveEditComment('${filmId}','${commentId}')" style="margin-top:6px;background:var(--marigold);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;cursor:pointer;">Save</button>
+  `;
+}
+
+async function saveEditComment(filmId, commentId){
+  const tokens = getMyCommentTokens();
+  const editToken = tokens[commentId];
+  const newText = document.getElementById('edit-comment-input-' + commentId).value;
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/edit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editToken, text: newText })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    const film = allFilms.find(f => f.id === filmId);
+    if (film) {
+      const c = film.comments.find(x => x.id === commentId);
+      if (c) { c.text = data.text; c.edited = true; }
+    }
+    document.getElementById('comment-text-' + commentId).textContent = data.text;
+    showToast('Comment updated');
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+async function deleteComment(filmId, commentId, listElId){
+  if (!confirm('Ye comment delete karna hai?')) return;
+  const tokens = getMyCommentTokens();
+  const editToken = tokens[commentId];
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/delete`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editToken })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    const film = allFilms.find(f => f.id === filmId);
+    if (film) film.comments = film.comments.filter(c => c.id !== commentId);
+    document.getElementById('comment-' + commentId).remove();
+    showToast('Comment deleted');
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 
 async function playFilm(id){
@@ -1034,7 +1116,7 @@ async function playFilm(id){
   likeBtn.disabled = alreadyLiked;
   document.getElementById('likeCount').textContent = f.likes || 0;
 
-  renderCommentListInto('commentList', f.comments);
+  renderCommentListInto('commentList', f.comments, f.id);
   document.getElementById('overlay').classList.add('open');
 
   if (markViewed(f.id)) {
@@ -1087,7 +1169,7 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
     if (!currentFilm.comments) currentFilm.comments = [];
     currentFilm.comments.push(comment);
-    renderCommentListInto('commentList', currentFilm.comments);
+    renderCommentListInto('commentList', currentFilm.comments, currentFilm.id);
     textInput.value = '';
   } catch (err) { showToast(err.message); }
 });
