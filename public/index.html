@@ -1022,19 +1022,23 @@ function renderCommentListInto(elId, comments, filmId){
     const canDelete = isMine || isFilmOwner;
 
     return `
-    <div class="comment-item" id="comment-${c.id}">
+    <div class="comment-item" id="comment-${c.id}" ${(canEdit || canDelete) ? `onclick="toggleCommentActions('${c.id}')" style="cursor:pointer;"` : ''}>
       <div class="comment-name">${escapeHtml(c.name)}${c.edited ? ' <span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}</div>
       <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
       ${(canEdit || canDelete) ? `
-        <div style="display:flex;gap:12px;margin-top:6px;">
-          ${canEdit ? `<span style="font-size:12px;color:var(--marigold);cursor:pointer;" onclick="startEditComment('${filmId}','${c.id}')">Edit</span>` : ''}
-          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="deleteComment('${filmId}','${c.id}','${elId}')">Delete</span>` : ''}
+        <div id="comment-actions-${c.id}" class="hidden" style="display:none;gap:12px;margin-top:6px;">
+          ${canEdit ? `<span style="font-size:12px;color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation(); startEditComment('${filmId}','${c.id}')">Edit</span>` : ''}
+          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="event.stopPropagation(); deleteComment('${filmId}','${c.id}','${elId}')">Delete</span>` : ''}
         </div>
       ` : ''}
     </div>
   `}).join('');
 }
-
+function toggleCommentActions(commentId){
+  const el = document.getElementById('comment-actions-' + commentId);
+  if (!el) return;
+  el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+}
 function startEditComment(filmId, commentId){
   const textEl = document.getElementById('comment-text-' + commentId);
   const currentText = textEl.textContent;
