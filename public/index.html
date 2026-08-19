@@ -256,7 +256,6 @@
       <div class="comments-section">
         <h3>Comments</h3>
         <form class="comment-form" id="commentForm">
-          <input type="text" id="commentName" placeholder="Naam (optional)" maxlength="40">
           <textarea id="commentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
           <button type="submit">Post</button>
         </form>
@@ -270,7 +269,6 @@
   <div class="sheet">
     <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="closeSheet()">✕</button></div>
     <form class="comment-form" id="sheetCommentForm">
-      <input type="text" id="sheetCommentName" placeholder="Naam (optional)" maxlength="40">
       <textarea id="sheetCommentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
       <button type="submit">Post</button>
     </form>
@@ -978,19 +976,19 @@ function closeSheet(){ document.getElementById('sheetOverlay').classList.remove(
 document.getElementById('sheetCommentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentShortId) return;
-  const nameInput = document.getElementById('sheetCommentName');
+  if (!currentUser) { window.location.href = '/login.html'; return; }
   const textInput = document.getElementById('sheetCommentText');
   if (!textInput.value.trim()) return;
   try {
     const res = await fetch('/api/films/' + currentShortId + '/comments', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameInput.value, text: textInput.value })
+      body: JSON.stringify({ text: textInput.value })
     });
     const comment = await res.json();
     if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
     const film = allFilms.find(f => f.id === currentShortId);
     if (film) { if (!film.comments) film.comments = []; film.comments.push(comment); document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length; }
-    renderCommentListInto('sheetCommentList', film ? film.comments : [comment], currentShortid);
+    renderCommentListInto('sheetCommentList', film ? film.comments : [comment], currentShortId);
     textInput.value = '';
   } catch (err) {
     showToast(err.message);
@@ -1005,18 +1003,15 @@ function saveMyCommentToken(commentId, editToken){
   tokens[commentId] = editToken;
   localStorage.setItem('myCommentTokens', JSON.stringify(tokens));
 }
-
 function renderCommentListInto(elId, comments, filmId){
   const listEl = document.getElementById(elId);
   if (!comments || comments.length === 0) { listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>'; return; }
 
-  const myTokens = getMyCommentTokens();
   const film = allFilms.find(f => f.id === filmId);
   const isFilmOwner = currentUser && film && film.ownerId === currentUser.id;
 
   listEl.innerHTML = comments.slice().reverse().map(c => {
-    const myToken = myTokens[c.id];
-    const isMine = !!myToken;
+    const isMine = currentUser && c.userId === currentUser.id;
     const ageMs = Date.now() - new Date(c.createdAt).getTime();
     const canEdit = isMine && ageMs < 24 * 60 * 60 * 1000;
     const canDelete = isMine || isFilmOwner;
@@ -1028,34 +1023,34 @@ function renderCommentListInto(elId, comments, filmId){
       ${(canEdit || canDelete) ? `
         <div id="comment-actions-${c.id}" class="hidden" style="display:none;gap:12px;margin-top:6px;">
           ${canEdit ? `<span style="font-size:12px;color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation(); startEditComment('${filmId}','${c.id}')">Edit</span>` : ''}
-          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="event.stopPropagation(); deleteComment('${filmId}','${c.id}','${elId}')">Delete</span>` : ''}
+          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="event.stopPropagation(); deleteComment('${filmId}','${c.id}')">Delete</span>` : ''}
         </div>
       ` : ''}
     </div>
   `}).join('');
 }
+
 function toggleCommentActions(commentId){
   const el = document.getElementById('comment-actions-' + commentId);
   if (!el) return;
   el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
 }
+
 function startEditComment(filmId, commentId){
   const textEl = document.getElementById('comment-text-' + commentId);
   const currentText = textEl.textContent;
   textEl.innerHTML = `
     <textarea id="edit-comment-input-${commentId}" style="width:100%;min-height:50px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:8px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:13.5px;">${currentText}</textarea>
-    <button onclick="saveEditComment('${filmId}','${commentId}')" style="margin-top:6px;background:var(--marigold);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;cursor:pointer;">Save</button>
+    <button onclick="event.stopPropagation(); saveEditComment('${filmId}','${commentId}')" style="margin-top:6px;background:var(--marigold);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;cursor:pointer;">Save</button>
   `;
 }
 
 async function saveEditComment(filmId, commentId){
-  const tokens = getMyCommentTokens();
-  const editToken = tokens[commentId];
   const newText = document.getElementById('edit-comment-input-' + commentId).value;
   try {
     const res = await fetch(`/api/films/${filmId}/comments/${commentId}/edit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editToken, text: newText })
+      body: JSON.stringify({ text: newText })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
@@ -1071,15 +1066,10 @@ async function saveEditComment(filmId, commentId){
   }
 }
 
-async function deleteComment(filmId, commentId, listElId){
+async function deleteComment(filmId, commentId){
   if (!confirm('Ye comment delete karna hai?')) return;
-  const tokens = getMyCommentTokens();
-  const editToken = tokens[commentId];
   try {
-    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/delete`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editToken })
-    });
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/delete`, { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     const film = allFilms.find(f => f.id === filmId);
@@ -1090,7 +1080,6 @@ async function deleteComment(filmId, commentId, listElId){
     showToast(err.message);
   }
 }
-
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
@@ -1161,13 +1150,13 @@ function shareCurrentFilm(){
 document.getElementById('commentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentFilm) return;
-  const nameInput = document.getElementById('commentName');
+  if (!currentUser) { window.location.href = '/login.html'; return; }
   const textInput = document.getElementById('commentText');
   if (!textInput.value.trim()) return;
   try {
     const res = await fetch('/api/films/' + currentFilm.id + '/comments', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameInput.value, text: textInput.value })
+      body: JSON.stringify({ text: textInput.value })
     });
     const comment = await res.json();
     if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
@@ -1175,7 +1164,9 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
     currentFilm.comments.push(comment);
     renderCommentListInto('commentList', currentFilm.comments, currentFilm.id);
     textInput.value = '';
-  } catch (err) { showToast(err.message); }
+  } catch (err) {
+    showToast(err.message);
+  }
 });
 
   function editCurrentFilmModal(){
