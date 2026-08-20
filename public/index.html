@@ -341,6 +341,9 @@
   <div class="upload-banner-stats" id="uploadBannerStats"></div>
 </div>
 <script>
+  window.onerror = function(msg, url, line, col) {
+  alert('JS ERROR: ' + msg + ' at line ' + line);
+};
 let currentFilm = null;
 let currentShortId = null;
 let allFilms = [];
@@ -724,6 +727,7 @@ function renderShortsGrid(shorts){
 
 function openShortAt(id){
   switchTab('shorts');
+  history.pushState({ page: 'shorts' }, '', location.pathname);
   setTimeout(() => {
     const item = document.querySelector('.short-item[data-id="' + id + '"]');
     if (item) item.scrollIntoView({ behavior: 'instant', block: 'start' });
@@ -1018,7 +1022,11 @@ function renderCommentListInto(elId, comments, filmId){
 
     return `
     <div class="comment-item" id="comment-${c.id}" ${(canEdit || canDelete) ? `onclick="toggleCommentActions('${c.id}')" style="cursor:pointer;"` : ''}>
-      <div class="comment-name">${escapeHtml(c.name)}${c.edited ? ' <span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}</div>
+      <div class="comment-name" style="display:flex;align-items:center;gap:6px;">
+        ${c.profileImage ? `<img src="${c.profileImage}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">` : ''}
+        <span onclick="event.stopPropagation(); viewProfile('${c.userId}','${escapeHtml(c.name)}')" style="text-decoration:underline;">${escapeHtml(c.name)}</span>
+        ${c.edited ? ' <span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}
+      </div>
       <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
       ${(canEdit || canDelete) ? `
         <div id="comment-actions-${c.id}" class="hidden" style="display:none;gap:12px;margin-top:6px;">
@@ -1111,7 +1119,7 @@ async function playFilm(id){
 
   renderCommentListInto('commentList', f.comments, f.id);
   document.getElementById('overlay').classList.add('open');
-
+history.pushState({ page: 'shorts' }, '', location.pathname);
   if (markViewed(f.id)) {
     fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; }).catch(() => {});
   }
@@ -1319,6 +1327,22 @@ function startUploadWithProgress(formData, title){
 
   xhr.send(formData);
       }
+  window.addEventListener('popstate', function(e){
+  if (document.getElementById('overlay').classList.contains('open')) {
+    closeModal();
+    return;
+  }
+  if (document.getElementById('sheetOverlay').classList.contains('open')) {
+    closeSheet();
+    return;
+  }
+  if (document.getElementById('shortsView').classList.contains('active')) {
+    switchTab('home');
+    history.pushState({ page: 'home' }, '', location.pathname);
+    return;
+  }
+});
+history.pushState({ page: 'home' }, '', location.pathname);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 </script>
 </body>
