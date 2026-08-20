@@ -467,8 +467,12 @@ app.get('/api/films', async (req, res) => {
     const users = await readUsers();
     const out = films.map(f => {
       const owner = users.find(u => u.id === f.ownerId);
+      const enrichedComments = (f.comments || []).map(c => {
+        const cUser = users.find(u => u.id === c.userId);
+        return { ...c, name: cUser ? cUser.username : c.name, profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null };
+      });
       return {
-        ...f,
+        ...f, comments: enrichedComments,
         videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
         posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
         ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
@@ -485,8 +489,12 @@ app.get('/api/films/:id', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
     const users = await readUsers();
     const owner = users.find(u => u.id === f.ownerId);
+    const enrichedComments = (f.comments || []).map(c => {
+      const cUser = users.find(u => u.id === c.userId);
+      return { ...c, name: cUser ? cUser.username : c.name, profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null };
+    });
     res.json({
-      ...f,
+      ...f, comments: enrichedComments,
       videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
       posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
       ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
