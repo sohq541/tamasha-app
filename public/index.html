@@ -1007,35 +1007,17 @@ function saveMyCommentToken(commentId, editToken){
   tokens[commentId] = editToken;
   localStorage.setItem('myCommentTokens', JSON.stringify(tokens));
 }
-function renderCommentListInto(elId, comments, filmId){
-  const listEl = document.getElementById(elId);
-  if (!comments || comments.length === 0) { listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>'; return; }
+function openCommentProfile(userId, username) {
+  if (!userId) return;
+  closeModal();
+  closeSheet();
+  viewProfile(userId, username);
+}
 
-  const film = allFilms.find(f => f.id === filmId);
-  const isFilmOwner = currentUser && film && film.ownerId === currentUser.id;
-
-  listEl.innerHTML = comments.slice().reverse().map(c => {
-    const isMine = currentUser && c.userId === currentUser.id;
-    const ageMs = Date.now() - new Date(c.createdAt).getTime();
-    const canEdit = isMine && ageMs < 24 * 60 * 60 * 1000;
-    const canDelete = isMine || isFilmOwner;
-
-    return `
-    <div class="comment-item" id="comment-${c.id}" ${(canEdit || canDelete) ? `onclick="toggleCommentActions('${c.id}')" style="cursor:pointer;"` : ''}>
-      <div class="comment-name" style="display:flex;align-items:center;gap:6px;">
-        ${c.profileImage ? `<img src="${c.profileImage}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">` : ''}
-        <span onclick="event.stopPropagation(); viewProfile('${c.userId}','${escapeHtml(c.name)}')" style="text-decoration:underline;">${escapeHtml(c.name)}</span>
-        ${c.edited ? ' <span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}
-      </div>
-      <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
-      ${(canEdit || canDelete) ? `
-        <div id="comment-actions-${c.id}" class="hidden" style="display:none;gap:12px;margin-top:6px;">
-          ${canEdit ? `<span style="font-size:12px;color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation(); startEditComment('${filmId}','${c.id}')">Edit</span>` : ''}
-          ${canDelete ? `<span style="font-size:12px;color:#e88a8a;cursor:pointer;" onclick="event.stopPropagation(); deleteComment('${filmId}','${c.id}')">Delete</span>` : ''}
-        </div>
-      ` : ''}
-    </div>
-  `}).join('');
+function toggleCommentActions(commentId){
+  const el = document.getElementById('comment-actions-' + commentId);
+  if (!el) return;
+  el.style.display = (el.style.display === 'flex' || el.style.display === 'block') ? 'none' : 'flex';
 }
 
 function toggleCommentActions(commentId){
