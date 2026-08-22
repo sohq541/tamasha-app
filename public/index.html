@@ -290,6 +290,7 @@
     </div>
   </div>
   <div class="search-results hidden" id="searchResults"></div>
+  <div class="shorts-grid" id="shortsGrid"></div>
   <div id="homeMainContent">
   <div id="grid" class="grid"></div>
   </div>
@@ -778,6 +779,7 @@ async function loadFilms() {
   
 function renderShortsGrid(shorts){
   const grid = document.getElementById('shortsGrid');
+  if (!grid) return;
   grid.innerHTML = shorts.map(f => `
     <div class="shorts-grid-item" onclick="openShortAt('${f.id}')">
       ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
