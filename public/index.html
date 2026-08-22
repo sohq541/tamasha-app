@@ -291,13 +291,9 @@
   </div>
   <div class="search-results hidden" id="searchResults"></div>
   <div id="homeMainContent">
-    <div class="shorts-grid" id="shortsGrid"></div>
-    <h3 class="section-title" id="filmsGridTitle" style="display:none;padding:20px 24px 0;">Films</h3>
-    <div id="grid" class="grid"></div>
+  <div id="grid" class="grid"></div>
   </div>
-</div>
-
-<div id="shortsView">
+  <div id="shortsView">
   <button class="short-exit" onclick="switchTab('home')">←</button>
   <div class="shorts-container" id="shortsContainer"></div>
 </div>
@@ -759,20 +755,23 @@ async function setSecurityQuestion(){
   }
 }
 
-async function loadFilms(){
+async function loadFilms() {
   const res = await fetch('/api/films');
   allFilms = await res.json();
   const shorts = allFilms.filter(f => f.type === 'short');
-  const films = allFilms.filter(f => f.type !== 'short');
-
-  renderShortsGrid(shorts);
-  renderHome(films);
+  renderHome(allFilms);
   renderShorts(shorts);
-
-  document.getElementById('shortsGridTitle').style.display = shorts.length ? 'block' : 'none';
-  document.getElementById('filmsGridTitle').style.display = (shorts.length && films.length) ? 'block' : 'none';
-
   const params = new URLSearchParams(location.search);
+  const sharedId = params.get('film');
+  const shortId = params.get('short');
+  const profileId = params.get('profile');
+  if (sharedId) playFilm(sharedId);
+  if (shortId) openShortAt(shortId);
+  if (profileId) {
+    const f = allFilms.find(x => x.ownerId === profileId);
+    viewProfile(profileId, f ? f.ownerUsername : 'user');
+  }
+}
   const sharedId = params.get('film');
   const shortId = params.get('short');
   const profileId = params.get('profile');
