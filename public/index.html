@@ -48,16 +48,86 @@
   .shorts-grid-play{position:absolute;top:8px;left:8px;color:#fff;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,0.7);}
   .shorts-grid-views{position:absolute;bottom:8px;left:8px;color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.7);display:flex;align-items:center;gap:4px;}
 
-  .grid{display:flex;flex-direction:column;gap:0;padding:10px 0 30px;max-width:600px;margin:0 auto;}
-  .card{cursor:pointer;border-bottom:1px solid var(--gold-line);padding-bottom:18px;margin-bottom:18px;}
-  .poster{width:100%;aspect-ratio:16/10;border-radius:0;background:linear-gradient(150deg,#3A2E7A,#4361EE);
-    display:flex;align-items:flex-end;padding:14px;position:relative;overflow:hidden;}
-  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,0.55) 100%);}
-  .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-  .ptitle{position:relative;z-index:2;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:20px;color:#fff;text-shadow:0 3px 10px rgba(0,0,0,0.5);}
-  .meta{font-size:13px;color:var(--marigold);padding:10px 16px 0;font-weight:600;}
-  .card-owner{font-size:12.5px;color:var(--cream-dim);padding:4px 16px 0;cursor:pointer;text-decoration:underline;}
-  .card-desc{font-size:14px;color:var(--cream-dim);padding:6px 16px 0;line-height:1.5;}
+  .grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 12px 30px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--gold-line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: linear-gradient(150deg,#3A2E7A,#4361EE);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.card-username {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--cream);
+  cursor: pointer;
+}
+.card-media-box {
+  width: 100%;
+  max-height: 520px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.card-media-box img, .card-media-box video {
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  display: block;
+}
+.card-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px 4px;
+}
+.feed-act-btn {
+  background: transparent;
+  border: none;
+  color: var(--cream);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Mukta', sans-serif;
+  font-weight: 600;
+}
+.feed-act-btn.liked {
+  color: #ff3366;
+}
+.card-caption-area {
+  padding: 4px 14px 12px;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
 
@@ -783,20 +853,60 @@ function doSearch(query){
   resultsEl.innerHTML = userHtml + filmHtml;
 }
 
-function renderHome(films){
+function renderHome(films) {
   const grid = document.getElementById('grid');
-  if(films.length === 0){ grid.outerHTML = '<div class="empty" id="grid">Abhi koi film upload nahi hui. <a href="/admin.html">Pehli film upload karo</a></div>'; return; }
-  grid.innerHTML = films.map(f => `
-    <div class="card" onclick="playFilm('${f.id}')">
-      <div class="poster">
-        ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
-        ${f.type !== 'photo' ? `<div class="ptitle">${escapeHtml(f.title)}</div>` : ''}
+  if (!films || films.length === 0) {
+    grid.innerHTML = '<div class="empty">Abhi koi post upload nahi hui. <a href="#" onclick="openUploadModal();return false;">Pehli post upload karo</a></div>';
+    return;
+  }
+  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+
+  grid.innerHTML = films.map(f => {
+    const isLiked = likedList.includes(f.id);
+    const isPhoto = f.type === 'photo';
+    const isShort = f.type === 'short';
+
+    return `
+      <div class="card" id="feed-card-${f.id}">
+        <div class="card-header-row">
+          <div class="card-avatar" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">
+            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
+          </div>
+          <div>
+            <div class="card-username" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
+          </div>
+        </div>
+
+        <div class="card-media-box" onclick="${isShort ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+          ${
+            isPhoto
+              ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`
+              : (isShort
+                  ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" /><div class="shorts-grid-play" style="font-size:24px;top:50%;left:50%;transform:translate(-50%,-50%);position:absolute;">▶</div>`
+                  : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video>`
+                )
+          }
+        </div>
+
+        <div class="card-actions-bar">
+          <button class="feed-act-btn ${isLiked ? 'liked' : ''}" onclick="likeFeedPost('${f.id}', this)">
+            ${isLiked ? '❤️' : '♡'} <span class="like-num">${f.likes || 0}</span>
+          </button>
+          <button class="feed-act-btn" onclick="openSheet('${f.id}')">
+            💬 <span>${(f.comments || []).length}</span>
+          </button>
+          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
+            ↗️
+          </button>
+        </div>
+
+        <div class="card-caption-area">
+          <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b> ${escapeHtml(f.title)}</div>
+          ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${escapeHtml(f.description)}</div>` : ''}
+        </div>
       </div>
-      ${f.type === 'photo' ? `<div class="meta" style="color:var(--cream);font-weight:700;">${escapeHtml(f.title)}</div>` : `<div class="meta">${escapeHtml(f.year || '')} ${f.language ? '· '+escapeHtml(f.language) : ''} ${f.genre ? '· '+escapeHtml(f.genre) : ''}</div>`}
-      ${f.ownerUsername ? `<div class="card-owner" onclick="event.stopPropagation(); viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;margin-right:6px;">` : ''}@${escapeHtml(f.ownerUsername)}</div>` : ''}
-      ${f.description ? `<div class="card-desc">${escapeHtml(f.description)}</div>` : ''}
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderShorts(shorts){
@@ -1363,6 +1473,29 @@ function startUploadWithProgress(formData, title){
 });
 history.pushState({ page: 'home' }, '', location.pathname);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+async function likeFeedPost(id, btn) {
+  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
+  if (likedList.includes(id)) return;
+  try {
+    const res = await fetch('/api/films/' + id + '/like', { method: 'POST' });
+    const data = await res.json();
+    btn.classList.add('liked');
+    btn.innerHTML = `❤️ <span class="like-num">${data.likes}</span>`;
+    likedList.push(id);
+    localStorage.setItem('likedFilms', JSON.stringify(likedList));
+  } catch (err) {}
+}
+
+function shareCurrentFilmById(id, title) {
+  const film = allFilms.find(f => f.id === id);
+  const isShort = film && film.type === 'short';
+  const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
+  if (navigator.share) {
+    navigator.share({ title: title || 'YouSeries', url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+  }
+}
 </script>
 </body>
 </html>
