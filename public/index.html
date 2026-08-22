@@ -760,7 +760,7 @@ async function loadFilms() {
   allFilms = await res.json();
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
-  renderShorts(shorts);
+  renderShortsGrid(shorts);
   
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
