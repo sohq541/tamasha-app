@@ -761,10 +761,12 @@ async function loadFilms() {
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShorts(shorts);
+  
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
   const shortId = params.get('short');
   const profileId = params.get('profile');
+  
   if (sharedId) playFilm(sharedId);
   if (shortId) openShortAt(shortId);
   if (profileId) {
