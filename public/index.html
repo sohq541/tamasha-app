@@ -273,7 +273,7 @@
 <body>
 <header>
   <div class="brand"><img src="/header-logo.png" alt="YouSeries" style="height:44px;display:block;"></div>
-  <div class="header-right" id="headerRight"><a href="#" onclick="openUploadModal();return false;">+ Upload</a>
+  <div class="header-right" id="headerRight"><a href="#" onclick="openUploadModal();return false;">+ Upload</a></div>
 </header>
 
 <div class="tabs">
@@ -290,11 +290,13 @@
     </div>
   </div>
   <div class="search-results hidden" id="searchResults"></div>
-  <div class="shorts-grid" id="shortsGrid"></div>
+  <div class="shorts-grid hidden" id="shortsGrid"></div>
   <div id="homeMainContent">
   <div id="grid" class="grid"></div>
   </div>
-  <div id="shortsView">
+</div>
+
+<div id="shortsView">
   <button class="short-exit" onclick="switchTab('home')">←</button>
   <div class="shorts-container" id="shortsContainer"></div>
 </div>
