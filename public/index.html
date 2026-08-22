@@ -761,6 +761,7 @@ async function loadFilms() {
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
+  renderShorts(shorts);
   
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
