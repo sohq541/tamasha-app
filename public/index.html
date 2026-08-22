@@ -774,17 +774,7 @@ async function loadFilms() {
     viewProfile(profileId, f ? f.ownerUsername : 'user');
   }
 }
-  const sharedId = params.get('film');
-  const shortId = params.get('short');
-  const profileId = params.get('profile');
-  if (sharedId) playFilm(sharedId);
-  if (shortId) openShortAt(shortId);
-  if (profileId) {
-    const f = allFilms.find(x => x.ownerId === profileId);
-    viewProfile(profileId, f ? f.ownerUsername : 'user');
-  }
-}
-
+  
 function renderShortsGrid(shorts){
   const grid = document.getElementById('shortsGrid');
   grid.innerHTML = shorts.map(f => `
