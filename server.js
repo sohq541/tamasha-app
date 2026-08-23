@@ -23,6 +23,9 @@ const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
 app.use(cookieParser());
 app.use(express.json());
 
@@ -245,6 +248,7 @@ app.post('/api/login', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
     if (!user) return res.status(401).json({ error: 'Email ya password galat hai' });
+    if (!user.passwordHash) return res.status(401).json({ error: 'Ye account Google se bana hai. Neeche "Continue with Google" se login karo.' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Email ya password galat hai' });
     const token = signToken(user);
@@ -254,6 +258,77 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => { res.clearCookie('token'); res.json({ success: true }); });
+
+// ---------------- Google OAuth ----------------
+function googleRedirectUri(req) {
+  return `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+}
+
+app.get('/api/auth/google', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.redirect('/login.html?error=google_not_configured');
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: googleRedirectUri(req),
+    response_type: 'code',
+    scope: 'openid email profile',
+    prompt: 'select_account'
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code || !GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) throw new Error('Google login setup incomplete');
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: googleRedirectUri(req),
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) throw new Error('Google token exchange failed: ' + JSON.stringify(tokenData));
+
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` }
+    });
+    const profile = await profileRes.json();
+    if (!profile.email) throw new Error('Google se email nahi mila');
+
+    const users = await readUsers();
+    let user = users.find(u => u.email.toLowerCase() === profile.email.toLowerCase());
+
+    if (!user) {
+      let baseUsername = (profile.name || profile.email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'user';
+      let username = baseUsername, suffix = 1;
+      while (users.find(u => u.username.toLowerCase() === username.toLowerCase())) { username = baseUsername + suffix; suffix++; }
+
+      user = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        email: profile.email, username, passwordHash: null,
+        authProvider: 'google', profileImage: null,
+        securityQuestion: '', securityAnswerHash: '',
+        usernameChanges: [], bio: '', website: '', following: [],
+        createdAt: new Date().toISOString()
+      };
+      users.push(user);
+      await writeUsers(users);
+    }
+
+    const token = signToken(user);
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.redirect('/');
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.redirect('/login.html?error=google_failed');
+  }
+});
 
 app.get('/api/me', (req, res) => { res.json(getUserFromReq(req)); });
 
