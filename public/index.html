@@ -424,6 +424,14 @@ function escapeHtml(str){
   div.textContent = str || '';
   return div.innerHTML;
 }
+function shuffleArray(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
   function normalizeUrl(url){
   if (!url) return '#';
   if (!/^https?:\/\//i.test(url)) return 'https://' + url;
@@ -452,6 +460,7 @@ function switchTab(tab){
   } else {
     document.querySelectorAll('.short-item video').forEach(v => v.pause());
   }
+  if (tab === 'home') setupHomeVideoObserver();
   if (tab === 'profile') renderProfile();
 }
 
@@ -760,7 +769,7 @@ async function setSecurityQuestion(){
 
 async function loadFilms() {
   const res = await fetch('/api/films');
-  allFilms = await res.json();
+  allFilms = shuffleArray(await res.json());
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
@@ -903,6 +912,24 @@ function renderHome(films) {
       </div>
     `;
   }).join('');
+  setupHomeVideoObserver();
+}
+
+let homeVideoObserver = null;
+function setupHomeVideoObserver(){
+  if (homeVideoObserver) homeVideoObserver.disconnect();
+  const videos = document.querySelectorAll('#grid .card-media-box video');
+  homeVideoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const video = entry.target;
+      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+  }, { threshold: [0.6] });
+  videos.forEach(v => homeVideoObserver.observe(v));
 }
 
 function renderShorts(shorts){
