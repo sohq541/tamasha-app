@@ -102,6 +102,12 @@
   object-fit: contain;
   display: block;
 }
+.mute-toggle-btn{
+  position:absolute; bottom:12px; right:12px; z-index:5;
+  width:34px; height:34px; border-radius:50%; border:none;
+  background:rgba(0,0,0,0.55); color:#fff; font-size:15px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
 .card-actions-bar {
   display: flex;
   align-items: center;
@@ -469,6 +475,7 @@ async function loadProfile(){
     const res = await fetch('/api/me');
     currentUser = await res.json();
     const headerRight = document.getElementById('headerRight');
+    const gotApp = localStorage.getItem('appDownloaded') === '1';
     if (currentUser) {
       let avatarUrl = null;
       try {
@@ -478,7 +485,7 @@ async function loadProfile(){
       } catch (err) {}
 
       headerRight.innerHTML = `
-        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
+        ${gotApp ? '' : `<a href="https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk" onclick="localStorage.setItem('appDownloaded','1')" style="margin-right:14px;">📲 Get App</a>`}
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
       document.getElementById('tabProfile').innerHTML = avatarUrl
@@ -487,7 +494,7 @@ async function loadProfile(){
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
-        <a href="/YouSeries.apk" download style="margin-right:14px;">📲 Get App</a>
+        ${gotApp ? '' : `<a href="https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk" onclick="localStorage.setItem('appDownloaded','1')" style="margin-right:14px;">📲 Get App</a>`}
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
     }
@@ -888,7 +895,7 @@ function renderHome(films) {
               ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`
               : (isShort
                   ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" /><div class="shorts-grid-play" style="font-size:24px;top:50%;left:50%;transform:translate(-50%,-50%);position:absolute;">▶</div>`
-                  : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video>`
+                  : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
                 )
           }
         </div>
@@ -915,9 +922,17 @@ function renderHome(films) {
   setupHomeVideoObserver();
 }
 
+function toggleCardMute(id, btnEl){
+  const card = document.getElementById('feed-card-' + id);
+  if (!card) return;
+  const video = card.querySelector('video');
+  if (!video) return;
+  video.muted = !video.muted;
+  btnEl.textContent = video.muted ? '🔇' : '🔊';
+}
+
 let homeVideoObserver = null;
 function tryPlayHomeVideo(video){
-  video.muted = true;
   video.playsInline = true;
   const p = video.play();
   if (p && p.catch) {
