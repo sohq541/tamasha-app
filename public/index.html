@@ -916,20 +916,35 @@ function renderHome(films) {
 }
 
 let homeVideoObserver = null;
+function tryPlayHomeVideo(video){
+  video.muted = true;
+  video.playsInline = true;
+  const p = video.play();
+  if (p && p.catch) {
+    p.catch(() => {
+      const retry = () => { video.play().catch(() => {}); };
+      video.addEventListener('canplay', retry, { once: true });
+    });
+  }
+}
 function setupHomeVideoObserver(){
   if (homeVideoObserver) homeVideoObserver.disconnect();
   const videos = document.querySelectorAll('#grid .card-media-box video');
   homeVideoObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       const video = entry.target;
-      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-        video.play().catch(() => {});
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+        tryPlayHomeVideo(video);
       } else {
         video.pause();
       }
     });
-  }, { threshold: [0.6] });
-  videos.forEach(v => homeVideoObserver.observe(v));
+  }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+  videos.forEach(v => {
+    v.muted = true;
+    v.playsInline = true;
+    homeVideoObserver.observe(v);
+  });
 }
 
 function renderShorts(shorts){
