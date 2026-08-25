@@ -893,10 +893,7 @@ function renderHome(films) {
           ${
             isPhoto
               ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`
-              : (isShort
-                  ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" /><div class="shorts-grid-play" style="font-size:24px;top:50%;left:50%;transform:translate(-50%,-50%);position:absolute;">▶</div>`
-                  : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
-                )
+              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
           }
         </div>
 
