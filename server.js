@@ -821,4 +821,242 @@ app.delete('/api/films/:id', (req, res, next) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Stories "database" ----------------
+let storiesCache = { data: null, expiresAt: 0 };
+const STORIES_CACHE_MS = 10000;
+const STORY_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function readStories() {
+  if (storiesCache.data && Date.now() < storiesCache.expiresAt) return storiesCache.data;
+  const { authToken, downloadUrl } = await b2Authorize();
+  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/stories.json`;
+  const res = await fetch(url, { headers: { Authorization: authToken } });
+  let stories;
+  if (res.status === 404) stories = [];
+  else if (!res.ok) throw new Error('Could not read stories.json from B2 (status ' + res.status + '): ' + (await res.text()));
+  else stories = await res.json();
+  storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
+  return stories;
+}
+
+async function writeStories(stories) {
+  const buffer = Buffer.from(JSON.stringify(stories, null, 2));
+  await b2UploadBuffer(buffer, 'stories.json', 'application/json');
+  storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
+}
+
+function isStoryActive(s) {
+  return (Date.now() - new Date(s.createdAt).getTime()) < STORY_TTL_MS;
+}
+
+// ===================== STORY ROUTES =====================
+
+app.post('/api/stories', (req, res, next) => {
+  req.currentUser = getUserFromReq(req);
+  if (!req.currentUser) return res.status(401).json({ error: 'Story lagane ke liye login zaroori hai' });
+  next();
+}, upload.fields([{ name: 'media', maxCount: 1 }]), async (req, res) => {
+  try {
+    if (!req.files || !req.files.media) return res.status(400).json({ error: 'Photo ya video zaroori hai' });
+    const mediaFile = req.files.media[0];
+    const isVideo = mediaFile.mimetype.startsWith('video');
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const mediaKey = `stories/${id}${path.extname(mediaFile.originalname)}`;
+    await b2UploadBuffer(fs.readFileSync(mediaFile.path), mediaKey, mediaFile.mimetype);
+    fs.unlink(mediaFile.path, () => {});
+
+    let stories = await readStories();
+    stories = stories.filter(isStoryActive);
+    const newStory = {
+      id,
+      ownerId: req.currentUser.id,
+      ownerUsername: req.currentUser.username,
+      mediaFile: mediaKey,
+      mediaType: isVideo ? 'video' : 'photo',
+      textOverlay: (req.body.textOverlay || '').slice(0, 200),
+      createdAt: new Date().toISOString(),
+      views: [],
+      comments: []
+    };
+    stories.unshift(newStory);
+    await writeStories(stories);
+    res.status(201).json(newStory);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/stories', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    const stories = (await readStories()).filter(isStoryActive);
+    const users = await readUsers();
+
+    const byUser = {};
+    stories.forEach(s => {
+      if (!byUser[s.ownerId]) byUser[s.ownerId] = [];
+      byUser[s.ownerId].push(s);
+    });
+
+    const groups = Object.keys(byUser).map(ownerId => {
+      const owner = users.find(u => u.id === ownerId);
+      const userStories = byUser[ownerId].slice().reverse().map(s => ({
+        id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
+        mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+        mediaUrl: '/media/story/' + s.id,
+        viewCount: (s.views || []).length,
+        commentCount: (s.comments || []).length,
+        viewedByMe: !!(currentUser && (s.views || []).some(v => v.userId === currentUser.id))
+      }));
+      return {
+        ownerId,
+        ownerUsername: owner ? owner.username : userStories[0].ownerUsername,
+        ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null,
+        stories: userStories,
+        allViewed: userStories.every(s => s.viewedByMe)
+      };
+    });
+
+    res.json({ groups });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/stories/:id', async (req, res) => {
+  try {
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s || !isStoryActive(s)) return res.status(404).json({ error: 'Story not found or expired' });
+    const users = await readUsers();
+    const owner = users.find(u => u.id === s.ownerId);
+    const enrichedComments = (s.comments || []).map(c => {
+      const cUser = users.find(u => u.id === c.userId);
+      return {
+        ...c, likes: c.likes || [],
+        name: cUser ? cUser.username : c.name,
+        profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null
+      };
+    });
+    res.json({
+      ...s, comments: enrichedComments,
+      mediaUrl: '/media/story/' + s.id,
+      viewCount: (s.views || []).length,
+      ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/media/story/:id', async (req, res) => {
+  try {
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s || !s.mediaFile) return res.status(404).send('Not found');
+    await b2StreamToResponse(s.mediaFile, req, res);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/stories/:id/view', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+    if (currentUser && !(s.views || []).some(v => v.userId === currentUser.id)) {
+      if (!s.views) s.views = [];
+      s.views.push({ userId: currentUser.id, username: currentUser.username, viewedAt: new Date().toISOString() });
+      await writeStories(stories);
+    }
+    res.json({ viewCount: (s.views || []).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/stories/:id/views', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Sirf story owner dekh sakta hai' });
+    const users = await readUsers();
+    const viewers = (s.views || []).slice().reverse().map(v => {
+      const u = users.find(x => x.id === v.userId);
+      return { userId: v.userId, username: u ? u.username : v.username, profileImage: u && u.profileImage ? '/media/avatar/' + u.id : null, viewedAt: v.viewedAt };
+    });
+    res.json({ viewCount: viewers.length, viewers });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/:id/comments', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Comment karne ke liye login zaroori hai' });
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment likhna zaroori hai' });
+
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+
+    if (!s.comments) s.comments = [];
+    const comment = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      userId: currentUser.id, name: currentUser.username,
+      text: text.trim().slice(0, 500), likes: [], createdAt: new Date().toISOString()
+    };
+    s.comments.push(comment);
+    await writeStories(stories);
+    const cUser = currentUser;
+    res.status(201).json({ ...comment, profileImage: null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/:storyId/comments/:commentId/like', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.storyId);
+    if (!s || !s.comments) return res.status(404).json({ error: 'Not found' });
+    const c = s.comments.find(x => x.id === req.params.commentId);
+    if (!c) return res.status(404).json({ error: 'Comment not found' });
+    if (!c.likes) c.likes = [];
+    const idx = c.likes.indexOf(currentUser.id);
+    if (idx === -1) c.likes.push(currentUser.id); else c.likes.splice(idx, 1);
+    await writeStories(stories);
+    res.json({ likes: c.likes.length, liked: idx === -1 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/:storyId/comments/:commentId/delete', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.storyId);
+    if (!s || !s.comments) return res.status(404).json({ error: 'Not found' });
+    const comment = s.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    const isCommentOwner = comment.userId === currentUser.id;
+    const isStoryOwner = s.ownerId === currentUser.id;
+    if (!isCommentOwner && !isStoryOwner) return res.status(403).json({ error: 'Permission nahi hai' });
+    s.comments = s.comments.filter(c => c.id !== req.params.commentId);
+    await writeStories(stories);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/:id/delete', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    let stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Permission nahi hai' });
+    if (s.mediaFile) await b2DeleteFile(s.mediaFile);
+    stories = stories.filter(x => x.id !== req.params.id);
+    await writeStories(stories);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
