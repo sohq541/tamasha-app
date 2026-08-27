@@ -314,6 +314,22 @@
 .story-comments-drawer{position:absolute;left:0;right:0;bottom:0;max-height:55%;background:rgba(15,13,35,0.97);border-radius:16px 16px 0 0;padding:14px;display:none;flex-direction:column;z-index:20;}
 .story-comments-drawer.open{display:flex;}
 .story-comments-list{overflow-y:auto;flex:1;}
+
+.story-views-overlay{position:fixed;inset:0;background:#141225;display:none;z-index:310;flex-direction:column;}
+.story-views-overlay.open{display:flex;}
+.story-views-header{display:flex;justify-content:flex-end;align-items:center;padding:14px 16px;}
+.story-views-header button{background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px 8px;}
+.story-views-preview-row{display:flex;gap:10px;padding:0 16px 18px;}
+.story-views-preview-row img,.story-views-preview-row video{width:110px;height:165px;border-radius:14px;object-fit:cover;background:#000;}
+.story-views-tabs{display:flex;gap:10px;padding:0 16px 16px;}
+.story-views-tab{background:rgba(255,255,255,0.08);border:none;color:var(--cream-dim);padding:8px 18px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;}
+.story-views-tab.active{background:rgba(80,140,255,0.25);color:#6EA8FF;}
+.story-views-count-row{padding:0 16px 12px;}
+.story-views-count{font-size:22px;font-weight:800;color:#fff;}
+.story-viewer-row{display:flex;align-items:center;gap:12px;padding:10px 16px;}
+.story-viewer-row img{width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+.story-viewer-row-fallback{width:48px;height:48px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;}
+.story-viewer-row-name{color:#fff;font-size:15px;}
 </style>
 </head>
 <body>
@@ -432,12 +448,13 @@
   </div>
 </div>
 
-<!-- ===== STORY VIEWS LIST ===== -->
-<div class="sheet-overlay" id="storyViewsOverlay" onclick="if(event.target===this) closeStoryViewsSheet()">
-  <div class="sheet">
-    <div class="sheet-header"><h3>Views</h3><button class="sheet-close" onclick="closeStoryViewsSheet()">✕</button></div>
-    <div id="storyViewsList" style="max-height:300px;overflow-y:auto;"></div>
-  </div>
+<!-- ===== STORY VIEWS LIST (Instagram-style full screen) ===== -->
+<div class="story-views-overlay" id="storyViewsOverlay">
+  <div class="story-views-header"><button onclick="closeStoryViewsSheet()">✕</button></div>
+  <div class="story-views-preview-row" id="storyViewsPreviewWrap"></div>
+  <div class="story-views-tabs"><button class="story-views-tab active">Viewers</button></div>
+  <div class="story-views-count-row"><div class="story-views-count" id="storyViewsCountHeading">0 viewers</div></div>
+  <div id="storyViewsList" style="flex:1;overflow-y:auto;"></div>
 </div>
 
 <!-- ===== STORY VIEWER (full screen) ===== -->
@@ -1756,24 +1773,38 @@ async function recordStoryView(storyId){
 
 async function openStoryViewsSheet(){
   if (!currentStoryId) return;
+  clearStoryTimer();
+  document.getElementById('storyViewVideo').pause();
+  const group = currentStoryUserQueue[currentStoryGroupIndex];
+  const story = group ? group.stories[currentStoryIndex] : null;
+  const previewWrap = document.getElementById('storyViewsPreviewWrap');
+  previewWrap.innerHTML = story
+    ? (story.mediaType === 'video'
+        ? `<video src="${story.mediaUrl}" muted autoplay loop playsinline></video>`
+        : `<img src="${story.mediaUrl}">`)
+    : '';
   try {
     const res = await fetch('/api/stories/' + currentStoryId + '/views');
     const data = await res.json();
+    document.getElementById('storyViewsCountHeading').textContent = data.viewCount + (data.viewCount === 1 ? ' viewer' : ' viewers');
     const listEl = document.getElementById('storyViewsList');
     if (!data.viewers || !data.viewers.length) {
-      listEl.innerHTML = '<p class="comment-empty">Abhi tak koi view nahi.</p>';
+      listEl.innerHTML = '<p class="comment-empty" style="padding:16px;">Abhi tak koi view nahi.</p>';
     } else {
       listEl.innerHTML = data.viewers.map(v => `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
-          ${v.profileImage ? `<img src="${v.profileImage}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;">${escapeHtml(v.username[0].toUpperCase())}</div>`}
-          <span style="font-weight:600;">@${escapeHtml(v.username)}</span>
+        <div class="story-viewer-row">
+          ${v.profileImage ? `<img src="${v.profileImage}">` : `<div class="story-viewer-row-fallback">${escapeHtml(v.username[0].toUpperCase())}</div>`}
+          <div class="story-viewer-row-name">@${escapeHtml(v.username)}</div>
         </div>
       `).join('');
     }
     document.getElementById('storyViewsOverlay').classList.add('open');
   } catch (e) { showToast('Kuch galat ho gaya'); }
 }
-function closeStoryViewsSheet(){ document.getElementById('storyViewsOverlay').classList.remove('open'); }
+function closeStoryViewsSheet(){
+  document.getElementById('storyViewsOverlay').classList.remove('open');
+  if (currentStoryId) startStoryPlayback();
+}
 
 function toggleStoryCommentsDrawer(){
   document.getElementById('storyCommentsDrawer').classList.toggle('open');
