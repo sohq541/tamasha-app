@@ -383,6 +383,7 @@
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
         <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
+        <button class="action-btn" onclick="reportCurrentFilm()" style="color:var(--cream-dim);">🚩 Report</button>
         <span class="view-count" id="viewCount"></span>
       </div>
       <div class="comments-section">
@@ -1438,6 +1439,20 @@ function closeModal(){
   document.getElementById('player').src = '';
   document.getElementById('playerImg').src = '';
   history.replaceState(null, '', location.pathname);
+}
+
+function reportCurrentFilm(){
+  if (!currentFilm) return;
+  const subject = encodeURIComponent('Content Report: ' + currentFilm.title);
+  const body = encodeURIComponent(
+    'Video/Photo ID: ' + currentFilm.id + '\n' +
+    'Title: ' + currentFilm.title + '\n' +
+    'Uploader: @' + (currentFilm.ownerUsername || 'unknown') + '\n' +
+    'URL: ' + location.origin + '/?film=' + currentFilm.id + '\n\n' +
+    'Reason for report: '
+  );
+  window.location.href = 'mailto:sohailp541@gmail.com?subject=' + subject + '&body=' + body;
+  showToast('Report email khul raha hai...');
 }
 
 async function likeCurrentFilm(){
