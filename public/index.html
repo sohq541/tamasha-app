@@ -1919,29 +1919,43 @@ function closeUploadModal(){
 document.getElementById('quickUploadForm').addEventListener('submit', function(e){
   e.preventDefault();
   const type = document.querySelector('input[name="qType"]:checked').value;
-  const formData = new FormData();
-  formData.append('title', document.getElementById('qTitle').value);
-  formData.append('type', type);
-  formData.append('year', document.getElementById('qYear').value);
-  formData.append('language', document.getElementById('qLanguage').value);
-  formData.append('genre', document.getElementById('qGenre').value);
-  formData.append('description', document.getElementById('qDescription').value);
+  const meta = {
+    title: document.getElementById('qTitle').value,
+    type,
+    year: document.getElementById('qYear').value,
+    language: document.getElementById('qLanguage').value,
+    genre: document.getElementById('qGenre').value,
+    description: document.getElementById('qDescription').value
+  };
 
+  let mainFile, posterFile = null;
   if (type === 'photo') {
-    const photoFile = document.getElementById('qPhoto').files[0];
-    if (!photoFile) { alert('Photo file zaroori hai'); return; }
-    formData.append('photo', photoFile);
+    mainFile = document.getElementById('qPhoto').files[0];
+    if (!mainFile) { alert('Photo file zaroori hai'); return; }
   } else {
-    const videoFile = document.getElementById('qVideo').files[0];
-    if (!videoFile) { alert('Video file zaroori hai'); return; }
-    formData.append('video', videoFile);
-    const posterFile = document.getElementById('qPoster').files[0];
-    if (posterFile) formData.append('poster', posterFile);
+    mainFile = document.getElementById('qVideo').files[0];
+    if (!mainFile) { alert('Video file zaroori hai'); return; }
+    posterFile = document.getElementById('qPoster').files[0] || null;
   }
 
-  const titleForBanner = document.getElementById('qTitle').value;
+  const DIRECT_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB — Render ki request limit se bachne ke liye
+  const totalSize = mainFile.size + (posterFile ? posterFile.size : 0);
+
   closeUploadModal();
-  startUploadWithProgress(formData, titleForBanner);
+
+  if (totalSize > DIRECT_UPLOAD_THRESHOLD) {
+    startDirectUpload(meta, mainFile, posterFile);
+  } else {
+    const formData = new FormData();
+    Object.entries(meta).forEach(([k, v]) => formData.append(k, v));
+    if (type === 'photo') formData.append('photo', mainFile);
+    else {
+      formData.append('video', mainFile);
+      if (posterFile) formData.append('poster', posterFile);
+    }
+    startUploadWithProgress(formData, meta.title);
+  }
+
   document.getElementById('quickUploadForm').reset();
   toggleQType('film');
 });
@@ -2016,6 +2030,91 @@ function startUploadWithProgress(formData, title){
 
   xhr.send(formData);
       }
+
+async function presignFile(file, folder){
+  const res = await fetch('/api/upload/presign-url', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: file.name, contentType: file.type, folder })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Presign fail ho gaya');
+  return data;
+}
+
+function putFileWithProgress(uploadUrl, file, onProgress){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    uploadXhr = xhr;
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = function(e){
+      if (e.lengthComputable) onProgress(e.loaded);
+    };
+    xhr.onload = function(){
+      uploadXhr = null;
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('Upload failed (status ' + xhr.status + ')'));
+    };
+    xhr.onerror = function(){ uploadXhr = null; reject(new Error('Network error during upload')); };
+    xhr.send(file);
+  });
+}
+
+async function startDirectUpload(meta, mainFile, posterFile){
+  const banner = document.getElementById('uploadBanner');
+  const fill = document.getElementById('uploadProgressFill');
+  const percentEl = document.getElementById('uploadBannerPercent');
+  const statsEl = document.getElementById('uploadBannerStats');
+  const titleEl = document.getElementById('uploadBannerTitle');
+
+  banner.classList.remove('hidden');
+  titleEl.textContent = 'Uploading: ' + meta.title;
+  fill.style.width = '0%';
+  percentEl.textContent = '0%';
+  statsEl.textContent = 'Badi file hai, seedha storage pe ja rahi hai...';
+
+  const totalBytes = mainFile.size + (posterFile ? posterFile.size : 0);
+
+  const updateProgress = (bytesDone) => {
+    const percent = Math.round((bytesDone / totalBytes) * 100);
+    fill.style.width = percent + '%';
+    percentEl.textContent = percent + '%';
+    statsEl.textContent = `${formatBytes(bytesDone)} / ${formatBytes(totalBytes)}`;
+  };
+
+  try {
+    const mainFolder = meta.type === 'photo' ? 'posters' : 'videos';
+    const mainPresign = await presignFile(mainFile, mainFolder);
+    await putFileWithProgress(mainPresign.uploadUrl, mainFile, (loaded) => updateProgress(loaded));
+
+    let posterKey = null;
+    if (posterFile) {
+      const posterPresign = await presignFile(posterFile, 'posters');
+      await putFileWithProgress(posterPresign.uploadUrl, posterFile, (loaded) => updateProgress(mainFile.size + loaded));
+      posterKey = posterPresign.key;
+    }
+
+    const finalizeRes = await fetch('/api/films/finalize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...meta, mediaKey: mainPresign.key, posterKey })
+    });
+    const finalizeData = await finalizeRes.json();
+    if (!finalizeRes.ok) throw new Error(finalizeData.error || 'Finalize fail ho gaya');
+
+    titleEl.textContent = '✅ Upload complete: ' + meta.title;
+    fill.style.width = '100%';
+    percentEl.textContent = '100%';
+    statsEl.textContent = 'Done!';
+    showToast('Upload successful! 🎉');
+    loadFilms();
+    setTimeout(() => banner.classList.add('hidden'), 3000);
+  } catch (err) {
+    titleEl.textContent = '❌ Failed: ' + err.message;
+    statsEl.textContent = '';
+    setTimeout(() => banner.classList.add('hidden'), 4000);
+  }
+}
+
   window.addEventListener('popstate', function(e){
   if (document.getElementById('overlay').classList.contains('open')) {
     closeModal();
