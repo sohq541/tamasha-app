@@ -180,6 +180,44 @@ async function e2GetPresignedUploadUrl(key, contentType) {
   return getSignedUrl(e2Client, command, { expiresIn: 900 });
 }
 
+async function e2ReadJSON(key) {
+  const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
+  const chunks = [];
+  for await (const chunk of data.Body) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+}
+
+async function e2TryReadJSON(key) {
+  try { return await e2ReadJSON(key); }
+  catch (e) { if (e.name === 'NoSuchKey') return null; throw e; }
+}
+
+async function e2WriteJSON(key, data) {
+  await e2UploadBuffer(Buffer.from(JSON.stringify(data, null, 2)), key, 'application/json');
+}
+
+// If B2 is unreachable/capped, return null (caller can degrade gracefully) instead of throwing
+async function b2TryReadJSON(fileName) {
+  try {
+    const { authToken, downloadUrl } = await b2Authorize();
+    const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${fileName}`;
+    const res = await fetch(url, { headers: { Authorization: authToken } });
+    if (res.status === 404) return [];
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+async function getMigrationStatus() {
+  const status = await e2TryReadJSON('migration-status.json');
+  return status || { films: false, users: false, stories: false };
+}
+async function markMigrated(key) {
+  const status = await getMigrationStatus();
+  status[key] = true;
+  await e2WriteJSON('migration-status.json', status);
+}
+
 function generateThumbnail(videoBuffer, ext) {
   return new Promise((resolve, reject) => {
     const tmpDir = os.tmpdir();
@@ -211,35 +249,48 @@ const FILMS_CACHE_MS = 15000;
 
 async function readFilms() {
   if (filmsCache.data && Date.now() < filmsCache.expiresAt) return filmsCache.data;
-  const { authToken, downloadUrl } = await b2Authorize();
-  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/films.json`;
-  const res = await fetch(url, { headers: { Authorization: authToken } });
-  let films;
-  if (res.status === 404) films = [];
-  else if (!res.ok) throw new Error('Could not read films.json from B2 (status ' + res.status + '): ' + (await res.text()));
-  else films = await res.json();
+  const status = await getMigrationStatus();
+  let films = await e2TryReadJSON('films.json') || [];
+
+  if (!status.films) {
+    const b2Films = await b2TryReadJSON('films.json');
+    if (b2Films !== null) {
+      const existingIds = new Set(b2Films.map(f => f.id));
+      films = [...b2Films, ...films.filter(f => !existingIds.has(f.id))];
+      await e2WriteJSON('films.json', films);
+      await markMigrated('films');
+    }
+    // else: B2 abhi bhi unreachable/capped hai — jo e2 pe hai (naye uploads) wahi serve karo, agli baar phir try hoga
+  }
+
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
   return films;
 }
 
 async function writeFilms(films) {
-  const buffer = Buffer.from(JSON.stringify(films, null, 2));
-  await b2UploadBuffer(buffer, 'films.json', 'application/json');
+  await e2WriteJSON('films.json', films);
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
 }
 
 // ---------------- Users "database" ----------------
 async function readUsers() {
-  const { authToken, downloadUrl } = await b2Authorize();
-  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/users.json`;
-  const res = await fetch(url, { headers: { Authorization: authToken } });
-  if (res.status === 404) return [];
-  if (!res.ok) throw new Error('Could not read users.json from B2');
-  return res.json();
+  const status = await getMigrationStatus();
+  let users = await e2TryReadJSON('users.json') || [];
+
+  if (!status.users) {
+    const b2Users = await b2TryReadJSON('users.json');
+    if (b2Users !== null) {
+      const existingIds = new Set(b2Users.map(u => u.id));
+      users = [...b2Users, ...users.filter(u => !existingIds.has(u.id))];
+      await e2WriteJSON('users.json', users);
+      await markMigrated('users');
+    }
+  }
+
+  return users;
 }
 async function writeUsers(users) {
-  const buffer = Buffer.from(JSON.stringify(users, null, 2));
-  await b2UploadBuffer(buffer, 'users.json', 'application/json');
+  await e2WriteJSON('users.json', users);
 }
 
 // ---------------- Express setup ----------------
@@ -939,20 +990,25 @@ const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 
 async function readStories() {
   if (storiesCache.data && Date.now() < storiesCache.expiresAt) return storiesCache.data;
-  const { authToken, downloadUrl } = await b2Authorize();
-  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/stories.json`;
-  const res = await fetch(url, { headers: { Authorization: authToken } });
-  let stories;
-  if (res.status === 404) stories = [];
-  else if (!res.ok) throw new Error('Could not read stories.json from B2 (status ' + res.status + '): ' + (await res.text()));
-  else stories = await res.json();
+  const status = await getMigrationStatus();
+  let stories = await e2TryReadJSON('stories.json') || [];
+
+  if (!status.stories) {
+    const b2Stories = await b2TryReadJSON('stories.json');
+    if (b2Stories !== null) {
+      const existingIds = new Set(b2Stories.map(s => s.id));
+      stories = [...b2Stories, ...stories.filter(s => !existingIds.has(s.id))];
+      await e2WriteJSON('stories.json', stories);
+      await markMigrated('stories');
+    }
+  }
+
   storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
   return stories;
 }
 
 async function writeStories(stories) {
-  const buffer = Buffer.from(JSON.stringify(stories, null, 2));
-  await b2UploadBuffer(buffer, 'stories.json', 'application/json');
+  await e2WriteJSON('stories.json', stories);
   storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
 }
 
