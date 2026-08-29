@@ -142,7 +142,8 @@ async function b2DeleteFile(fileName) {
 const e2Client = new S3Client({
   region: E2_REGION,
   endpoint: E2_ENDPOINT,
-  credentials: { accessKeyId: E2_ACCESS_KEY_ID, secretAccessKey: E2_SECRET_ACCESS_KEY }
+  credentials: { accessKeyId: E2_ACCESS_KEY_ID, secretAccessKey: E2_SECRET_ACCESS_KEY },
+  forcePathStyle: true
 });
 
 async function e2UploadBuffer(buffer, key, contentType) {
