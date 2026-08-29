@@ -9,6 +9,8 @@ ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -21,6 +23,12 @@ const B2_KEY_ID = process.env.B2_KEY_ID;
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
 const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
 const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
+
+const E2_ACCESS_KEY_ID = process.env.E2_ACCESS_KEY_ID;
+const E2_SECRET_ACCESS_KEY = process.env.E2_SECRET_ACCESS_KEY;
+const E2_BUCKET_NAME = process.env.E2_BUCKET_NAME;
+const E2_REGION = process.env.E2_REGION;
+const E2_ENDPOINT = process.env.E2_ENDPOINT;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
@@ -128,6 +136,47 @@ async function b2DeleteFile(fileName) {
     headers: { Authorization: authToken, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, fileId: match.fileId })
   });
+}
+
+// ---------------- IDrive e2 (S3-compatible) helper ----------------
+const e2Client = new S3Client({
+  region: E2_REGION,
+  endpoint: E2_ENDPOINT,
+  credentials: { accessKeyId: E2_ACCESS_KEY_ID, secretAccessKey: E2_SECRET_ACCESS_KEY }
+});
+
+async function e2UploadBuffer(buffer, key, contentType) {
+  await e2Client.send(new PutObjectCommand({
+    Bucket: E2_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType || 'application/octet-stream'
+  }));
+}
+
+async function e2StreamToResponse(key, req, res) {
+  try {
+    const params = { Bucket: E2_BUCKET_NAME, Key: key };
+    if (req.headers.range) params.Range = req.headers.range;
+    const data = await e2Client.send(new GetObjectCommand(params));
+    res.status(req.headers.range ? 206 : 200);
+    if (data.ContentType) res.set('content-type', data.ContentType);
+    if (data.ContentLength != null) res.set('content-length', data.ContentLength);
+    if (data.ContentRange) res.set('content-range', data.ContentRange);
+    res.set('accept-ranges', 'bytes');
+    data.Body.pipe(res);
+  } catch (err) {
+    if (err.name === 'NoSuchKey') return res.status(404).send('Not found');
+    res.status(502).send('Could not fetch file from storage');
+  }
+}
+
+async function e2DeleteFile(key) {
+  try { await e2Client.send(new DeleteObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key })); } catch (e) {}
+}
+
+async function e2GetPresignedUploadUrl(key, contentType) {
+  const command = new PutObjectCommand({
+    Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
+  });
+  return getSignedUrl(e2Client, command, { expiresIn: 900 });
 }
 
 function generateThumbnail(videoBuffer, ext) {
@@ -360,12 +409,13 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Photo file zaroori hai' });
 
     const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
-    await b2UploadBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
+    await e2UploadBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     user.profileImage = key;
+    user.avatarStorageProvider = 'e2';
     await writeUsers(users);
 
     res.json({ profileImage: '/media/avatar/' + currentUser.id });
@@ -377,7 +427,8 @@ app.get('/media/avatar/:id', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.id === req.params.id);
     if (!user || !user.profileImage) return res.status(404).send('Not found');
-    await b2StreamToResponse(user.profileImage, req, res);
+    if (user.avatarStorageProvider === 'e2') await e2StreamToResponse(user.profileImage, req, res);
+    else await b2StreamToResponse(user.profileImage, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -583,7 +634,8 @@ app.get('/media/video/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.videoFile) return res.status(404).send('Not found');
-    await b2StreamToResponse(f.videoFile, req, res);
+    if (f.storageProvider === 'e2') await e2StreamToResponse(f.videoFile, req, res);
+    else await b2StreamToResponse(f.videoFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -592,7 +644,8 @@ app.get('/media/poster/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.posterFile) return res.status(404).send('Not found');
-    await b2StreamToResponse(f.posterFile, req, res);
+    if (f.storageProvider === 'e2') await e2StreamToResponse(f.posterFile, req, res);
+    else await b2StreamToResponse(f.posterFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -611,12 +664,13 @@ app.post('/api/films', (req, res, next) => {
       if (!req.files || !req.files.photo) return res.status(400).json({ error: 'Photo file zaroori hai' });
       const photoFile = req.files.photo[0];
       const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
-      await b2UploadBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
+      await e2UploadBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
 
       const films = await readFilms();
       const newFilm = {
         id, title, year: year || '', language: language || '', genre: genre || '',
         description: description || '', videoFile: null, posterFile: photoKey, type: 'photo',
+        storageProvider: 'e2',
         ownerId: req.currentUser ? req.currentUser.id : 'admin',
         ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
         views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -630,13 +684,13 @@ app.post('/api/films', (req, res, next) => {
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
-    await b2UploadBuffer(fs.readFileSync(videoFile.path), videoKey, videoFile.mimetype);
+    await e2UploadBuffer(fs.readFileSync(videoFile.path), videoKey, videoFile.mimetype);
 
     let posterKey = null;
     if (req.files.poster) {
       const posterFile = req.files.poster[0];
       posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
-      await b2UploadBuffer(readFileAsBuffer(posterFile.path), posterKey, posterFile.mimetype);
+      await e2UploadBuffer(readFileAsBuffer(posterFile.path), posterKey, posterFile.mimetype);
     }
 
     const films = await readFilms();
@@ -644,6 +698,7 @@ app.post('/api/films', (req, res, next) => {
       id, title, year: year || '', language: language || '', genre: genre || '',
       description: description || '', videoFile: videoKey, posterFile: posterKey,
       type: type === 'short' ? 'short' : 'film',
+      storageProvider: 'e2',
       ownerId: req.currentUser ? req.currentUser.id : 'admin',
       ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
       views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -659,7 +714,7 @@ app.post('/api/films', (req, res, next) => {
         .then(async (thumbBuffer) => {
           fs.unlink(videoPathForThumb, () => {});
           const genPosterKey = `posters/${id}.jpg`;
-          await b2UploadBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
+          await e2UploadBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
           const latestFilms = await readFilms();
           const f = latestFilms.find(x => x.id === id);
           if (f) { f.posterFile = genPosterKey; await writeFilms(latestFilms); }
@@ -667,6 +722,56 @@ app.post('/api/films', (req, res, next) => {
         .catch(err => { console.error('Background thumbnail failed:', err.message); fs.unlink(videoPathForThumb, () => {}); });
     }
     return;
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/upload/presign-url', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login zaroori hai' });
+    const { fileName, contentType, folder } = req.body;
+    if (!fileName || !folder) return res.status(400).json({ error: 'fileName aur folder zaroori hai' });
+    const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const key = `${safeFolder}/${id}${path.extname(fileName)}`;
+    const uploadUrl = await e2GetPresignedUploadUrl(key, contentType);
+    res.json({ uploadUrl, key });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/finalize', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login zaroori hai' });
+    const { title, year, language, genre, description, type, mediaKey, posterKey } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title zaroori hai' });
+    if (!mediaKey) return res.status(400).json({ error: 'Uploaded file ka reference nahi mila' });
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const films = await readFilms();
+
+    const newFilm = type === 'photo'
+      ? {
+          id, title, year: year || '', language: language || '', genre: genre || '',
+          description: description || '', videoFile: null, posterFile: mediaKey, type: 'photo',
+          storageProvider: 'e2',
+          ownerId: currentUser ? currentUser.id : 'admin',
+          ownerUsername: currentUser ? currentUser.username : 'YouSeries',
+          views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
+        }
+      : {
+          id, title, year: year || '', language: language || '', genre: genre || '',
+          description: description || '', videoFile: mediaKey, posterFile: posterKey || null,
+          type: type === 'short' ? 'short' : 'film',
+          storageProvider: 'e2',
+          ownerId: currentUser ? currentUser.id : 'admin',
+          ownerUsername: currentUser ? currentUser.username : 'YouSeries',
+          views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
+        };
+
+    films.unshift(newFilm);
+    await writeFilms(films);
+    res.status(201).json(newFilm);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -789,10 +894,15 @@ app.put('/api/films/:id', (req, res, next) => {
     if (req.files && req.files.poster) {
       const posterFile = req.files.poster[0];
       const newPosterKey = `posters/${f.id}-edit${Date.now()}${path.extname(posterFile.originalname)}`;
-      await b2UploadBuffer(readFileAsBuffer(posterFile.path), newPosterKey, posterFile.mimetype);
+      await e2UploadBuffer(readFileAsBuffer(posterFile.path), newPosterKey, posterFile.mimetype);
       const oldPoster = f.posterFile;
+      const oldProvider = f.storageProvider;
       f.posterFile = newPosterKey;
-      if (oldPoster) b2DeleteFile(oldPoster).catch(() => {});
+      f.storageProvider = 'e2';
+      if (oldPoster) {
+        if (oldProvider === 'e2') e2DeleteFile(oldPoster).catch(() => {});
+        else b2DeleteFile(oldPoster).catch(() => {});
+      }
     }
 
     await writeFilms(films);
@@ -812,8 +922,8 @@ app.delete('/api/films/:id', (req, res, next) => {
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
     if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
 
-    if (f.videoFile) await b2DeleteFile(f.videoFile);
-    if (f.posterFile) await b2DeleteFile(f.posterFile);
+    if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
+    if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
 
     const remaining = films.filter(x => x.id !== req.params.id);
     await writeFilms(remaining);
@@ -862,7 +972,7 @@ app.post('/api/stories', (req, res, next) => {
     const isVideo = mediaFile.mimetype.startsWith('video');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const mediaKey = `stories/${id}${path.extname(mediaFile.originalname)}`;
-    await b2UploadBuffer(fs.readFileSync(mediaFile.path), mediaKey, mediaFile.mimetype);
+    await e2UploadBuffer(fs.readFileSync(mediaFile.path), mediaKey, mediaFile.mimetype);
     fs.unlink(mediaFile.path, () => {});
 
     let stories = await readStories();
@@ -873,6 +983,7 @@ app.post('/api/stories', (req, res, next) => {
       ownerUsername: req.currentUser.username,
       mediaFile: mediaKey,
       mediaType: isVideo ? 'video' : 'photo',
+      storageProvider: 'e2',
       textOverlay: (req.body.textOverlay || '').slice(0, 200),
       createdAt: new Date().toISOString(),
       views: [],
@@ -948,7 +1059,8 @@ app.get('/media/story/:id', async (req, res) => {
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s || !s.mediaFile) return res.status(404).send('Not found');
-    await b2StreamToResponse(s.mediaFile, req, res);
+    if (s.storageProvider === 'e2') await e2StreamToResponse(s.mediaFile, req, res);
+    else await b2StreamToResponse(s.mediaFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -1051,7 +1163,7 @@ app.post('/api/stories/:id/delete', async (req, res) => {
     const s = stories.find(x => x.id === req.params.id);
     if (!s) return res.status(404).json({ error: 'Story not found' });
     if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Permission nahi hai' });
-    if (s.mediaFile) await b2DeleteFile(s.mediaFile);
+    if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
     stories = stories.filter(x => x.id !== req.params.id);
     await writeStories(stories);
     res.json({ success: true });
