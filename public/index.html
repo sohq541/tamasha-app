@@ -450,6 +450,14 @@
 </div>
 
 <!-- ===== STORY VIEWS LIST (Instagram-style full screen) ===== -->
+<!-- ===== NOTIFICATIONS ===== -->
+<div class="sheet-overlay" id="notifOverlay" onclick="if(event.target===this) closeNotifications()">
+  <div class="sheet" style="max-height:78vh;overflow-y:auto;">
+    <div class="sheet-header"><h3>Notifications</h3><button class="sheet-close" onclick="closeNotifications()">✕</button></div>
+    <div id="notifList"></div>
+  </div>
+</div>
+
 <div class="story-views-overlay" id="storyViewsOverlay">
   <div class="story-views-header"><button onclick="closeStoryViewsSheet()">✕</button></div>
   <div class="story-views-preview-row" id="storyViewsPreviewWrap"></div>
@@ -599,12 +607,14 @@ async function loadProfile(){
       } catch (err) {}
 
       headerRight.innerHTML = `
+        <span id="notifBell" onclick="openNotifications()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">🔔<span id="notifBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
         ${gotApp ? '' : `<a href="https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk" onclick="localStorage.setItem('appDownloaded','1')" style="margin-right:14px;">📲 Get App</a>`}
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
       document.getElementById('tabProfile').innerHTML = avatarUrl
         ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
         : '👤 Profile';
+      pollNotificationCount();
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
@@ -1902,6 +1912,76 @@ async function postStoryQuickLike(){
     loadStoryComments(currentStoryId);
   } catch (e) {}
   setTimeout(() => { btn.textContent = '🤍'; }, 1200);
+}
+
+let notifPollInterval = null;
+
+async function pollNotificationCount(){
+  try {
+    const res = await fetch('/api/notifications/unread-count');
+    const data = await res.json();
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      if (data.unreadCount > 0) {
+        badge.textContent = data.unreadCount > 99 ? '99+' : data.unreadCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  } catch (e) {}
+  if (!notifPollInterval) notifPollInterval = setInterval(pollNotificationCount, 30000);
+}
+
+function notifIcon(type){
+  if (type === 'follow') return '👤';
+  if (type === 'film_comment' || type === 'story_comment') return '💬';
+  if (type === 'comment_like') return '❤️';
+  return '🔔';
+}
+
+async function openNotifications(){
+  const listEl = document.getElementById('notifList');
+  listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  document.getElementById('notifOverlay').classList.add('open');
+  try {
+    const res = await fetch('/api/notifications');
+    const data = await res.json();
+    const notifs = data.notifications || [];
+    if (!notifs.length) {
+      listEl.innerHTML = '<p class="comment-empty">Abhi koi notification nahi hai.</p>';
+    } else {
+      listEl.innerHTML = notifs.map(n => `
+        <div onclick="handleNotifClick('${n.filmId || ''}','${n.storyId || ''}','${n.fromUserId}','${escapeHtml(n.fromUsername)}')" style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
+          <span style="font-size:18px;flex-shrink:0;">${notifIcon(n.type)}</span>
+          <div style="flex:1;">
+            <div style="font-size:13.5px;color:var(--cream);">${escapeHtml(n.message)}</div>
+            <div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${storyTimeAgo(n.createdAt)}</div>
+          </div>
+          ${n.read ? '' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--marigold);flex-shrink:0;margin-top:5px;"></span>'}
+        </div>
+      `).join('');
+    }
+    if (data.unreadCount > 0) {
+      await fetch('/api/notifications/mark-read', { method: 'POST' });
+      const badge = document.getElementById('notifBadge');
+      if (badge) badge.classList.add('hidden');
+    }
+  } catch (e) {
+    listEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>';
+  }
+}
+
+function closeNotifications(){ document.getElementById('notifOverlay').classList.remove('open'); }
+
+function handleNotifClick(filmId, storyId, fromUserId, fromUsername){
+  closeNotifications();
+  if (filmId) { playFilm(filmId); return; }
+  if (storyId) {
+    const stories = (window.activeStoriesByUser || {})[fromUserId];
+    if (stories && stories.length) { openStoryViewer(fromUserId); return; }
+  }
+  goToProfileDirect(fromUserId, fromUsername);
 }
 
 async function init(){
