@@ -221,7 +221,7 @@
   .menu-item:hover{background:rgba(255,255,255,0.06);}
 
   /* -------- Instagram-style profile -------- */
-  .profile-wrap{max-width:560px;margin:0 auto;padding:24px 20px;}
+  .profile-wrap{max-width:560px;margin:0 auto;padding:24px 20px;position:relative;}
   .profile-top-row{display:flex;align-items:center;gap:20px;margin-bottom:18px;}
   .profile-avatar{width:84px;height:84px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
     display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:34px;font-weight:800;
@@ -458,6 +458,14 @@
   </div>
 </div>
 
+<!-- ===== PROFILE MENU ===== -->
+<div class="sheet-overlay" id="profileMenuOverlay" onclick="if(event.target===this) closeProfileMenu()">
+  <div class="sheet" style="max-height:82vh;overflow-y:auto;">
+    <div class="sheet-header"><h3 id="profileMenuTitle">Menu</h3><button class="sheet-close" onclick="closeProfileMenu()">✕</button></div>
+    <div id="profileMenuBody"></div>
+  </div>
+</div>
+
 <div class="story-views-overlay" id="storyViewsOverlay">
   <div class="story-views-header"><button onclick="closeStoryViewsSheet()">✕</button></div>
   <div class="story-views-preview-row" id="storyViewsPreviewWrap"></div>
@@ -523,6 +531,11 @@
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
       <label>Description</label><textarea id="qDescription"></textarea>
+
+      <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+        <input type="checkbox" id="qSensitive" style="width:auto;">
+        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (log jinhone sensitive content off kiya hai, unke feed me nahi dikhega)</span>
+      </label>
 
       <button type="submit">Start Upload</button>
     </form>
@@ -714,12 +727,14 @@ async function renderProfile(){
     const res = await fetch('/api/users/' + currentUser.id + '/public');
     mine = await res.json();
   } catch (err) {}
+  window.myHideSensitive = !!mine.hideSensitiveContent;
 
   const myFilms = allFilms.filter(f => f.ownerId === currentUser.id);
   const myVideos = myFilms.filter(f => f.type !== 'photo');
   const myPhotos = myFilms.filter(f => f.type === 'photo');
 
   el.innerHTML = `
+    <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
       <div class="profile-avatar" id="ownProfileAvatarWrap" style="${(window.activeStoriesByUser||{})[currentUser.id] ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
         ${mine.profileImage ? `<img src="${mine.profileImage}">` : escapeHtml(currentUser.username[0].toUpperCase())}
@@ -780,8 +795,6 @@ async function renderProfile(){
       <input type="text" id="secAnswerInput" placeholder="Answer">
       <button class="settings-save-btn" onclick="setSecurityQuestion()">Save security question</button>
       <div id="secQuestionStatus" style="margin-top:8px;font-size:13px;"></div>
-
-      <button class="profile-btn" style="width:100%;margin-top:18px;" onclick="logout()">Logout</button>
     </div>
 
     <div class="profile-tabs-row">
@@ -844,6 +857,178 @@ async function saveBio(){
 async function logout(){
   await fetch('/api/logout', { method: 'POST' });
   window.location.reload();
+}
+
+// ===================== PROFILE MENU (3-dot) =====================
+function openProfileMenu(){
+  document.getElementById('profileMenuOverlay').classList.add('open');
+  renderProfileMenuMain();
+}
+function closeProfileMenu(){ document.getElementById('profileMenuOverlay').classList.remove('open'); }
+
+function menuRow(icon, label, onclickStr, danger){
+  return `<div onclick="${onclickStr}" style="display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;${danger ? 'color:#e88a8a;' : 'color:var(--cream);'}">
+    <span style="font-size:18px;flex-shrink:0;">${icon}</span><span style="font-size:14.5px;font-weight:500;">${label}</span>
+  </div>`;
+}
+
+function setMenuTitle(title, showBack, backFn){
+  document.getElementById('profileMenuTitle').innerHTML = showBack
+    ? `<span onclick="${backFn}" style="cursor:pointer;margin-right:10px;">←</span>${title}`
+    : title;
+}
+
+function renderProfileMenuMain(){
+  setMenuTitle('Menu', false);
+  document.getElementById('profileMenuBody').innerHTML =
+    menuRow('⚙️', 'Settings and Privacy', 'renderSettingsPrivacyMenu()') +
+    menuRow('📊', 'Your Activity', 'renderActivityMenu()') +
+    menuRow('🚪', 'Log Out', 'confirmLogoutFromMenu()', true);
+}
+
+function confirmLogoutFromMenu(){
+  if (confirm('Log out karna hai?')) logout();
+}
+
+// ---- Settings and Privacy ----
+function renderSettingsPrivacyMenu(){
+  setMenuTitle('Settings and Privacy', true, 'renderProfileMenuMain()');
+  document.getElementById('profileMenuBody').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
+      <div style="max-width:78%;">
+        <div style="font-size:14.5px;font-weight:600;">Sensitive content</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Feed me sensitive-marked content chhupa do</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
+        <input type="checkbox" id="sensitiveToggle" ${window.myHideSensitive ? 'checked' : ''} onchange="toggleSensitiveSetting(this.checked)" style="opacity:0;width:0;height:0;">
+        <span id="sensitiveToggleTrack" style="position:absolute;inset:0;background:${window.myHideSensitive ? 'var(--marigold)' : 'rgba(255,255,255,0.15)'};border-radius:999px;transition:0.2s;pointer-events:none;"></span>
+        <span id="sensitiveToggleDot" style="position:absolute;top:3px;left:${window.myHideSensitive ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
+      </label>
+    </div>
+    ${menuRow('🆘', 'Help Desk', 'renderHelpDesk()')}
+    ${menuRow('📄', 'Privacy Policy', "window.open('/privacy-policy.html','_blank')")}
+    ${menuRow('📋', 'Terms and Conditions', "window.open('/terms-of-service.html','_blank')")}
+  `;
+}
+
+async function toggleSensitiveSetting(checked){
+  window.myHideSensitive = checked;
+  document.getElementById('sensitiveToggleTrack').style.background = checked ? 'var(--marigold)' : 'rgba(255,255,255,0.15)';
+  document.getElementById('sensitiveToggleDot').style.left = checked ? '21px' : '3px';
+  try {
+    await fetch('/api/me/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hideSensitiveContent: checked }) });
+    loadFilms();
+  } catch (e) {}
+}
+
+function renderHelpDesk(){
+  setMenuTitle('Help Desk', true, 'renderSettingsPrivacyMenu()');
+  document.getElementById('profileMenuBody').innerHTML = `
+    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Apni problem yaha likho, seedha humare paas email ho jayegi.</p>
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Tumhara naam</label>
+    <input type="text" id="hdName" value="${currentUser ? escapeHtml(currentUser.username) : ''}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">User ID</label>
+    <input type="text" id="hdId" value="${currentUser ? currentUser.id : ''}" readonly style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.02);color:var(--cream-dim);margin-bottom:12px;box-sizing:border-box;">
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
+    <textarea id="hdProblem" placeholder="Apni problem detail me likho..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
+    <button type="button" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Bhejo</button>
+  `;
+}
+
+function submitHelpDesk(){
+  const name = document.getElementById('hdName').value.trim();
+  const id = document.getElementById('hdId').value.trim();
+  const problem = document.getElementById('hdProblem').value.trim();
+  if (!problem) { showToast('Problem likhna zaroori hai'); return; }
+  const subject = encodeURIComponent('YouSeries Help Desk — ' + name);
+  const body = encodeURIComponent(`Name: ${name}\nUser ID: ${id}\n\nProblem:\n${problem}`);
+  window.location.href = 'mailto:sohailp541@gmail.com?subject=' + subject + '&body=' + body;
+  showToast('Email khul raha hai...');
+}
+
+// ---- Your Activity ----
+function renderActivityMenu(){
+  setMenuTitle('Your Activity', true, 'renderProfileMenuMain()');
+  document.getElementById('profileMenuBody').innerHTML =
+    menuRow('👁️', 'Watch History', 'renderWatchHistory()') +
+    menuRow('❤️', 'Liked History', 'renderLikedHistory()') +
+    menuRow('💬', 'Comments History', 'renderCommentsHistory()') +
+    menuRow('🗑️', 'Permanently Delete Account', 'confirmDeleteAccount()', true);
+}
+
+function historyRow(posterUrl, title, timeLabel, onclickStr){
+  return `<div onclick="${onclickStr}" style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;">
+    <img src="${posterUrl || ''}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title)}</div>
+      ${timeLabel ? `<div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${timeLabel}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+async function renderWatchHistory(){
+  setMenuTitle('Watch History', true, 'renderActivityMenu()');
+  const bodyEl = document.getElementById('profileMenuBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/me/watch-history');
+    const data = await res.json();
+    const items = data.history || [];
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak koi video nahi dekhi.</p>'; return; }
+    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, storyTimeAgo(h.viewedAt), `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+}
+
+async function renderLikedHistory(){
+  setMenuTitle('Liked History', true, 'renderActivityMenu()');
+  const bodyEl = document.getElementById('profileMenuBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/me/liked');
+    const data = await res.json();
+    const items = data.liked || [];
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak kuch like nahi kiya.</p>'; return; }
+    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, '', `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+}
+
+async function renderCommentsHistory(){
+  setMenuTitle('Comments History', true, 'renderActivityMenu()');
+  const bodyEl = document.getElementById('profileMenuBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/me/comments');
+    const data = await res.json();
+    const items = data.comments || [];
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak koi comment nahi kiya.</p>'; return; }
+    bodyEl.innerHTML = items.map(c => `
+      <div onclick="closeProfileMenu();playFilm('${c.filmId}')" style="display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;">
+        <img src="${c.posterUrl || ''}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;color:var(--cream-dim);">on <span style="color:var(--marigold);">${escapeHtml(c.filmTitle)}</span></div>
+          <div style="font-size:13.5px;color:var(--cream);margin-top:2px;">${escapeHtml(c.text)}</div>
+          <div style="font-size:11px;color:var(--cream-dim);margin-top:2px;">${storyTimeAgo(c.createdAt)}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+}
+
+function confirmDeleteAccount(){
+  setMenuTitle('Delete Account', true, 'renderActivityMenu()');
+  document.getElementById('profileMenuBody').innerHTML = `
+    <p style="font-size:13.5px;color:var(--cream);line-height:1.6;margin-bottom:16px;">Yeh action <b>permanent</b> hai. Tumhara account, tumhari saari uploaded videos/photos, aur profile — sab hamesha ke liye delete ho jayega. Isse wapas nahi laya ja sakta.</p>
+    <button type="button" onclick="finalDeleteAccount()" style="width:100%;background:#B33A3A;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Haan, permanently delete karo</button>
+  `;
+}
+
+async function finalDeleteAccount(){
+  if (!confirm('Bilkul pakka? Yeh wapas nahi ho sakta.')) return;
+  try {
+    const res = await fetch('/api/me/delete', { method: 'POST' });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Delete fail ho gaya'); }
+    window.location.href = '/';
+  } catch (err) { showToast(err.message); }
 }
 
 async function uploadAvatar(input){
@@ -1017,10 +1202,8 @@ function renderHome(films) {
     grid.innerHTML = '<div class="empty">Abhi koi post upload nahi hui. <a href="#" onclick="openUploadModal();return false;">Pehli post upload karo</a></div>';
     return;
   }
-  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
-
   grid.innerHTML = films.map(f => {
-    const isLiked = likedList.includes(f.id);
+    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
     const isPhoto = f.type === 'photo';
     const isShort = f.type === 'short';
 
@@ -1108,8 +1291,9 @@ function setupHomeVideoObserver(){
 function renderShorts(shorts){
   const container = document.getElementById('shortsContainer');
   if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">Abhi koi Short upload nahi hui.<br><a href="/admin.html" style="color:var(--marigold);">Pehli Short upload karo</a></div>'; return; }
-  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
-  container.innerHTML = shorts.map(f => `
+  container.innerHTML = shorts.map(f => {
+    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    return `
     <div class="short-item" data-id="${f.id}">
       <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}" onclick="toggleShortPlay(this)"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
@@ -1120,13 +1304,14 @@ function renderShorts(shorts){
         <p>${escapeHtml(f.description || '')}</p>
       </div>
       <div class="short-actions">
-        <div><button class="short-action-btn ${likedList.includes(f.id) ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
+        <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function toggleShortPlay(video){
@@ -1168,15 +1353,13 @@ function setupShortsObserver(){
 }
 
 async function likeShort(id, btn){
-  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
-  if (likedList.includes(id)) return;
+  if (!currentUser) { window.location.href = '/login.html'; return; }
   try {
     const res = await fetch('/api/films/' + id + '/like', { method: 'POST' });
     const data = await res.json();
+    if (!res.ok) return;
     document.getElementById('short-like-' + id).textContent = data.likes;
-    btn.classList.add('liked');
-    likedList.push(id);
-    localStorage.setItem('likedFilms', JSON.stringify(likedList));
+    btn.classList.toggle('liked', data.liked);
   } catch (err) {}
 }
 
@@ -1437,11 +1620,10 @@ async function playFilm(id){
   document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
   document.getElementById('modalDeleteBtn').classList.toggle('hidden', !isOwnerOfFilm);
 
-  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
   const likeBtn = document.getElementById('likeBtn');
-  const alreadyLiked = likedList.includes(f.id);
+  const alreadyLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
   likeBtn.classList.toggle('liked', alreadyLiked);
-  likeBtn.disabled = alreadyLiked;
+  likeBtn.disabled = false;
   document.getElementById('likeCount').textContent = f.likes || 0;
 
   renderCommentListInto('commentList', f.comments, f.id);
@@ -1476,17 +1658,19 @@ function reportCurrentFilm(){
 
 async function likeCurrentFilm(){
   if (!currentFilm) return;
+  if (!currentUser) { window.location.href = '/login.html'; return; }
   const likeBtn = document.getElementById('likeBtn');
   likeBtn.disabled = true;
   try {
     const res = await fetch('/api/films/' + currentFilm.id + '/like', { method: 'POST' });
     const data = await res.json();
     document.getElementById('likeCount').textContent = data.likes;
-    likeBtn.classList.add('liked');
-    const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
-    likedList.push(currentFilm.id);
-    localStorage.setItem('likedFilms', JSON.stringify(likedList));
-  } catch (err) { likeBtn.disabled = false; }
+    likeBtn.classList.toggle('liked', data.liked);
+    currentFilm.likedBy = data.liked
+      ? [...(currentFilm.likedBy || []), currentUser.id]
+      : (currentFilm.likedBy || []).filter(id => id !== currentUser.id);
+  } catch (err) {}
+  likeBtn.disabled = false;
 }
 
 function shareCurrentFilm(){
@@ -2014,7 +2198,8 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
     year: document.getElementById('qYear').value,
     language: document.getElementById('qLanguage').value,
     genre: document.getElementById('qGenre').value,
-    description: document.getElementById('qDescription').value
+    description: document.getElementById('qDescription').value,
+    isSensitive: document.getElementById('qSensitive').checked
   };
 
   let mainFile, posterFile = null;
@@ -2222,15 +2407,13 @@ async function startDirectUpload(meta, mainFile, posterFile){
 history.pushState({ page: 'home' }, '', location.pathname);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 async function likeFeedPost(id, btn) {
-  const likedList = JSON.parse(localStorage.getItem('likedFilms') || '[]');
-  if (likedList.includes(id)) return;
+  if (!currentUser) { window.location.href = '/login.html'; return; }
   try {
     const res = await fetch('/api/films/' + id + '/like', { method: 'POST' });
     const data = await res.json();
-    btn.classList.add('liked');
-    btn.innerHTML = `❤️ <span class="like-num">${data.likes}</span>`;
-    likedList.push(id);
-    localStorage.setItem('likedFilms', JSON.stringify(likedList));
+    if (!res.ok) return;
+    btn.classList.toggle('liked', data.liked);
+    btn.innerHTML = `${data.liked ? '❤️' : '♡'} <span class="like-num">${data.likes}</span>`;
   } catch (err) {}
 }
 
