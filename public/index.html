@@ -627,6 +627,13 @@ function viewProfile(userId, username){
   switchTab('profile');
 }
 
+function goToProfileDirect(userId, username){
+  if (!userId) return;
+  closeModal(); closeSheet();
+  viewingProfile = { id: userId, username: username };
+  switchTab('profile');
+}
+
 function goToMyProfile(){
   viewingProfile = null;
   switchTab('profile');
@@ -920,7 +927,7 @@ async function loadFilms() {
   if (shortId) openShortAt(shortId);
   if (profileId) {
     const f = allFilms.find(x => x.ownerId === profileId);
-    viewProfile(profileId, f ? f.ownerUsername : 'user');
+    goToProfileDirect(profileId, f ? f.ownerUsername : 'user');
   }
 }
   
@@ -970,11 +977,11 @@ function doSearch(query){
   }
 
   const userHtml = userMatches.map(u => `
-    <div class="search-result-item" onclick="viewProfile('${u.id}','${escapeHtml(u.username)}')">
-      ${u.profileImage
+    <div class="search-result-item">
+      <span onclick="viewProfile('${u.id}','${escapeHtml(u.username)}')">${u.profileImage
         ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;">`
-        : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}
-      <div class="search-result-info">
+        : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}</span>
+      <div class="search-result-info" onclick="goToProfileDirect('${u.id}','${escapeHtml(u.username)}')">
         <span class="search-result-title">@${escapeHtml(u.username)}</span>
         <span class="search-result-tag">Profile</span>
       </div>
@@ -1014,7 +1021,7 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
           </div>
         </div>
 
@@ -1098,7 +1105,7 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}@${escapeHtml(f.ownerUsername)}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span></div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
@@ -1343,7 +1350,7 @@ function openCommentProfile(userId, username) {
   if (!userId) return;
   closeModal();
   closeSheet();
-  viewProfile(userId, username);
+  goToProfileDirect(userId, username);
 }
 
 function toggleCommentActions(commentId){
@@ -1408,8 +1415,10 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;">` : '') + '@' + escapeHtml(f.ownerUsername);
-    mOwnerEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>`;
+    const avatarEl = document.getElementById('mOwnerAvatar');
+    if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
+    document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
   } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
   document.getElementById('mDesc').textContent = f.description || '';
@@ -1842,7 +1851,7 @@ function renderStoryCommentList(comments, storyId){
     return `
       <div class="comment-item">
         <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
-          <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="viewProfile('${c.userId}','${escapeHtml(c.name)}')">
+          <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="goToProfileDirect('${c.userId}','${escapeHtml(c.name)}')">
             ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
             <span style="font-weight:600;">@${escapeHtml(c.name)}</span>
           </div>
