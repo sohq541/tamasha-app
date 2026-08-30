@@ -218,6 +218,21 @@ async function markMigrated(key) {
   await e2WriteJSON('migration-status.json', status);
 }
 
+// ---------------- Notifications ----------------
+async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, message }) {
+  if (!toUserId || toUserId === fromUserId) return;
+  try {
+    const notifications = await e2TryReadJSON('notifications.json') || [];
+    notifications.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      userId: toUserId, type, fromUserId, fromUsername,
+      filmId: filmId || null, storyId: storyId || null,
+      message, read: false, createdAt: new Date().toISOString()
+    });
+    await e2WriteJSON('notifications.json', notifications.slice(-500));
+  } catch (e) { console.error('notify failed:', e.message); }
+}
+
 function generateThumbnail(videoBuffer, ext) {
   return new Promise((resolve, reject) => {
     const tmpDir = os.tmpdir();
@@ -590,7 +605,10 @@ app.post('/api/users/:id/follow', async (req, res) => {
     if (!me.following) me.following = [];
     const idx = me.following.indexOf(target.id);
     let nowFollowing;
-    if (idx === -1) { me.following.push(target.id); nowFollowing = true; }
+    if (idx === -1) {
+      me.following.push(target.id); nowFollowing = true;
+      await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `@${me.username} ne aapko follow kiya` });
+    }
     else { me.following.splice(idx, 1); nowFollowing = false; }
     await writeUsers(users);
 
@@ -871,6 +889,9 @@ app.post('/api/films/:id/comments', async (req, res) => {
     };
     f.comments.push(comment);
     await writeFilms(films);
+    if (f.ownerId) {
+      await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} ne aapke "${f.title}" pe comment kiya` });
+    }
     res.status(201).json(comment);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1172,6 +1193,7 @@ app.post('/api/stories/:id/comments', async (req, res) => {
     };
     s.comments.push(comment);
     await writeStories(stories);
+    await notify(s.ownerId, { type: 'story_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} ne aapki story pe comment kiya` });
     const cUser = currentUser;
     res.status(201).json({ ...comment, profileImage: null });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1188,7 +1210,10 @@ app.post('/api/stories/:storyId/comments/:commentId/like', async (req, res) => {
     if (!c) return res.status(404).json({ error: 'Comment not found' });
     if (!c.likes) c.likes = [];
     const idx = c.likes.indexOf(currentUser.id);
-    if (idx === -1) c.likes.push(currentUser.id); else c.likes.splice(idx, 1);
+    if (idx === -1) {
+      c.likes.push(currentUser.id);
+      await notify(c.userId, { type: 'comment_like', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} ne aapke comment ko like kiya` });
+    } else c.likes.splice(idx, 1);
     await writeStories(stories);
     res.json({ likes: c.likes.length, liked: idx === -1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1227,5 +1252,38 @@ app.post('/api/stories/:id/delete', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const all = await e2TryReadJSON('notifications.json') || [];
+    const mine = all.filter(n => n.userId === currentUser.id).slice().reverse().slice(0, 50);
+    const unreadCount = mine.filter(n => !n.read).length;
+    res.json({ notifications: mine, unreadCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/notifications/unread-count', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.json({ unreadCount: 0 });
+    const all = await e2TryReadJSON('notifications.json') || [];
+    const unreadCount = all.filter(n => n.userId === currentUser.id && !n.read).length;
+    res.json({ unreadCount });
+  } catch (err) { res.json({ unreadCount: 0 }); }
+});
+
+app.post('/api/notifications/mark-read', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const all = await e2TryReadJSON('notifications.json') || [];
+    let changed = false;
+    all.forEach(n => { if (n.userId === currentUser.id && !n.read) { n.read = true; changed = true; } });
+    if (changed) await e2WriteJSON('notifications.json', all);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
