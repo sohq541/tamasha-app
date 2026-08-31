@@ -9,6 +9,7 @@ ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const nodemailer = require('nodemailer');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -29,6 +30,9 @@ const E2_SECRET_ACCESS_KEY = process.env.E2_SECRET_ACCESS_KEY;
 const E2_BUCKET_NAME = process.env.E2_BUCKET_NAME;
 const E2_REGION = process.env.E2_REGION;
 const E2_ENDPOINT = process.env.E2_ENDPOINT;
+
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
@@ -191,7 +195,10 @@ async function e2ReadJSON(key) {
 
 async function e2TryReadJSON(key) {
   try { return await e2ReadJSON(key); }
-  catch (e) { if (e.name === 'NoSuchKey') return null; throw e; }
+  catch (e) {
+    if (e.name !== 'NoSuchKey') console.error(`e2TryReadJSON('${key}') failed:`, e.message);
+    return null;
+  }
 }
 
 async function e2WriteJSON(key, data) {
@@ -1422,6 +1429,33 @@ app.post('/api/me/delete', async (req, res) => {
     res.clearCookie('token');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+let mailTransporter = null;
+function getMailTransporter() {
+  if (mailTransporter) return mailTransporter;
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
+  mailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
+  });
+  return mailTransporter;
+}
+
+app.post('/api/help-desk', async (req, res) => {
+  try {
+    const { name, userId, problem } = req.body;
+    if (!problem || !problem.trim()) return res.status(400).json({ error: 'Problem likhna zaroori hai' });
+    const transporter = getMailTransporter();
+    if (!transporter) return res.status(500).json({ error: 'Email service abhi setup nahi hai, thodi der baad try karo' });
+    await transporter.sendMail({
+      from: GMAIL_USER,
+      to: 'sohailp541@gmail.com',
+      subject: 'YouSeries Help Desk — ' + (name || 'User'),
+      text: `Name: ${name || '-'}\nUser ID: ${userId || '-'}\n\nProblem:\n${problem}`
+    });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Email bhejne me error aaya: ' + err.message }); }
 });
 
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
