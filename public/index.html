@@ -931,19 +931,33 @@ function renderHelpDesk(){
     <input type="text" id="hdId" value="${currentUser ? currentUser.id : ''}" readonly style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.02);color:var(--cream-dim);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
     <textarea id="hdProblem" placeholder="Apni problem detail me likho..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
-    <button type="button" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Bhejo</button>
+    <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Bhejo</button>
+    <div id="hdStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
   `;
 }
 
-function submitHelpDesk(){
+async function submitHelpDesk(){
   const name = document.getElementById('hdName').value.trim();
   const id = document.getElementById('hdId').value.trim();
   const problem = document.getElementById('hdProblem').value.trim();
+  const btn = document.getElementById('hdSubmitBtn');
+  const statusEl = document.getElementById('hdStatus');
   if (!problem) { showToast('Problem likhna zaroori hai'); return; }
-  const subject = encodeURIComponent('YouSeries Help Desk — ' + name);
-  const body = encodeURIComponent(`Name: ${name}\nUser ID: ${id}\n\nProblem:\n${problem}`);
-  window.location.href = 'mailto:sohailp541@gmail.com?subject=' + subject + '&body=' + body;
-  showToast('Email khul raha hai...');
+  btn.disabled = true; btn.textContent = 'Bhej rahe hain...'; statusEl.textContent = '';
+  try {
+    const res = await fetch('/api/help-desk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, userId: id, problem })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Bhejne me error aaya');
+    showToast('Bhej diya! Jaldi reply milega.');
+    renderSettingsPrivacyMenu();
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.style.color = '#e88a8a';
+    btn.disabled = false; btn.textContent = 'Bhejo';
+  }
 }
 
 // ---- Your Activity ----
@@ -1106,18 +1120,25 @@ async function setSecurityQuestion(){
 }
 
 async function loadFilms() {
-  const res = await fetch('/api/films');
-  allFilms = shuffleArray(await res.json());
+  try {
+    const res = await fetch('/api/films');
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) throw new Error((data && data.error) || 'Films load nahi ho payi');
+    allFilms = shuffleArray(data);
+  } catch (err) {
+    allFilms = [];
+    showToast('Content load nahi ho paya: ' + err.message);
+  }
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
   renderShorts(shorts);
-  
+
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('film');
   const shortId = params.get('short');
   const profileId = params.get('profile');
-  
+
   if (sharedId) playFilm(sharedId);
   if (shortId) openShortAt(shortId);
   if (profileId) {
@@ -2169,9 +2190,9 @@ function handleNotifClick(filmId, storyId, fromUserId, fromUsername){
 }
 
 async function init(){
-  await loadProfile();
-  await loadFilms();
-  await loadStories();
+  try { await loadProfile(); } catch (e) { console.error('loadProfile failed:', e); }
+  try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
+  try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
 }
 init();
 let uploadXhr = null;
