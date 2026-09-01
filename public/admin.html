@@ -57,9 +57,9 @@
 
   <div id="loginGate" class="card hidden">
     <h1>Login required</h1>
-    <p class="sub">Upload karne ke liye pehle login ya signup karo.</p>
-    <a class="link" href="/login.html">Login karo</a> &nbsp;|&nbsp;
-    <a class="link" href="/signup.html">Sign up karo</a>
+    <p class="sub">Please log in or sign up first to upload.</p>
+    <a class="link" href="/login.html">Log in</a> &nbsp;|&nbsp;
+    <a class="link" href="/signup.html">Sign up</a>
   </div>
 
   <div id="uploadArea" class="hidden">
@@ -155,7 +155,7 @@ async function init(){
   }
 
   document.getElementById('uploadArea').classList.remove('hidden');
-  document.getElementById('welcomeText').textContent = `Logged in as @${currentUser.username}. Video upload karo.`;
+  document.getElementById('welcomeText').textContent = `Logged in as @${currentUser.username}. Upload a video.`;
   loadFilmList();
 }
 
@@ -211,7 +211,7 @@ async function loadFilmList() {
     filmsData = allFilms.filter(f => f.ownerId === currentUser.id);
 
     if (filmsData.length === 0) {
-      listEl.innerHTML = '<p class="empty-msg">Tumne abhi koi upload nahi ki.</p>';
+      listEl.innerHTML = '<p class="empty-msg">You haven\'t uploaded anything yet.</p>';
       return;
     }
     listEl.innerHTML = filmsData.map(f => `
@@ -263,7 +263,7 @@ async function loadFilmList() {
       </div>
     `).join('');
   } catch (err) {
-    listEl.innerHTML = '<p class="empty-msg">List load nahi ho payi.</p>';
+    listEl.innerHTML = '<p class="empty-msg">Could not load the list.</p>';
   }
 }
 

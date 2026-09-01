@@ -389,7 +389,7 @@
       <div class="comments-section">
         <h3>Comments</h3>
         <form class="comment-form" id="commentForm">
-          <textarea id="commentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
+          <textarea id="commentText" placeholder="Add a comment..." maxlength="500" required></textarea>
           <button type="submit">Post</button>
         </form>
         <div class="comment-list" id="commentList"></div>
@@ -402,7 +402,7 @@
   <div class="sheet">
     <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="closeSheet()">✕</button></div>
     <form class="comment-form" id="sheetCommentForm">
-      <textarea id="sheetCommentText" placeholder="Apna comment likho..." maxlength="500" required></textarea>
+      <textarea id="sheetCommentText" placeholder="Add a comment..." maxlength="500" required></textarea>
       <button type="submit">Post</button>
     </form>
     <div class="comment-list" id="sheetCommentList" style="max-height:280px;"></div>
@@ -442,7 +442,7 @@
     <div class="story-upload-preview hidden" id="storyPreviewArea">
       <img id="storyPreviewImg" class="hidden">
       <video id="storyPreviewVideo" class="hidden" muted playsinline controls></video>
-      <input type="text" id="storyTextOverlay" class="story-upload-text-input" placeholder="Kuch likho (optional)" maxlength="200">
+      <input type="text" id="storyTextOverlay" class="story-upload-text-input" placeholder="Write something (optional)" maxlength="200">
     </div>
     <button id="storyPostBtn" class="hidden" onclick="postStory()" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;">Share to Story</button>
     <div id="storyUploadStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
@@ -492,7 +492,7 @@
   </div>
   <div class="story-viewer-footer">
     <button class="story-views-btn hidden" id="storyOwnerViewsBtn" onclick="openStoryViewsSheet()">👁 <span id="storyViewCountLabel">0</span></button>
-    <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Comment karo..." onkeydown="if(event.key==='Enter'){postStoryComment();}">
+    <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Comment..." onkeydown="if(event.key==='Enter'){postStoryComment();}">
     <button class="story-heart-btn" id="storyLikeBtn" onclick="postStoryQuickLike()">🤍</button>
     <button class="story-views-btn" onclick="toggleStoryCommentsDrawer()">💬 <span id="storyCommentCountLabel">0</span></button>
   </div>
@@ -534,7 +534,7 @@
 
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
-        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (log jinhone sensitive content off kiya hai, unke feed me nahi dikhega)</span>
+        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won't show in the feed of people who've turned this off)</span>
       </label>
 
       <button type="submit">Start Upload</button>
@@ -698,10 +698,10 @@ async function renderProfile(){
         <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
       </div>
       <div class="profile-mygrid" id="profileGridVideos">
-        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi video nahi.</p>'}
+        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
       </div>
       <div class="profile-mygrid hidden" id="profileGridPhotos">
-        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi photo nahi.</p>'}
+        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
       </div>
     `;
     return;
@@ -711,7 +711,7 @@ async function renderProfile(){
   if (!currentUser) {
     el.innerHTML = `
       <div class="settings-panel" style="text-align:center;">
-        <p style="color:var(--cream-dim);margin-bottom:16px;">Profile dekhne ke liye login karo.</p>
+        <p style="color:var(--cream-dim);margin-bottom:16px;">Log in to view this profile.</p>
         <div class="profile-btn-row">
           <a class="profile-btn primary" href="/login.html">Login</a>
           <a class="profile-btn" href="/signup.html">Sign up</a>
@@ -767,7 +767,7 @@ async function renderProfile(){
       </div>
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Bio & link</h3>
-      <textarea id="bioInput" placeholder="Apne baare me likho...">${escapeHtml(mine.bio)}</textarea>
+      <textarea id="bioInput" placeholder="Write something about yourself...">${escapeHtml(mine.bio)}</textarea>
       <input type="text" id="websiteInput" placeholder="Website ya social link" value="${escapeHtml(mine.website)}">
       <button class="settings-save-btn" onclick="saveBio()">Save bio</button>
       <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
@@ -784,7 +784,7 @@ async function renderProfile(){
       <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Security question</h3>
-      <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 10px;">Agar password bhool jao to isi se recover hoga.</p>
+      <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 10px;">This will be used to recover your account if you forget your password.</p>
       <select id="secQuestionSelect">
         <option value="">-- Select a question --</option>
         <option value="Aapke pehle pet ka naam?">Aapke pehle pet ka naam?</option>
@@ -802,10 +802,10 @@ async function renderProfile(){
       <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
-      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Abhi koi video upload nahi.</p>'}
+      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Abhi koi photo upload nahi.</p>'}
+      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
   `;
 }
@@ -924,14 +924,14 @@ async function toggleSensitiveSetting(checked){
 function renderHelpDesk(){
   setMenuTitle('Help Desk', true, 'renderSettingsPrivacyMenu()');
   document.getElementById('profileMenuBody').innerHTML = `
-    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Apni problem yaha likho, seedha humare paas email ho jayegi.</p>
+    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Describe your problem here — it'll be emailed straight to our team.</p>
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Tumhara naam</label>
     <input type="text" id="hdName" value="${currentUser ? escapeHtml(currentUser.username) : ''}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">User ID</label>
     <input type="text" id="hdId" value="${currentUser ? currentUser.id : ''}" readonly style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.02);color:var(--cream-dim);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
-    <textarea id="hdProblem" placeholder="Apni problem detail me likho..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
-    <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Bhejo</button>
+    <textarea id="hdProblem" placeholder="Describe your problem in detail..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
+    <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send</button>
     <div id="hdStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
   `;
 }
@@ -942,21 +942,26 @@ async function submitHelpDesk(){
   const problem = document.getElementById('hdProblem').value.trim();
   const btn = document.getElementById('hdSubmitBtn');
   const statusEl = document.getElementById('hdStatus');
-  if (!problem) { showToast('Problem likhna zaroori hai'); return; }
+  if (!problem) { showToast('Please describe your problem'); return; }
   btn.disabled = true; btn.textContent = 'Bhej rahe hain...'; statusEl.textContent = '';
+  const timeoutMs = 20000;
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch('/api/help-desk', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, userId: id, problem })
+      body: JSON.stringify({ name, userId: id, problem }),
+      signal: controller.signal
     });
+    clearTimeout(timer);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Bhejne me error aaya');
-    showToast('Bhej diya! Jaldi reply milega.');
+    if (!res.ok) throw new Error(data.error || 'Something went wrong while sending');
+    showToast('Sent! We\'ll reply soon.');
     renderSettingsPrivacyMenu();
   } catch (err) {
-    statusEl.textContent = err.message;
+    statusEl.textContent = err.name === 'AbortError' ? 'Request timed out — the site is slow right now, please try again' : err.message;
     statusEl.style.color = '#e88a8a';
-    btn.disabled = false; btn.textContent = 'Bhejo';
+    btn.disabled = false; btn.textContent = 'Send';
   }
 }
 
@@ -988,9 +993,9 @@ async function renderWatchHistory(){
     const res = await fetch('/api/me/watch-history');
     const data = await res.json();
     const items = data.history || [];
-    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak koi video nahi dekhi.</p>'; return; }
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t watched any videos yet.</p>'; return; }
     bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, storyTimeAgo(h.viewedAt), `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
-  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
 async function renderLikedHistory(){
@@ -1001,9 +1006,9 @@ async function renderLikedHistory(){
     const res = await fetch('/api/me/liked');
     const data = await res.json();
     const items = data.liked || [];
-    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak kuch like nahi kiya.</p>'; return; }
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t liked anything yet.</p>'; return; }
     bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, '', `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
-  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
 async function renderCommentsHistory(){
@@ -1014,7 +1019,7 @@ async function renderCommentsHistory(){
     const res = await fetch('/api/me/comments');
     const data = await res.json();
     const items = data.comments || [];
-    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">Abhi tak koi comment nahi kiya.</p>'; return; }
+    if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t commented on anything yet.</p>'; return; }
     bodyEl.innerHTML = items.map(c => `
       <div onclick="closeProfileMenu();playFilm('${c.filmId}')" style="display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;">
         <img src="${c.posterUrl || ''}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;">
@@ -1025,22 +1030,22 @@ async function renderCommentsHistory(){
         </div>
       </div>
     `).join('');
-  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>'; }
+  } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
 function confirmDeleteAccount(){
   setMenuTitle('Delete Account', true, 'renderActivityMenu()');
   document.getElementById('profileMenuBody').innerHTML = `
-    <p style="font-size:13.5px;color:var(--cream);line-height:1.6;margin-bottom:16px;">Yeh action <b>permanent</b> hai. Tumhara account, tumhari saari uploaded videos/photos, aur profile — sab hamesha ke liye delete ho jayega. Isse wapas nahi laya ja sakta.</p>
-    <button type="button" onclick="finalDeleteAccount()" style="width:100%;background:#B33A3A;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Haan, permanently delete karo</button>
+    <p style="font-size:13.5px;color:var(--cream);line-height:1.6;margin-bottom:16px;">This action is <b>permanent</b>. Your account, all your uploaded videos/photos, and your profile will be deleted forever. This cannot be undone.</p>
+    <button type="button" onclick="finalDeleteAccount()" style="width:100%;background:#B33A3A;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Yes, permanently delete</button>
   `;
 }
 
 async function finalDeleteAccount(){
-  if (!confirm('Bilkul pakka? Yeh wapas nahi ho sakta.')) return;
+  if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
   try {
     const res = await fetch('/api/me/delete', { method: 'POST' });
-    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Delete fail ho gaya'); }
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Delete failed'); }
     window.location.href = '/';
   } catch (err) { showToast(err.message); }
 }
@@ -1123,11 +1128,11 @@ async function loadFilms() {
   try {
     const res = await fetch('/api/films');
     const data = await res.json();
-    if (!res.ok || !Array.isArray(data)) throw new Error((data && data.error) || 'Films load nahi ho payi');
+    if (!res.ok || !Array.isArray(data)) throw new Error((data && data.error) || 'Could not load content');
     allFilms = shuffleArray(data);
   } catch (err) {
     allFilms = [];
-    showToast('Content load nahi ho paya: ' + err.message);
+    showToast('Could not load content: ' + err.message);
   }
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
@@ -1188,7 +1193,7 @@ function doSearch(query){
   mainEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
 
   if (matches.length === 0 && userMatches.length === 0) {
-    resultsEl.innerHTML = '<p class="comment-empty">Koi match nahi mila.</p>';
+    resultsEl.innerHTML = '<p class="comment-empty">No matches found.</p>';
     return;
   }
 
@@ -1220,7 +1225,7 @@ function doSearch(query){
 function renderHome(films) {
   const grid = document.getElementById('grid');
   if (!films || films.length === 0) {
-    grid.innerHTML = '<div class="empty">Abhi koi post upload nahi hui. <a href="#" onclick="openUploadModal();return false;">Pehli post upload karo</a></div>';
+    grid.innerHTML = '<div class="empty">No posts yet. <a href="#" onclick="openUploadModal();return false;">Upload your first post</a></div>';
     return;
   }
   grid.innerHTML = films.map(f => {
@@ -1311,7 +1316,7 @@ function setupHomeVideoObserver(){
 
 function renderShorts(shorts){
   const container = document.getElementById('shortsContainer');
-  if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">Abhi koi Short upload nahi hui.<br><a href="/admin.html" style="color:var(--marigold);">Pehli Short upload karo</a></div>'; return; }
+  if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="/admin.html" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
   container.innerHTML = shorts.map(f => {
     const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
     return `
@@ -1459,7 +1464,7 @@ async function deleteCurrentShort(){
     const res = await fetch('/api/films/' + currentShortId, { method: 'DELETE' });
     if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
     closeMenu();
-    showToast('Delete ho gaya');
+    showToast('Deleted');
     const item = document.querySelector('.short-item[data-id="' + currentShortId + '"]');
     if (item) item.remove();
     allFilms = allFilms.filter(f => f.id !== currentShortId);
@@ -1499,7 +1504,7 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
       body: JSON.stringify({ text: textInput.value })
     });
     const comment = await res.json();
-    if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
+    if (!res.ok) throw new Error(comment.error || 'Comment failed to post');
     const film = allFilms.find(f => f.id === currentShortId);
     if (film) { if (!film.comments) film.comments = []; film.comments.push(comment); document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length; }
     renderCommentListInto('sheetCommentList', film ? film.comments : [comment], currentShortId);
@@ -1521,7 +1526,7 @@ function saveMyCommentToken(commentId, editToken){
   const listEl = document.getElementById(elId);
   if (!listEl) return;
   if (!comments || comments.length === 0) {
-    listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>';
+    listEl.innerHTML = '<p class="comment-empty">Be the first to comment.</p>';
     return;
   }
   const film = allFilms.find(f => f.id === filmId);
@@ -1674,7 +1679,7 @@ function reportCurrentFilm(){
     'Reason for report: '
   );
   window.location.href = 'mailto:sohailp541@gmail.com?subject=' + subject + '&body=' + body;
-  showToast('Report email khul raha hai...');
+  showToast('Opening report email...');
 }
 
 async function likeCurrentFilm(){
@@ -1697,7 +1702,7 @@ async function likeCurrentFilm(){
 function shareCurrentFilm(){
   if (!currentFilm) return;
   const url = location.origin + '/?film=' + currentFilm.id;
-  if (navigator.share) navigator.share({ title: currentFilm.title, text: 'Dekho ' + currentFilm.title + ' YouSeries pe!', url }).catch(() => {});
+  if (navigator.share) navigator.share({ title: currentFilm.title, text: 'Check out ' + currentFilm.title + ' on YouSeries!', url }).catch(() => {});
   else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
 }
 
@@ -1713,7 +1718,7 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ text: textInput.value })
     });
     const comment = await res.json();
-    if (!res.ok) throw new Error(comment.error || 'Comment post nahi hua');
+    if (!res.ok) throw new Error(comment.error || 'Comment failed to post');
     if (!currentFilm.comments) currentFilm.comments = [];
     currentFilm.comments.push(comment);
     renderCommentListInto('commentList', currentFilm.comments, currentFilm.id);
@@ -1741,7 +1746,7 @@ async function deleteCurrentFilmModal(){
     const res = await fetch('/api/films/' + currentFilm.id, { method: 'DELETE' });
     if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
     closeModal();
-    showToast('Delete ho gaya');
+    showToast('Deleted');
     loadFilms();
   } catch (err) {
     showToast(err.message);
@@ -1766,7 +1771,7 @@ let storyPickedType = null;
 
 function storyTimeAgo(iso){
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'abhi';
+  if (mins < 1) return 'now';
   if (mins < 60) return mins + 'm';
   const hrs = Math.floor(mins / 60);
   return hrs + 'h';
@@ -1859,19 +1864,19 @@ function onStoryFilePicked(e){
 async function postStory(){
   if (!storyPickedFile) return;
   const statusEl = document.getElementById('storyUploadStatus');
-  statusEl.textContent = 'Upload ho raha hai...';
+  statusEl.textContent = 'Uploading...';
   const fd = new FormData();
   fd.append('media', storyPickedFile);
   fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
   try {
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
     const data = await res.json();
-    if (!res.ok) { statusEl.textContent = data.error || 'Kuch galat ho gaya'; return; }
+    if (!res.ok) { statusEl.textContent = data.error || 'Something went wrong'; return; }
     statusEl.textContent = '';
     closeStoryUploadModal();
     showToast('Story lag gayi!');
     loadStories();
-  } catch (e) { statusEl.textContent = 'Upload fail ho gaya'; }
+  } catch (e) { statusEl.textContent = 'Upload failed'; }
 }
 
 // ---- Viewer ----
@@ -2028,7 +2033,7 @@ async function openStoryViewsSheet(){
     document.getElementById('storyViewsCountHeading').textContent = data.viewCount + (data.viewCount === 1 ? ' viewer' : ' viewers');
     const listEl = document.getElementById('storyViewsList');
     if (!data.viewers || !data.viewers.length) {
-      listEl.innerHTML = '<p class="comment-empty" style="padding:16px;">Abhi tak koi view nahi.</p>';
+      listEl.innerHTML = '<p class="comment-empty" style="padding:16px;">No views yet.</p>';
     } else {
       listEl.innerHTML = data.viewers.map(v => `
         <div class="story-viewer-row">
@@ -2038,7 +2043,7 @@ async function openStoryViewsSheet(){
       `).join('');
     }
     document.getElementById('storyViewsOverlay').classList.add('open');
-  } catch (e) { showToast('Kuch galat ho gaya'); }
+  } catch (e) { showToast('Something went wrong'); }
 }
 function closeStoryViewsSheet(){
   document.getElementById('storyViewsOverlay').classList.remove('open');
@@ -2060,7 +2065,7 @@ async function loadStoryComments(storyId){
 
 function renderStoryCommentList(comments, storyId){
   const listEl = document.getElementById('storyCommentsList');
-  if (!comments.length) { listEl.innerHTML = '<p class="comment-empty">Sabse pehla comment karo.</p>'; return; }
+  if (!comments.length) { listEl.innerHTML = '<p class="comment-empty">Be the first to comment.</p>'; return; }
   listEl.innerHTML = comments.slice().reverse().map(c => {
     const liked = currentUser && (c.likes || []).includes(currentUser.id);
     return `
@@ -2102,7 +2107,7 @@ async function postStoryComment(){
     });
     loadStoryComments(currentStoryId);
     showToast('Comment posted!');
-  } catch (e) { showToast('Comment fail ho gaya'); }
+  } catch (e) { showToast('Comment failed to post'); }
 }
 
 async function postStoryQuickLike(){
@@ -2154,7 +2159,7 @@ async function openNotifications(){
     const data = await res.json();
     const notifs = data.notifications || [];
     if (!notifs.length) {
-      listEl.innerHTML = '<p class="comment-empty">Abhi koi notification nahi hai.</p>';
+      listEl.innerHTML = '<p class="comment-empty">No notifications yet.</p>';
     } else {
       listEl.innerHTML = notifs.map(n => `
         <div onclick="handleNotifClick('${n.filmId || ''}','${n.storyId || ''}','${n.fromUserId}','${escapeHtml(n.fromUsername)}')" style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
@@ -2173,7 +2178,7 @@ async function openNotifications(){
       if (badge) badge.classList.add('hidden');
     }
   } catch (e) {
-    listEl.innerHTML = '<p class="comment-empty">Load nahi ho paya.</p>';
+    listEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>';
   }
 }
 
@@ -2226,14 +2231,14 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
   let mainFile, posterFile = null;
   if (type === 'photo') {
     mainFile = document.getElementById('qPhoto').files[0];
-    if (!mainFile) { alert('Photo file zaroori hai'); return; }
+    if (!mainFile) { alert('Please choose a photo file'); return; }
   } else {
     mainFile = document.getElementById('qVideo').files[0];
-    if (!mainFile) { alert('Video file zaroori hai'); return; }
+    if (!mainFile) { alert('Please choose a video file'); return; }
     posterFile = document.getElementById('qPoster').files[0] || null;
   }
 
-  const DIRECT_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB — Render ki request limit se bachne ke liye
+  const DIRECT_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB — avoids Render's request size limit
   const totalSize = mainFile.size + (posterFile ? posterFile.size : 0);
 
   closeUploadModal();
@@ -2332,7 +2337,7 @@ async function presignFile(file, folder){
     body: JSON.stringify({ fileName: file.name, contentType: file.type, folder })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Presign fail ho gaya');
+  if (!res.ok) throw new Error(data.error || 'Could not prepare the upload');
   return data;
 }
 
@@ -2366,7 +2371,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
   titleEl.textContent = 'Uploading: ' + meta.title;
   fill.style.width = '0%';
   percentEl.textContent = '0%';
-  statsEl.textContent = 'Badi file hai, seedha storage pe ja rahi hai...';
+  statsEl.textContent = 'Large file — uploading directly to storage...';
 
   const totalBytes = mainFile.size + (posterFile ? posterFile.size : 0);
 
@@ -2394,7 +2399,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
       body: JSON.stringify({ ...meta, mediaKey: mainPresign.key, posterKey })
     });
     const finalizeData = await finalizeRes.json();
-    if (!finalizeRes.ok) throw new Error(finalizeData.error || 'Finalize fail ho gaya');
+    if (!finalizeRes.ok) throw new Error(finalizeData.error || 'Could not finish the upload');
 
     titleEl.textContent = '✅ Upload complete: ' + meta.title;
     fill.style.width = '100%';
