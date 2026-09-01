@@ -186,6 +186,11 @@ async function e2GetPresignedUploadUrl(key, contentType) {
   return getSignedUrl(e2Client, command, { expiresIn: 900 });
 }
 
+async function e2GetPresignedDownloadUrl(key) {
+  const command = new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key });
+  return getSignedUrl(e2Client, command, { expiresIn: 3600 });
+}
+
 async function e2ReadJSON(key) {
   const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
   const chunks = [];
@@ -284,7 +289,7 @@ async function readFilms() {
       await e2WriteJSON('films.json', films);
       await markMigrated('films');
     }
-    // else: B2 abhi bhi unreachable/capped hai — jo e2 pe hai (naye uploads) wahi serve karo, agli baar phir try hoga
+    // else: B2 is still unreachable/capped — serve whatever's on e2 (new uploads) for now, retry next time
   }
 
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
@@ -342,14 +347,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.post('/api/signup', async (req, res) => {
   try {
     const { email, password, username, ageConfirm, securityQuestion, securityAnswer } = req.body;
-    if (!email || !password || !username) return res.status(400).json({ error: 'Email, password aur username zaroori hain' });
-    if (!ageConfirm) return res.status(400).json({ error: 'Aapko confirm karna hoga ki aap 18+ content upload nahi karenge' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password kam se kam 6 characters ka ho' });
-    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'Security question aur answer zaroori hai' });
+    if (!email || !password || !username) return res.status(400).json({ error: 'Email, password and username are required' });
+    if (!ageConfirm) return res.status(400).json({ error: 'You must confirm that you will not upload 18+ content' });
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'A security question and answer are required' });
 
     const users = await readUsers();
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) return res.status(400).json({ error: 'Ye email already registered hai' });
-    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(400).json({ error: 'Ye username already liya gaya hai' });
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) return res.status(400).json({ error: 'This email is already registered' });
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) return res.status(400).json({ error: 'This username is already taken' });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
@@ -373,10 +378,10 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
-    if (!user) return res.status(401).json({ error: 'Email ya password galat hai' });
-    if (!user.passwordHash) return res.status(401).json({ error: 'Ye account Google se bana hai. Neeche "Continue with Google" se login karo.' });
+    if (!user) return res.status(401).json({ error: 'Incorrect email or password' });
+    if (!user.passwordHash) return res.status(401).json({ error: 'This account was created with Google. Please use "Continue with Google" below to log in.' });
     const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Email ya password galat hai' });
+    if (!ok) return res.status(401).json({ error: 'Incorrect email or password' });
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: user.id, email: user.email, username: user.username });
@@ -425,7 +430,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
     });
     const profile = await profileRes.json();
-    if (!profile.email) throw new Error('Google se email nahi mila');
+    if (!profile.email) throw new Error('Could not get email from Google');
 
     const users = await readUsers();
     let user = users.find(u => u.email.toLowerCase() === profile.email.toLowerCase());
@@ -483,7 +488,7 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    if (!req.file) return res.status(400).json({ error: 'Photo file zaroori hai' });
+    if (!req.file) return res.status(400).json({ error: 'A photo file is required' });
 
     const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
     await e2UploadBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
@@ -504,7 +509,7 @@ app.get('/media/avatar/:id', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.id === req.params.id);
     if (!user || !user.profileImage) return res.status(404).send('Not found');
-    if (user.avatarStorageProvider === 'e2') await e2StreamToResponse(user.profileImage, req, res);
+    if (user.avatarStorageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(user.profileImage));
     else await b2StreamToResponse(user.profileImage, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -514,20 +519,20 @@ app.put('/api/me/username', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { username } = req.body;
-    if (!username || !username.trim()) return res.status(400).json({ error: 'Username zaroori hai' });
+    if (!username || !username.trim()) return res.status(400).json({ error: 'Username is required' });
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     if (users.find(u => u.id !== user.id && u.username.toLowerCase() === username.toLowerCase())) {
-      return res.status(400).json({ error: 'Ye username already liya gaya hai' });
+      return res.status(400).json({ error: 'This username is already taken' });
     }
 
     if (!user.usernameChanges) user.usernameChanges = [];
     const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
     const changesThisYear = user.usernameChanges.filter(t => new Date(t).getTime() > oneYearAgo);
-    if (changesThisYear.length >= 3) return res.status(400).json({ error: 'Aap saal me sirf 3 baar username badal sakte hain. Limit ho gayi.' });
+    if (changesThisYear.length >= 3) return res.status(400).json({ error: 'You can only change your username 3 times a year. Limit reached.' });
 
     const newUsername = username.trim();
     user.username = newUsername;
@@ -550,7 +555,7 @@ app.put('/api/me/password', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Dono password fields zaroori hain' });
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both password fields are required' });
     if (newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
 
     const users = await readUsers();
@@ -558,7 +563,7 @@ app.put('/api/me/password', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const ok = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Current password galat hai' });
+    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await writeUsers(users);
@@ -571,7 +576,7 @@ app.put('/api/me/security-question', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { securityQuestion, securityAnswer } = req.body;
-    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'Question aur answer dono zaroori hai' });
+    if (!securityQuestion || !securityAnswer || !securityAnswer.trim()) return res.status(400).json({ error: 'Both the question and answer are required' });
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
@@ -605,7 +610,7 @@ app.post('/api/users/:id/follow', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    if (currentUser.id === req.params.id) return res.status(400).json({ error: 'Khud ko follow nahi kar sakte' });
+    if (currentUser.id === req.params.id) return res.status(400).json({ error: 'You can\'t follow yourself' });
 
     const users = await readUsers();
     const me = users.find(u => u.id === currentUser.id);
@@ -617,7 +622,7 @@ app.post('/api/users/:id/follow', async (req, res) => {
     let nowFollowing;
     if (idx === -1) {
       me.following.push(target.id); nowFollowing = true;
-      await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `@${me.username} ne aapko follow kiya` });
+      await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `@${me.username} started following you` });
     }
     else { me.following.splice(idx, 1); nowFollowing = false; }
     await writeUsers(users);
@@ -632,7 +637,7 @@ app.post('/api/forgot-password/question', async (req, res) => {
     const { email } = req.body;
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
-    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
+    if (!user) return res.status(404).json({ error: 'This email is not registered' });
     res.json({ securityQuestion: user.securityQuestion });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -643,10 +648,10 @@ app.post('/api/forgot-password/reset', async (req, res) => {
     if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
-    if (!user) return res.status(404).json({ error: 'Ye email registered nahi hai' });
+    if (!user) return res.status(404).json({ error: 'This email is not registered' });
 
     const ok = await bcrypt.compare((securityAnswer || '').trim().toLowerCase(), user.securityAnswerHash);
-    if (!ok) return res.status(401).json({ error: 'Security answer galat hai' });
+    if (!ok) return res.status(401).json({ error: 'Security answer is incorrect' });
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await writeUsers(users);
@@ -720,7 +725,7 @@ app.get('/media/video/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.videoFile) return res.status(404).send('Not found');
-    if (f.storageProvider === 'e2') await e2StreamToResponse(f.videoFile, req, res);
+    if (f.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(f.videoFile));
     else await b2StreamToResponse(f.videoFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -730,24 +735,24 @@ app.get('/media/poster/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.posterFile) return res.status(404).send('Not found');
-    if (f.storageProvider === 'e2') await e2StreamToResponse(f.posterFile, req, res);
+    if (f.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(f.posterFile));
     else await b2StreamToResponse(f.posterFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
 app.post('/api/films', (req, res, next) => {
   req.currentUser = getUserFromReq(req);
-  if (!req.currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Upload karne ke liye login zaroori hai' });
+  if (!req.currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Please log in to upload' });
   next();
 }, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }, { name: 'photo', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, year, language, genre, description, type, isSensitive } = req.body;
-    if (!title) return res.status(400).json({ error: 'Title zaroori hai' });
+    if (!title) return res.status(400).json({ error: 'A title is required' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
     if (type === 'photo') {
-      if (!req.files || !req.files.photo) return res.status(400).json({ error: 'Photo file zaroori hai' });
+      if (!req.files || !req.files.photo) return res.status(400).json({ error: 'A photo file is required' });
       const photoFile = req.files.photo[0];
       const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
       await e2UploadBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
@@ -767,7 +772,7 @@ app.post('/api/films', (req, res, next) => {
       return res.status(201).json(newFilm);
     }
 
-    if (!req.files || !req.files.video) return res.status(400).json({ error: 'Video file zaroori hai' });
+    if (!req.files || !req.files.video) return res.status(400).json({ error: 'A video file is required' });
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
@@ -816,9 +821,9 @@ app.post('/api/films', (req, res, next) => {
 app.post('/api/upload/presign-url', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login zaroori hai' });
+    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Please log in' });
     const { fileName, contentType, folder } = req.body;
-    if (!fileName || !folder) return res.status(400).json({ error: 'fileName aur folder zaroori hai' });
+    if (!fileName || !folder) return res.status(400).json({ error: 'A file name and folder are required' });
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const key = `${safeFolder}/${id}${path.extname(fileName)}`;
@@ -830,10 +835,10 @@ app.post('/api/upload/presign-url', async (req, res) => {
 app.post('/api/films/finalize', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login zaroori hai' });
+    if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Please log in' });
     const { title, year, language, genre, description, type, mediaKey, posterKey, isSensitive } = req.body;
-    if (!title) return res.status(400).json({ error: 'Title zaroori hai' });
-    if (!mediaKey) return res.status(400).json({ error: 'Uploaded file ka reference nahi mila' });
+    if (!title) return res.status(400).json({ error: 'A title is required' });
+    if (!mediaKey) return res.status(400).json({ error: 'Could not find a reference to the uploaded file' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const films = await readFilms();
@@ -889,7 +894,7 @@ app.post('/api/films/:id/view', async (req, res) => {
 app.post('/api/films/:id/like', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Like karne ke liye login zaroori hai' });
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to like' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
@@ -909,10 +914,10 @@ app.post('/api/films/:id/like', async (req, res) => {
 app.post('/api/films/:id/comments', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Comment karne ke liye login zaroori hai' });
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to comment' });
 
     const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment likhna zaroori hai' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Please write a comment' });
 
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
@@ -929,7 +934,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
     f.comments.push(comment);
     await writeFilms(films);
     if (f.ownerId) {
-      await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} ne aapke "${f.title}" pe comment kiya` });
+      await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} commented on your "${f.title}"` });
     }
     res.status(201).json(comment);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -949,7 +954,7 @@ app.post('/api/films/:filmId/comments/:commentId/delete', async (req, res) => {
 
     const isCommentOwner = comment.userId === currentUser.id;
     const isFilmOwner = f.ownerId === currentUser.id;
-    if (!isCommentOwner && !isFilmOwner) return res.status(403).json({ error: 'Permission nahi hai' });
+    if (!isCommentOwner && !isFilmOwner) return res.status(403).json({ error: 'You don\'t have permission' });
 
     f.comments = f.comments.filter(c => c.id !== req.params.commentId);
     await writeFilms(films);
@@ -963,7 +968,7 @@ app.post('/api/films/:filmId/comments/:commentId/edit', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
 
     const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment khaali nahi ho sakta' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment can\'t be empty' });
 
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.filmId);
@@ -972,10 +977,10 @@ app.post('/api/films/:filmId/comments/:commentId/edit', async (req, res) => {
     const comment = f.comments.find(c => c.id === req.params.commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
-    if (comment.userId !== currentUser.id) return res.status(403).json({ error: 'Sirf apna comment edit kar sakte ho' });
+    if (comment.userId !== currentUser.id) return res.status(403).json({ error: 'You can only edit your own comment' });
 
     const ageMs = Date.now() - new Date(comment.createdAt).getTime();
-    if (ageMs > 24 * 60 * 60 * 1000) return res.status(400).json({ error: '24 ghante ke baad comment edit nahi kar sakte' });
+    if (ageMs > 24 * 60 * 60 * 1000) return res.status(400).json({ error: 'Comments can\'t be edited after 24 hours' });
 
     comment.text = text.trim().slice(0, 500);
     comment.edited = true;
@@ -994,7 +999,7 @@ app.put('/api/films/:id', (req, res, next) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
-    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
+    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'This isn\'t your content' });
 
     if (title !== undefined) f.title = title;
     if (year !== undefined) f.year = year;
@@ -1032,7 +1037,7 @@ app.delete('/api/films/:id', (req, res, next) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
-    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'Ye tumhari content nahi hai' });
+    if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'This isn\'t your content' });
 
     if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
     if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
@@ -1088,11 +1093,11 @@ function isStoryActive(s) {
 
 app.post('/api/stories', (req, res, next) => {
   req.currentUser = getUserFromReq(req);
-  if (!req.currentUser) return res.status(401).json({ error: 'Story lagane ke liye login zaroori hai' });
+  if (!req.currentUser) return res.status(401).json({ error: 'Please log in to post a story' });
   next();
 }, upload.fields([{ name: 'media', maxCount: 1 }]), async (req, res) => {
   try {
-    if (!req.files || !req.files.media) return res.status(400).json({ error: 'Photo ya video zaroori hai' });
+    if (!req.files || !req.files.media) return res.status(400).json({ error: 'A photo or video is required' });
     const mediaFile = req.files.media[0];
     const isVideo = mediaFile.mimetype.startsWith('video');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1184,7 +1189,7 @@ app.get('/media/story/:id', async (req, res) => {
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s || !s.mediaFile) return res.status(404).send('Not found');
-    if (s.storageProvider === 'e2') await e2StreamToResponse(s.mediaFile, req, res);
+    if (s.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(s.mediaFile));
     else await b2StreamToResponse(s.mediaFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -1211,7 +1216,7 @@ app.get('/api/stories/:id/views', async (req, res) => {
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s) return res.status(404).json({ error: 'Story not found' });
-    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Sirf story owner dekh sakta hai' });
+    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Only the story owner can view this' });
     const users = await readUsers();
     const viewers = (s.views || []).slice().reverse().map(v => {
       const u = users.find(x => x.id === v.userId);
@@ -1224,9 +1229,9 @@ app.get('/api/stories/:id/views', async (req, res) => {
 app.post('/api/stories/:id/comments', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Comment karne ke liye login zaroori hai' });
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to comment' });
     const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment likhna zaroori hai' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Please write a comment' });
 
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
@@ -1240,7 +1245,7 @@ app.post('/api/stories/:id/comments', async (req, res) => {
     };
     s.comments.push(comment);
     await writeStories(stories);
-    await notify(s.ownerId, { type: 'story_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} ne aapki story pe comment kiya` });
+    await notify(s.ownerId, { type: 'story_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} commented on your story` });
     const cUser = currentUser;
     res.status(201).json({ ...comment, profileImage: null });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1259,7 +1264,7 @@ app.post('/api/stories/:storyId/comments/:commentId/like', async (req, res) => {
     const idx = c.likes.indexOf(currentUser.id);
     if (idx === -1) {
       c.likes.push(currentUser.id);
-      await notify(c.userId, { type: 'comment_like', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} ne aapke comment ko like kiya` });
+      await notify(c.userId, { type: 'comment_like', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} liked your comment` });
     } else c.likes.splice(idx, 1);
     await writeStories(stories);
     res.json({ likes: c.likes.length, liked: idx === -1 });
@@ -1277,7 +1282,7 @@ app.post('/api/stories/:storyId/comments/:commentId/delete', async (req, res) =>
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
     const isCommentOwner = comment.userId === currentUser.id;
     const isStoryOwner = s.ownerId === currentUser.id;
-    if (!isCommentOwner && !isStoryOwner) return res.status(403).json({ error: 'Permission nahi hai' });
+    if (!isCommentOwner && !isStoryOwner) return res.status(403).json({ error: 'You don\'t have permission' });
     s.comments = s.comments.filter(c => c.id !== req.params.commentId);
     await writeStories(stories);
     res.json({ success: true });
@@ -1291,7 +1296,7 @@ app.post('/api/stories/:id/delete', async (req, res) => {
     let stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s) return res.status(404).json({ error: 'Story not found' });
-    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Permission nahi hai' });
+    if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
     if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
     stories = stories.filter(x => x.id !== req.params.id);
     await writeStories(stories);
@@ -1445,17 +1450,25 @@ function getMailTransporter() {
 app.post('/api/help-desk', async (req, res) => {
   try {
     const { name, userId, problem } = req.body;
-    if (!problem || !problem.trim()) return res.status(400).json({ error: 'Problem likhna zaroori hai' });
+    if (!problem || !problem.trim()) return res.status(400).json({ error: 'Please describe your problem' });
     const transporter = getMailTransporter();
-    if (!transporter) return res.status(500).json({ error: 'Email service abhi setup nahi hai, thodi der baad try karo' });
+    if (!transporter) {
+      console.error('Help desk: GMAIL_USER/GMAIL_APP_PASSWORD env vars missing or empty');
+      return res.status(500).json({ error: 'Email service isn\'t set up yet, please try again later' });
+    }
+    console.log('Help desk: sending mail for user', userId || '-');
     await transporter.sendMail({
       from: GMAIL_USER,
       to: 'sohailp541@gmail.com',
       subject: 'YouSeries Help Desk — ' + (name || 'User'),
       text: `Name: ${name || '-'}\nUser ID: ${userId || '-'}\n\nProblem:\n${problem}`
     });
+    console.log('Help desk: mail sent successfully');
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Email bhejne me error aaya: ' + err.message }); }
+  } catch (err) {
+    console.error('Help desk mail error:', err);
+    res.status(500).json({ error: 'Email bhejne me error aaya: ' + err.message });
+  }
 });
 
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
