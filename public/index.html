@@ -1874,7 +1874,7 @@ function renderStoriesBar(){
     <div class="story-avatar-wrap" onclick="${myGroup ? `openStoryViewer('${myId}')` : 'openStoryUploadModal()'}">
       <div class="story-ring ${myGroup ? (myGroup.allViewed ? 'seen' : '') : 'add-own'}">
         <div class="story-avatar-inner">${myAvatarInner}</div>
-        ${!myGroup ? '<div class="story-add-badge" onclick="event.stopPropagation();openStoryUploadModal()">+</div>' : ''}
+        <div class="story-add-badge" onclick="event.stopPropagation();openStoryUploadModal()">+</div>
       </div>
       <div class="story-username">${myGroup ? 'Your Story' : 'Add Story'}</div>
     </div>
