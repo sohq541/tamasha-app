@@ -893,11 +893,23 @@ function confirmLogoutFromMenu(){
 // ---- Settings and Privacy ----
 function renderSettingsPrivacyMenu(){
   setMenuTitle('Settings and Privacy', true, 'renderProfileMenuMain()');
+  const pushEnabled = localStorage.getItem('pushEnabled') === '1';
   document.getElementById('profileMenuBody').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
       <div style="max-width:78%;">
+        <div style="font-size:14.5px;font-weight:600;">Push notifications</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Get notified on your phone even when the app is closed</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
+        <input type="checkbox" id="pushToggle" ${pushEnabled ? 'checked' : ''} onchange="onPushToggleChanged(this.checked)" style="opacity:0;width:0;height:0;">
+        <span id="pushToggleTrack" style="position:absolute;inset:0;background:${pushEnabled ? 'var(--marigold)' : 'rgba(255,255,255,0.15)'};border-radius:999px;transition:0.2s;pointer-events:none;"></span>
+        <span id="pushToggleDot" style="position:absolute;top:3px;left:${pushEnabled ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
+      </label>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
+      <div style="max-width:78%;">
         <div style="font-size:14.5px;font-weight:600;">Sensitive content</div>
-        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Feed me sensitive-marked content chhupa do</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Hide sensitive-marked content from your feed</div>
       </div>
       <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
         <input type="checkbox" id="sensitiveToggle" ${window.myHideSensitive ? 'checked' : ''} onchange="toggleSensitiveSetting(this.checked)" style="opacity:0;width:0;height:0;">
@@ -909,6 +921,65 @@ function renderSettingsPrivacyMenu(){
     ${menuRow('📄', 'Privacy Policy', "window.open('/privacy-policy.html','_blank')")}
     ${menuRow('📋', 'Terms and Conditions', "window.open('/terms-of-service.html','_blank')")}
   `;
+}
+
+function onPushToggleChanged(checked){
+  if (checked) enablePushNotifications();
+  else disablePushNotifications();
+}
+
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function enablePushNotifications(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showToast('This browser does not support push notifications');
+    renderSettingsPrivacyMenu();
+    return;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { showToast('Notification permission was denied'); renderSettingsPrivacyMenu(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const keyRes = await fetch('/api/push/vapid-public-key');
+    const { publicKey } = await keyRes.json();
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    await fetch('/api/push/subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub })
+    });
+    localStorage.setItem('pushEnabled', '1');
+    showToast('Push notifications enabled!');
+  } catch (e) {
+    showToast('Could not enable push notifications');
+  }
+  renderSettingsPrivacyMenu();
+}
+
+async function disablePushNotifications(){
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await fetch('/api/push/unsubscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint })
+      });
+      await sub.unsubscribe();
+    }
+  } catch (e) {}
+  localStorage.setItem('pushEnabled', '0');
+  showToast('Push notifications turned off');
+  renderSettingsPrivacyMenu();
 }
 
 async function toggleSensitiveSetting(checked){
