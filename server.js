@@ -10,6 +10,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -33,6 +34,10 @@ const E2_ENDPOINT = process.env.E2_ENDPOINT;
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BOHLvhXAVxUKM5vGFbzlZ12dgf_yXLpGOrRlcLgEZ5tQrQwqCaFAEovjZXH5B1HDZ-B_Os5s90j_vuF_dWglHug';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '8FwcswgdL8jv1VNwCWZgfIsZcYJgiucD7-RjlBPYTMc';
+webpush.setVapidDetails('mailto:sohailp541@gmail.com', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
 
@@ -245,6 +250,25 @@ async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyI
     });
     await e2WriteJSON('notifications.json', notifications.slice(-500));
   } catch (e) { console.error('notify failed:', e.message); }
+  sendPushToUser(toUserId, { title: 'YouSeries', body: message, filmId, storyId, fromUserId, fromUsername }).catch(() => {});
+}
+
+async function sendPushToUser(userId, payload) {
+  const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+  const mine = subs.filter(s => s.userId === userId);
+  if (!mine.length) return;
+  let changed = false;
+  for (const s of mine) {
+    try {
+      await webpush.sendNotification(s.subscription, JSON.stringify(payload));
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        const idx = subs.indexOf(s);
+        if (idx !== -1) { subs.splice(idx, 1); changed = true; }
+      }
+    }
+  }
+  if (changed) await e2WriteJSON('push-subscriptions.json', subs);
 }
 
 function generateThumbnail(videoBuffer, ext) {
@@ -1469,6 +1493,37 @@ app.post('/api/help-desk', async (req, res) => {
     console.error('Help desk mail error:', err);
     res.status(500).json({ error: 'Email bhejne me error aaya: ' + err.message });
   }
+});
+
+app.get('/api/push/vapid-public-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Please log in' });
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+
+    const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+    const existingIdx = subs.findIndex(s => s.subscription.endpoint === subscription.endpoint);
+    const entry = { userId: currentUser.id, subscription, createdAt: new Date().toISOString() };
+    if (existingIdx !== -1) subs[existingIdx] = entry; else subs.push(entry);
+    await e2WriteJSON('push-subscriptions.json', subs);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/push/unsubscribe', async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) return res.status(400).json({ error: 'Endpoint required' });
+    const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+    const filtered = subs.filter(s => s.subscription.endpoint !== endpoint);
+    await e2WriteJSON('push-subscriptions.json', filtered);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
