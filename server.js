@@ -196,6 +196,41 @@ async function e2GetPresignedDownloadUrl(key) {
   return getSignedUrl(e2Client, command, { expiresIn: 3600 });
 }
 
+let b2DownloadAuthCache = { token: null, expiresAt: 0 };
+async function getB2DownloadAuthToken() {
+  if (b2DownloadAuthCache.token && Date.now() < b2DownloadAuthCache.expiresAt) return b2DownloadAuthCache.token;
+  const { authToken, apiUrl } = await b2Authorize();
+  const res = await fetch(`${apiUrl}/b2api/v3/b2_get_download_authorization`, {
+    method: 'POST',
+    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: B2_BUCKET_ID, fileNamePrefix: '', validDurationInSeconds: 3600 })
+  });
+  const data = await res.json();
+  if (!data.authorizationToken) throw new Error('Could not get B2 download authorization');
+  b2DownloadAuthCache = { token: data.authorizationToken, expiresAt: Date.now() + 3500 * 1000 };
+  return b2DownloadAuthCache.token;
+}
+
+async function b2GetDirectUrl(fileName) {
+  const { downloadUrl } = await b2Authorize();
+  const token = await getB2DownloadAuthToken();
+  return `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}?Authorization=${encodeURIComponent(token)}`;
+}
+
+function makeDirectUrlCache() {
+  const cache = {};
+  return async function directUrl(key, provider) {
+    if (!key) return null;
+    const cacheKey = (provider || 'b2') + ':' + key;
+    if (cache[cacheKey]) return cache[cacheKey];
+    try {
+      const url = provider === 'e2' ? await e2GetPresignedDownloadUrl(key) : await b2GetDirectUrl(key);
+      cache[cacheKey] = url;
+      return url;
+    } catch (e) { return null; }
+  };
+}
+
 async function e2ReadJSON(key) {
   const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
   const chunks = [];
@@ -501,7 +536,7 @@ app.get('/api/users/:id/public', async (req, res) => {
 
     res.json({
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
-      profileImage: user.profileImage ? '/media/avatar/' + user.id : null,
+      profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
       hideSensitiveContent: !!user.hideSensitiveContent
     });
@@ -704,22 +739,26 @@ app.get('/api/films', async (req, res) => {
     const currentUser = getUserFromReq(req);
     const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
     const hideSensitive = me ? !!me.hideSensitiveContent : false;
+    const directUrl = makeDirectUrlCache();
 
-    const out = films
+    const out = await Promise.all(films
       .filter(f => !(hideSensitive && f.isSensitive))
-      .map(f => {
+      .map(async f => {
         const owner = users.find(u => u.id === f.ownerId);
-        const enrichedComments = (f.comments || []).map(c => {
+        const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+        const enrichedComments = await Promise.all((f.comments || []).map(async c => {
           const cUser = users.find(u => u.id === c.userId);
-          return { ...c, name: cUser ? cUser.username : c.name, profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null };
-        });
+          const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
+          return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
+        }));
+        const videoUrl = f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null;
+        const posterUrl = f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null;
         return {
           ...f, comments: enrichedComments,
-          videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
-          posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
-          ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
+          videoUrl, posterUrl,
+          ownerProfileImage: ownerAvatarUrl
         };
-      });
+      }));
     res.json(out);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -731,15 +770,18 @@ app.get('/api/films/:id', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
     const users = await readUsers();
     const owner = users.find(u => u.id === f.ownerId);
-    const enrichedComments = (f.comments || []).map(c => {
+    const directUrl = makeDirectUrlCache();
+    const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+    const enrichedComments = await Promise.all((f.comments || []).map(async c => {
       const cUser = users.find(u => u.id === c.userId);
-      return { ...c, name: cUser ? cUser.username : c.name, profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null };
-    });
+      const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
+      return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
+    }));
     res.json({
       ...f, comments: enrichedComments,
-      videoUrl: f.type === 'photo' ? null : '/media/video/' + f.id,
-      posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
-      ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
+      videoUrl: f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null,
+      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+      ownerProfileImage: ownerAvatarUrl
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1154,6 +1196,7 @@ app.get('/api/stories', async (req, res) => {
     const currentUser = getUserFromReq(req);
     const stories = (await readStories()).filter(isStoryActive);
     const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
 
     const byUser = {};
     stories.forEach(s => {
@@ -1161,24 +1204,25 @@ app.get('/api/stories', async (req, res) => {
       byUser[s.ownerId].push(s);
     });
 
-    const groups = Object.keys(byUser).map(ownerId => {
+    const groups = await Promise.all(Object.keys(byUser).map(async ownerId => {
       const owner = users.find(u => u.id === ownerId);
-      const userStories = byUser[ownerId].slice().reverse().map(s => ({
+      const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+      const userStories = await Promise.all(byUser[ownerId].slice().reverse().map(async s => ({
         id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
         mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
-        mediaUrl: '/media/story/' + s.id,
+        mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
         viewCount: (s.views || []).length,
         commentCount: (s.comments || []).length,
         viewedByMe: !!(currentUser && (s.views || []).some(v => v.userId === currentUser.id))
-      }));
+      })));
       return {
         ownerId,
         ownerUsername: owner ? owner.username : userStories[0].ownerUsername,
-        ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null,
+        ownerProfileImage: ownerAvatarUrl,
         stories: userStories,
         allViewed: userStories.every(s => s.viewedByMe)
       };
-    });
+    }));
 
     res.json({ groups });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1191,19 +1235,22 @@ app.get('/api/stories/:id', async (req, res) => {
     if (!s || !isStoryActive(s)) return res.status(404).json({ error: 'Story not found or expired' });
     const users = await readUsers();
     const owner = users.find(u => u.id === s.ownerId);
-    const enrichedComments = (s.comments || []).map(c => {
+    const directUrl = makeDirectUrlCache();
+    const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+    const enrichedComments = await Promise.all((s.comments || []).map(async c => {
       const cUser = users.find(u => u.id === c.userId);
+      const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
       return {
         ...c, likes: c.likes || [],
         name: cUser ? cUser.username : c.name,
-        profileImage: cUser && cUser.profileImage ? '/media/avatar/' + cUser.id : null
+        profileImage: cAvatarUrl
       };
-    });
+    }));
     res.json({
       ...s, comments: enrichedComments,
-      mediaUrl: '/media/story/' + s.id,
+      mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
       viewCount: (s.views || []).length,
-      ownerProfileImage: owner && owner.profileImage ? '/media/avatar/' + owner.id : null
+      ownerProfileImage: ownerAvatarUrl
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
