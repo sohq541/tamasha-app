@@ -1088,7 +1088,7 @@ async function renderLikedHistory(){
     const data = await res.json();
     const items = data.liked || [];
     if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t liked anything yet.</p>'; return; }
-    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, '', `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
+    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, h.likedAt ? storyTimeAgo(h.likedAt) : '', `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
   } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
@@ -1322,6 +1322,7 @@ function renderHome(films) {
           </div>
           <div>
             <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
+            ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
         </div>
 
@@ -1407,7 +1408,7 @@ function renderShorts(shorts){
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span></div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${escapeHtml(f.description || '')}</p>
       </div>
@@ -1637,6 +1638,7 @@ function saveMyCommentToken(commentId, editToken){
         </div>
 
         <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
+        <div style="color:var(--cream-dim);font-size:11px;margin-top:3px;">${storyTimeAgo(c.createdAt)}</div>
 
         ${(canEdit || canDelete) ? `
           <div id="comment-actions-${c.id}" style="display:none;gap:12px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);">
@@ -1717,7 +1719,7 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>`;
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
@@ -1857,7 +1859,13 @@ function storyTimeAgo(iso){
   if (mins < 1) return 'now';
   if (mins < 60) return mins + 'm';
   const hrs = Math.floor(mins / 60);
-  return hrs + 'h';
+  if (hrs < 24) return hrs + 'h';
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return days + 'd';
+  const months = Math.floor(days / 30);
+  if (months < 12) return months + 'mo';
+  const years = Math.floor(days / 365);
+  return years + 'y';
 }
 
 async function loadStories(){
@@ -2163,6 +2171,7 @@ function renderStoryCommentList(comments, storyId){
           </button>
         </div>
         <div class="comment-text">${escapeHtml(c.text)}</div>
+        <div style="color:var(--cream-dim);font-size:11px;margin-top:3px;">${storyTimeAgo(c.createdAt)}</div>
       </div>
     `;
   }).join('');
@@ -2278,7 +2287,7 @@ function handleNotifClick(filmId, storyId, fromUserId, fromUsername){
 }
 
 // ===================== SWIPE GESTURES =====================
-function addSwipeRightListener(el, callback, opts){
+function addSwipeLeftListener(el, callback, opts){
   opts = opts || {};
   const minDeltaX = opts.minDeltaX || 65;
   const maxDeltaY = opts.maxDeltaY || 55;
@@ -2296,7 +2305,7 @@ function addSwipeRightListener(el, callback, opts){
     if (!touch) return;
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
-    if (dx > minDeltaX && Math.abs(dy) < maxDeltaY) callback(e);
+    if (dx < -minDeltaX && Math.abs(dy) < maxDeltaY) callback(e);
   }, { passive: true });
 }
 
@@ -2304,14 +2313,14 @@ function setupHomeSwipeToShorts(){
   const grid = document.getElementById('grid');
   if (!grid || grid.dataset.swipeAttached) return;
   grid.dataset.swipeAttached = '1';
-  addSwipeRightListener(grid, () => switchTab('shorts'));
+  addSwipeLeftListener(grid, () => switchTab('shorts'));
 }
 
 function setupShortsSwipeToProfile(){
   const container = document.getElementById('shortsContainer');
   if (!container || container.dataset.swipeAttached) return;
   container.dataset.swipeAttached = '1';
-  addSwipeRightListener(container, (e) => {
+  addSwipeLeftListener(container, (e) => {
     const item = e.target.closest ? e.target.closest('.short-item') : null;
     if (!item) return;
     const f = allFilms.find(x => x.id === item.dataset.id);
