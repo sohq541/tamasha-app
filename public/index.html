@@ -1353,6 +1353,7 @@ function renderHome(films) {
     `;
   }).join('');
   setupHomeVideoObserver();
+  setupHomeSwipeToShorts();
 }
 
 function toggleCardMute(id, btnEl){
@@ -1419,6 +1420,7 @@ function renderShorts(shorts){
     </div>
   `;
   }).join('');
+  setupShortsSwipeToProfile();
 }
 
 function toggleShortPlay(video){
@@ -2273,6 +2275,48 @@ function handleNotifClick(filmId, storyId, fromUserId, fromUsername){
     if (stories && stories.length) { openStoryViewer(fromUserId); return; }
   }
   goToProfileDirect(fromUserId, fromUsername);
+}
+
+// ===================== SWIPE GESTURES =====================
+function addSwipeRightListener(el, callback, opts){
+  opts = opts || {};
+  const minDeltaX = opts.minDeltaX || 65;
+  const maxDeltaY = opts.maxDeltaY || 55;
+  let startX = 0, startY = 0, tracking = false;
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    const touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (dx > minDeltaX && Math.abs(dy) < maxDeltaY) callback(e);
+  }, { passive: true });
+}
+
+function setupHomeSwipeToShorts(){
+  const grid = document.getElementById('grid');
+  if (!grid || grid.dataset.swipeAttached) return;
+  grid.dataset.swipeAttached = '1';
+  addSwipeRightListener(grid, () => switchTab('shorts'));
+}
+
+function setupShortsSwipeToProfile(){
+  const container = document.getElementById('shortsContainer');
+  if (!container || container.dataset.swipeAttached) return;
+  container.dataset.swipeAttached = '1';
+  addSwipeRightListener(container, (e) => {
+    const item = e.target.closest ? e.target.closest('.short-item') : null;
+    if (!item) return;
+    const f = allFilms.find(x => x.id === item.dataset.id);
+    if (f && f.ownerId) goToProfileDirect(f.ownerId, f.ownerUsername);
+  });
 }
 
 async function init(){
