@@ -966,10 +966,18 @@ app.post('/api/films/:id/like', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
 
     if (!f.likedBy) { f.likedBy = []; f.likesBaseline = f.likes || 0; }
+    if (!f.likedAt) f.likedAt = {};
     const idx = f.likedBy.indexOf(currentUser.id);
     let liked;
-    if (idx === -1) { f.likedBy.push(currentUser.id); liked = true; }
-    else { f.likedBy.splice(idx, 1); liked = false; }
+    if (idx === -1) {
+      f.likedBy.push(currentUser.id);
+      f.likedAt[currentUser.id] = new Date().toISOString();
+      liked = true;
+    } else {
+      f.likedBy.splice(idx, 1);
+      delete f.likedAt[currentUser.id];
+      liked = false;
+    }
     f.likes = (f.likesBaseline || 0) + f.likedBy.length;
 
     await writeFilms(films);
@@ -1415,17 +1423,18 @@ app.get('/api/me/watch-history', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const history = await readWatchHistory();
     const films = await readFilms();
+    const directUrl = makeDirectUrlCache();
     const mine = history.filter(h => h.userId === currentUser.id).slice().reverse().slice(0, 100);
-    const out = mine.map(h => {
+    const out = await Promise.all(mine.map(async h => {
       const f = films.find(x => x.id === h.filmId);
       if (!f) return null;
       return {
         filmId: f.id, title: f.title, type: f.type,
-        posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
+        posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
         viewedAt: h.viewedAt
       };
-    }).filter(Boolean);
-    res.json({ history: out });
+    }));
+    res.json({ history: out.filter(Boolean) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1434,12 +1443,15 @@ app.get('/api/me/liked', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
-    const out = films
+    const directUrl = makeDirectUrlCache();
+    const out = await Promise.all(films
       .filter(f => f.likedBy && f.likedBy.includes(currentUser.id))
-      .map(f => ({
+      .map(async f => ({
         filmId: f.id, title: f.title, type: f.type,
-        posterUrl: f.posterFile ? '/media/poster/' + f.id : null
-      }));
+        posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+        likedAt: (f.likedAt && f.likedAt[currentUser.id]) || null
+      })));
+    out.sort((a, b) => new Date(b.likedAt || 0) - new Date(a.likedAt || 0));
     res.json({ liked: out });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1449,18 +1461,19 @@ app.get('/api/me/comments', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
+    const directUrl = makeDirectUrlCache();
     const out = [];
-    films.forEach(f => {
-      (f.comments || []).forEach(c => {
+    for (const f of films) {
+      for (const c of (f.comments || [])) {
         if (c.userId === currentUser.id) {
           out.push({
             filmId: f.id, filmTitle: f.title,
-            posterUrl: f.posterFile ? '/media/poster/' + f.id : null,
+            posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
             commentId: c.id, text: c.text, createdAt: c.createdAt
           });
         }
-      });
-    });
+      }
+    }
     out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ comments: out.slice(0, 100) });
   } catch (err) { res.status(500).json({ error: err.message }); }
