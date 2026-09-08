@@ -1520,34 +1520,43 @@ app.post('/api/me/delete', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-let mailTransporter = null;
-function getMailTransporter() {
-  if (mailTransporter) return mailTransporter;
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
-  mailTransporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
-  });
-  return mailTransporter;
-}
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 app.post('/api/help-desk', async (req, res) => {
   try {
     const { name, userId, problem } = req.body;
-    if (!problem || !problem.trim()) return res.status(400).json({ error: 'Please describe your problem' });
-    const transporter = getMailTransporter();
-    if (!transporter) {
-      console.error('Help desk: GMAIL_USER/GMAIL_APP_PASSWORD env vars missing or empty');
+    if (!problem || !problem.trim()) {
+      return res.status(400).json({ error: 'Please describe your problem' });
+    }
+
+    if (!RESEND_API_KEY) {
+      console.error('Help desk: RESEND_API_KEY env var missing or empty');
       return res.status(500).json({ error: 'Email service isn\'t set up yet, please try again later' });
     }
-    console.log('Help desk: sending mail for user', userId || '-');
-    await transporter.sendMail({
-      from: GMAIL_USER,
-      to: 'sohailp541@gmail.com',
-      subject: 'YouSeries Help Desk — ' + (name || 'User'),
-      text: `Name: ${name || '-'}\nUser ID: ${userId || '-'}\n\nProblem:\n${problem}`
+
+    console.log('Help desk: sending mail via Resend for user', userId || '-');
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'YouSeries Help Desk <onboarding@resend.dev>',
+        to: ['sohailp541@gmail.com'],
+        subject: 'YouSeries Help Desk - ' + (name || 'User'),
+        text: `Name: ${name || '-'}\nUser ID: ${userId || '-'}\n\nProblem:\n${problem}`
+      })
     });
-    console.log('Help desk: mail sent successfully');
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to send email via Resend');
+    }
+
+    console.log('Help desk: mail sent successfully via Resend');
     res.json({ success: true });
   } catch (err) {
     console.error('Help desk mail error:', err);
