@@ -273,19 +273,19 @@ async function markMigrated(key) {
 }
 
 // ---------------- Notifications ----------------
-async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, message }) {
+async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, conversationId, message }) {
   if (!toUserId || toUserId === fromUserId) return;
   try {
     const notifications = await e2TryReadJSON('notifications.json') || [];
     notifications.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       userId: toUserId, type, fromUserId, fromUsername,
-      filmId: filmId || null, storyId: storyId || null,
+      filmId: filmId || null, storyId: storyId || null, conversationId: conversationId || null,
       message, read: false, createdAt: new Date().toISOString()
     });
     await e2WriteJSON('notifications.json', notifications.slice(-500));
   } catch (e) { console.error('notify failed:', e.message); }
-  sendPushToUser(toUserId, { title: 'YouSeries', body: message, filmId, storyId, fromUserId, fromUsername }).catch(() => {});
+  sendPushToUser(toUserId, { title: 'YouSeries', body: message, filmId, storyId, conversationId, fromUserId, fromUsername }).catch(() => {});
 }
 
 async function sendPushToUser(userId, payload) {
@@ -688,6 +688,47 @@ app.post('/api/users/:id/follow', async (req, res) => {
 
     const followersCount = users.filter(u => u.following && u.following.includes(target.id)).length;
     res.json({ following: nowFollowing, followersCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/users/:id/following', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const target = users.find(u => u.id === req.params.id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    const currentUser = getUserFromReq(req);
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    const directUrl = makeDirectUrlCache();
+    const list = await Promise.all((target.following || []).slice().reverse().map(async uid => {
+      const u = users.find(x => x.id === uid);
+      if (!u) return null;
+      return {
+        id: u.id, username: u.username,
+        profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+        isFollowing: !!(me && me.following && me.following.includes(u.id)),
+        isMe: !!(currentUser && currentUser.id === u.id)
+      };
+    }));
+    res.json({ users: list.filter(Boolean) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/users/:id/followers', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const target = users.find(u => u.id === req.params.id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    const currentUser = getUserFromReq(req);
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    const directUrl = makeDirectUrlCache();
+    const followers = users.filter(u => u.following && u.following.includes(target.id));
+    const list = await Promise.all(followers.slice().reverse().map(async u => ({
+      id: u.id, username: u.username,
+      profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+      isFollowing: !!(me && me.following && me.following.includes(u.id)),
+      isMe: !!(currentUser && currentUser.id === u.id)
+    })));
+    res.json({ users: list });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1413,6 +1454,307 @@ app.post('/api/notifications/mark-read', async (req, res) => {
     let changed = false;
     all.forEach(n => { if (n.userId === currentUser.id && !n.read) { n.read = true; changed = true; } });
     if (changed) await e2WriteJSON('notifications.json', all);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------- Chat / DM "database" ----------------
+async function readConversations() {
+  return await e2TryReadJSON('conversations.json') || [];
+}
+async function writeConversations(list) {
+  await e2WriteJSON('conversations.json', list);
+}
+function conversationIdFor(a, b) {
+  return [a, b].sort().join('_');
+}
+async function readChatMessages(conversationId) {
+  return await e2TryReadJSON(`chats/${conversationId}.json`) || [];
+}
+async function writeChatMessages(conversationId, messages) {
+  await e2WriteJSON(`chats/${conversationId}.json`, messages);
+}
+async function getConversationForUsers(userA, userB, createIfMissing) {
+  const list = await readConversations();
+  const id = conversationIdFor(userA, userB);
+  let convo = list.find(c => c.id === id);
+  if (!convo && createIfMissing) {
+    convo = { id, participants: [userA, userB], updatedAt: new Date().toISOString(), lastMessage: null };
+    list.push(convo);
+    await writeConversations(list);
+  }
+  return convo || null;
+}
+const MSG_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+function previewForMessage(m) {
+  if (m.unsent) return 'Message unsent';
+  if (m.type === 'photo') return '📷 Photo';
+  if (m.type === 'video') return '🎬 Video';
+  if (m.type === 'voice') return '🎤 Voice message';
+  if (m.type === 'short') return '🎬 Shared a short';
+  return (m.text || '').slice(0, 80);
+}
+async function enrichMessage(m, directUrl) {
+  const out = {
+    id: m.id, conversationId: m.conversationId, senderId: m.senderId,
+    type: m.type, text: m.unsent ? null : (m.text || null),
+    createdAt: m.createdAt, editedAt: m.editedAt || null,
+    unsent: !!m.unsent, readBy: m.readBy || [],
+    mediaUrl: null, duration: m.duration || null,
+    shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null
+  };
+  if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
+    out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'e2');
+  }
+  if (!m.unsent && m.type === 'short') {
+    out.shortId = m.shortId;
+    out.shortTitle = m.shortTitle || null;
+    out.shortOwnerUsername = m.shortOwnerUsername || null;
+    out.shortThumb = m.shortId ? `/media/poster/${m.shortId}` : null;
+  }
+  return out;
+}
+
+// ===================== CHAT / DM ROUTES =====================
+
+app.get('/api/conversations', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const list = (await readConversations()).filter(c => c.participants.includes(currentUser.id));
+    const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
+
+    const out = await Promise.all(list
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .map(async c => {
+        const otherId = c.participants.find(p => p !== currentUser.id);
+        const other = users.find(u => u.id === otherId);
+        const messages = await readChatMessages(c.id);
+        const unreadCount = messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+          !(m.deletedFor || []).includes(currentUser.id) && !(m.readBy || []).includes(currentUser.id)).length;
+        return {
+          id: c.id,
+          otherUser: other ? {
+            id: other.id, username: other.username,
+            profileImage: other.profileImage ? await directUrl(other.profileImage, other.avatarStorageProvider) : null
+          } : { id: otherId, username: 'Unknown user', profileImage: null },
+          lastMessage: c.lastMessage,
+          updatedAt: c.updatedAt,
+          unreadCount
+        };
+      }));
+    res.json({ conversations: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/conversations/unread-count', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.json({ unreadCount: 0 });
+    const list = (await readConversations()).filter(c => c.participants.includes(currentUser.id));
+    let total = 0;
+    for (const c of list) {
+      const messages = await readChatMessages(c.id);
+      total += messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+        !(m.deletedFor || []).includes(currentUser.id) && !(m.readBy || []).includes(currentUser.id)).length;
+    }
+    res.json({ unreadCount: total });
+  } catch (err) { res.json({ unreadCount: 0 }); }
+});
+
+app.get('/api/conversations/with/:userId', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (currentUser.id === req.params.userId) return res.status(400).json({ error: "You can't message yourself" });
+
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    const target = users.find(u => u.id === req.params.userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    let convo = await getConversationForUsers(currentUser.id, target.id, false);
+    if (!convo) {
+      const iFollowThem = me && me.following && me.following.includes(target.id);
+      if (!iFollowThem) return res.status(403).json({ error: 'Message karne ke liye pehle is user ko follow karo' });
+      convo = await getConversationForUsers(currentUser.id, target.id, true);
+    }
+
+    const directUrl = makeDirectUrlCache();
+    const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
+    const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl)));
+
+    res.json({
+      id: convo.id,
+      otherUser: {
+        id: target.id, username: target.username,
+        profileImage: target.profileImage ? await directUrl(target.profileImage, target.avatarStorageProvider) : null
+      },
+      messages
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/conversations/:id/messages', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const since = req.query.since ? new Date(req.query.since).getTime() : 0;
+    const directUrl = makeDirectUrlCache();
+    let raw = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
+    if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since));
+    const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl)));
+    res.json({ messages });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/messages', (req, res, next) => {
+  req.currentUser = getUserFromReq(req);
+  if (!req.currentUser) return res.status(401).json({ error: 'Login required' });
+  next();
+}, upload.fields([{ name: 'media', maxCount: 1 }]), async (req, res) => {
+  try {
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(req.currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const text = (req.body.text || '').trim().slice(0, 2000);
+    const shortId = req.body.shortId || null;
+    const isVoice = toBool(req.body.isVoice);
+    const mediaFile = req.files && req.files.media && req.files.media[0];
+
+    if (!text && !mediaFile && !shortId) return res.status(400).json({ error: 'Kuch to bhejo — message, photo, video ya short' });
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    let type = 'text', mediaKey = null, mediaType = null, duration = null;
+    let shortTitle = null, shortOwnerUsername = null;
+
+    if (mediaFile) {
+      const isVideo = mediaFile.mimetype.startsWith('video');
+      const isAudio = mediaFile.mimetype.startsWith('audio') || isVoice;
+      type = isAudio ? 'voice' : (isVideo ? 'video' : 'photo');
+      mediaKey = `chats/${convo.id}/${id}${path.extname(mediaFile.originalname) || (isAudio ? '.webm' : '')}`;
+      await e2UploadBuffer(readFileAsBuffer(mediaFile.path), mediaKey, mediaFile.mimetype);
+      mediaType = type;
+      if (isAudio && req.body.duration) duration = parseFloat(req.body.duration) || null;
+    } else if (shortId) {
+      const films = await readFilms();
+      const film = films.find(f => f.id === shortId);
+      if (!film) return res.status(404).json({ error: 'Ye short ab available nahi hai' });
+      type = 'short';
+      shortTitle = film.title;
+      shortOwnerUsername = film.ownerUsername;
+    }
+
+    const newMessage = {
+      id, conversationId: convo.id, senderId: req.currentUser.id,
+      type, text: text || null,
+      mediaKey, mediaType, storageProvider: 'e2', duration,
+      shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
+      createdAt: new Date().toISOString(), editedAt: null,
+      deletedFor: [], unsent: false, readBy: [req.currentUser.id]
+    };
+
+    const messages = await readChatMessages(convo.id);
+    messages.push(newMessage);
+    await writeChatMessages(convo.id, messages);
+
+    convo.updatedAt = newMessage.createdAt;
+    convo.lastMessage = { senderId: req.currentUser.id, preview: previewForMessage(newMessage), createdAt: newMessage.createdAt };
+    await writeConversations(convos);
+
+    const otherId = convo.participants.find(p => p !== req.currentUser.id);
+    await notify(otherId, {
+      type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
+      conversationId: convo.id, message: `@${req.currentUser.username} sent you a message`
+    });
+
+    const directUrl = makeDirectUrlCache();
+    res.status(201).json(await enrichMessage(newMessage, directUrl));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/conversations/:id/messages/:messageId', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    const m = messages.find(x => x.id === req.params.messageId);
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+    if (m.senderId !== currentUser.id) return res.status(403).json({ error: 'You can only edit your own messages' });
+    if (m.unsent) return res.status(400).json({ error: 'This message was unsent' });
+    if (m.type !== 'text') return res.status(400).json({ error: 'Only text messages can be edited' });
+    if (Date.now() - new Date(m.createdAt).getTime() > MSG_EDIT_WINDOW_MS) return res.status(400).json({ error: 'Edit window (24h) has expired' });
+
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Message khali nahi ho sakta' });
+    m.text = text.trim().slice(0, 2000);
+    m.editedAt = new Date().toISOString();
+    await writeChatMessages(convo.id, messages);
+
+    if (convo.lastMessage && convo.lastMessage.createdAt === m.createdAt) {
+      convo.lastMessage.preview = previewForMessage(m);
+      await writeConversations(convos);
+    }
+
+    const directUrl = makeDirectUrlCache();
+    res.json(await enrichMessage(m, directUrl));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/messages/:messageId/delete', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    const m = messages.find(x => x.id === req.params.messageId);
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+
+    const scope = req.body.scope === 'everyone' ? 'everyone' : 'me';
+    if (scope === 'everyone') {
+      if (m.senderId !== currentUser.id) return res.status(403).json({ error: 'You can only delete your own messages for everyone' });
+      if (m.mediaKey) { await e2DeleteFile(m.mediaKey); m.mediaKey = null; }
+      m.unsent = true;
+      m.text = null;
+    } else {
+      if (!m.deletedFor) m.deletedFor = [];
+      if (!m.deletedFor.includes(currentUser.id)) m.deletedFor.push(currentUser.id);
+    }
+    await writeChatMessages(convo.id, messages);
+    res.json({ success: true, scope });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/read', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    let changed = false;
+    messages.forEach(m => {
+      if (m.senderId !== currentUser.id) {
+        if (!m.readBy) m.readBy = [];
+        if (!m.readBy.includes(currentUser.id)) { m.readBy.push(currentUser.id); changed = true; }
+      }
+    });
+    if (changed) await writeChatMessages(convo.id, messages);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
