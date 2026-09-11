@@ -340,6 +340,76 @@
 .story-viewer-row img{width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;}
 .story-viewer-row-fallback{width:48px;height:48px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;}
 .story-viewer-row-name{color:#fff;font-size:15px;}
+
+/* ===== CHAT / DM ===== */
+.chat-full-overlay{position:fixed;inset:0;background:var(--ink);display:none;z-index:250;flex-direction:column;}
+.chat-full-overlay.open{display:flex;}
+.chat-header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--gold-line);flex-shrink:0;}
+.chat-header-back{background:transparent;border:none;color:var(--cream);font-size:20px;cursor:pointer;padding:4px 6px;flex-shrink:0;}
+.chat-header-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--marigold);flex-shrink:0;cursor:pointer;}
+.chat-header-avatar-fallback{width:36px;height:36px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;cursor:pointer;}
+.chat-header-name{font-weight:700;color:var(--cream);font-size:15px;cursor:pointer;flex:1;}
+.chat-header-icon{background:transparent;border:none;color:var(--cream);font-size:18px;cursor:pointer;padding:4px 8px;}
+
+.chat-inbox-list{flex:1;overflow-y:auto;padding:6px 10px;}
+.chat-inbox-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:10px;cursor:pointer;}
+.chat-inbox-row:active{background:rgba(255,255,255,0.05);}
+.chat-inbox-avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;background:var(--marigold);flex-shrink:0;}
+.chat-inbox-avatar-fallback{width:52px;height:52px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:18px;flex-shrink:0;}
+.chat-inbox-info{flex:1;min-width:0;}
+.chat-inbox-name{font-weight:700;color:var(--cream);font-size:14.5px;}
+.chat-inbox-preview{font-size:13px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;}
+.chat-inbox-preview.unread{color:var(--cream);font-weight:600;}
+.chat-inbox-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
+.chat-inbox-time{font-size:11.5px;color:var(--cream-dim);}
+.chat-inbox-badge{background:var(--vermilion);color:#fff;font-size:10.5px;font-weight:700;border-radius:999px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+
+.chat-messages{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:4px;}
+.chat-msg-row{display:flex;max-width:78%;margin-bottom:4px;flex-direction:column;}
+.chat-msg-row.mine{align-self:flex-end;align-items:flex-end;}
+.chat-msg-row.theirs{align-self:flex-start;align-items:flex-start;}
+.chat-bubble{background:var(--panel);border:1px solid var(--gold-line);color:var(--cream);padding:9px 13px;border-radius:16px;font-size:14.5px;line-height:1.4;word-break:break-word;position:relative;cursor:pointer;}
+.chat-msg-row.mine .chat-bubble{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+.chat-bubble.media-bubble{padding:4px;background:transparent;border:none;}
+.chat-bubble img.chat-media-img{max-width:220px;max-height:280px;border-radius:14px;display:block;object-fit:cover;}
+.chat-bubble video.chat-media-video{max-width:220px;max-height:280px;border-radius:14px;display:block;background:#000;}
+.chat-voice-bubble{display:flex;align-items:center;gap:10px;min-width:170px;}
+.chat-voice-play{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:inherit;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.chat-voice-wave{flex:1;height:20px;background:repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 5px);opacity:0.5;border-radius:4px;}
+.chat-voice-duration{font-size:12px;opacity:0.85;flex-shrink:0;}
+.chat-short-bubble{width:180px;border-radius:14px;overflow:hidden;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);padding:0;}
+.chat-short-bubble img{width:100%;aspect-ratio:9/14;object-fit:cover;display:block;background:#000;}
+.chat-short-bubble-info{padding:8px 10px;}
+.chat-short-bubble-title{font-size:12.5px;font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.chat-short-bubble-tag{font-size:11px;color:var(--marigold);margin-top:2px;}
+.chat-msg-time{font-size:10.5px;color:var(--cream-dim);margin-top:2px;padding:0 4px;}
+.chat-msg-edited{font-size:10px;opacity:0.7;margin-left:4px;}
+.chat-msg-unsent .chat-bubble{font-style:italic;color:var(--cream-dim) !important;background:transparent !important;border:1px dashed var(--gold-line) !important;cursor:default;}
+
+.chat-day-divider{text-align:center;color:var(--cream-dim);font-size:11.5px;margin:14px 0 6px;align-self:center;}
+
+.chat-input-bar{display:flex;align-items:flex-end;gap:6px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--gold-line);flex-shrink:0;background:var(--ink);}
+.chat-input-icon-btn{background:transparent;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;padding:6px;flex-shrink:0;}
+.chat-input-icon-btn.recording{color:#FF5C5C;}
+.chat-text-input{flex:1;min-height:38px;max-height:100px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:20px;padding:9px 16px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;resize:none;}
+.chat-send-btn{background:var(--marigold);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.chat-send-btn:disabled{opacity:0.5;}
+.chat-attach-preview{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--gold-line);}
+.chat-attach-preview img,.chat-attach-preview video{width:52px;height:52px;border-radius:10px;object-fit:cover;}
+.chat-attach-cancel{background:transparent;border:none;color:var(--cream-dim);font-size:18px;cursor:pointer;margin-left:auto;}
+.chat-recording-row{display:flex;align-items:center;gap:10px;padding:8px 12px;color:#FF5C5C;font-size:13.5px;}
+.chat-recording-dot{width:9px;height:9px;border-radius:50%;background:#FF5C5C;animation:chatPulse 1s infinite;}
+@keyframes chatPulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+.chat-empty{text-align:center;color:var(--cream-dim);padding:60px 20px;font-size:14px;}
+
+.userlist-row{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.userlist-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--marigold);flex-shrink:0;cursor:pointer;}
+.userlist-avatar-fallback{width:44px;height:44px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;cursor:pointer;}
+.userlist-name{flex:1;font-size:14px;font-weight:600;color:var(--cream);cursor:pointer;}
+.userlist-btn{background:rgba(255,255,255,0.08);border:1px solid var(--gold-line);color:var(--cream);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.userlist-btn.primary{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+.userlist-btn.sent{background:rgba(255,255,255,0.06);color:var(--cream-dim);}
 </style>
 </head>
 <body>
@@ -512,6 +582,69 @@
   </div>
 </div>
 
+<!-- ===== MESSAGES: INBOX ===== -->
+<div class="chat-full-overlay" id="chatInboxOverlay">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeChatInbox()">←</button>
+    <span class="chat-header-name">Messages</span>
+  </div>
+  <div class="chat-inbox-list" id="chatInboxList"></div>
+</div>
+
+<!-- ===== MESSAGES: CONVERSATION ===== -->
+<div class="chat-full-overlay" id="chatConvoOverlay">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeChatConvo()">←</button>
+    <div id="chatConvoHeaderAvatarWrap" onclick="chatOpenOtherProfile()"></div>
+    <span class="chat-header-name" id="chatConvoHeaderName" onclick="chatOpenOtherProfile()"></span>
+  </div>
+  <div class="chat-messages" id="chatMessagesArea"></div>
+  <div class="chat-attach-preview hidden" id="chatAttachPreview"></div>
+  <div class="chat-recording-row hidden" id="chatRecordingRow">
+    <span class="chat-recording-dot"></span> Recording... <span id="chatRecordingTime">0:00</span>
+  </div>
+  <div class="chat-input-bar" id="chatInputBar">
+    <input type="file" id="chatMediaInput" accept="image/*,video/*" style="display:none;" onchange="onChatMediaPicked(event)">
+    <button class="chat-input-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo/Video">📎</button>
+    <textarea class="chat-text-input" id="chatTextInput" rows="1" placeholder="Message..." oninput="onChatTextInput(this)" onkeydown="onChatInputKeydown(event)"></textarea>
+    <button class="chat-input-icon-btn" id="chatMicBtn" onclick="toggleVoiceRecording()" title="Voice message">🎤</button>
+    <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">➤</button>
+  </div>
+</div>
+
+<!-- ===== SEND TO (share short into chat) ===== -->
+<div class="sheet-overlay" id="sendToOverlay" onclick="if(event.target===this) closeSendTo()">
+  <div class="sheet" style="max-height:78vh;overflow-y:auto;">
+    <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
+    <div id="sendToList"></div>
+    <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gold-line);">
+      <button class="profile-btn" onclick="sendToExternalShare()">↗ Share externally / Copy link</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FOLLOWING / FOLLOWERS LIST ===== -->
+<div class="sheet-overlay" id="userListOverlay" onclick="if(event.target===this) closeUserList()">
+  <div class="sheet" style="max-height:78vh;overflow-y:auto;">
+    <div class="sheet-header"><h3 id="userListTitle">Following</h3><button class="sheet-close" onclick="closeUserList()">✕</button></div>
+    <div id="userListBody"></div>
+  </div>
+</div>
+
+<!-- ===== CHAT MESSAGE ACTIONS ===== -->
+<div class="sheet-overlay" id="chatMsgMenuOverlay" onclick="if(event.target===this) closeChatMsgMenu()">
+  <div class="sheet"><div id="chatMsgMenuItems"></div></div>
+</div>
+
+<!-- ===== EDIT CHAT MESSAGE ===== -->
+<div class="sheet-overlay" id="chatEditOverlay" onclick="if(event.target===this) closeChatEdit()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>Edit Message</h3><button class="sheet-close" onclick="closeChatEdit()">✕</button></div>
+    <textarea id="chatEditText" maxlength="2000" style="width:100%;min-height:80px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;"></textarea>
+    <button onclick="saveChatEdit()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Save</button>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="uploadModalOverlay" onclick="if(event.target===this) closeUploadModal()">
   <div class="sheet" style="max-height:88vh;overflow-y:auto;">
     <div class="sheet-header"><h3>Upload</h3><button class="sheet-close" onclick="closeUploadModal()">✕</button></div>
@@ -630,6 +763,7 @@ async function loadProfile(){
       } catch (err) {}
 
       headerRight.innerHTML = `
+        <span id="msgBell" onclick="openChatInbox()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">✉️<span id="msgBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
         <span id="notifBell" onclick="openNotifications()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">🔔<span id="notifBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
         ${gotApp ? '' : `<a href="https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk" onclick="localStorage.setItem('appDownloaded','1')" style="margin-right:14px;">📲 Get App</a>`}
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
@@ -638,6 +772,7 @@ async function loadProfile(){
         ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
         : '👤 Profile';
       pollNotificationCount();
+      pollMessagesCount();
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
@@ -692,8 +827,8 @@ async function renderProfile(){
         <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml(pub.username[0].toUpperCase())}</div>
         <div class="profile-stats">
           <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
-          <div><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
-          <div><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
+          <div onclick="openUserList('${viewingProfile.id}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
+          <div onclick="openUserList('${viewingProfile.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
         </div>
       </div>
       <div class="profile-username">@${escapeHtml(pub.username)}</div>
@@ -701,6 +836,7 @@ async function renderProfile(){
       ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
       <div class="profile-btn-row">
         <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${viewingProfile.id}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
+        ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${viewingProfile.id}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
         <button class="profile-btn" onclick="copyProfileLink('${viewingProfile.id}')">Share Profile</button>
       </div>
       <div class="profile-tabs-row">
@@ -753,8 +889,8 @@ async function renderProfile(){
       <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
       <div class="profile-stats">
         <div><div class="profile-stat-num">${myFilms.length}</div><div class="profile-stat-label">Posts</div></div>
-        <div><div class="profile-stat-num">${mine.followersCount}</div><div class="profile-stat-label">Followers</div></div>
-        <div><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
+        <div onclick="openUserList('${currentUser.id}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followersCount}</div><div class="profile-stat-label">Followers</div></div>
+        <div onclick="openUserList('${currentUser.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
     <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
@@ -1225,11 +1361,17 @@ async function loadFilms() {
   const shortId = params.get('short');
   const profileId = params.get('profile');
 
+  const chatUserId = params.get('chat');
+
   if (sharedId) playFilm(sharedId);
   if (shortId) openShortAt(shortId);
   if (profileId) {
     const f = allFilms.find(x => x.ownerId === profileId);
     goToProfileDirect(profileId, f ? f.ownerUsername : 'user');
+  }
+  if (chatUserId && currentUser) {
+    const f = allFilms.find(x => x.ownerId === chatUserId);
+    openChatConvo(chatUserId, f ? f.ownerUsername : null);
   }
 }
   
@@ -1474,10 +1616,8 @@ async function likeShort(id, btn){
 }
 
 function shareShort(id){
-  const film = allFilms.find(f => f.id === id);
-  const url = location.origin + '/?short=' + id;
-  if (navigator.share) navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
-  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  openSendTo(id);
 }
 
 function openMenu(id){
@@ -1710,6 +1850,7 @@ async function deleteComment(filmId, commentId){
 async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
+  if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
   currentFilm = f;
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
@@ -2239,6 +2380,7 @@ function notifIcon(type){
   if (type === 'follow') return '👤';
   if (type === 'film_comment' || type === 'story_comment') return '💬';
   if (type === 'comment_like') return '❤️';
+  if (type === 'message') return '✉️';
   return '🔔';
 }
 
@@ -2254,7 +2396,7 @@ async function openNotifications(){
       listEl.innerHTML = '<p class="comment-empty">No notifications yet.</p>';
     } else {
       listEl.innerHTML = notifs.map(n => `
-        <div onclick="handleNotifClick('${n.filmId || ''}','${n.storyId || ''}','${n.fromUserId}','${escapeHtml(n.fromUsername)}')" style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
+        <div onclick="handleNotifClick('${n.filmId || ''}','${n.storyId || ''}','${n.fromUserId}','${escapeHtml(n.fromUsername)}','${n.type}','${n.conversationId || ''}')" style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
           <span style="font-size:18px;flex-shrink:0;">${notifIcon(n.type)}</span>
           <div style="flex:1;">
             <div style="font-size:13.5px;color:var(--cream);">${escapeHtml(n.message)}</div>
@@ -2276,14 +2418,561 @@ async function openNotifications(){
 
 function closeNotifications(){ document.getElementById('notifOverlay').classList.remove('open'); }
 
-function handleNotifClick(filmId, storyId, fromUserId, fromUsername){
+function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId){
   closeNotifications();
+  if (type === 'message') { openChatConvo(fromUserId, fromUsername); return; }
   if (filmId) { playFilm(filmId); return; }
   if (storyId) {
     const stories = (window.activeStoriesByUser || {})[fromUserId];
     if (stories && stories.length) { openStoryViewer(fromUserId); return; }
   }
   goToProfileDirect(fromUserId, fromUsername);
+}
+
+// ===================== MESSAGES / CHAT (DM) =====================
+let chatConvoId = null;
+let chatOtherUser = null;
+let chatMessagesCache = [];
+let chatPollHandle = null;
+let chatInboxPollHandle = null;
+let chatLastFetchAt = null;
+let chatPickedMediaFile = null;
+let chatMediaRecorder = null;
+let chatRecordedChunks = [];
+let chatRecordingSeconds = 0;
+let chatRecordingTimerHandle = null;
+let chatIsRecording = false;
+let chatMsgMenuTarget = null;
+let chatEditTarget = null;
+let sendToShortId = null;
+let userListUserId = null;
+let userListMode = 'following';
+
+async function pollMessagesCount(){
+  try {
+    const res = await fetch('/api/conversations/unread-count');
+    const data = await res.json();
+    const badge = document.getElementById('msgBadge');
+    if (badge) {
+      if (data.unreadCount > 0) {
+        badge.textContent = data.unreadCount > 99 ? '99+' : data.unreadCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  } catch (e) {}
+  if (!chatInboxPollHandle) chatInboxPollHandle = setInterval(pollMessagesCount, 20000);
+}
+
+function avatarOrFallback(url, username, cls, fallbackCls){
+  const letter = escapeHtml((username || '?')[0].toUpperCase());
+  return url
+    ? `<img class="${cls}" src="${url}">`
+    : `<div class="${fallbackCls}">${letter}</div>`;
+}
+
+function chatTimeShort(iso){
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function chatDayLabel(iso){
+  const d = new Date(iso);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'Today';
+  if (sameDay(d, yest)) return 'Yesterday';
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+}
+
+async function openChatInbox(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  document.getElementById('chatInboxOverlay').classList.add('open');
+  await loadChatInbox();
+}
+function closeChatInbox(){ document.getElementById('chatInboxOverlay').classList.remove('open'); }
+
+async function loadChatInbox(){
+  const el = document.getElementById('chatInboxList');
+  el.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/conversations');
+    const data = await res.json();
+    const list = data.conversations || [];
+    if (!list.length) {
+      el.innerHTML = '<div class="chat-empty">Koi message nahi hai abhi.<br>Kisi ko follow karke unhe message bhejo.</div>';
+      return;
+    }
+    el.innerHTML = list.map(c => `
+      <div class="chat-inbox-row" onclick="openChatConvo('${c.otherUser.id}','${escapeHtml(c.otherUser.username)}')">
+        ${avatarOrFallback(c.otherUser.profileImage, c.otherUser.username, 'chat-inbox-avatar', 'chat-inbox-avatar-fallback')}
+        <div class="chat-inbox-info">
+          <div class="chat-inbox-name">@${escapeHtml(c.otherUser.username)}</div>
+          <div class="chat-inbox-preview ${c.unreadCount > 0 ? 'unread' : ''}">${escapeHtml(c.lastMessage ? c.lastMessage.preview : '')}</div>
+        </div>
+        <div class="chat-inbox-meta">
+          <div class="chat-inbox-time">${c.updatedAt ? storyTimeAgo(c.updatedAt) : ''}</div>
+          ${c.unreadCount > 0 ? `<span class="chat-inbox-badge">${c.unreadCount > 99 ? '99+' : c.unreadCount}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = '<p class="comment-empty">Couldn\'t load messages.</p>';
+  }
+}
+
+async function openChatConvo(userId, usernameHint){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  closeChatInbox();
+  stopVoiceRecording(true);
+  clearChatAttachPreview();
+  document.getElementById('chatTextInput').value = '';
+  chatConvoId = null;
+  chatOtherUser = { id: userId, username: usernameHint || '...' };
+  chatMessagesCache = [];
+  chatLastFetchAt = null;
+  document.getElementById('chatConvoHeaderName').textContent = '@' + (usernameHint || '');
+  document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(null, usernameHint, 'chat-header-avatar', 'chat-header-avatar-fallback');
+  document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
+  document.getElementById('chatConvoOverlay').classList.add('open');
+
+  try {
+    const res = await fetch('/api/conversations/with/' + userId);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not open chat');
+    chatConvoId = data.id;
+    chatOtherUser = data.otherUser;
+    document.getElementById('chatConvoHeaderName').textContent = '@' + data.otherUser.username;
+    document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(data.otherUser.profileImage, data.otherUser.username, 'chat-header-avatar', 'chat-header-avatar-fallback');
+    chatMessagesCache = data.messages || [];
+    chatLastFetchAt = new Date().toISOString();
+    renderChatMessages();
+    scrollChatToBottom();
+    markChatRead();
+    if (chatPollHandle) clearInterval(chatPollHandle);
+    chatPollHandle = setInterval(pollChatMessages, 3500);
+  } catch (err) {
+    document.getElementById('chatMessagesArea').innerHTML = `<div class="chat-empty">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function closeChatConvo(){
+  document.getElementById('chatConvoOverlay').classList.remove('open');
+  if (chatPollHandle) { clearInterval(chatPollHandle); chatPollHandle = null; }
+  stopVoiceRecording(true);
+  clearChatAttachPreview();
+  chatConvoId = null;
+  chatOtherUser = null;
+  chatMessagesCache = [];
+}
+
+function chatOpenOtherProfile(){
+  if (!chatOtherUser) return;
+  const id = chatOtherUser.id, username = chatOtherUser.username;
+  closeChatConvo();
+  goToProfileDirect(id, username);
+}
+
+async function markChatRead(){
+  if (!chatConvoId) return;
+  try { await fetch('/api/conversations/' + chatConvoId + '/read', { method: 'POST' }); pollMessagesCount(); } catch (e) {}
+}
+
+async function pollChatMessages(){
+  if (!chatConvoId) return;
+  try {
+    const url = '/api/conversations/' + chatConvoId + '/messages' + (chatLastFetchAt ? ('?since=' + encodeURIComponent(chatLastFetchAt)) : '');
+    const res = await fetch(url);
+    const data = await res.json();
+    const incoming = data.messages || [];
+    if (incoming.length) {
+      let hasNewFromOther = false;
+      incoming.forEach(m => {
+        const idx = chatMessagesCache.findIndex(x => x.id === m.id);
+        if (idx === -1) { chatMessagesCache.push(m); if (m.senderId !== currentUser.id) hasNewFromOther = true; }
+        else chatMessagesCache[idx] = m;
+      });
+      chatMessagesCache.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      chatLastFetchAt = new Date().toISOString();
+      renderChatMessages();
+      if (hasNewFromOther) { scrollChatToBottom(); markChatRead(); }
+    }
+  } catch (e) {}
+}
+
+function renderChatMessages(){
+  const el = document.getElementById('chatMessagesArea');
+  if (!chatMessagesCache.length) { el.innerHTML = '<div class="chat-empty">Say hi 👋</div>'; return; }
+  let html = '';
+  let lastDay = null;
+  chatMessagesCache.forEach(m => {
+    const day = chatDayLabel(m.createdAt);
+    if (day !== lastDay) { html += `<div class="chat-day-divider">${day}</div>`; lastDay = day; }
+    const mine = m.senderId === currentUser.id;
+    html += renderChatBubble(m, mine);
+  });
+  el.innerHTML = html;
+}
+
+function renderChatBubble(m, mine){
+  const rowCls = 'chat-msg-row ' + (mine ? 'mine' : 'theirs') + (m.unsent ? ' chat-msg-unsent' : '');
+  const menuBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 6px;" onclick='openChatMsgMenu(${JSON.stringify(m.id)})'>⋮</button>`;
+  let bubbleInner = '';
+
+  if (m.unsent) {
+    bubbleInner = `<div class="chat-bubble">${m.type === 'short' ? 'Short unsent' : 'Message unsent'}</div>`;
+    return `<div class="${rowCls}"><div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${bubbleInner}</div></div>`;
+  }
+
+  if (m.type === 'text') {
+    bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
+  } else if (m.type === 'photo') {
+    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}','_blank')"></div>`;
+  } else if (m.type === 'video') {
+    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" controls playsinline></video></div>`;
+  } else if (m.type === 'voice') {
+    const dur = m.duration ? Math.round(m.duration) : 0;
+    const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
+    bubbleInner = `<div class="chat-bubble chat-voice-bubble" onclick="toggleVoicePlay(this,'${m.mediaUrl}')">
+      <button class="chat-voice-play">▶</button><div class="chat-voice-wave"></div><span class="chat-voice-duration">${mm}:${ss}</span>
+    </div>`;
+  } else if (m.type === 'short') {
+    bubbleInner = `<div class="chat-bubble chat-short-bubble" onclick="openSharedShort('${m.shortId}')">
+      <img src="${m.shortThumb}" onerror="this.style.display='none'">
+      <div class="chat-short-bubble-info">
+        <div class="chat-short-bubble-title">${escapeHtml(m.shortTitle || 'Short')}</div>
+        <div class="chat-short-bubble-tag">▶ ${m.shortOwnerUsername ? '@' + escapeHtml(m.shortOwnerUsername) : 'Short'}</div>
+      </div>
+    </div>`;
+  } else {
+    bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
+  }
+
+  return `<div class="${rowCls}">
+    <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${menuBtn}${bubbleInner}</div>
+    <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}</div>
+  </div>`;
+}
+
+function toggleVoicePlay(bubbleEl, url){
+  let audio = bubbleEl._audioEl;
+  if (!audio) {
+    audio = new Audio(url);
+    bubbleEl._audioEl = audio;
+    const btn = bubbleEl.querySelector('.chat-voice-play');
+    audio.addEventListener('ended', () => { btn.textContent = '▶'; });
+    audio.addEventListener('play', () => { btn.textContent = '⏸'; });
+    audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+  }
+  if (audio.paused) audio.play().catch(() => showToast('Could not play voice message')); else audio.pause();
+}
+
+function scrollChatToBottom(){
+  const el = document.getElementById('chatMessagesArea');
+  setTimeout(() => { el.scrollTop = el.scrollHeight; }, 30);
+}
+
+function onChatTextInput(el){
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+function onChatInputKeydown(event){
+  if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
+}
+
+function onChatMediaPicked(event){
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  chatPickedMediaFile = file;
+  const preview = document.getElementById('chatAttachPreview');
+  const url = URL.createObjectURL(file);
+  const isVideo = file.type.startsWith('video');
+  preview.innerHTML = `${isVideo ? `<video src="${url}" muted></video>` : `<img src="${url}">`}<span style="font-size:12.5px;color:var(--cream-dim);">${escapeHtml(file.name)}</span><button class="chat-attach-cancel" onclick="clearChatAttachPreview()">✕</button>`;
+  preview.classList.remove('hidden');
+}
+function clearChatAttachPreview(){
+  chatPickedMediaFile = null;
+  document.getElementById('chatMediaInput').value = '';
+  const preview = document.getElementById('chatAttachPreview');
+  preview.classList.add('hidden');
+  preview.innerHTML = '';
+}
+
+async function sendChatMessage(){
+  if (!chatConvoId) return;
+  const textEl = document.getElementById('chatTextInput');
+  const text = textEl.value.trim();
+  if (!text && !chatPickedMediaFile) return;
+
+  const sendBtn = document.getElementById('chatSendBtn');
+  sendBtn.disabled = true;
+  try {
+    const fd = new FormData();
+    if (text) fd.append('text', text);
+    if (chatPickedMediaFile) fd.append('media', chatPickedMediaFile);
+    const res = await fetch('/api/conversations/' + chatConvoId + '/messages', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not send');
+    chatMessagesCache.push(data);
+    chatLastFetchAt = new Date().toISOString();
+    renderChatMessages();
+    scrollChatToBottom();
+    textEl.value = '';
+    textEl.style.height = 'auto';
+    clearChatAttachPreview();
+    loadChatInbox().catch(() => {});
+  } catch (err) {
+    showToast(err.message);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function sendShortMessage(conversationId, shortId){
+  const fd = new FormData();
+  fd.append('shortId', shortId);
+  const res = await fetch('/api/conversations/' + conversationId + '/messages', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not send');
+  return data;
+}
+
+function openSharedShort(filmId){
+  closeChatConvo();
+  playFilm(filmId);
+}
+
+// ---- Voice recording ----
+async function toggleVoiceRecording(){
+  if (chatIsRecording) { stopVoiceRecording(false); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chatRecordedChunks = [];
+    chatMediaRecorder = new MediaRecorder(stream);
+    chatMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chatRecordedChunks.push(e.data); };
+    chatMediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+    };
+    chatMediaRecorder.start();
+    chatIsRecording = true;
+    chatRecordingSeconds = 0;
+    document.getElementById('chatMicBtn').classList.add('recording');
+    document.getElementById('chatMicBtn').textContent = '⏹';
+    document.getElementById('chatRecordingRow').classList.remove('hidden');
+    document.getElementById('chatInputBar').classList.add('hidden');
+    chatRecordingTimerHandle = setInterval(() => {
+      chatRecordingSeconds++;
+      const mm = Math.floor(chatRecordingSeconds / 60), ss = String(chatRecordingSeconds % 60).padStart(2, '0');
+      document.getElementById('chatRecordingTime').textContent = mm + ':' + ss;
+    }, 1000);
+  } catch (err) {
+    showToast('Mic access nahi mila');
+  }
+}
+
+function stopVoiceRecording(discard){
+  if (!chatIsRecording) return;
+  chatIsRecording = false;
+  document.getElementById('chatMicBtn').classList.remove('recording');
+  document.getElementById('chatMicBtn').textContent = '🎤';
+  document.getElementById('chatRecordingRow').classList.add('hidden');
+  document.getElementById('chatInputBar').classList.remove('hidden');
+  if (chatRecordingTimerHandle) { clearInterval(chatRecordingTimerHandle); chatRecordingTimerHandle = null; }
+  const seconds = chatRecordingSeconds;
+  chatRecordingSeconds = 0;
+
+  if (!chatMediaRecorder) return;
+  const recorder = chatMediaRecorder;
+  chatMediaRecorder = null;
+  recorder.onstop = async () => {
+    recorder.stream.getTracks().forEach(t => t.stop());
+    if (discard || seconds < 1) return;
+    const blob = new Blob(chatRecordedChunks, { type: 'audio/webm' });
+    const fd = new FormData();
+    fd.append('media', blob, 'voice.webm');
+    fd.append('isVoice', 'true');
+    fd.append('duration', String(seconds));
+    try {
+      const res = await fetch('/api/conversations/' + chatConvoId + '/messages', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not send voice message');
+      chatMessagesCache.push(data);
+      chatLastFetchAt = new Date().toISOString();
+      renderChatMessages();
+      scrollChatToBottom();
+      loadChatInbox().catch(() => {});
+    } catch (err) { showToast(err.message); }
+  };
+  recorder.stop();
+}
+
+// ---- Message actions (edit / delete) ----
+function openChatMsgMenu(messageId){
+  const m = chatMessagesCache.find(x => x.id === messageId);
+  if (!m) return;
+  chatMsgMenuTarget = m;
+  const mine = m.senderId === currentUser.id;
+  let items = '';
+  if (m.unsent) {
+    document.getElementById('chatMsgMenuItems').innerHTML = '<div style="padding:14px 4px;color:var(--cream-dim);">Ye message unsent ho chuka hai.</div>';
+    document.getElementById('chatMsgMenuOverlay').classList.add('open');
+    return;
+  }
+  if (mine && m.type === 'text') items += menuRow('✏️', 'Edit', 'chatMsgMenuEdit()');
+  if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete(\'everyone\')', true);
+  items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete(\'me\')', true);
+  document.getElementById('chatMsgMenuItems').innerHTML = items;
+  document.getElementById('chatMsgMenuOverlay').classList.add('open');
+}
+function closeChatMsgMenu(){ document.getElementById('chatMsgMenuOverlay').classList.remove('open'); }
+
+function chatMsgMenuEdit(){
+  if (!chatMsgMenuTarget) return;
+  closeChatMsgMenu();
+  chatEditTarget = chatMsgMenuTarget.id;
+  document.getElementById('chatEditText').value = chatMsgMenuTarget.text || '';
+  document.getElementById('chatEditOverlay').classList.add('open');
+}
+function closeChatEdit(){ document.getElementById('chatEditOverlay').classList.remove('open'); chatEditTarget = null; }
+
+async function saveChatEdit(){
+  if (!chatEditTarget || !chatConvoId) return;
+  const text = document.getElementById('chatEditText').value.trim();
+  if (!text) { showToast('Message khali nahi ho sakta'); return; }
+  try {
+    const res = await fetch('/api/conversations/' + chatConvoId + '/messages/' + chatEditTarget, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not edit');
+    const idx = chatMessagesCache.findIndex(x => x.id === data.id);
+    if (idx !== -1) chatMessagesCache[idx] = data;
+    renderChatMessages();
+    closeChatEdit();
+  } catch (err) { showToast(err.message); }
+}
+
+async function chatMsgMenuDelete(scope){
+  if (!chatMsgMenuTarget || !chatConvoId) return;
+  const id = chatMsgMenuTarget.id;
+  closeChatMsgMenu();
+  try {
+    const res = await fetch('/api/conversations/' + chatConvoId + '/messages/' + id + '/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not delete');
+    if (scope === 'everyone') {
+      const idx = chatMessagesCache.findIndex(x => x.id === id);
+      if (idx !== -1) { chatMessagesCache[idx].unsent = true; chatMessagesCache[idx].text = null; chatMessagesCache[idx].mediaUrl = null; }
+    } else {
+      chatMessagesCache = chatMessagesCache.filter(x => x.id !== id);
+    }
+    renderChatMessages();
+    loadChatInbox().catch(() => {});
+  } catch (err) { showToast(err.message); }
+}
+
+// ---- Send To (share a short into chat) ----
+async function openSendTo(shortId){
+  sendToShortId = shortId;
+  document.getElementById('sendToOverlay').classList.add('open');
+  const listEl = document.getElementById('sendToList');
+  listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
+  try {
+    const [convRes, followRes] = await Promise.all([
+      fetch('/api/conversations'), fetch('/api/users/' + currentUser.id + '/following')
+    ]);
+    const convData = await convRes.json();
+    const followData = await followRes.json();
+    const seen = new Set();
+    const people = [];
+    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); people.push(c.otherUser); } });
+    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); people.push(u); } });
+
+    if (!people.length) {
+      listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe short bhej sako.</div>';
+      return;
+    }
+    listEl.innerHTML = people.map(u => `
+      <div class="userlist-row">
+        ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
+        <span class="userlist-name">@${escapeHtml(u.username)}</span>
+        <button class="userlist-btn primary" id="sendToBtn-${u.id}" onclick="doSendShortTo('${u.id}', this)">Send</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>';
+  }
+}
+function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; }
+
+async function doSendShortTo(userId, btn){
+  if (!sendToShortId) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const convRes = await fetch('/api/conversations/with/' + userId);
+    const convData = await convRes.json();
+    if (!convRes.ok) throw new Error(convData.error || 'Could not send');
+    await sendShortMessage(convData.id, sendToShortId);
+    btn.textContent = 'Sent ✓'; btn.classList.remove('primary'); btn.classList.add('sent');
+    loadChatInbox().catch(() => {});
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Send';
+    showToast(err.message);
+  }
+}
+
+function sendToExternalShare(){
+  const id = sendToShortId;
+  closeSendTo();
+  if (!id) return;
+  const film = allFilms.find(f => f.id === id);
+  const url = location.origin + '/?short=' + id;
+  if (navigator.share) navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
+  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+}
+
+// ---- Following / Followers list ----
+async function openUserList(userId, mode){
+  userListUserId = userId; userListMode = mode;
+  document.getElementById('userListTitle').textContent = mode === 'following' ? 'Following' : 'Followers';
+  document.getElementById('userListOverlay').classList.add('open');
+  const bodyEl = document.getElementById('userListBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/users/' + userId + '/' + mode);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load');
+    const list = data.users || [];
+    if (!list.length) { bodyEl.innerHTML = '<p class="comment-empty">Koi nahi hai yahan.</p>'; return; }
+    bodyEl.innerHTML = list.map(u => `
+      <div class="userlist-row" id="userListRow-${u.id}">
+        <div onclick="closeUserList();goToProfileDirect('${u.id}','${escapeHtml(u.username)}')" style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;">
+          ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
+          <span class="userlist-name">@${escapeHtml(u.username)}</span>
+        </div>
+        ${u.isMe ? '' : `<button class="userlist-btn ${u.isFollowing ? '' : 'primary'}" onclick="toggleFollowInList('${u.id}', this)">${u.isFollowing ? 'Following' : 'Follow'}</button>`}
+      </div>
+    `).join('');
+  } catch (err) {
+    bodyEl.innerHTML = `<p class="comment-empty">${escapeHtml(err.message)}</p>`;
+  }
+}
+function closeUserList(){ document.getElementById('userListOverlay').classList.remove('open'); }
+
+async function toggleFollowInList(userId, btn){
+  try {
+    const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    btn.textContent = data.following ? 'Following' : 'Follow';
+    btn.classList.toggle('primary', !data.following);
+    if (viewingProfile && viewingProfile.id === userId) renderProfile();
+    if (currentUser && currentUser.id === (viewingProfile ? viewingProfile.id : currentUser.id)) renderProfile();
+  } catch (err) { showToast(err.message); }
 }
 
 // ===================== SWIPE GESTURES =====================

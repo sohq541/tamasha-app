@@ -7,6 +7,7 @@ self.addEventListener('push', (event) => {
   try { data = event.data.json(); } catch (e) {}
 
   const url = data.filmId ? `/?film=${data.filmId}`
+    : data.conversationId ? `/?chat=${data.fromUserId}`
     : data.storyId ? `/?profile=${data.fromUserId}`
     : data.fromUserId ? `/?profile=${data.fromUserId}`
     : '/';
