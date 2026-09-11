@@ -220,7 +220,7 @@
     color:#fff;width:50px;height:50px;border-radius:50%;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .short-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--cream-dim);text-align:center;padding:40px;}
 
-  .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:150;}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:350;}
   .sheet-overlay.open{display:flex;}
   .sheet{background:var(--panel);border-radius:16px 16px 0 0;max-width:600px;width:100%;max-height:70vh;
     display:flex;flex-direction:column;padding:18px 20px;}
@@ -2820,11 +2820,12 @@ function openChatMsgMenu(messageId){
     return;
   }
   if (mine && m.type === 'text') items += menuRow('✏️', 'Edit', 'chatMsgMenuEdit()');
-  if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete(\'everyone\')', true);
-  items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete(\'me\')', true);
+  if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete("everyone")', true);
+  items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete("me")', true);
   document.getElementById('chatMsgMenuItems').innerHTML = items;
   document.getElementById('chatMsgMenuOverlay').classList.add('open');
 }
+  
 function closeChatMsgMenu(){ document.getElementById('chatMsgMenuOverlay').classList.remove('open'); }
 
 function chatMsgMenuEdit(){
