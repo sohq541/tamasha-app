@@ -359,7 +359,7 @@
 .story-viewer-row-name{color:#fff;font-size:15px;}
 
 /* ===== CHAT / DM ===== */
-.chat-full-overlay{position:fixed;inset:0;background:var(--ink);display:none;z-index:250;flex-direction:column;}
+.chat-full-overlay{position:fixed;inset:0;background:var(--ink);display:none;z-index:120;flex-direction:column;}
 .chat-full-overlay.open{display:flex;}
 .chat-header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--gold-line);flex-shrink:0;}
 .chat-header-back{background:transparent;border:none;color:var(--cream);font-size:20px;cursor:pointer;padding:4px 6px;flex-shrink:0;}
@@ -427,6 +427,22 @@
 .userlist-btn{background:rgba(255,255,255,0.08);border:1px solid var(--gold-line);color:var(--cream);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
 .userlist-btn.primary{background:var(--marigold);border-color:var(--marigold);color:#fff;}
 .userlist-btn.sent{background:rgba(255,255,255,0.06);color:var(--cream-dim);}
+
+.sendto-search{width:100%;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);
+  border-radius:20px;padding:10px 16px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin:4px 0 14px;}
+.sendto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 6px;padding:4px 0 16px;min-height:80px;}
+.sendto-grid-item{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center;background:none;border:none;padding:0;font-family:'Mukta',sans-serif;}
+.sendto-grid-avatar{width:58px;height:58px;border-radius:50%;object-fit:cover;background:var(--marigold);}
+.sendto-grid-avatar-fallback{width:58px;height:58px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:20px;}
+.sendto-grid-name{font-size:12px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:74px;}
+.sendto-grid-item.sent .sendto-grid-avatar,.sendto-grid-item.sent .sendto-grid-avatar-fallback{opacity:0.45;}
+.sendto-grid-item.sent .sendto-grid-name{color:var(--cream-dim);}
+.sendto-grid-check{margin-top:-2px;font-size:11px;color:var(--marigold);}
+.sendto-actions{display:flex;gap:4px;padding-top:12px;border-top:1px solid var(--gold-line);}
+.sendto-action-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;background:transparent;border:none;
+  color:var(--cream-dim);font-size:11px;cursor:pointer;padding:6px 2px;font-family:'Mukta',sans-serif;}
+.sendto-action-icon{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;
+  align-items:center;justify-content:center;font-size:19px;color:var(--cream);}
 </style>
 </head>
 <body>
@@ -648,11 +664,14 @@
 
 <!-- ===== SEND TO (share short into chat) ===== -->
 <div class="sheet-overlay" id="sendToOverlay" onclick="if(event.target===this) closeSendTo()">
-  <div class="sheet" style="max-height:78vh;overflow-y:auto;">
+  <div class="sheet" style="max-height:82vh;overflow-y:auto;">
     <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
-    <div id="sendToList"></div>
-    <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gold-line);">
-      <button class="profile-btn" onclick="sendToExternalShare()">↗ Share externally / Copy link</button>
+    <input type="text" class="sendto-search" id="sendToSearch" placeholder="Search" oninput="filterSendToGrid(this.value)">
+    <div class="sendto-grid" id="sendToList"></div>
+    <div class="sendto-actions">
+      <button class="sendto-action-btn" onclick="sendToAddToStory()"><span class="sendto-action-icon">📖</span>Add to Story</button>
+      <button class="sendto-action-btn" onclick="sendToExternalShare()"><span class="sendto-action-icon">↗</span>Share</button>
+      <button class="sendto-action-btn" onclick="sendToCopyLink()"><span class="sendto-action-icon">🔗</span>Copy link</button>
     </div>
   </div>
 </div>
@@ -817,10 +836,6 @@ async function loadProfile(){
       } catch (err) {}
 
       headerRight.innerHTML = `
-        <span id="msgBell" onclick="openChatInbox()" style="position:relative;cursor:pointer;margin-right:14px;color:var(--cream);display:inline-flex;">
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9 22 2Z"/></svg>
-          <span id="msgBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span>
-        </span>
         <span id="notifBell" onclick="openNotifications()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">🔔<span id="notifBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
@@ -2049,6 +2064,10 @@ let currentStoryGroupIndex = -1;
 let currentStoryIndex = 0;
 let currentStoryId = null;
 let storyProgressTimeoutHandle = null;
+let storyIsPaused = false;
+let storyDurationMs = 5000;
+let storyElapsedMs = 0;
+let storySegStartTime = 0;
 let storyPickedFile = null;
 let storyPickedType = null;
 
@@ -2191,18 +2210,74 @@ function runStoryProgress(durationMs){
     const f = document.getElementById('storyProgFill' + i);
     if (f) { f.style.transition = 'none'; f.style.width = '0%'; }
   }
+  storyDurationMs = durationMs;
+  storyElapsedMs = 0;
+  storyIsPaused = false;
+  startStorySegment(durationMs);
+}
+
+function startStorySegment(remainingMs){
+  const idx = currentStoryIndex;
   const fill = document.getElementById('storyProgFill' + idx);
   if (fill) {
     fill.style.transition = 'none';
-    fill.style.width = '0%';
+    fill.style.width = (storyElapsedMs / storyDurationMs * 100) + '%';
     requestAnimationFrame(() => {
-      fill.style.transition = `width ${durationMs}ms linear`;
+      fill.style.transition = `width ${remainingMs}ms linear`;
       fill.style.width = '100%';
     });
   }
   clearStoryTimer();
-  storyProgressTimeoutHandle = setTimeout(() => storyGoNext(), durationMs);
+  storySegStartTime = Date.now();
+  storyProgressTimeoutHandle = setTimeout(() => storyGoNext(), remainingMs);
 }
+
+function pauseStoryProgress(){
+  if (storyIsPaused) return;
+  storyIsPaused = true;
+  storyElapsedMs = Math.min(storyDurationMs, storyElapsedMs + (Date.now() - storySegStartTime));
+  clearStoryTimer();
+  const fill = document.getElementById('storyProgFill' + currentStoryIndex);
+  if (fill) { fill.style.transition = 'none'; fill.style.width = getComputedStyle(fill).width; }
+  const vidEl = document.getElementById('storyViewVideo');
+  if (vidEl && !vidEl.classList.contains('hidden')) vidEl.pause();
+}
+
+function resumeStoryProgress(){
+  if (!storyIsPaused) return;
+  storyIsPaused = false;
+  const remaining = Math.max(250, storyDurationMs - storyElapsedMs);
+  const vidEl = document.getElementById('storyViewVideo');
+  if (vidEl && !vidEl.classList.contains('hidden')) vidEl.play().catch(() => {});
+  startStorySegment(remaining);
+}
+
+(function setupStoryHoldToPause(){
+  const area = document.getElementById('storyMediaArea');
+  if (!area) return;
+  let pressTimer = null;
+  let longPressed = false;
+
+  function onPressStart(){
+    longPressed = false;
+    pressTimer = setTimeout(() => { longPressed = true; pauseStoryProgress(); }, 180);
+  }
+  function onPressEnd(){
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (longPressed) resumeStoryProgress();
+  }
+  function onTapZoneClick(e){
+    if (longPressed) { e.stopPropagation(); e.preventDefault(); longPressed = false; }
+  }
+
+  area.addEventListener('touchstart', onPressStart, { passive: true });
+  area.addEventListener('touchend', onPressEnd);
+  area.addEventListener('touchcancel', onPressEnd);
+  area.addEventListener('mousedown', onPressStart);
+  area.addEventListener('mouseup', onPressEnd);
+  area.addEventListener('mouseleave', onPressEnd);
+  area.querySelectorAll('.story-tap-zone').forEach(z => z.addEventListener('click', onTapZoneClick, true));
+})();
 
 function startStoryPlayback(){
   const group = currentStoryUserQueue[currentStoryGroupIndex];
@@ -2932,8 +3007,12 @@ async function chatMsgMenuDelete(scope){
 }
 
 // ---- Send To (share a short into chat) ----
+let sendToPeople = [];
+
 async function openSendTo(shortId){
   sendToShortId = shortId;
+  sendToPeople = [];
+  document.getElementById('sendToSearch').value = '';
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
   listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
@@ -2945,41 +3024,79 @@ async function openSendTo(shortId){
     const convData = await convRes.json();
     const followData = await followRes.json();
     const seen = new Set();
-    const people = [];
-    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); people.push(c.otherUser); } });
-    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); people.push(u); } });
+    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); sendToPeople.push(c.otherUser); } });
+    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
 
-    if (!people.length) {
-      listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe short bhej sako.</div>';
+    if (!sendToPeople.length) {
+      listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe bhej sako.</div>';
       return;
     }
-    listEl.innerHTML = people.map(u => `
-      <div class="userlist-row">
-        ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
-        <span class="userlist-name">@${escapeHtml(u.username)}</span>
-        <button class="userlist-btn primary" id="sendToBtn-${u.id}" onclick="doSendShortTo('${u.id}', this)">Send</button>
-      </div>
-    `).join('');
+    renderSendToGrid(sendToPeople);
   } catch (e) {
     listEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>';
   }
 }
-function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; }
 
-async function doSendShortTo(userId, btn){
+function renderSendToGrid(people){
+  const listEl = document.getElementById('sendToList');
+  if (!people.length) { listEl.innerHTML = '<p class="comment-empty">No results.</p>'; return; }
+  listEl.innerHTML = people.map(u => `
+    <button class="sendto-grid-item" id="sendToItem-${u.id}" onclick="doSendShortTo('${u.id}')">
+      ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
+      <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
+    </button>
+  `).join('');
+}
+
+function filterSendToGrid(query){
+  const q = query.trim().toLowerCase();
+  renderSendToGrid(q ? sendToPeople.filter(u => u.username.toLowerCase().includes(q)) : sendToPeople);
+}
+
+function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; }
+
+async function doSendShortTo(userId){
   if (!sendToShortId) return;
-  btn.disabled = true; btn.textContent = '...';
+  const item = document.getElementById('sendToItem-' + userId);
+  if (!item || item.classList.contains('sent')) return;
+  item.classList.add('sent');
+  item.querySelector('.sendto-grid-name').insertAdjacentHTML('afterend', '<span class="sendto-grid-check">Sent ✓</span>');
   try {
     const convRes = await fetch('/api/conversations/with/' + userId);
     const convData = await convRes.json();
     if (!convRes.ok) throw new Error(convData.error || 'Could not send');
     await sendShortMessage(convData.id, sendToShortId);
-    btn.textContent = 'Sent ✓'; btn.classList.remove('primary'); btn.classList.add('sent');
     loadChatInbox().catch(() => {});
   } catch (err) {
-    btn.disabled = false; btn.textContent = 'Send';
+    item.classList.remove('sent');
+    const chk = item.querySelector('.sendto-grid-check'); if (chk) chk.remove();
     showToast(err.message);
   }
+}
+
+async function sendToAddToStory(){
+  const id = sendToShortId;
+  if (!id) return;
+  closeSendTo();
+  try {
+    const res = await fetch('/api/stories/from-film', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filmId: id })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Story me add nahi ho saka');
+    showToast('Story me add ho gaya!');
+    loadStories().catch(() => {});
+  } catch (err) { showToast(err.message); }
+}
+
+function sendToCopyLink(){
+  const id = sendToShortId;
+  closeSendTo();
+  if (!id) return;
+  const film = allFilms.find(f => f.id === id);
+  const isShort = film && film.type === 'short';
+  const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
 }
 
 function sendToExternalShare(){
