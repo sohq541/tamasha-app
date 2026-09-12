@@ -239,9 +239,6 @@
 
   .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:150;}
   .sheet-overlay.open{display:flex;}
-  #chatMsgMenuOverlay.open,#chatEditOverlay.open,#sendToOverlay.open{z-index:500;}
-  #chatMediaViewerOverlay.open{z-index:600;}
-  #chatMsgMenuOverlay .sheet,#chatEditOverlay .sheet,#sendToOverlay .sendto-sheet{position:relative;z-index:501;}
   .sheet{background:var(--panel);border-radius:16px 16px 0 0;max-width:600px;width:100%;max-height:70vh;
     display:flex;flex-direction:column;padding:18px 20px;}
   .sheet-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
@@ -272,7 +269,6 @@
   .profile-mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .profile-mygrid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);}
   .profile-mygrid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
-  .profile-grid-share{position:absolute;right:7px;bottom:7px;z-index:3;width:34px;height:34px;border:0;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(3px);}
 
   .settings-panel{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:22px;margin-bottom:20px;}
   .settings-panel input, .settings-panel textarea, .settings-panel select{
@@ -305,20 +301,6 @@
 .upload-progress-fill{background:var(--marigold);height:100%;width:0%;transition:width 0.2s;}
 .upload-banner-stats{font-size:12px;color:var(--cream-dim);margin-top:6px;}
   .hidden{display:none !important;}
-/* ===== SEND TO / DM SHARE (WhatsApp-style) ===== */
-#sendToOverlay{background:rgba(0,0,0,.55);backdrop-filter:blur(2px);}
-#sendToOverlay .sendto-sheet{max-width:620px;width:100%;max-height:82vh;overflow:hidden;padding:0;background:#1b1d20;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.45);}
-.sendto-top{padding:12px 16px 8px}.sendto-handle{width:38px;height:4px;border-radius:999px;background:#70757a;margin:0 auto 12px}
-.sendto-search{width:100%;height:46px;border:0;outline:0;border-radius:24px;background:#2a2d31;color:#fff;padding:0 16px 0 44px;font-size:15px;font-family:'Mukta',sans-serif}
-.sendto-search-wrap{position:relative}.sendto-search-wrap span{position:absolute;left:15px;top:10px;font-size:21px;color:#b9bec5;pointer-events:none}
-.sendto-people{display:flex;gap:18px;overflow-x:auto;padding:10px 16px 18px;-webkit-overflow-scrolling:touch}.sendto-people::-webkit-scrollbar{display:none}
-.sendto-person{width:70px;flex:0 0 70px;text-align:center;color:#fff;cursor:pointer}.sendto-avatar{width:60px;height:60px;border-radius:50%;margin:0 auto 6px;object-fit:cover;background:#34383d;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
-.sendto-name{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8eaed}.sendto-divider{height:1px;background:rgba(255,255,255,.08)}
-.sendto-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:18px 10px calc(18px + env(safe-area-inset-bottom))}
-.sendto-action{border:0;background:transparent;color:#f1f3f4;display:flex;flex-direction:column;align-items:center;gap:8px;font-family:'Mukta',sans-serif;font-size:11.5px;cursor:pointer;min-width:0}
-.sendto-action-icon{width:54px;height:54px;border-radius:50%;background:#2d3136;display:flex;align-items:center;justify-content:center;font-size:24px}
-.sendto-action.whatsapp .sendto-action-icon{background:#20d366}.sendto-action:active .sendto-action-icon{transform:scale(.95)}
-.sendto-loading{padding:20px 16px;color:var(--cream-dim);font-size:13px}
 /* ===== STORIES ===== */
 .stories-bar{display:flex;gap:14px;overflow-x:auto;padding:14px 16px;border-bottom:1px solid var(--gold-line);-webkit-overflow-scrolling:touch;}
 .stories-bar::-webkit-scrollbar{display:none;}
@@ -512,7 +494,7 @@
       <p id="mDesc"></p>
       <div class="action-row">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
-        <button class="action-btn" onclick="currentFilm && openSendTo(currentFilm.id)">↗ Share</button>
+        <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
         <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
         <button class="action-btn" onclick="reportCurrentFilm()" style="color:var(--cream-dim);">🚩 Report</button>
@@ -666,13 +648,11 @@
 
 <!-- ===== SEND TO (share short into chat) ===== -->
 <div class="sheet-overlay" id="sendToOverlay" onclick="if(event.target===this) closeSendTo()">
-  <div class="sendto-sheet" onclick="event.stopPropagation()">
-    <div class="sendto-top"><div class="sendto-handle"></div><div class="sendto-search-wrap"><span>⌕</span><input id="sendToSearch" class="sendto-search" type="text" placeholder="Search" oninput="filterSendToPeople(this.value)"></div></div>
-    <div id="sendToList" class="sendto-people"></div><div class="sendto-divider"></div>
-    <div class="sendto-actions">
-      <button class="sendto-action whatsapp" onclick="sendToWhatsApp()"><span class="sendto-action-icon">◉</span><span>WhatsApp</span></button>
-      <button class="sendto-action" onclick="sendToExternalShare()"><span class="sendto-action-icon">⌯</span><span>Share</span></button>
-      <button class="sendto-action" onclick="sendToCopyLink()"><span class="sendto-action-icon">↗</span><span>Copy link</span></button>
+  <div class="sheet" style="max-height:78vh;overflow-y:auto;">
+    <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
+    <div id="sendToList"></div>
+    <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gold-line);">
+      <button class="profile-btn" onclick="sendToExternalShare()">↗ Share externally / Copy link</button>
     </div>
   </div>
 </div>
@@ -688,15 +668,6 @@
 <!-- ===== CHAT MESSAGE ACTIONS ===== -->
 <div class="sheet-overlay" id="chatMsgMenuOverlay" onclick="if(event.target===this) closeChatMsgMenu()">
   <div class="sheet"><div id="chatMsgMenuItems"></div></div>
-</div>
-
-<!-- ===== CHAT MEDIA VIEWER ===== -->
-<div class="modal-overlay" id="chatMediaViewerOverlay" onclick="if(event.target===this) closeChatMediaViewer()">
-  <div class="modal" style="max-width:900px;background:#000;">
-    <button class="modal-close" style="position:absolute;right:12px;top:12px;z-index:3;background:rgba(0,0,0,.55);" onclick="closeChatMediaViewer()">✕</button>
-    <video id="chatMediaViewerVideo" controls playsinline style="display:none;width:100%;max-height:82vh;background:#000;"></video>
-    <img id="chatMediaViewerImg" style="display:none;width:100%;max-height:82vh;object-fit:contain;background:#000;">
-  </div>
 </div>
 
 <!-- ===== EDIT CHAT MESSAGE ===== -->
@@ -793,7 +764,7 @@ function markViewed(id){
 
 function closeAllOverlays(){
   const closers = {
-    overlay: closeModal, chatMediaViewerOverlay: closeChatMediaViewer, profileMenuOverlay: closeProfileMenu, menuOverlay: closeMenu,
+    overlay: closeModal, profileMenuOverlay: closeProfileMenu, menuOverlay: closeMenu,
     editSheetOverlay: closeEditSheet, sheetOverlay: closeSheet, storyUploadOverlay: closeStoryUploadModal,
     storyViewerOverlay: closeStoryViewer, storyViewsOverlay: closeStoryViewsSheet,
     storyCommentsDrawer: toggleStoryCommentsDrawer, notifOverlay: closeNotifications,
@@ -929,10 +900,10 @@ async function renderProfile(){
         <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
       </div>
       <div class="profile-mygrid" id="profileGridVideos">
-        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}<button class="profile-grid-share" onclick="event.stopPropagation();shareCurrentFilmById('${f.id}','${escapeHtml(f.title)}')">↗</button></div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
+        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
       </div>
       <div class="profile-mygrid hidden" id="profileGridPhotos">
-        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}<button class="profile-grid-share" onclick="event.stopPropagation();shareCurrentFilmById('${f.id}','${escapeHtml(f.title)}')">↗</button></div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
+        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
       </div>
     `;
     return;
@@ -1033,10 +1004,10 @@ async function renderProfile(){
       <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
-      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}<button class="profile-grid-share" onclick="event.stopPropagation();shareCurrentFilmById('${f.id}','${escapeHtml(f.title)}')">↗</button></div>`).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
+      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}<button class="profile-grid-share" onclick="event.stopPropagation();shareCurrentFilmById('${f.id}','${escapeHtml(f.title)}')">↗</button></div>`).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
+      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
   `;
 }
@@ -2011,7 +1982,12 @@ async function likeCurrentFilm(){
   likeBtn.disabled = false;
 }
 
-function shareCurrentFilm(){ if (!currentFilm) return; openSendTo(currentFilm.id); }
+function shareCurrentFilm(){
+  if (!currentFilm) return;
+  const url = location.origin + '/?film=' + currentFilm.id;
+  if (navigator.share) navigator.share({ title: currentFilm.title, text: 'Check out ' + currentFilm.title + ' on YouSeries!', url }).catch(() => {});
+  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+}
 
 document.getElementById('commentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2636,12 +2612,16 @@ async function openChatConvo(userId, usernameHint){
 }
 
 function closeChatConvo(){
-  closeChatMsgMenu(); closeChatEdit(); closeSendTo();
   document.getElementById('chatConvoOverlay').classList.remove('open');
   if (chatPollHandle) { clearInterval(chatPollHandle); chatPollHandle = null; }
-  stopVoiceRecording(true); clearChatAttachPreview();
-  chatConvoId = null; chatOtherUser = null; chatMessagesCache = [];
-  if (document.getElementById('chatInboxOverlay').classList.contains('open')) loadChatInbox().catch(() => {});
+  stopVoiceRecording(true);
+  clearChatAttachPreview();
+  chatConvoId = null;
+  chatOtherUser = null;
+  chatMessagesCache = [];
+  if (document.getElementById('chatInboxOverlay').classList.contains('open')) {
+    loadChatInbox().catch(() => {});
+  }
 }
 
 function chatOpenOtherProfile(){
@@ -2705,9 +2685,9 @@ function renderChatBubble(m, mine){
   if (m.type === 'text') {
     bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaViewer('${m.mediaUrl}','photo')"></div>`;
+    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}','_blank')"></div>`;
   } else if (m.type === 'video') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" controls playsinline onclick="event.stopPropagation();openChatMediaViewer('${m.mediaUrl}','video')"></video></div>`;
+    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" controls playsinline></video></div>`;
   } else if (m.type === 'voice') {
     const dur = m.duration ? Math.round(m.duration) : 0;
     const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
@@ -2884,13 +2864,6 @@ function stopVoiceRecording(discard){
   recorder.stop();
 }
 
-function openChatMediaViewer(url,type){
-  closeChatMsgMenu();const o=document.getElementById('chatMediaViewerOverlay'),i=document.getElementById('chatMediaViewerImg'),v=document.getElementById('chatMediaViewerVideo');
-  if(type==='photo'){v.pause();v.src='';v.style.display='none';i.src=url;i.style.display='block';}
-  else{i.src='';i.style.display='none';v.src=url;v.style.display='block';}o.classList.add('open');
-}
-function closeChatMediaViewer(){const o=document.getElementById('chatMediaViewerOverlay');o.classList.remove('open');const v=document.getElementById('chatMediaViewerVideo');v.pause();v.src='';document.getElementById('chatMediaViewerImg').src='';}
-
 // ---- Message actions (edit / delete) ----
 function openChatMsgMenu(messageId){
   const m = chatMessagesCache.find(x => x.id === messageId);
@@ -2958,51 +2931,370 @@ async function chatMsgMenuDelete(scope){
   } catch (err) { showToast(err.message); }
 }
 
-// ---- Send To (short/photo/video into chat) ----
-let sendToContentId = null, sendToContent = null, sendToPeople = [];
-async function openSendTo(contentId){
-  if (!currentUser) { window.location.href = '/login.html'; return; }
-  sendToContentId=contentId; sendToContent=allFilms.find(f=>String(f.id)===String(contentId))||null;
-  const overlay=document.getElementById('sendToOverlay'), search=document.getElementById('sendToSearch');
-  if(search) search.value=''; overlay.classList.add('open');
-  const listEl=document.getElementById('sendToList'); listEl.innerHTML='<div class="sendto-loading">Loading...</div>';
-  try{
-    const [convRes,followRes]=await Promise.all([fetch('/api/conversations'),fetch('/api/users/'+currentUser.id+'/following')]);
-    const convData=await convRes.json(), followData=await followRes.json(), seen=new Set(); sendToPeople=[];
-    (convData.conversations||[]).forEach(c=>{if(c.otherUser&&!seen.has(c.otherUser.id)){seen.add(c.otherUser.id);sendToPeople.push(c.otherUser);}});
-    (followData.users||[]).forEach(u=>{if(!seen.has(u.id)){seen.add(u.id);sendToPeople.push(u);}});
-    renderSendToPeople(sendToPeople);
-  }catch(e){listEl.innerHTML='<div class="sendto-loading">Couldn\'t load contacts.</div>';}
-}
-function renderSendToPeople(people){
-  const el=document.getElementById('sendToList');
-  if(!people.length){el.innerHTML='<div class="sendto-loading">Pehle kisi ko follow karo taaki unhe send kar sako.</div>';return;}
-  el.innerHTML=people.map(u=>`<div class="sendto-person" onclick="doSendContentTo('${u.id}',this)">${avatarOrFallback(u.profileImage,u.username,'sendto-avatar','sendto-avatar')}<div class="sendto-name">@${escapeHtml(u.username)}</div></div>`).join('');
-}
-function filterSendToPeople(q){q=(q||'').trim().toLowerCase();renderSendToPeople(sendToPeople.filter(u=>(u.username||'').toLowerCase().includes(q)));}
-function closeSendTo(){document.getElementById('sendToOverlay').classList.remove('open');sendToContentId=null;sendToContent=null;sendToPeople=[];const s=document.getElementById('sendToSearch');if(s)s.value='';}
-async function doSendContentTo(userId,el){
-  if(!sendToContentId)return; el.style.pointerEvents='none'; const name=el.querySelector('.sendto-name'); const original=name?name.textContent:'';
-  if(name)name.textContent='Sending...';
-  try{
-    const cr=await fetch('/api/conversations/with/'+userId), cd=await cr.json(); if(!cr.ok)throw new Error(cd.error||'Could not open chat');
-    let f=sendToContent;
-    if(!f){const fr=await fetch('/api/films/'+sendToContentId);f=await fr.json();}
-    if(!f||!f.id)throw new Error('Content unavailable');
-    if(f.type==='short'){await sendShortMessage(cd.id,f.id);}
-    else{
-      const mediaUrl=f.type==='photo'?f.posterUrl:f.videoUrl;if(!mediaUrl)throw new Error('Media URL unavailable');
-      const mr=await fetch(mediaUrl);if(!mr.ok)throw new Error('Could not load media');const blob=await mr.blob();
-      const ext=(blob.type||'').split('/')[1]||(f.type==='photo'?'jpg':'mp4'), safe=(f.title||'shared-media').replace(/[^a-z0-9_-]+/gi,'_');
-      const fd=new FormData();fd.append('media',blob,safe+'.'+ext);
-      const sr=await fetch('/api/conversations/'+cd.id+'/messages',{method:'POST',body:fd}), sd=await sr.json();if(!sr.ok)throw new Error(sd.error||'Could not send media');
+// ---- Send To (share a short into chat) ----
+async function openSendTo(shortId){
+  sendToShortId = shortId;
+  document.getElementById('sendToOverlay').classList.add('open');
+  const listEl = document.getElementById('sendToList');
+  listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
+  try {
+    const [convRes, followRes] = await Promise.all([
+      fetch('/api/conversations'), fetch('/api/users/' + currentUser.id + '/following')
+    ]);
+    const convData = await convRes.json();
+    const followData = await followRes.json();
+    const seen = new Set();
+    const people = [];
+    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); people.push(c.otherUser); } });
+    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); people.push(u); } });
+
+    if (!people.length) {
+      listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe short bhej sako.</div>';
+      return;
     }
-    if(name)name.textContent='Sent ✓';showToast('Sent ✓');loadChatInbox().catch(()=>{});
-  }catch(err){el.style.pointerEvents='';if(name)name.textContent=original;showToast(err.message);}
+    listEl.innerHTML = people.map(u => `
+      <div class="userlist-row">
+        ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
+        <span class="userlist-name">@${escapeHtml(u.username)}</span>
+        <button class="userlist-btn primary" id="sendToBtn-${u.id}" onclick="doSendShortTo('${u.id}', this)">Send</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>';
+  }
 }
-function sendToCopyLink(){if(!sendToContentId)return;const url=location.origin+'/?film='+encodeURIComponent(sendToContentId);navigator.clipboard.writeText(url).then(()=>showToast('Link copied!')).catch(()=>showToast('Copy failed'));}
-function sendToExternalShare(){if(!sendToContentId)return;const f=sendToContent||{title:'YouSeries'};const url=location.origin+'/?film='+encodeURIComponent(sendToContentId);if(navigator.share)navigator.share({title:f.title,text:'Check out '+f.title+' on YouSeries!',url}).catch(()=>{});else sendToCopyLink();}
-function sendToWhatsApp(){const url=location.origin+'/?film='+encodeURIComponent(sendToContentId||'');window.open('https://wa.me/?text='+encodeURIComponent(url),'_blank');}
+function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; }
+
+async function doSendShortTo(userId, btn){
+  if (!sendToShortId) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const convRes = await fetch('/api/conversations/with/' + userId);
+    const convData = await convRes.json();
+    if (!convRes.ok) throw new Error(convData.error || 'Could not send');
+    await sendShortMessage(convData.id, sendToShortId);
+    btn.textContent = 'Sent ✓'; btn.classList.remove('primary'); btn.classList.add('sent');
+    loadChatInbox().catch(() => {});
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Send';
+    showToast(err.message);
+  }
+}
+
+function sendToExternalShare(){
+  const id = sendToShortId;
+  closeSendTo();
+  if (!id) return;
+  const film = allFilms.find(f => f.id === id);
+  const isShort = film && film.type === 'short';
+  const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
+  if (navigator.share) navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
+  else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
+}
+
+// ---- Following / Followers list ----
+async function openUserList(userId, mode){
+  userListUserId = userId; userListMode = mode;
+  document.getElementById('userListTitle').textContent = mode === 'following' ? 'Following' : 'Followers';
+  document.getElementById('userListOverlay').classList.add('open');
+  const bodyEl = document.getElementById('userListBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/users/' + userId + '/' + mode);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load');
+    const list = data.users || [];
+    if (!list.length) { bodyEl.innerHTML = '<p class="comment-empty">Koi nahi hai yahan.</p>'; return; }
+    bodyEl.innerHTML = list.map(u => `
+      <div class="userlist-row" id="userListRow-${u.id}">
+        <div onclick="closeUserList();goToProfileDirect('${u.id}','${escapeHtml(u.username)}')" style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;">
+          ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
+          <span class="userlist-name">@${escapeHtml(u.username)}</span>
+        </div>
+        ${u.isMe ? '' : `<button class="userlist-btn ${u.isFollowing ? '' : 'primary'}" onclick="toggleFollowInList('${u.id}', this)">${u.isFollowing ? 'Following' : 'Follow'}</button>`}
+      </div>
+    `).join('');
+  } catch (err) {
+    bodyEl.innerHTML = `<p class="comment-empty">${escapeHtml(err.message)}</p>`;
+  }
+}
+function closeUserList(){ document.getElementById('userListOverlay').classList.remove('open'); }
+
+async function toggleFollowInList(userId, btn){
+  try {
+    const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    btn.textContent = data.following ? 'Following' : 'Follow';
+    btn.classList.toggle('primary', !data.following);
+    if (viewingProfile && viewingProfile.id === userId) renderProfile();
+    if (currentUser && currentUser.id === (viewingProfile ? viewingProfile.id : currentUser.id)) renderProfile();
+  } catch (err) { showToast(err.message); }
+}
+
+// ===================== SWIPE GESTURES =====================
+function addSwipeLeftListener(el, callback, opts){
+  opts = opts || {};
+  const minDeltaX = opts.minDeltaX || 65;
+  const maxDeltaY = opts.maxDeltaY || 55;
+  let startX = 0, startY = 0, tracking = false;
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    const touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (dx < -minDeltaX && Math.abs(dy) < maxDeltaY) callback(e);
+  }, { passive: true });
+}
+
+function setupHomeSwipeToShorts(){
+  const grid = document.getElementById('grid');
+  if (!grid || grid.dataset.swipeAttached) return;
+  grid.dataset.swipeAttached = '1';
+  addSwipeLeftListener(grid, () => switchTab('shorts'));
+}
+
+function setupShortsSwipeToProfile(){
+  const container = document.getElementById('shortsContainer');
+  if (!container || container.dataset.swipeAttached) return;
+  container.dataset.swipeAttached = '1';
+  addSwipeLeftListener(container, (e) => {
+    const item = e.target.closest ? e.target.closest('.short-item') : null;
+    if (!item) return;
+    const f = allFilms.find(x => x.id === item.dataset.id);
+    if (f && f.ownerId) goToProfileDirect(f.ownerId, f.ownerUsername);
+  });
+}
+
+async function init(){
+  try { await loadProfile(); } catch (e) { console.error('loadProfile failed:', e); }
+  try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
+  try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
+}
+init();
+let uploadXhr = null;
+
+function toggleQType(type){
+  document.getElementById('qVideoFields').classList.toggle('hidden', type === 'photo');
+  document.getElementById('qPhotoFields').classList.toggle('hidden', type !== 'photo');
+}
+
+function openUploadModal(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  document.getElementById('uploadModalOverlay').classList.add('open');
+}
+function closeUploadModal(){
+  document.getElementById('uploadModalOverlay').classList.remove('open');
+}
+
+document.getElementById('quickUploadForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const type = document.querySelector('input[name="qType"]:checked').value;
+  const meta = {
+    title: document.getElementById('qTitle').value,
+    type,
+    year: document.getElementById('qYear').value,
+    language: document.getElementById('qLanguage').value,
+    genre: document.getElementById('qGenre').value,
+    description: document.getElementById('qDescription').value,
+    isSensitive: document.getElementById('qSensitive').checked
+  };
+
+  let mainFile, posterFile = null;
+  if (type === 'photo') {
+    mainFile = document.getElementById('qPhoto').files[0];
+    if (!mainFile) { alert('Please choose a photo file'); return; }
+  } else {
+    mainFile = document.getElementById('qVideo').files[0];
+    if (!mainFile) { alert('Please choose a video file'); return; }
+    posterFile = document.getElementById('qPoster').files[0] || null;
+  }
+
+  const DIRECT_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB — avoids Render's request size limit
+  const totalSize = mainFile.size + (posterFile ? posterFile.size : 0);
+
+  closeUploadModal();
+
+  if (totalSize > DIRECT_UPLOAD_THRESHOLD) {
+    startDirectUpload(meta, mainFile, posterFile);
+  } else {
+    const formData = new FormData();
+    Object.entries(meta).forEach(([k, v]) => formData.append(k, v));
+    if (type === 'photo') formData.append('photo', mainFile);
+    else {
+      formData.append('video', mainFile);
+      if (posterFile) formData.append('poster', posterFile);
+    }
+    startUploadWithProgress(formData, meta.title);
+  }
+
+  document.getElementById('quickUploadForm').reset();
+  toggleQType('film');
+});
+
+function formatBytes(bytes){
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(0) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function startUploadWithProgress(formData, title){
+  const banner = document.getElementById('uploadBanner');
+  const fill = document.getElementById('uploadProgressFill');
+  const percentEl = document.getElementById('uploadBannerPercent');
+  const statsEl = document.getElementById('uploadBannerStats');
+  const titleEl = document.getElementById('uploadBannerTitle');
+
+  banner.classList.remove('hidden');
+  titleEl.textContent = 'Uploading: ' + title;
+  fill.style.width = '0%';
+  percentEl.textContent = '0%';
+  statsEl.textContent = '';
+
+  let lastLoaded = 0;
+  let lastTime = Date.now();
+
+  const xhr = new XMLHttpRequest();
+  uploadXhr = xhr;
+  xhr.open('POST', '/api/films');
+
+  xhr.upload.onprogress = function(e){
+    if (!e.lengthComputable) return;
+    const percent = Math.round((e.loaded / e.total) * 100);
+    fill.style.width = percent + '%';
+    percentEl.textContent = percent + '%';
+
+    const now = Date.now();
+    const timeDelta = (now - lastTime) / 1000;
+    const bytesDelta = e.loaded - lastLoaded;
+    if (timeDelta > 0.3) {
+      const speedMBps = (bytesDelta / timeDelta) / (1024*1024);
+      const remainingMB = ((e.total - e.loaded) / (1024*1024)).toFixed(1);
+      statsEl.textContent = `${speedMBps.toFixed(1)} MB/s · ${formatBytes(e.loaded)} / ${formatBytes(e.total)} · ${remainingMB} MB left`;
+      lastLoaded = e.loaded;
+      lastTime = now;
+    }
+  };
+
+  xhr.onload = function(){
+    uploadXhr = null;
+    if (xhr.status >= 200 && xhr.status < 300) {
+      titleEl.textContent = '✅ Upload complete: ' + title;
+      fill.style.width = '100%';
+      percentEl.textContent = '100%';
+      statsEl.textContent = 'Done!';
+      showToast('Upload successful! 🎉');
+      loadFilms();
+      setTimeout(() => banner.classList.add('hidden'), 3000);
+    } else {
+      let msg = 'Upload failed';
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e){}
+      titleEl.textContent = '❌ Failed: ' + msg;
+      statsEl.textContent = '';
+      setTimeout(() => banner.classList.add('hidden'), 4000);
+    }
+  };
+
+  xhr.onerror = function(){
+    uploadXhr = null;
+    titleEl.textContent = '❌ Upload failed (network error)';
+    setTimeout(() => banner.classList.add('hidden'), 4000);
+  };
+
+  xhr.send(formData);
+      }
+
+async function presignFile(file, folder){
+  const res = await fetch('/api/upload/presign-url', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: file.name, contentType: file.type, folder })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not prepare the upload');
+  return data;
+}
+
+function putFileWithProgress(uploadUrl, file, onProgress){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    uploadXhr = xhr;
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = function(e){
+      if (e.lengthComputable) onProgress(e.loaded);
+    };
+    xhr.onload = function(){
+      uploadXhr = null;
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('Upload failed (status ' + xhr.status + ')'));
+    };
+    xhr.onerror = function(){ uploadXhr = null; reject(new Error('Network error during upload')); };
+    xhr.send(file);
+  });
+}
+
+async function startDirectUpload(meta, mainFile, posterFile){
+  const banner = document.getElementById('uploadBanner');
+  const fill = document.getElementById('uploadProgressFill');
+  const percentEl = document.getElementById('uploadBannerPercent');
+  const statsEl = document.getElementById('uploadBannerStats');
+  const titleEl = document.getElementById('uploadBannerTitle');
+
+  banner.classList.remove('hidden');
+  titleEl.textContent = 'Uploading: ' + meta.title;
+  fill.style.width = '0%';
+  percentEl.textContent = '0%';
+  statsEl.textContent = 'Large file — uploading directly to storage...';
+
+  const totalBytes = mainFile.size + (posterFile ? posterFile.size : 0);
+
+  const updateProgress = (bytesDone) => {
+    const percent = Math.round((bytesDone / totalBytes) * 100);
+    fill.style.width = percent + '%';
+    percentEl.textContent = percent + '%';
+    statsEl.textContent = `${formatBytes(bytesDone)} / ${formatBytes(totalBytes)}`;
+  };
+
+  try {
+    const mainFolder = meta.type === 'photo' ? 'posters' : 'videos';
+    const mainPresign = await presignFile(mainFile, mainFolder);
+    await putFileWithProgress(mainPresign.uploadUrl, mainFile, (loaded) => updateProgress(loaded));
+
+    let posterKey = null;
+    if (posterFile) {
+      const posterPresign = await presignFile(posterFile, 'posters');
+      await putFileWithProgress(posterPresign.uploadUrl, posterFile, (loaded) => updateProgress(mainFile.size + loaded));
+      posterKey = posterPresign.key;
+    }
+
+    const finalizeRes = await fetch('/api/films/finalize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...meta, mediaKey: mainPresign.key, posterKey })
+    });
+    const finalizeData = await finalizeRes.json();
+    if (!finalizeRes.ok) throw new Error(finalizeData.error || 'Could not finish the upload');
+
+    titleEl.textContent = '✅ Upload complete: ' + meta.title;
+    fill.style.width = '100%';
+    percentEl.textContent = '100%';
+    statsEl.textContent = 'Done!';
+    showToast('Upload successful! 🎉');
+    loadFilms();
+    setTimeout(() => banner.classList.add('hidden'), 3000);
+  } catch (err) {
+    titleEl.textContent = '❌ Failed: ' + err.message;
+    statsEl.textContent = '';
+    setTimeout(() => banner.classList.add('hidden'), 4000);
+  }
+}
 
 // ===== Unified back-button handling for every overlay/sheet =====
 // Every overlay below is opened/closed purely via the 'open' CSS class.
@@ -3012,13 +3304,12 @@ function sendToWhatsApp(){const url=location.origin+'/?film='+encodeURIComponent
 // topmost thing instead of leaving the app.
 (function(){
   const overlayIds = [
-    'chatMediaViewerOverlay','profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
+    'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
     'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','notifOverlay',
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay',
     'sendToOverlay','userListOverlay','uploadModalOverlay'
   ];
   const CLOSERS = {
-    chatMediaViewerOverlay: () => closeChatMediaViewer(),
     profileMenuOverlay: () => closeProfileMenu(),
     menuOverlay: () => closeMenu(),
     editSheetOverlay: () => closeEditSheet(),
