@@ -361,6 +361,11 @@
 /* ===== CHAT / DM ===== */
 .chat-full-overlay{position:fixed;inset:0;background:var(--ink);display:none;z-index:120;flex-direction:column;}
 .chat-full-overlay.open{display:flex;}
+.chat-media-lightbox{position:fixed;inset:0;background:#000;display:none;z-index:130;align-items:center;justify-content:center;}
+.chat-media-lightbox.open{display:flex;}
+.chat-media-lightbox img,.chat-media-lightbox video{max-width:100%;max-height:100%;object-fit:contain;}
+.chat-lightbox-close{position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;background:rgba(255,255,255,0.15);
+  border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;z-index:2;}
 .chat-header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--gold-line);flex-shrink:0;}
 .chat-header-back{background:transparent;border:none;color:var(--cream);font-size:20px;cursor:pointer;padding:4px 6px;flex-shrink:0;}
 .chat-header-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--marigold);flex-shrink:0;cursor:pointer;}
@@ -698,6 +703,13 @@
   </div>
 </div>
 
+<!-- ===== CHAT MEDIA LIGHTBOX (view photo/video sent in DM) ===== -->
+<div class="chat-media-lightbox" id="chatMediaLightbox" onclick="if(event.target===this) closeChatMediaLightbox()">
+  <button class="chat-lightbox-close" onclick="closeChatMediaLightbox()">✕</button>
+  <img id="chatLightboxImg" class="hidden">
+  <video id="chatLightboxVideo" class="hidden" controls playsinline autoplay></video>
+</div>
+
 <div class="sheet-overlay" id="uploadModalOverlay" onclick="if(event.target===this) closeUploadModal()">
   <div class="sheet" style="max-height:88vh;overflow-y:auto;">
     <div class="sheet-header"><h3>Upload</h3><button class="sheet-close" onclick="closeUploadModal()">✕</button></div>
@@ -788,7 +800,7 @@ function closeAllOverlays(){
     storyViewerOverlay: closeStoryViewer, storyViewsOverlay: closeStoryViewsSheet,
     storyCommentsDrawer: toggleStoryCommentsDrawer, notifOverlay: closeNotifications,
     chatInboxOverlay: closeChatInbox, chatConvoOverlay: closeChatConvo,
-    chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit,
+    chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit, chatMediaLightbox: closeChatMediaLightbox,
     sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal
   };
   Object.keys(closers).forEach(id => {
@@ -2760,9 +2772,9 @@ function renderChatBubble(m, mine){
   if (m.type === 'text') {
     bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}','_blank')"></div>`;
+    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')"></div>`;
   } else if (m.type === 'video') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" controls playsinline></video></div>`;
+    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>`;
   } else if (m.type === 'voice') {
     const dur = m.duration ? Math.round(m.duration) : 0;
     const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
@@ -2967,6 +2979,25 @@ function chatMsgMenuEdit(){
   document.getElementById('chatEditOverlay').classList.add('open');
 }
 function closeChatEdit(){ document.getElementById('chatEditOverlay').classList.remove('open'); chatEditTarget = null; }
+
+function openChatMediaLightbox(url, type){
+  const imgEl = document.getElementById('chatLightboxImg');
+  const vidEl = document.getElementById('chatLightboxVideo');
+  if (type === 'video') {
+    imgEl.classList.add('hidden'); imgEl.src = '';
+    vidEl.src = url; vidEl.muted = false; vidEl.classList.remove('hidden');
+  } else {
+    vidEl.pause(); vidEl.classList.add('hidden'); vidEl.src = '';
+    imgEl.src = url; imgEl.classList.remove('hidden');
+  }
+  document.getElementById('chatMediaLightbox').classList.add('open');
+}
+function closeChatMediaLightbox(){
+  const vidEl = document.getElementById('chatLightboxVideo');
+  vidEl.pause(); vidEl.src = '';
+  document.getElementById('chatLightboxImg').src = '';
+  document.getElementById('chatMediaLightbox').classList.remove('open');
+}
 
 async function saveChatEdit(){
   if (!chatEditTarget || !chatConvoId) return;
@@ -3423,7 +3454,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
   const overlayIds = [
     'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
     'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','notifOverlay',
-    'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay',
+    'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay'
   ];
   const CLOSERS = {
@@ -3440,6 +3471,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
     chatConvoOverlay: () => closeChatConvo(),
     chatMsgMenuOverlay: () => closeChatMsgMenu(),
     chatEditOverlay: () => closeChatEdit(),
+    chatMediaLightbox: () => closeChatMediaLightbox(),
     sendToOverlay: () => closeSendTo(),
     userListOverlay: () => closeUserList(),
     uploadModalOverlay: () => closeUploadModal()
