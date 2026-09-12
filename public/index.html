@@ -762,7 +762,24 @@ function markViewed(id){
   return false;
 }
 
+function closeAllOverlays(){
+  const closers = {
+    overlay: closeModal, profileMenuOverlay: closeProfileMenu, menuOverlay: closeMenu,
+    editSheetOverlay: closeEditSheet, sheetOverlay: closeSheet, storyUploadOverlay: closeStoryUploadModal,
+    storyViewerOverlay: closeStoryViewer, storyViewsOverlay: closeStoryViewsSheet,
+    storyCommentsDrawer: toggleStoryCommentsDrawer, notifOverlay: closeNotifications,
+    chatInboxOverlay: closeChatInbox, chatConvoOverlay: closeChatConvo,
+    chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit,
+    sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal
+  };
+  Object.keys(closers).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.classList.contains('open')) { try { closers[id](); } catch (e) {} }
+  });
+}
+
 function switchTab(tab){
+  closeAllOverlays();
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
   document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
@@ -2970,7 +2987,8 @@ function sendToExternalShare(){
   closeSendTo();
   if (!id) return;
   const film = allFilms.find(f => f.id === id);
-  const url = location.origin + '/?short=' + id;
+  const isShort = film && film.type === 'short';
+  const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
   if (navigator.share) navigator.share({ title: film ? film.title : 'YouSeries', url }).catch(() => {});
   else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
 }
@@ -3368,14 +3386,8 @@ async function likeFeedPost(id, btn) {
 }
 
 function shareCurrentFilmById(id, title) {
-  const film = allFilms.find(f => f.id === id);
-  const isShort = film && film.type === 'short';
-  const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
-  if (navigator.share) {
-    navigator.share({ title: title || 'YouSeries', url }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
-  }
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  openSendTo(id);
 }
 </script>
 </body>
