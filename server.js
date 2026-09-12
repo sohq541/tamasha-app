@@ -11,7 +11,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
@@ -160,6 +160,12 @@ const e2Client = new S3Client({
 async function e2UploadBuffer(buffer, key, contentType) {
   await e2Client.send(new PutObjectCommand({
     Bucket: E2_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType || 'application/octet-stream'
+  }));
+}
+
+async function e2CopyObject(sourceKey, destKey) {
+  await e2Client.send(new CopyObjectCommand({
+    Bucket: E2_BUCKET_NAME, Key: destKey, CopySource: `${E2_BUCKET_NAME}/${encodeURIComponent(sourceKey)}`
   }));
 }
 
@@ -1233,6 +1239,37 @@ app.post('/api/stories', (req, res, next) => {
       createdAt: new Date().toISOString(),
       views: [],
       comments: []
+    };
+    stories.unshift(newStory);
+    await writeStories(stories);
+    res.status(201).json(newStory);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/from-film', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to post a story' });
+    const { filmId } = req.body;
+    const films = await readFilms();
+    const film = films.find(f => f.id === filmId);
+    if (!film) return res.status(404).json({ error: 'Ye video/photo ab available nahi hai' });
+
+    const sourceKey = film.type === 'photo' ? (film.posterFile || film.videoFile) : (film.videoFile || film.posterFile);
+    if (!sourceKey) return res.status(400).json({ error: 'Story me daalne layak media nahi mila' });
+    const isVideo = film.type !== 'photo';
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const ext = path.extname(sourceKey) || (isVideo ? '.mp4' : '.jpg');
+    const mediaKey = `stories/${id}${ext}`;
+    await e2CopyObject(sourceKey, mediaKey);
+
+    let stories = await readStories();
+    stories = stories.filter(isStoryActive);
+    const newStory = {
+      id, ownerId: currentUser.id, ownerUsername: currentUser.username,
+      mediaFile: mediaKey, mediaType: isVideo ? 'video' : 'photo', storageProvider: 'e2',
+      textOverlay: '', createdAt: new Date().toISOString(), views: [], comments: []
     };
     stories.unshift(newStory);
     await writeStories(stories);
