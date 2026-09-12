@@ -21,16 +21,33 @@
   .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:24px;color:var(--marigold);}
   .header-right{display:flex;align-items:center;gap:14px;}
 
-  .tabs{display:flex;justify-content:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--gold-line);}
-  .tab-btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:8px 18px;
-    border-radius:999px;font-family:'Mukta',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
-  .tab-btn.active{background:var(--marigold);color:#fff;border-color:var(--marigold);}
+  html,body{padding-bottom:62px;}
+  body.shorts-mode{padding-bottom:0;}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:100;display:flex;justify-content:space-around;align-items:center;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--gold-line);border-bottom:none;
+    background:var(--ink);}
+  .tab-btn{background:transparent;border:none;color:var(--cream-dim);padding:9px 16px;flex:1;max-width:64px;
+    border-radius:18px;font-family:'Mukta',sans-serif;font-size:14px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;position:relative;transition:background .15s ease;}
+  .tab-btn svg{width:25px;height:25px;display:block;}
+  .tab-btn.active{background:rgba(255,255,255,0.12);color:var(--cream);}
+  .tab-btn.active svg path[fill="currentColor"]{fill:var(--cream);}
+  .tab-btn .mini-avatar{width:25px;height:25px;margin-right:0;border:1.5px solid transparent;}
+  .tab-btn.active .mini-avatar{border-color:var(--cream);}
+  .tab-btn.has-dot::after{content:'';position:absolute;top:4px;right:12px;width:9px;height:9px;border-radius:50%;
+    background:#FF5C5C;border:1.5px solid var(--ink);}
+  .tab-badge{position:absolute;top:2px;right:10px;background:#FF5C5C;color:#fff;font-size:9.5px;font-weight:700;
+    border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;
+    border:1.5px solid var(--ink);}
 
   body.shorts-mode header, body.shorts-mode .tabs{display:none;}
 
   .shorts-header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px 0;}
   .section-title{font-family:'Baloo 2',sans-serif;font-size:18px;color:var(--marigold);margin:0;white-space:nowrap;}
   .search-wrap{flex:1;max-width:220px;}
+  #searchView .search-wrap{max-width:none;padding:14px 24px 0;}
+  #searchView .search-results{padding-top:10px;}
+  .search-placeholder{text-align:center;color:var(--cream-dim);padding:60px 20px;font-size:14px;}
   .search-wrap input{
     width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:999px;
     padding:9px 16px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;
@@ -220,7 +237,7 @@
     color:#fff;width:50px;height:50px;border-radius:50%;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .short-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--cream-dim);text-align:center;padding:40px;}
 
-  .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:350;}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:150;}
   .sheet-overlay.open{display:flex;}
   .sheet{background:var(--panel);border-radius:16px 16px 0 0;max-width:600px;width:100%;max-height:70vh;
     display:flex;flex-direction:column;padding:18px 20px;}
@@ -419,24 +436,41 @@
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" id="tabHome" onclick="switchTab('home')">🏠 Home</button>
-  <button class="tab-btn" id="tabShorts" onclick="switchTab('shorts')">▶ Shorts</button>
-  <button class="tab-btn" id="tabProfile" onclick="goToMyProfile()">👤 Profile</button>
+  <button class="tab-btn active" id="tabHome" onclick="switchTab('home')" aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+  </button>
+  <button class="tab-btn" id="tabShorts" onclick="switchTab('shorts')" aria-label="Shorts">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M10 8.3v7.4l6.3-3.7Z" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <button class="tab-btn" id="tabSearch" onclick="switchTab('search')" aria-label="Search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+  </button>
+  <button class="tab-btn" id="tabChat" onclick="openChatInbox()" aria-label="Messages">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9 22 2Z"/></svg>
+    <span id="tabChatBadge" class="tab-badge hidden">0</span>
+  </button>
+  <button class="tab-btn" id="tabProfile" onclick="goToMyProfile()" aria-label="Profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+  </button>
 </div>
 
 <div id="homeView">
   <div class="stories-bar" id="storiesBar"></div>
   <div class="shorts-header-row">
     <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
-    <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="Search..." oninput="doSearch(this.value)">
-    </div>
   </div>
-  <div class="search-results hidden" id="searchResults"></div>
   <div class="shorts-grid hidden" id="shortsGrid"></div>
   <div id="homeMainContent">
   <div id="grid" class="grid"></div>
   </div>
+</div>
+
+<div id="searchView" class="hidden">
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Search films, shorts, people..." oninput="doSearch(this.value)">
+  </div>
+  <div class="search-results hidden" id="searchResults"></div>
+  <div class="search-placeholder" id="searchPlaceholder">Kuch bhi search karo — films, shorts ya log.</div>
 </div>
 
 <div id="shortsView">
@@ -731,8 +765,10 @@ function markViewed(id){
 function switchTab(tab){
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
+  document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
   document.getElementById('tabProfile').classList.toggle('active', tab === 'profile');
   document.getElementById('homeView').classList.toggle('hidden', tab !== 'home');
+  document.getElementById('searchView').classList.toggle('hidden', tab !== 'search');
   document.getElementById('shortsView').classList.toggle('active', tab === 'shorts');
   document.getElementById('profileView').classList.toggle('hidden', tab !== 'profile');
   document.body.classList.toggle('shorts-mode', tab === 'shorts');
@@ -746,6 +782,7 @@ function switchTab(tab){
   }
   if (tab === 'home') setupHomeVideoObserver();
   if (tab === 'profile') renderProfile();
+  if (tab === 'search') setTimeout(() => document.getElementById('searchInput').focus(), 50);
 }
 
 async function loadProfile(){
@@ -763,14 +800,16 @@ async function loadProfile(){
       } catch (err) {}
 
       headerRight.innerHTML = `
-        <span id="msgBell" onclick="openChatInbox()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">✉️<span id="msgBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
+        <span id="msgBell" onclick="openChatInbox()" style="position:relative;cursor:pointer;margin-right:14px;color:var(--cream);display:inline-flex;">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9 22 2Z"/></svg>
+          <span id="msgBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span>
+        </span>
         <span id="notifBell" onclick="openNotifications()" style="position:relative;cursor:pointer;margin-right:14px;font-size:18px;">🔔<span id="notifBadge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#FF5C5C;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;">0</span></span>
-        ${gotApp ? '' : `<a href="https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk" onclick="localStorage.setItem('appDownloaded','1')" style="margin-right:14px;">📲 Get App</a>`}
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
       document.getElementById('tabProfile').innerHTML = avatarUrl
-        ? `<img class="mini-avatar" src="${avatarUrl}"> Profile`
-        : '👤 Profile';
+        ? `<img class="mini-avatar" src="${avatarUrl}">`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>`;
       pollNotificationCount();
       pollMessagesCount();
     } else {
@@ -1029,6 +1068,7 @@ function renderProfileMenuMain(){
   document.getElementById('profileMenuBody').innerHTML =
     menuRow('⚙️', 'Settings and Privacy', 'renderSettingsPrivacyMenu()') +
     menuRow('📊', 'Your Activity', 'renderActivityMenu()') +
+    menuRow('📲', 'Get App', "window.open('https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk','_blank')") +
     menuRow('🚪', 'Log Out', 'confirmLogoutFromMenu()', true);
 }
 
@@ -1398,9 +1438,9 @@ function openShortAt(id){
 
 function doSearch(query){
   const resultsEl = document.getElementById('searchResults');
-  const mainEl = document.getElementById('homeMainContent');
+  const placeholderEl = document.getElementById('searchPlaceholder');
   const q = query.trim().toLowerCase();
-  if (!q) { resultsEl.classList.add('hidden'); mainEl.classList.remove('hidden'); return; }
+  if (!q) { resultsEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); return; }
 
   const matches = allFilms.filter(f => f.title.toLowerCase().includes(q));
 
@@ -1413,7 +1453,7 @@ function doSearch(query){
     }
   });
 
-  mainEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
+  placeholderEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
 
   if (matches.length === 0 && userMatches.length === 0) {
     resultsEl.innerHTML = '<p class="comment-empty">No matches found.</p>';
@@ -2372,6 +2412,7 @@ async function pollNotificationCount(){
         badge.classList.add('hidden');
       }
     }
+    document.getElementById('tabProfile').classList.toggle('has-dot', data.unreadCount > 0);
   } catch (e) {}
   if (!notifPollInterval) notifPollInterval = setInterval(pollNotificationCount, 30000);
 }
@@ -2452,15 +2493,12 @@ async function pollMessagesCount(){
   try {
     const res = await fetch('/api/conversations/unread-count');
     const data = await res.json();
-    const badge = document.getElementById('msgBadge');
-    if (badge) {
-      if (data.unreadCount > 0) {
-        badge.textContent = data.unreadCount > 99 ? '99+' : data.unreadCount;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    }
+    const label = data.unreadCount > 99 ? '99+' : data.unreadCount;
+    [document.getElementById('msgBadge'), document.getElementById('tabChatBadge')].forEach(badge => {
+      if (!badge) return;
+      if (data.unreadCount > 0) { badge.textContent = label; badge.classList.remove('hidden'); }
+      else badge.classList.add('hidden');
+    });
   } catch (e) {}
   if (!chatInboxPollHandle) chatInboxPollHandle = setInterval(pollMessagesCount, 20000);
 }
@@ -2524,7 +2562,6 @@ async function loadChatInbox(){
 
 async function openChatConvo(userId, usernameHint){
   if (!currentUser) { window.location.href = '/login.html'; return; }
-  closeChatInbox();
   stopVoiceRecording(true);
   clearChatAttachPreview();
   document.getElementById('chatTextInput').value = '';
@@ -2565,6 +2602,9 @@ function closeChatConvo(){
   chatConvoId = null;
   chatOtherUser = null;
   chatMessagesCache = [];
+  if (document.getElementById('chatInboxOverlay').classList.contains('open')) {
+    loadChatInbox().catch(() => {});
+  }
 }
 
 function chatOpenOtherProfile(){
@@ -2820,12 +2860,11 @@ function openChatMsgMenu(messageId){
     return;
   }
   if (mine && m.type === 'text') items += menuRow('✏️', 'Edit', 'chatMsgMenuEdit()');
-  if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete("everyone")', true);
-  items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete("me")', true);
+  if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete(\'everyone\')', true);
+  items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete(\'me\')', true);
   document.getElementById('chatMsgMenuItems').innerHTML = items;
   document.getElementById('chatMsgMenuOverlay').classList.add('open');
 }
-  
 function closeChatMsgMenu(){ document.getElementById('chatMsgMenuOverlay').classList.remove('open'); }
 
 function chatMsgMenuEdit(){
@@ -3239,21 +3278,82 @@ async function startDirectUpload(meta, mainFile, posterFile){
   }
 }
 
-  window.addEventListener('popstate', function(e){
-  if (document.getElementById('overlay').classList.contains('open')) {
-    closeModal();
-    return;
-  }
-  if (document.getElementById('sheetOverlay').classList.contains('open')) {
-    closeSheet();
-    return;
-  }
-  if (document.getElementById('shortsView').classList.contains('active')) {
-    switchTab('home');
+// ===== Unified back-button handling for every overlay/sheet =====
+// Every overlay below is opened/closed purely via the 'open' CSS class.
+// We watch each one with a MutationObserver: the moment it opens we push a
+// history entry; the moment it closes (via X button OR via a physical back
+// press) we keep our stack in sync. Physical back always closes just the
+// topmost thing instead of leaving the app.
+(function(){
+  const overlayIds = [
+    'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
+    'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','notifOverlay',
+    'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay',
+    'sendToOverlay','userListOverlay','uploadModalOverlay'
+  ];
+  const CLOSERS = {
+    profileMenuOverlay: () => closeProfileMenu(),
+    menuOverlay: () => closeMenu(),
+    editSheetOverlay: () => closeEditSheet(),
+    sheetOverlay: () => closeSheet(),
+    overlay: () => closeModal(),
+    storyUploadOverlay: () => closeStoryUploadModal(),
+    storyViewerOverlay: () => closeStoryViewer(),
+    storyViewsOverlay: () => closeStoryViewsSheet(),
+    notifOverlay: () => closeNotifications(),
+    chatInboxOverlay: () => closeChatInbox(),
+    chatConvoOverlay: () => closeChatConvo(),
+    chatMsgMenuOverlay: () => closeChatMsgMenu(),
+    chatEditOverlay: () => closeChatEdit(),
+    sendToOverlay: () => closeSendTo(),
+    userListOverlay: () => closeUserList(),
+    uploadModalOverlay: () => closeUploadModal()
+  };
+
+  let navStack = [];            // ids currently pushed into browser history, in open order
+  let poppingFromBack = false;  // true while we're reacting to a real physical back press
+  let selfTriggeredBack = false; // true while WE call history.back() to consume a stale entry (UI close)
+
+  overlayIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let wasOpen = el.classList.contains('open');
+    new MutationObserver(() => {
+      const nowOpen = el.classList.contains('open');
+      if (nowOpen === wasOpen) return;
+      if (nowOpen) {
+        navStack.push(id);
+        history.pushState({ ui: navStack.slice() }, '', location.pathname);
+      } else {
+        const idx = navStack.lastIndexOf(id);
+        if (idx !== -1) navStack.splice(idx, 1);
+        // Closed via its own X / tap-outside (not via a physical back press):
+        // consume the history entry we pushed for it so depth never leaks.
+        if (!poppingFromBack) { selfTriggeredBack = true; history.back(); }
+      }
+      wasOpen = nowOpen;
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+
+  window.addEventListener('popstate', function(){
+    if (selfTriggeredBack) { selfTriggeredBack = false; return; }
+    if (navStack.length > 0) {
+      const topId = navStack[navStack.length - 1];
+      poppingFromBack = true;
+      try { (CLOSERS[topId] || (() => {}))(); } finally { poppingFromBack = false; }
+      return;
+    }
+    if (document.getElementById('shortsView').classList.contains('active')) {
+      switchTab('home');
+      history.pushState({ page: 'home' }, '', location.pathname);
+      return;
+    }
+    // Nothing open, not in Shorts — this is the "top" of the app. Re-plant the
+    // base state so a physical back press never throws the user out of the
+    // app entirely; it just stays put on Home.
     history.pushState({ page: 'home' }, '', location.pathname);
-    return;
-  }
-});
+  });
+})();
 history.pushState({ page: 'home' }, '', location.pathname);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 async function likeFeedPost(id, btn) {
