@@ -1729,11 +1729,17 @@ app.post('/api/conversations/:id/messages/:messageId/delete', async (req, res) =
       if (m.mediaKey) { await e2DeleteFile(m.mediaKey); m.mediaKey = null; }
       m.unsent = true;
       m.text = null;
+      m.editedAt = new Date().toISOString(); // so live polling (since=editedAt) picks up the unsend immediately
     } else {
       if (!m.deletedFor) m.deletedFor = [];
       if (!m.deletedFor.includes(currentUser.id)) m.deletedFor.push(currentUser.id);
     }
     await writeChatMessages(convo.id, messages);
+
+    if (convo.lastMessage && convo.lastMessage.createdAt === m.createdAt) {
+      convo.lastMessage.preview = previewForMessage(m);
+      await writeConversations(convos);
+    }
     res.json({ success: true, scope });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
