@@ -1473,7 +1473,6 @@ function renderShortsGrid(shorts){
 
 function openShortAt(id){
   switchTab('shorts');
-  history.pushState({ page: 'shorts' }, '', location.pathname);
   setTimeout(() => {
     const item = document.querySelector('.short-item[data-id="' + id + '"]');
     if (item) item.scrollIntoView({ behavior: 'instant', block: 'start' });
@@ -1964,7 +1963,6 @@ async function playFilm(id){
 
   renderCommentListInto('commentList', f.comments, f.id);
   document.getElementById('overlay').classList.add('open');
-history.pushState({ page: 'shorts' }, '', location.pathname);
   if (markViewed(f.id)) {
     fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; }).catch(() => {});
   }
@@ -1975,7 +1973,6 @@ function closeModal(){
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
   document.getElementById('playerImg').src = '';
-  history.replaceState(null, '', location.pathname);
 }
 
 function reportCurrentFilm(){
