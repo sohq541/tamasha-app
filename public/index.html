@@ -2879,9 +2879,14 @@ async function sendShortMessage(conversationId, shortId){
   return data;
 }
 
-function openSharedShort(filmId){
-  closeChatConvo();
-  playFilm(filmId);
+async function openSharedShort(filmId){
+  try {
+    const res = await fetch('/api/films/' + filmId);
+    const f = await res.json();
+    if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
+    if (f.type === 'photo') openChatMediaLightbox(f.posterUrl, 'photo');
+    else openChatMediaLightbox(f.videoUrl, 'video');
+  } catch (e) { showToast('Nahi khul saka'); }
 }
 
 // ---- Voice recording ----
