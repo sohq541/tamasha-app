@@ -2676,6 +2676,7 @@ async function loadChatInbox(){
 
 async function openChatConvo(userId, usernameHint){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (document.getElementById('chatInboxOverlay').classList.contains('open')) closeChatInbox();
   stopVoiceRecording(true);
   clearChatAttachPreview();
   document.getElementById('chatTextInput').value = '';
@@ -3495,7 +3496,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
 
   let navStack = [];            // ids currently pushed into browser history, in open order
   let poppingFromBack = false;  // true while we're reacting to a real physical back press
-  let selfTriggeredBack = false; // true while WE call history.back() to consume a stale entry (UI close)
+  let selfTriggeredBackCount = 0; // how many pending history.back() calls WE issued to consume stale entries
 
   overlayIds.forEach(id => {
     const el = document.getElementById(id);
@@ -3512,14 +3513,14 @@ async function startDirectUpload(meta, mainFile, posterFile){
         if (idx !== -1) navStack.splice(idx, 1);
         // Closed via its own X / tap-outside (not via a physical back press):
         // consume the history entry we pushed for it so depth never leaks.
-        if (!poppingFromBack) { selfTriggeredBack = true; history.back(); }
+        if (!poppingFromBack) { selfTriggeredBackCount++; history.back(); }
       }
       wasOpen = nowOpen;
     }).observe(el, { attributes: true, attributeFilter: ['class'] });
   });
 
   window.addEventListener('popstate', function(){
-    if (selfTriggeredBack) { selfTriggeredBack = false; return; }
+    if (selfTriggeredBackCount > 0) { selfTriggeredBackCount--; return; }
     if (navStack.length > 0) {
       const topId = navStack[navStack.length - 1];
       poppingFromBack = true;
