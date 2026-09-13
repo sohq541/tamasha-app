@@ -1891,6 +1891,22 @@ app.post('/api/me/delete', async (req, res) => {
     const remainingFilms = films.filter(f => f.ownerId !== currentUser.id);
     await writeFilms(remainingFilms);
 
+    let stories = await readStories();
+    const myStories = stories.filter(s => s.ownerId === currentUser.id);
+    for (const s of myStories) {
+      if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
+    }
+    await writeStories(stories.filter(s => s.ownerId !== currentUser.id));
+
+    const conversations = await readConversations();
+    const myConversations = conversations.filter(c => c.participants.includes(currentUser.id));
+    for (const c of myConversations) {
+      const messages = await readChatMessages(c.id);
+      for (const m of messages) { if (m.mediaKey) await e2DeleteFile(m.mediaKey); }
+      await e2DeleteFile(`chats/${c.id}.json`);
+    }
+    await writeConversations(conversations.filter(c => !c.participants.includes(currentUser.id)));
+
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (user && user.profileImage) {
