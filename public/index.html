@@ -2897,8 +2897,9 @@ async function openSharedShort(filmId){
     const res = await fetch('/api/films/' + filmId);
     const f = await res.json();
     if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
-    if (f.type === 'photo') openChatMediaLightbox(f.posterUrl, 'photo');
-    else openChatMediaLightbox(f.videoUrl, 'video');
+    closeChatConvo();
+    if (f.type === 'short') openShortAt(filmId);
+    else playFilm(filmId);
   } catch (e) { showToast('Nahi khul saka'); }
 }
 
