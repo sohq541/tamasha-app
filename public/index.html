@@ -1150,6 +1150,7 @@ function renderSettingsPrivacyMenu(){
     ${menuRow('🆘', 'Help Desk', 'renderHelpDesk()')}
     ${menuRow('📄', 'Privacy Policy', "window.open('/privacy-policy.html','_blank')")}
     ${menuRow('📋', 'Terms and Conditions', "window.open('/terms-of-service.html','_blank')")}
+    ${menuRow('🗑️', 'Permanently Delete Account', 'confirmDeleteAccount()', true)}
   `;
 }
 
@@ -1272,8 +1273,7 @@ function renderActivityMenu(){
   document.getElementById('profileMenuBody').innerHTML =
     menuRow('👁️', 'Watch History', 'renderWatchHistory()') +
     menuRow('❤️', 'Liked History', 'renderLikedHistory()') +
-    menuRow('💬', 'Comments History', 'renderCommentsHistory()') +
-    menuRow('🗑️', 'Permanently Delete Account', 'confirmDeleteAccount()', true);
+    menuRow('💬', 'Comments History', 'renderCommentsHistory()');
 }
 
 function historyRow(posterUrl, title, timeLabel, onclickStr){
@@ -1335,7 +1335,7 @@ async function renderCommentsHistory(){
 }
 
 function confirmDeleteAccount(){
-  setMenuTitle('Delete Account', true, 'renderActivityMenu()');
+  setMenuTitle('Delete Account', true, 'renderSettingsPrivacyMenu()');
   document.getElementById('profileMenuBody').innerHTML = `
     <p style="font-size:13.5px;color:var(--cream);line-height:1.6;margin-bottom:16px;">This action is <b>permanent</b>. Your account, all your uploaded videos/photos, and your profile will be deleted forever. This cannot be undone.</p>
     <button type="button" onclick="finalDeleteAccount()" style="width:100%;background:#B33A3A;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Yes, permanently delete</button>
@@ -1504,11 +1504,11 @@ function doSearch(query){
   }
 
   const userHtml = userMatches.map(u => `
-    <div class="search-result-item">
-      <span onclick="viewProfile('${u.id}','${escapeHtml(u.username)}')">${u.profileImage
+    <div class="search-result-item" onclick="goToProfileDirect('${u.id}','${escapeHtml(u.username)}')">
+      ${u.profileImage
         ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;">`
-        : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}</span>
-      <div class="search-result-info" onclick="goToProfileDirect('${u.id}','${escapeHtml(u.username)}')">
+        : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}
+      <div class="search-result-info">
         <span class="search-result-title">@${escapeHtml(u.username)}</span>
         <span class="search-result-tag">Profile</span>
       </div>
@@ -2308,13 +2308,15 @@ function startStoryPlayback(){
   const imgEl = document.getElementById('storyViewImg');
   const vidEl = document.getElementById('storyViewVideo');
   vidEl.onended = null; vidEl.onloadedmetadata = null;
+  imgEl.onload = null; imgEl.onerror = null;
   clearStoryTimer();
 
   if (story.mediaType === 'photo') {
     vidEl.pause(); vidEl.classList.add('hidden'); vidEl.src = '';
+    imgEl.classList.add('hidden');
+    imgEl.onload = () => { imgEl.classList.remove('hidden'); runStoryProgress(5000); };
+    imgEl.onerror = () => { imgEl.classList.remove('hidden'); runStoryProgress(5000); };
     imgEl.src = story.mediaUrl;
-    imgEl.classList.remove('hidden');
-    runStoryProgress(5000);
   } else {
     imgEl.classList.add('hidden'); imgEl.src = '';
     vidEl.src = story.mediaUrl;
@@ -2328,6 +2330,17 @@ function startStoryPlayback(){
   currentStoryId = story.id;
   recordStoryView(story.id);
   loadStoryComments(story.id);
+  preloadNextStoryMedia();
+}
+
+function preloadNextStoryMedia(){
+  const group = currentStoryUserQueue[currentStoryGroupIndex];
+  if (!group) return;
+  let next = group.stories[currentStoryIndex + 1];
+  if (!next) next = (currentStoryUserQueue[currentStoryGroupIndex + 1] || {}).stories?.[0];
+  if (!next || !next.mediaUrl) return;
+  if (next.mediaType === 'photo') { const img = new Image(); img.src = next.mediaUrl; }
+  else { const v = document.createElement('video'); v.preload = 'auto'; v.src = next.mediaUrl; }
 }
 
 function storyGoNext(){
