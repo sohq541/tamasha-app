@@ -113,6 +113,8 @@
   cursor: pointer;
   text-shadow: 0 1px 4px rgba(0,0,0,0.7);
 }
+.feed-follow-btn{background:var(--marigold);border:none;color:#fff;font-size:12px;font-weight:700;
+  border-radius:6px;padding:4px 12px;cursor:pointer;margin-left:6px;font-family:'Mukta',sans-serif;}
 .card-media-box {
   width: 100%;
   aspect-ratio: 9 / 16;
@@ -164,7 +166,7 @@
   .empty{padding:60px 44px;color:var(--cream-dim);text-align:center;}
   .empty a{color:var(--marigold);}
 
-  .modal-overlay{position:fixed;inset:0;background:rgba(5,4,15,0.9);display:none;align-items:center;justify-content:center;padding:20px;z-index:100;overflow-y:auto;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(5,4,15,0.9);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;overflow-y:auto;}
   .modal-overlay.open{display:flex;}
   .modal{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;max-width:820px;width:100%;overflow:hidden;margin:auto;}
   .modal video{width:100%;display:block;background:#000;max-height:60vh;}
@@ -616,6 +618,7 @@
     <img class="story-viewer-avatar" id="storyViewerAvatar" src="">
     <span class="story-viewer-username" id="storyViewerUsername"></span>
     <span class="story-viewer-time" id="storyViewerTime"></span>
+    <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
     <button class="story-viewer-close" onclick="closeStoryViewer()">✕</button>
   </div>
   <div class="story-media-area" id="storyMediaArea">
@@ -635,6 +638,15 @@
     <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="toggleStoryCommentsDrawer()">✕</button></div>
     <div class="story-comments-list" id="storyCommentsList"></div>
   </div>
+</div>
+
+<!-- ===== OTHER USER'S PROFILE (separate from own Profile tab) ===== -->
+<div class="chat-full-overlay" id="otherProfileOverlay">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeOtherProfile()">←</button>
+    <span class="chat-header-name" id="otherProfileHeaderName"></span>
+  </div>
+  <div class="profile-wrap" id="otherProfileContent" style="overflow-y:auto;flex:1;"></div>
 </div>
 
 <!-- ===== MESSAGES: INBOX ===== -->
@@ -801,7 +813,8 @@ function closeAllOverlays(){
     storyCommentsDrawer: toggleStoryCommentsDrawer, notifOverlay: closeNotifications,
     chatInboxOverlay: closeChatInbox, chatConvoOverlay: closeChatConvo,
     chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit, chatMediaLightbox: closeChatMediaLightbox,
-    sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal
+    sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal,
+    otherProfileOverlay: closeOtherProfile
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -868,73 +881,94 @@ async function loadProfile(){
 
 function viewProfile(userId, username){
   if (!userId) return;
+  if (currentUser && userId === currentUser.id) { goToMyProfile(); return; }
   const stories = (window.activeStoriesByUser || {})[userId];
   if (stories && stories.length) {
     closeModal(); closeSheet();
     openStoryViewer(userId);
     return;
   }
-  viewingProfile = { id: userId, username: username };
-  switchTab('profile');
+  openOtherProfile(userId, username);
 }
 
 function goToProfileDirect(userId, username){
   if (!userId) return;
+  if (currentUser && userId === currentUser.id) { goToMyProfile(); return; }
   closeModal(); closeSheet();
-  viewingProfile = { id: userId, username: username };
-  switchTab('profile');
+  openOtherProfile(userId, username);
 }
 
 function goToMyProfile(){
-  viewingProfile = null;
   switchTab('profile');
+}
+
+let otherProfileUserId = null;
+
+async function openOtherProfile(userId, username){
+  if (!userId) return;
+  otherProfileUserId = userId;
+  document.getElementById('otherProfileHeaderName').textContent = '@' + (username || '');
+  document.getElementById('otherProfileOverlay').classList.add('open');
+  await renderOtherProfile(userId, username);
+}
+function closeOtherProfile(){
+  document.getElementById('otherProfileOverlay').classList.remove('open');
+  otherProfileUserId = null;
+}
+
+async function renderOtherProfile(userId, usernameHint){
+  const el = document.getElementById('otherProfileContent');
+  el.innerHTML = '<p class="comment-empty">Loading...</p>';
+  let pub = { username: usernameHint || '', bio: '', website: '', profileImage: null, followersCount: 0, followingCount: 0, isFollowing: false };
+  try {
+    const res = await fetch('/api/users/' + userId + '/public');
+    pub = await res.json();
+  } catch (err) {}
+  document.getElementById('otherProfileHeaderName').textContent = '@' + pub.username;
+
+  const theirFilms = allFilms.filter(f => f.ownerId === userId);
+  const theirVideos = theirFilms.filter(f => f.type !== 'photo');
+  const theirPhotos = theirFilms.filter(f => f.type === 'photo');
+
+  el.innerHTML = `
+    <div class="profile-top-row">
+      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
+      <div class="profile-stats">
+        <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
+        <div onclick="openUserList('${userId}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
+        <div onclick="openUserList('${userId}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
+      </div>
+    </div>
+    <div class="profile-username">@${escapeHtml(pub.username)}</div>
+    ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
+    ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
+    <div class="profile-btn-row">
+      <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
+      ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
+      <button class="profile-btn" onclick="copyProfileLink('${userId}')">Share Profile</button>
+    </div>
+    <div class="profile-tabs-row">
+      <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
+      <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
+    </div>
+    <div class="profile-mygrid" id="otherProfileGridVideos">
+      ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
+    </div>
+    <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
+      ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
+    </div>
+  `;
+}
+
+function switchOtherProfileGrid(type){
+  document.getElementById('otherProfileTabVideos').classList.toggle('active', type === 'videos');
+  document.getElementById('otherProfileTabPhotos').classList.toggle('active', type === 'photos');
+  document.getElementById('otherProfileGridVideos').classList.toggle('hidden', type !== 'videos');
+  document.getElementById('otherProfileGridPhotos').classList.toggle('hidden', type !== 'photos');
 }
 
 async function renderProfile(){
   const el = document.getElementById('profileContent');
-
-  // ---- Viewing someone else's public profile ----
-  if (viewingProfile && (!currentUser || viewingProfile.id !== currentUser.id)) {
-    let pub = { username: viewingProfile.username, bio: '', website: '', profileImage: null, followersCount: 0, followingCount: 0, isFollowing: false };
-    try {
-      const res = await fetch('/api/users/' + viewingProfile.id + '/public');
-      pub = await res.json();
-    } catch (err) {}
-
-    const theirFilms = allFilms.filter(f => f.ownerId === viewingProfile.id);
-    const theirVideos = theirFilms.filter(f => f.type !== 'photo');
-    const theirPhotos = theirFilms.filter(f => f.type === 'photo');
-
-    el.innerHTML = `
-      <div class="profile-top-row">
-        <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml(pub.username[0].toUpperCase())}</div>
-        <div class="profile-stats">
-          <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
-          <div onclick="openUserList('${viewingProfile.id}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
-          <div onclick="openUserList('${viewingProfile.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
-        </div>
-      </div>
-      <div class="profile-username">@${escapeHtml(pub.username)}</div>
-      ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
-      ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
-      <div class="profile-btn-row">
-        <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${viewingProfile.id}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
-        ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${viewingProfile.id}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
-        <button class="profile-btn" onclick="copyProfileLink('${viewingProfile.id}')">Share Profile</button>
-      </div>
-      <div class="profile-tabs-row">
-        <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
-        <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
-      </div>
-      <div class="profile-mygrid" id="profileGridVideos">
-        ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
-      </div>
-      <div class="profile-mygrid hidden" id="profileGridPhotos">
-        ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
-      </div>
-    `;
-    return;
-  }
 
   // ---- Not logged in ----
   if (!currentUser) {
@@ -1055,8 +1089,22 @@ async function toggleFollow(userId){
     const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    renderProfile();
+    if (otherProfileUserId === userId) renderOtherProfile(userId);
+    else renderProfile();
   } catch (err) {
+    showToast(err.message);
+  }
+}
+
+async function followFromFeed(userId, btn){
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    document.querySelectorAll('.feed-follow-btn[data-owner="' + userId + '"]').forEach(b => b.remove());
+  } catch (err) {
+    btn.disabled = false;
     showToast(err.message);
   }
 }
@@ -1549,6 +1597,7 @@ function renderHome(films) {
             <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
+          ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
         </div>
 
         <div class="card-media-box" onclick="${isShort ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
@@ -2301,6 +2350,7 @@ function startStoryPlayback(){
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
   document.getElementById('storyOwnerViewsBtn').classList.toggle('hidden', !isOwner);
+  document.getElementById('storyDeleteBtn').classList.toggle('hidden', !isOwner);
   document.getElementById('storyViewCountLabel').textContent = story.viewCount || 0;
   document.getElementById('storyCommentCountLabel').textContent = story.commentCount || 0;
   document.getElementById('storyLikeBtn').textContent = '🤍';
@@ -2395,6 +2445,19 @@ function closeStoryViewer(){
   document.getElementById('storyCommentsDrawer').classList.remove('open');
   currentStoryId = null;
   loadStories();
+}
+
+async function deleteCurrentStory(){
+  if (!currentStoryId) return;
+  pauseStoryProgress();
+  if (!confirm('Ye story delete karni hai? Ye wapas nahi aa sakti.')) { resumeStoryProgress(); return; }
+  try {
+    const res = await fetch('/api/stories/' + currentStoryId + '/delete', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete nahi ho saka');
+    showToast('Story delete ho gayi');
+    closeStoryViewer();
+  } catch (err) { showToast(err.message); resumeStoryProgress(); }
 }
 
 async function recordStoryView(storyId){
@@ -2677,6 +2740,7 @@ async function loadChatInbox(){
 async function openChatConvo(userId, usernameHint){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   if (document.getElementById('chatInboxOverlay').classList.contains('open')) closeChatInbox();
+  if (document.getElementById('otherProfileOverlay').classList.contains('open')) closeOtherProfile();
   stopVoiceRecording(true);
   clearChatAttachPreview();
   document.getElementById('chatTextInput').value = '';
@@ -2893,15 +2957,8 @@ async function sendShortMessage(conversationId, shortId){
   return data;
 }
 
-async function openSharedShort(filmId){
-  try {
-    const res = await fetch('/api/films/' + filmId);
-    const f = await res.json();
-    if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
-    closeChatConvo();
-    if (f.type === 'short') openShortAt(filmId);
-    else playFilm(filmId);
-  } catch (e) { showToast('Nahi khul saka'); }
+function openSharedShort(filmId){
+  playFilm(filmId);
 }
 
 // ---- Voice recording ----
@@ -3193,8 +3250,8 @@ async function toggleFollowInList(userId, btn){
     if (!res.ok) throw new Error(data.error || 'Failed');
     btn.textContent = data.following ? 'Following' : 'Follow';
     btn.classList.toggle('primary', !data.following);
-    if (viewingProfile && viewingProfile.id === userId) renderProfile();
-    if (currentUser && currentUser.id === (viewingProfile ? viewingProfile.id : currentUser.id)) renderProfile();
+    if (otherProfileUserId === userId) renderOtherProfile(userId);
+    if (currentUser && currentUser.id === userId) renderProfile();
   } catch (err) { showToast(err.message); }
 }
 
@@ -3472,7 +3529,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
     'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
     'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','notifOverlay',
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
-    'sendToOverlay','userListOverlay','uploadModalOverlay'
+    'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -3491,6 +3548,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
     chatMediaLightbox: () => closeChatMediaLightbox(),
     sendToOverlay: () => closeSendTo(),
     userListOverlay: () => closeUserList(),
+    otherProfileOverlay: () => closeOtherProfile(),
     uploadModalOverlay: () => closeUploadModal()
   };
 
