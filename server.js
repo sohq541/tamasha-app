@@ -803,7 +803,8 @@ app.get('/api/films', async (req, res) => {
         return {
           ...f, comments: enrichedComments,
           videoUrl, posterUrl,
-          ownerProfileImage: ownerAvatarUrl
+          ownerProfileImage: ownerAvatarUrl,
+          isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
         };
       }));
     res.json(out);
