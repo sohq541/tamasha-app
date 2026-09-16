@@ -131,6 +131,15 @@
   object-fit: cover;
   display: block;
 }
+.dbltap-heart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);font-size:80px;
+  pointer-events:none;z-index:40;filter:drop-shadow(0 2px 10px rgba(0,0,0,0.6));
+  animation:dbltapHeartPop 0.85s ease forwards;}
+@keyframes dbltapHeartPop{
+  0%{transform:translate(-50%,-50%) scale(0);opacity:0;}
+  18%{transform:translate(-50%,-50%) scale(1.15);opacity:1;}
+  32%{transform:translate(-50%,-50%) scale(0.95);opacity:1;}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0;}
+}
 .mute-toggle-btn{
   position:absolute; bottom:12px; right:12px; z-index:5;
   width:34px; height:34px; border-radius:50%; border:none;
@@ -507,8 +516,10 @@
 
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
-    <video id="player" controls></video>
-    <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
+    <div id="playerMediaWrap" style="position:relative;">
+      <video id="player" controls></video>
+      <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
+    </div>
     <div class="modal-body">
       <button class="modal-close" onclick="closeModal()">Close</button>
       <h2 id="mTitle"></h2>
@@ -785,6 +796,29 @@ function escapeHtml(str){
   div.textContent = str || '';
   return div.innerHTML;
 }
+
+// ===== Double-tap to like (Instagram-style), reusable everywhere =====
+function showHeartBurst(container){
+  const heart = document.createElement('div');
+  heart.className = 'dbltap-heart';
+  heart.textContent = '❤️';
+  container.appendChild(heart);
+  setTimeout(() => heart.remove(), 900);
+}
+function setupDoubleTapLike(el, singleTapFn, isLikedFn, doLikeFn, heartContainer){
+  let tapCount = 0, tapTimer = null;
+  el.addEventListener('click', function(e){
+    tapCount++;
+    if (tapCount === 1) {
+      tapTimer = setTimeout(() => { tapCount = 0; if (singleTapFn) singleTapFn(); }, 280);
+    } else {
+      clearTimeout(tapTimer);
+      tapCount = 0;
+      showHeartBurst(heartContainer || el);
+      if (!isLikedFn()) doLikeFn();
+    }
+  });
+}
 function shuffleArray(arr){
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -955,7 +989,7 @@ async function renderOtherProfile(userId, usernameHint){
       <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="otherProfileGridVideos">
-      ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
+      ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
       ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
@@ -1603,7 +1637,7 @@ function renderHome(films) {
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
         </div>
 
-        <div class="card-media-box" onclick="${isShort ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+        <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}">
           ${
             isPhoto
               ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`
@@ -1632,6 +1666,22 @@ function renderHome(films) {
   }).join('');
   setupHomeVideoObserver();
   setupHomeSwipeToShorts();
+  setupHomeDoubleTapLike();
+}
+
+function setupHomeDoubleTapLike(){
+  document.querySelectorAll('#grid .card-media-box[data-id]').forEach(box => {
+    const id = box.dataset.id;
+    const isShort = box.dataset.short === '1';
+    const card = document.getElementById('feed-card-' + id);
+    const likeBtn = card ? card.querySelector('.feed-act-btn') : null;
+    setupDoubleTapLike(
+      box,
+      () => { isShort ? openShortAt(id) : playFilm(id); },
+      () => !!(likeBtn && likeBtn.classList.contains('liked')),
+      () => { if (likeBtn) likeFeedPost(id, likeBtn); }
+    );
+  });
 }
 
 function toggleCardMute(id, btnEl){
@@ -1681,7 +1731,7 @@ function renderShorts(shorts){
     const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
     return `
     <div class="short-item" data-id="${f.id}">
-      <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}" onclick="toggleShortPlay(this)"></video>
+      <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
@@ -1699,6 +1749,23 @@ function renderShorts(shorts){
   `;
   }).join('');
   setupShortsSwipeToProfile();
+  setupShortsDoubleTapLike();
+}
+
+function setupShortsDoubleTapLike(){
+  document.querySelectorAll('.short-item video[data-id]').forEach(video => {
+    if (video.dataset.dbltapReady) return;
+    video.dataset.dbltapReady = '1';
+    const id = video.dataset.id;
+    const likeBtn = document.querySelector('.short-item[data-id="' + id + '"] .short-action-btn');
+    setupDoubleTapLike(
+      video,
+      () => toggleShortPlay(video),
+      () => !!(likeBtn && likeBtn.classList.contains('liked')),
+      () => { if (likeBtn) likeShort(id, likeBtn); },
+      video.closest('.short-item')
+    );
+  });
 }
 
 function toggleShortPlay(video){
@@ -2965,6 +3032,13 @@ function exitShorts(){
   shortsReturnTo = null;
   switchTab('home');
   if (target && target.type === 'chat') openChatConvo(target.userId, target.username);
+  else if (target && target.type === 'otherProfile') openOtherProfile(target.userId, target.username);
+}
+
+function openShortFromProfile(filmId, userId, username){
+  shortsReturnTo = { type: 'otherProfile', userId, username };
+  closeOtherProfile();
+  openShortAt(filmId);
 }
 
 function openSharedShort(filmId){
@@ -3320,6 +3394,12 @@ async function init(){
   try { await loadProfile(); } catch (e) { console.error('loadProfile failed:', e); }
   try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
   try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
+  setupDoubleTapLike(
+    document.getElementById('playerMediaWrap'),
+    null,
+    () => document.getElementById('likeBtn').classList.contains('liked'),
+    () => likeCurrentFilm()
+  );
 }
 init();
 let uploadXhr = null;
@@ -3546,7 +3626,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
 (function(){
   const overlayIds = [
     'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
-    'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','notifOverlay',
+    'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','storyCommentsDrawer','notifOverlay',
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay'
   ];
@@ -3559,6 +3639,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
     storyUploadOverlay: () => closeStoryUploadModal(),
     storyViewerOverlay: () => closeStoryViewer(),
     storyViewsOverlay: () => closeStoryViewsSheet(),
+    storyCommentsDrawer: () => toggleStoryCommentsDrawer(),
     notifOverlay: () => closeNotifications(),
     chatInboxOverlay: () => closeChatInbox(),
     chatConvoOverlay: () => closeChatConvo(),
