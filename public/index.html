@@ -2751,6 +2751,7 @@ async function pollMessagesCount(){
 }
 
 function avatarOrFallback(url, username, cls, fallbackCls){
+  if (username === 'Ask AI') return `<div class="${fallbackCls}" style="background:linear-gradient(150deg,#3A2E7A,#4361EE);">🤖</div>`;
   const letter = escapeHtml((username || '?')[0].toUpperCase());
   return url
     ? `<img class="${cls}" src="${url}">`
