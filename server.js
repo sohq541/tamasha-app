@@ -1553,12 +1553,116 @@ async function enrichMessage(m, directUrl) {
   return out;
 }
 
+// ---------------- Ask AI: built-in support assistant in every user's DMs ----------------
+const AI_ASSISTANT_ID = 'ai-assistant';
+const AI_ASSISTANT_USERNAME = 'Ask AI';
+const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const AI_SYSTEM_PROMPT = `Tum TAMASHA (YouSeries) video/shorts streaming app ke andar ek built-in "Ask AI" support assistant ho.
+App me ye sab hai: video/shorts/photo upload aur streaming, Home feed, Shorts feed, Stories (24hr), follow/unfollow, DM chat (text/photo/video/voice/shared-short), notifications, profile settings, account delete.
+Tumhara kaam: users ko unki account, upload, follow, chat, ya app use karne se juri kisi bhi problem/sawaal me seedha, chhota aur madadgaar jawab dena.
+Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likhe. Jawab chhote aur to-the-point rakho — chat bubble me padhna hai, essay nahi.
+Agar koi cheez tumhe nahi pata (jaise kisi specific user ka account data), to seedha bol do ke ye nahi pata, na ki bana ke batao.`;
+
+async function callAiAssistant(recentMessages, currentUserId){
+  if (!ANTHROPIC_API_KEY) {
+    return "Ask AI abhi set up nahi hai — is app ke owner ko ANTHROPIC_API_KEY add karni hogi.";
+  }
+  const history = recentMessages
+    .filter(m => !m.unsent && (m.text || '').trim())
+    .slice(-16)
+    .map(m => ({
+      role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',
+      content: m.text
+    }));
+  if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system: AI_SYSTEM_PROMPT,
+        messages: history
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error('Ask AI API error:', data); return "Abhi jawab nahi de paya, thodi der baad try karo."; }
+    return (data.content && data.content[0] && data.content[0].text) || "Samajh nahi paya, dobara pooch sakte ho?";
+  } catch (err) {
+    console.error('Ask AI call failed:', err.message);
+    return "Abhi jawab nahi de paya, thodi der baad try karo.";
+  }
+}
+
+async function ensureAiConversation(userId){
+  const convos = await readConversations();
+  const id = conversationIdFor(userId, AI_ASSISTANT_ID);
+  let convo = convos.find(c => c.id === id);
+  if (convo) return convo;
+  convo = { id, participants: [userId, AI_ASSISTANT_ID], updatedAt: new Date().toISOString(), lastMessage: null };
+  convos.push(convo);
+  await writeConversations(convos);
+
+  const welcomeMsg = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    conversationId: id, senderId: AI_ASSISTANT_ID,
+    type: 'text', text: "Hi! Main Ask AI hoon 🤖 — TAMASHA use karne me koi bhi problem ho (account, upload, follow, kuch bhi), yahan pooch lo.",
+    mediaKey: null, mediaType: null, storageProvider: null, duration: null,
+    shortId: null, shortTitle: null, shortOwnerUsername: null,
+    createdAt: new Date().toISOString(), editedAt: null,
+    deletedFor: [], unsent: false, readBy: [AI_ASSISTANT_ID]
+  };
+  await writeChatMessages(id, [welcomeMsg]);
+  convo.updatedAt = welcomeMsg.createdAt;
+  convo.lastMessage = { senderId: AI_ASSISTANT_ID, preview: previewForMessage(welcomeMsg), createdAt: welcomeMsg.createdAt };
+  await writeConversations(convos);
+  return convo;
+}
+
+async function triggerAiReply(conversationId, currentUserId){
+  try {
+    const messages = await readChatMessages(conversationId);
+    const replyText = await callAiAssistant(messages, currentUserId);
+    const aiMsg = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      conversationId, senderId: AI_ASSISTANT_ID,
+      type: 'text', text: replyText,
+      mediaKey: null, mediaType: null, storageProvider: null, duration: null,
+      shortId: null, shortTitle: null, shortOwnerUsername: null,
+      createdAt: new Date().toISOString(), editedAt: null,
+      deletedFor: [], unsent: false, readBy: [AI_ASSISTANT_ID]
+    };
+    const all = await readChatMessages(conversationId);
+    all.push(aiMsg);
+    await writeChatMessages(conversationId, all);
+
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === conversationId);
+    if (convo) {
+      convo.updatedAt = aiMsg.createdAt;
+      convo.lastMessage = { senderId: AI_ASSISTANT_ID, preview: previewForMessage(aiMsg), createdAt: aiMsg.createdAt };
+      await writeConversations(convos);
+    }
+    await notify(currentUserId, {
+      type: 'message', fromUserId: AI_ASSISTANT_ID, fromUsername: AI_ASSISTANT_USERNAME,
+      conversationId, message: '@Ask AI replied to you'
+    });
+  } catch (err) { console.error('triggerAiReply failed:', err.message); }
+}
+
 // ===================== CHAT / DM ROUTES =====================
 
 app.get('/api/conversations', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    await ensureAiConversation(currentUser.id);
     const list = (await readConversations()).filter(c => c.participants.includes(currentUser.id));
     const users = await readUsers();
     const directUrl = makeDirectUrlCache();
@@ -1567,6 +1671,12 @@ app.get('/api/conversations', async (req, res) => {
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       .map(async c => {
         const otherId = c.participants.find(p => p !== currentUser.id);
+        if (otherId === AI_ASSISTANT_ID) {
+          const messages = await readChatMessages(c.id);
+          const unreadCount = messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+            !(m.deletedFor || []).includes(currentUser.id) && !(m.readBy || []).includes(currentUser.id)).length;
+          return { id: c.id, otherUser: AI_ASSISTANT_USER, lastMessage: c.lastMessage, updatedAt: c.updatedAt, unreadCount };
+        }
         const other = users.find(u => u.id === otherId);
         const messages = await readChatMessages(c.id);
         const unreadCount = messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
@@ -1607,6 +1717,15 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     if (currentUser.id === req.params.userId) return res.status(400).json({ error: "You can't message yourself" });
 
+    const directUrl = makeDirectUrlCache();
+
+    if (req.params.userId === AI_ASSISTANT_ID) {
+      const convo = await ensureAiConversation(currentUser.id);
+      const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
+      const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl)));
+      return res.json({ id: convo.id, otherUser: AI_ASSISTANT_USER, messages });
+    }
+
     const users = await readUsers();
     const me = users.find(u => u.id === currentUser.id);
     const target = users.find(u => u.id === req.params.userId);
@@ -1619,7 +1738,6 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
       convo = await getConversationForUsers(currentUser.id, target.id, true);
     }
 
-    const directUrl = makeDirectUrlCache();
     const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
     const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl)));
 
@@ -1707,10 +1825,14 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     await writeConversations(convos);
 
     const otherId = convo.participants.find(p => p !== req.currentUser.id);
-    await notify(otherId, {
-      type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
-      conversationId: convo.id, message: `@${req.currentUser.username} sent you a message`
-    });
+    if (otherId === AI_ASSISTANT_ID) {
+      triggerAiReply(convo.id, req.currentUser.id).catch(() => {});
+    } else {
+      await notify(otherId, {
+        type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
+        conversationId: convo.id, message: `@${req.currentUser.username} sent you a message`
+      });
+    }
 
     const directUrl = makeDirectUrlCache();
     res.status(201).json(await enrichMessage(newMessage, directUrl));
