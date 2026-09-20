@@ -1575,6 +1575,9 @@ async function callAiAssistant(recentMessages, currentUserId){
       role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',
       content: m.text
     }));
+  // Anthropic's API requires the conversation to start with a 'user' turn —
+  // our seeded welcome message is 'assistant', so drop any leading assistant messages.
+  while (history.length && history[0].role === 'assistant') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1592,7 +1595,7 @@ async function callAiAssistant(recentMessages, currentUserId){
       })
     });
     const data = await res.json();
-    if (!res.ok) { console.error('Ask AI API error:', data); return "Abhi jawab nahi de paya, thodi der baad try karo."; }
+    if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
     return (data.content && data.content[0] && data.content[0].text) || "Samajh nahi paya, dobara pooch sakte ho?";
   } catch (err) {
     console.error('Ask AI call failed:', err.message);
