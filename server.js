@@ -1558,11 +1558,10 @@ const AI_ASSISTANT_ID = 'ai-assistant';
 const AI_ASSISTANT_USERNAME = 'Ask AI';
 const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) video/shorts streaming app ke andar built-in ek general-purpose AI assistant, jaise ChatGPT/Claude.
-Users tumse duniya bhar ke kisi bhi topic pe sawaal pooch sakte hain — general knowledge, advice, explanations, kuch bhi — aur tumhe apni knowledge se best-effort, sahi jawab dena hai, na ki sirf app tak seemit rehna.
-Iske saath, tumhe TAMASHA app ke baare me bhi pata hai: video/shorts/photo upload aur streaming, Home feed, Shorts feed, Stories (24hr), follow/unfollow, DM chat (text/photo/video/voice/shared-short), notifications, profile settings, account delete — agar koi app se judi problem pooche to usme bhi madad karo.
-Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likhe. Jawab chhote aur to-the-point rakho — chat bubble me padhna hai, essay nahi.
-Agar kisi cheez ke baare me pakka pata na ho (jaise bilkul latest events, ya kisi specific user ka apna account data), to saaf bol do ke pakka nahi pata, bana ke mat batao.`;
+const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — ek helpful general-purpose AI assistant jo TAMASHA app me integrated hai.
+Tumhe live internet access mila hua hai, isliye latest films, box office collection, news aur aam sawalon ka bilkul taaza aur sahi jawab do.
+Kabhi mat bolo ki tumhare paas live internet access nahi hai ya tumhara cutoff purana hai.
+Hinglish me direct, to-the-point aur short answer do.`;
 
 async function callAiAssistant(recentMessages, currentUserId){
   if (!GEMINI_API_KEY) {
@@ -1579,7 +1578,7 @@ async function callAiAssistant(recentMessages, currentUserId){
   while (history.length && history[0].role === 'model') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
       method: 'POST',
       headers: {
         'x-goog-api-key': GEMINI_API_KEY,
@@ -1587,9 +1586,13 @@ async function callAiAssistant(recentMessages, currentUserId){
       },
       body: JSON.stringify({
         contents: history,
-        systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] }
+        systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+        tools: [{
+          googleSearch: {}
+        }]
       })
     });
+    
     const data = await res.json();
     if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
     const text = data.candidates && data.candidates[0] && data.candidates[0].content &&
