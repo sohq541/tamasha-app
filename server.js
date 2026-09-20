@@ -1557,7 +1557,7 @@ async function enrichMessage(m, directUrl) {
 const AI_ASSISTANT_ID = 'ai-assistant';
 const AI_ASSISTANT_USERNAME = 'Ask AI';
 const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const AI_SYSTEM_PROMPT = `Tum TAMASHA (YouSeries) video/shorts streaming app ke andar ek built-in "Ask AI" support assistant ho.
 App me ye sab hai: video/shorts/photo upload aur streaming, Home feed, Shorts feed, Stories (24hr), follow/unfollow, DM chat (text/photo/video/voice/shared-short), notifications, profile settings, account delete.
 Tumhara kaam: users ko unki account, upload, follow, chat, ya app use karne se juri kisi bhi problem/sawaal me seedha, chhota aur madadgaar jawab dena.
@@ -1565,38 +1565,36 @@ Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likh
 Agar koi cheez tumhe nahi pata (jaise kisi specific user ka account data), to seedha bol do ke ye nahi pata, na ki bana ke batao.`;
 
 async function callAiAssistant(recentMessages, currentUserId){
-  if (!ANTHROPIC_API_KEY) {
-    return "Ask AI abhi set up nahi hai — is app ke owner ko ANTHROPIC_API_KEY add karni hogi.";
+  if (!GEMINI_API_KEY) {
+    return "Ask AI abhi set up nahi hai — is app ke owner ko GEMINI_API_KEY add karni hogi.";
   }
   const history = recentMessages
     .filter(m => !m.unsent && (m.text || '').trim())
     .slice(-16)
     .map(m => ({
-      role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',
-      content: m.text
+      role: m.senderId === AI_ASSISTANT_ID ? 'model' : 'user',
+      parts: [{ text: m.text }]
     }));
-  // Anthropic's API requires the conversation to start with a 'user' turn —
-  // our seeded welcome message is 'assistant', so drop any leading assistant messages.
-  while (history.length && history[0].role === 'assistant') history.shift();
+  // Keep the conversation starting on a real user turn (our seeded welcome message is 'model').
+  while (history.length && history[0].role === 'model') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'x-goog-api-key': GEMINI_API_KEY,
         'content-type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: AI_SYSTEM_PROMPT,
-        messages: history
+        contents: history,
+        systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] }
       })
     });
     const data = await res.json();
     if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
-    return (data.content && data.content[0] && data.content[0].text) || "Samajh nahi paya, dobara pooch sakte ho?";
+    const text = data.candidates && data.candidates[0] && data.candidates[0].content &&
+      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    return text || "Samajh nahi paya, dobara pooch sakte ho?";
   } catch (err) {
     console.error('Ask AI call failed:', err.message);
     return "Abhi jawab nahi de paya, thodi der baad try karo.";
