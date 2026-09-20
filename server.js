@@ -1578,7 +1578,7 @@ async function callAiAssistant(recentMessages, currentUserId){
   while (history.length && history[0].role === 'model') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
       method: 'POST',
       headers: {
         'x-goog-api-key': GEMINI_API_KEY,
