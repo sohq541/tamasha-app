@@ -1553,88 +1553,133 @@ async function enrichMessage(m, directUrl) {
   return out;
 }
 
-// ---------------- Ask AI: built-in support assistant in every user's DMs ----------------
-const AI_ASSISTANT_ID = 'ai-assistant';
-const AI_ASSISTANT_USERNAME = 'Ask AI';
-const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) video/shorts streaming app ke andar built-in ek general-purpose AI assistant, jaise ChatGPT/Claude.
-Users tumse duniya bhar ke kisi bhi topic pe sawaal pooch sakte hain — general knowledge, advice, explanations, kuch bhi — aur tumhe apni knowledge se best-effort, sahi jawab dena hai, na ki sirf app tak seemit rehna.
-Iske saath, tumhe TAMASHA app ke baare me bhi pata hai: video/shorts/photo upload aur streaming, Home feed, Shorts feed, Stories (24hr), follow/unfollow, DM chat (text/photo/video/voice/shared-short), notifications, profile settings, account delete — agar koi app se judi problem pooche to usme bhi madad karo.
-Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likhe. Jawab chhote aur to-the-point rakho — chat bubble me padhna hai, essay nahi.
-Agar kisi cheez ke baare me pakka pata na ho (jaise bilkul latest events, ya kisi specific user ka apna account data), to saaf bol do ke pakka nahi pata, bana ke mat batao.`;
+// ---------------- Ask AI: Groq + Tavily Integration ----------------
+const AI_ASSISTANT_ID = 'ai-assistant';[span_2](start_span)[span_2](end_span)
+const AI_ASSISTANT_USERNAME = 'Ask AI';[span_3](start_span)[span_3](end_span)
+const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };[span_4](start_span)[span_4](end_span)
 
-let cachedGroqModel = { id: null, resolvedAt: 0 };
+const GROQ_API_KEY = process.env.GROQ_API_KEY;[span_5](start_span)[span_5](end_span)
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-async function resolveGroqModel(){
-  if (cachedGroqModel.id && Date.now() - cachedGroqModel.resolvedAt < 6 * 60 * 60 * 1000) {
-    return cachedGroqModel.id;
-  }
+const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) video/shorts app ke andar ek smart AI assistant.
+Tumhe general knowledge, daily updates, advice, aur TAMASHA app se judi problems ka sahi aur to-the-point solution dena hai.
+Agar real-time web context provide kiya gaya ho, to uska use karke bilkul latest aur accurate jawab do.
+Hinglish me jawab do aur response ko compact rakho taaki chat bubble me readable lage.`;
+
+// Tavily Search Helper
+async function getLiveWebContext(query) {
+  if (!TAVILY_API_KEY) return null;
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/models', {
-      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
-    });
-    const data = await res.json();
-    const ids = (data.data || []).map(m => m.id);
-    const bad = /guard|whisper|tts|orpheus|prompt-guard|safeguard|embed/i;
-    const candidates = ids.filter(id => !bad.test(id));
-    const pick = candidates.find(id => /70b|120b/i.test(id)) ||
-      candidates.find(id => /llama/i.test(id)) ||
-      candidates[0];
-    if (pick) { cachedGroqModel = { id: pick, resolvedAt: Date.now() }; return pick; }
-  } catch (err) { console.error('Ask AI model discovery failed:', err.message); }
-  return 'llama-3.3-70b-versatile'; // last-resort guess if discovery itself fails
-}
-
-async function callAiAssistant(recentMessages, currentUserId){
-  if (!GROQ_API_KEY) {
-    return "Ask AI abhi set up nahi hai — is app ke owner ko GROQ_API_KEY add karni hogi.";
-  }
-  const history = recentMessages
-    .filter(m => !m.unsent && (m.text || '').trim())
-    .slice(-16)
-    .map(m => ({
-      role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',
-      content: m.text
-    }));
-  // Keep the conversation starting on a real user turn (our seeded welcome message is 'assistant').
-  while (history.length && history[0].role === 'assistant') history.shift();
-  if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
-  try {
-    const model = await resolveGroqModel();
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
-        messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...history],
-        max_tokens: 500
+        api_key: TAVILY_API_KEY,
+        query: query,
+        search_depth: 'basic',
+        include_answer: true,
+        max_results: 3
       })
     });
-    let data = await res.json();
-    if (!res.ok && /does not exist|decommissioned|not found/i.test((data.error && data.error.message) || '')) {
-      // Cached model just went stale — force a fresh lookup and retry once.
-      cachedGroqModel = { id: null, resolvedAt: 0 };
-      const freshModel = await resolveGroqModel();
-      const retryRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: freshModel, messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...history], max_tokens: 500 })
-      });
-      data = await retryRes.json();
-      if (!retryRes.ok) { console.error('Ask AI API error (retry):', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
-      const retryText = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-      return retryText || "Samajh nahi paya, dobara pooch sakte ho?";
+    if (!res.ok) return null;
+    const data = await res.json();
+    let result = '';
+    if (data.answer) result += `Summary: ${data.answer}\n`;
+    if (data.results && data.results.length > 0) {
+      result += data.results.map(item => `- ${item.title}: ${item.content}`).join('\n');
     }
-    if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
-    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    return text || "Samajh nahi paya, dobara pooch sakte ho?";
+    return result.trim() || null;
   } catch (err) {
-    console.error('Ask AI call failed:', err.message);
-    return "Abhi jawab nahi de paya, thodi der baad try karo.";
+    console.error('Tavily search error:', err.message);
+    return null;
+  }
+}
+
+// Check if query needs latest web search
+function checkNeedsSearch(query) {
+  const q = (query || '').toLowerCase();
+  const keywords = ['aaj', 'today', 'latest', 'news', 'price', 'score', 'match', 'weather', 'update', 'current', '2026', '2025', 'kaun hai', 'kab'];
+  return keywords.some(k => q.includes(k));
+}
+
+let cachedGroqModel = { id: null, resolvedAt: 0 };[span_6](start_span)[span_6](end_span)
+
+async function resolveGroqModel() {
+  if (cachedGroqModel.id && Date.now() - cachedGroqModel.resolvedAt < 6 * 60 * 60 * 1000) {[span_7](start_span)[span_7](end_span)
+    return cachedGroqModel.id;[span_8](start_span)[span_8](end_span)
+  }
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {[span_9](start_span)[span_9](end_span)
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }[span_10](start_span)[span_10](end_span)
+    });
+    const data = await res.json();[span_11](start_span)[span_11](end_span)
+    const ids = (data.data || []).map(m => m.id);[span_12](start_span)[span_12](end_span)
+    const bad = /guard|whisper|tts|orpheus|prompt-guard|safeguard|embed/i;[span_13](start_span)[span_13](end_span)
+    const candidates = ids.filter(id => !bad.test(id));[span_14](start_span)[span_14](end_span)
+    const pick = candidates.find(id => /70b|120b/i.test(id)) ||[span_15](start_span)[span_15](end_span)
+                 candidates.find(id => /llama/i.test(id)) ||[span_16](start_span)[span_16](end_span)
+                 candidates[0];[span_17](start_span)[span_17](end_span)
+    if (pick) { cachedGroqModel = { id: pick, resolvedAt: Date.now() }; return pick; }[span_18](start_span)[span_18](end_span)
+  } catch (err) { console.error('Model resolution failed:', err.message); }[span_19](start_span)[span_19](end_span)
+  return 'llama-3.3-70b-versatile';[span_20](start_span)[span_20](end_span)
+}
+
+async function callAiAssistant(recentMessages, currentUserId) {
+  if (!GROQ_API_KEY) {[span_21](start_span)[span_21](end_span)
+    return "Groq API Key set nahi hai, please GROQ_API_KEY add karein.";
+  }
+
+  const history = recentMessages[span_22](start_span)[span_22](end_span)
+    .filter(m => !m.unsent && (m.text || '').trim())[span_23](start_span)[span_23](end_span)
+    .slice(-16)[span_24](start_span)[span_24](end_span)
+    .map(m => ({[span_25](start_span)[span_25](end_span)
+      role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',[span_26](start_span)[span_26](end_span)
+      content: m.text[span_27](start_span)[span_27](end_span)
+    }));[span_28](start_span)[span_28](end_span)
+
+  while (history.length && history[0].role === 'assistant') history.shift();[span_29](start_span)[span_29](end_span)
+  if (!history.length) return "Hi! Main Ask AI hoon. Kuch bhi pooch sakte hain aap.";
+
+  const latestUserText = history[history.length - 1].content;
+  let webData = null;
+  if (checkNeedsSearch(latestUserText)) {
+    webData = await getLiveWebContext(latestUserText);
+  }
+
+  const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
+  if (webData) {
+    messages.push({
+      role: 'system',
+      content: `[Real-Time Web Search Results]:\n${webData}\n\nIs live information ko base bana kar user ke sawal ka sahi jawab do.`
+    });
+  }
+  messages.push(...history);
+
+  try {
+    const model = await resolveGroqModel();[span_30](start_span)[span_30](end_span)
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {[span_31](start_span)[span_31](end_span)
+      method: 'POST',[span_32](start_span)[span_32](end_span)
+      headers: {[span_33](start_span)[span_33](end_span)
+        'Authorization': `Bearer ${GROQ_API_KEY}`,[span_34](start_span)[span_34](end_span)
+        'Content-Type': 'application/json[span_35](start_span)'[span_35](end_span)
+      },
+      body: JSON.stringify({[span_36](start_span)[span_36](end_span)
+        model,[span_37](start_span)[span_37](end_span)
+        messages,
+        max_tokens: 600
+      })
+    });
+
+    const data = await res.json();[span_38](start_span)[span_38](end_span)
+    if (!res.ok) {[span_39](start_span)[span_39](end_span)
+      console.error('Groq API Error:', data);[span_40](start_span)[span_40](end_span)
+      return "Abhi jawab generate karne me dikkat aa rahi hai.";
+    }
+
+    return data.choices?.[0]?.message?.content || "Mujhe samajh nahi aaya, dobara poochein.";
+  } catch (err) {
+    console.error('Ask AI error:', err.message);[span_41](start_span)[span_41](end_span)
+    return "Error: Thodi der baad try karein.";
   }
 }
 
