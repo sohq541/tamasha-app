@@ -1561,10 +1561,10 @@ const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) video/shorts app ke andar ek smart AI assistant.
-Tumhe general knowledge, daily updates, advice, aur TAMASHA app se judi problems ka sahi aur to-the-point solution dena hai.
-Agar real-time web context provide kiya gaya ho, to uska use karke bilkul latest aur accurate jawab do.
-Hinglish me jawab do aur response ko compact rakho taaki chat bubble me readable lage.`;
+const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) streaming app ke smart AI assistant.
+Tumhe provide kiye gaye live web search context ka use karke real-time, accurate aur to-the-point jawab dena hai.
+Kabhi bhi ye mat kaho ki "mere paas purana data hai" ya "cutoff date hai" kyunki tumhe live internet access diya gaya hai.
+Hinglish me compact aur clear jawab do.`;
 
 async function getLiveWebContext(query) {
   if (!TAVILY_API_KEY) return null;
@@ -1577,7 +1577,7 @@ async function getLiveWebContext(query) {
         query: query,
         search_depth: 'basic',
         include_answer: true,
-        max_results: 3
+        max_results: 5
       })
     });
     if (!res.ok) return null;
@@ -1592,12 +1592,6 @@ async function getLiveWebContext(query) {
     console.error('Tavily search error:', err.message);
     return null;
   }
-}
-
-function checkNeedsSearch(query) {
-  const q = (query || '').toLowerCase();
-  const keywords = ['aaj', 'today', 'latest', 'news', 'price', 'score', 'match', 'weather', 'update', 'current', '2026', '2025', 'kaun hai', 'kab'];
-  return keywords.some(k => q.includes(k));
 }
 
 let cachedGroqModel = { id: null, resolvedAt: 0 };
@@ -1639,16 +1633,15 @@ async function callAiAssistant(recentMessages, currentUserId) {
   if (!history.length) return "Hi! Main Ask AI hoon. Kuch bhi pooch sakte hain aap.";
 
   const latestUserText = history[history.length - 1].content;
-  let webData = null;
-  if (checkNeedsSearch(latestUserText)) {
-    webData = await getLiveWebContext(latestUserText);
-  }
+  
+  // Direct live web search for the user's question
+  const webData = await getLiveWebContext(latestUserText);
 
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
   if (webData) {
     messages.push({
       role: 'system',
-      content: `[Real-Time Web Search Results]:\n${webData}\n\nIs live information ko base bana kar user ke sawal ka sahi jawab do.`
+      content: `[Live Real-Time Web Context]:\n${webData}\n\nIs live data ko use karke user ko up-to-date accurate jawab do.`
     });
   }
   messages.push(...history);
@@ -1679,7 +1672,7 @@ async function callAiAssistant(recentMessages, currentUserId) {
     console.error('Ask AI error:', err.message);
     return "Error: Thodi der baad try karein.";
   }
-      }      
+}  
 async function ensureAiConversation(userId){
   const convos = await readConversations();
   const id = conversationIdFor(userId, AI_ASSISTANT_ID);
