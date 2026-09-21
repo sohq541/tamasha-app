@@ -1564,6 +1564,28 @@ Iske saath, tumhe TAMASHA app ke baare me bhi pata hai: video/shorts/photo uploa
 Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likhe. Jawab chhote aur to-the-point rakho — chat bubble me padhna hai, essay nahi.
 Agar kisi cheez ke baare me pakka pata na ho (jaise bilkul latest events, ya kisi specific user ka apna account data), to saaf bol do ke pakka nahi pata, bana ke mat batao.`;
 
+let cachedGroqModel = { id: null, resolvedAt: 0 };
+
+async function resolveGroqModel(){
+  if (cachedGroqModel.id && Date.now() - cachedGroqModel.resolvedAt < 6 * 60 * 60 * 1000) {
+    return cachedGroqModel.id;
+  }
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+    });
+    const data = await res.json();
+    const ids = (data.data || []).map(m => m.id);
+    const bad = /guard|whisper|tts|orpheus|prompt-guard|safeguard|embed/i;
+    const candidates = ids.filter(id => !bad.test(id));
+    const pick = candidates.find(id => /70b|120b/i.test(id)) ||
+      candidates.find(id => /llama/i.test(id)) ||
+      candidates[0];
+    if (pick) { cachedGroqModel = { id: pick, resolvedAt: Date.now() }; return pick; }
+  } catch (err) { console.error('Ask AI model discovery failed:', err.message); }
+  return 'llama-3.3-70b-versatile'; // last-resort guess if discovery itself fails
+}
+
 async function callAiAssistant(recentMessages, currentUserId){
   if (!GROQ_API_KEY) {
     return "Ask AI abhi set up nahi hai — is app ke owner ko GROQ_API_KEY add karni hogi.";
@@ -1579,6 +1601,7 @@ async function callAiAssistant(recentMessages, currentUserId){
   while (history.length && history[0].role === 'assistant') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
+    const model = await resolveGroqModel();
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1586,12 +1609,26 @@ async function callAiAssistant(recentMessages, currentUserId){
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model,
         messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...history],
         max_tokens: 500
       })
     });
-    const data = await res.json();
+    let data = await res.json();
+    if (!res.ok && /does not exist|decommissioned|not found/i.test((data.error && data.error.message) || '')) {
+      // Cached model just went stale — force a fresh lookup and retry once.
+      cachedGroqModel = { id: null, resolvedAt: 0 };
+      const freshModel = await resolveGroqModel();
+      const retryRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: freshModel, messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...history], max_tokens: 500 })
+      });
+      data = await retryRes.json();
+      if (!retryRes.ok) { console.error('Ask AI API error (retry):', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
+      const retryText = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      return retryText || "Samajh nahi paya, dobara pooch sakte ho?";
+    }
     if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
     const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     return text || "Samajh nahi paya, dobara pooch sakte ho?";
