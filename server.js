@@ -1557,7 +1557,7 @@ async function enrichMessage(m, directUrl) {
 const AI_ASSISTANT_ID = 'ai-assistant';
 const AI_ASSISTANT_USERNAME = 'Ask AI';
 const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME, profileImage: null };
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) video/shorts streaming app ke andar built-in ek general-purpose AI assistant, jaise ChatGPT/Claude.
 Users tumse duniya bhar ke kisi bhi topic pe sawaal pooch sakte hain — general knowledge, advice, explanations, kuch bhi — aur tumhe apni knowledge se best-effort, sahi jawab dena hai, na ki sirf app tak seemit rehna.
 Iske saath, tumhe TAMASHA app ke baare me bhi pata hai: video/shorts/photo upload aur streaming, Home feed, Shorts feed, Stories (24hr), follow/unfollow, DM chat (text/photo/video/voice/shared-short), notifications, profile settings, account delete — agar koi app se judi problem pooche to usme bhi madad karo.
@@ -1565,35 +1565,35 @@ Hinglish (Hindi-English mix) me jawab do jab tak user kisi aur bhasha me na likh
 Agar kisi cheez ke baare me pakka pata na ho (jaise bilkul latest events, ya kisi specific user ka apna account data), to saaf bol do ke pakka nahi pata, bana ke mat batao.`;
 
 async function callAiAssistant(recentMessages, currentUserId){
-  if (!GEMINI_API_KEY) {
-    return "Ask AI abhi set up nahi hai — is app ke owner ko GEMINI_API_KEY add karni hogi.";
+  if (!GROQ_API_KEY) {
+    return "Ask AI abhi set up nahi hai — is app ke owner ko GROQ_API_KEY add karni hogi.";
   }
   const history = recentMessages
     .filter(m => !m.unsent && (m.text || '').trim())
     .slice(-16)
     .map(m => ({
-      role: m.senderId === AI_ASSISTANT_ID ? 'model' : 'user',
-      parts: [{ text: m.text }]
+      role: m.senderId === AI_ASSISTANT_ID ? 'assistant' : 'user',
+      content: m.text
     }));
-  // Keep the conversation starting on a real user turn (our seeded welcome message is 'model').
-  while (history.length && history[0].role === 'model') history.shift();
+  // Keep the conversation starting on a real user turn (our seeded welcome message is 'assistant').
+  while (history.length && history[0].role === 'assistant') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon — TAMASHA use karne me koi bhi problem ho, yahan pooch lo.";
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'x-goog-api-key': GEMINI_API_KEY,
-        'content-type': 'application/json'
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        contents: history,
-        systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] }
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...history],
+        max_tokens: 500
       })
     });
     const data = await res.json();
     if (!res.ok) { console.error('Ask AI API error:', JSON.stringify(data)); return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")"; }
-    const text = data.candidates && data.candidates[0] && data.candidates[0].content &&
-      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     return text || "Samajh nahi paya, dobara pooch sakte ho?";
   } catch (err) {
     console.error('Ask AI call failed:', err.message);
