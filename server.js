@@ -1561,26 +1561,32 @@ const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) streaming app ke smart AI assistant.
-Tumhe provide kiye gaye live web search context ka use karke real-time, accurate aur to-the-point jawab dena hai.
-Kabhi bhi ye mat kaho ki "mere paas purana data hai" ya "cutoff date hai" kyunki tumhe live internet access diya gaya hai.
-Hinglish me compact aur clear jawab do.`;
+const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) streaming app ke andar built-in ek general-purpose AI assistant.
+Agar tumhe [Live Web Context] diya jaye, to usi ko real-time/current info ka source maano aur usी ke basis par jawab do.
+Agar [Live Web Context] NAHI diya gaya (ya usme kaam ka kuch na mile), aur sawaal aisi cheez ke baare me hai jo waqt ke saath badalti hai (jaise aaj ki tareekh/score/news/price), to saaf bol do ke ye abhi pata nahi — bana ke mat batao.
+Baaki sab general knowledge, advice, explanations ke sawaalon ka apni knowledge se best-effort jawab do, aur TAMASHA app (upload, DM, follow, stories, settings) se judi problems me bhi madad karo.
+Hinglish me chhota, to-the-point jawab do — chat bubble me padhna hai, essay nahi.`;
+
+// Only spend a Tavily search credit when the question actually looks time-sensitive.
+const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|kal|aaj|abhi|latest|mausam|taaza|score|kitna hai|kya hai)\b/i;
 
 async function getLiveWebContext(query) {
-  if (!TAVILY_API_KEY) return null;
+  if (!TAVILY_API_KEY || !REALTIME_HINT.test(query)) return null;
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${TAVILY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
-        api_key: TAVILY_API_KEY,
         query: query,
         search_depth: 'basic',
         include_answer: true,
         max_results: 5
       })
     });
-    if (!res.ok) return null;
+    if (!res.ok) { console.error('Tavily API error:', await res.text()); return null; }
     const data = await res.json();
     let result = '';
     if (data.answer) result += `Summary: ${data.answer}\n`;
@@ -1616,6 +1622,19 @@ async function resolveGroqModel() {
   return 'llama-3.3-70b-versatile';
 }
 
+async function callGroqChat(model, messages) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ model, messages, max_tokens: 600 })
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
 async function callAiAssistant(recentMessages, currentUserId) {
   if (!GROQ_API_KEY) {
     return "Groq API Key set nahi hai, please GROQ_API_KEY add karein.";
@@ -1629,50 +1648,43 @@ async function callAiAssistant(recentMessages, currentUserId) {
       content: m.text
     }));
 
+  // Keep the conversation starting on a real user turn (our seeded welcome message is 'assistant').
   while (history.length && history[0].role === 'assistant') history.shift();
   if (!history.length) return "Hi! Main Ask AI hoon. Kuch bhi pooch sakte hain aap.";
 
   const latestUserText = history[history.length - 1].content;
-  
-  // Direct live web search for the user's question
   const webData = await getLiveWebContext(latestUserText);
 
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
   if (webData) {
     messages.push({
       role: 'system',
-      content: `[Live Real-Time Web Context]:\n${webData}\n\nIs live data ko use karke user ko up-to-date accurate jawab do.`
+      content: `[Live Web Context]:\n${webData}`
     });
   }
   messages.push(...history);
 
   try {
     const model = await resolveGroqModel();
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 600
-      })
-    });
+    let { ok, data } = await callGroqChat(model, messages);
 
-    const data = await res.json();
-    if (!res.ok) {
-      console.error('Groq API Error:', data);
-      return "Abhi jawab generate karne me dikkat aa rahi hai.";
+    if (!ok && /does not exist|decommissioned|not found/i.test((data.error && data.error.message) || '')) {
+      // Cached model just went stale — force a fresh lookup and retry once.
+      cachedGroqModel = { id: null, resolvedAt: 0 };
+      const freshModel = await resolveGroqModel();
+      ({ ok, data } = await callGroqChat(freshModel, messages));
     }
 
-    return data.choices?.[0]?.message?.content || "Mujhe samajh nahi aaya, dobara poochein.";
+    if (!ok) {
+      console.error('Groq API Error:', JSON.stringify(data));
+      return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")";
+    }
+    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "Mujhe samajh nahi aaya, dobara poochein.";
   } catch (err) {
     console.error('Ask AI error:', err.message);
     return "Error: Thodi der baad try karein.";
   }
-}  
+}
 async function ensureAiConversation(userId){
   const convos = await readConversations();
   const id = conversationIdFor(userId, AI_ASSISTANT_ID);
