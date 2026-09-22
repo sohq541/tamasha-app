@@ -459,6 +459,52 @@
   color:var(--cream-dim);font-size:11px;cursor:pointer;padding:6px 2px;font-family:'Mukta',sans-serif;}
 .sendto-action-icon{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;
   align-items:center;justify-content:center;font-size:19px;color:var(--cream);}
+.sendto-grid-item {
+  position: relative;
+  transition: transform 0.15s ease;
+}
+.sendto-grid-item.selected .sendto-grid-avatar,
+.sendto-grid-item.selected .sendto-grid-avatar-fallback {
+  box-shadow: 0 0 0 3px var(--marigold);
+}
+.sendto-select-badge {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1.5px solid var(--cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #fff;
+}
+.sendto-grid-item.selected .sendto-select-badge {
+  background: var(--marigold);
+  border-color: var(--marigold);
+}
+.sendto-bottom-bar {
+  margin-top: 12px;
+  padding: 8px 0 0;
+}
+.sendto-main-send-btn {
+  width: 100%;
+  background: var(--marigold);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sendto-main-send-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 </style>
 </head>
 <body>
@@ -692,10 +738,13 @@
 
 <!-- ===== SEND TO (share short into chat) ===== -->
 <div class="sheet-overlay" id="sendToOverlay" onclick="if(event.target===this) closeSendTo()">
-  <div class="sheet" style="max-height:82vh;overflow-y:auto;">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;">
     <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
     <input type="text" class="sendto-search" id="sendToSearch" placeholder="Search" oninput="filterSendToGrid(this.value)">
-    <div class="sendto-grid" id="sendToList"></div>
+    <div class="sendto-grid" id="sendToList" style="flex:1;overflow-y:auto;"></div>
+    <div class="sendto-bottom-bar hidden" id="sendToBottomBar">
+      <button class="sendto-main-send-btn" id="sendToConfirmBtn" onclick="sendToSelectedUsers()">Send</button>
+    </div>
     <div class="sendto-actions">
       <button class="sendto-action-btn" onclick="sendToAddToStory()"><span class="sendto-action-icon">📖</span>Add to Story</button>
       <button class="sendto-action-btn" onclick="sendToExternalShare()"><span class="sendto-action-icon">↗</span>Share</button>
@@ -703,7 +752,7 @@
     </div>
   </div>
 </div>
-
+  
 <!-- ===== FOLLOWING / FOLLOWERS LIST ===== -->
 <div class="sheet-overlay" id="userListOverlay" onclick="if(event.target===this) closeUserList()">
   <div class="sheet" style="max-height:78vh;overflow-y:auto;">
@@ -3207,14 +3256,19 @@ async function chatMsgMenuDelete(scope){
 
 // ---- Send To (share a short into chat) ----
 let sendToPeople = [];
+let selectedSendUserIds = new Set();
 
 async function openSendTo(shortId){
   sendToShortId = shortId;
   sendToPeople = [];
+  selectedSendUserIds.clear();
+  updateSendToButton();
+  
   document.getElementById('sendToSearch').value = '';
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
   listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
+  
   if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
   try {
     const [convRes, followRes] = await Promise.all([
@@ -3223,8 +3277,19 @@ async function openSendTo(shortId){
     const convData = await convRes.json();
     const followData = await followRes.json();
     const seen = new Set();
-    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); sendToPeople.push(c.otherUser); } });
-    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
+    
+    (convData.conversations || []).forEach(c => { 
+      if (c.otherUser && c.otherUser.id !== 'ai-assistant' && !seen.has(c.otherUser.id)) { 
+        seen.add(c.otherUser.id); 
+        sendToPeople.push(c.otherUser); 
+      } 
+    });
+    (followData.users || []).forEach(u => { 
+      if (!seen.has(u.id)) { 
+        seen.add(u.id); 
+        sendToPeople.push(u); 
+      } 
+    });
 
     if (!sendToPeople.length) {
       listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe bhej sako.</div>';
@@ -3239,12 +3304,73 @@ async function openSendTo(shortId){
 function renderSendToGrid(people){
   const listEl = document.getElementById('sendToList');
   if (!people.length) { listEl.innerHTML = '<p class="comment-empty">No results.</p>'; return; }
-  listEl.innerHTML = people.map(u => `
-    <button class="sendto-grid-item" id="sendToItem-${u.id}" onclick="doSendShortTo('${u.id}')">
-      ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
-      <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
-    </button>
-  `).join('');
+  
+  listEl.innerHTML = people.map(u => {
+    const isSelected = selectedSendUserIds.has(u.id);
+    return `
+      <button type="button" class="sendto-grid-item ${isSelected ? 'selected' : ''}" id="sendToItem-${u.id}" onclick="toggleSelectSendUser('${u.id}')">
+        <div class="sendto-select-badge">${isSelected ? '✓' : ''}</div>
+        ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
+        <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function toggleSelectSendUser(userId){
+  if (selectedSendUserIds.has(userId)) {
+    selectedSendUserIds.delete(userId);
+  } else {
+    selectedSendUserIds.add(userId);
+  }
+  
+  const el = document.getElementById('sendToItem-' + userId);
+  if (el) {
+    const isSelected = selectedSendUserIds.has(userId);
+    el.classList.toggle('selected', isSelected);
+    const badge = el.querySelector('.sendto-select-badge');
+    if (badge) badge.textContent = isSelected ? '✓' : '';
+  }
+  updateSendToButton();
+}
+
+function updateSendToButton(){
+  const bar = document.getElementById('sendToBottomBar');
+  const btn = document.getElementById('sendToConfirmBtn');
+  const count = selectedSendUserIds.size;
+  
+  if (count > 0) {
+    bar.classList.remove('hidden');
+    btn.textContent = count === 1 ? 'Send' : `Send to ${count} people`;
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+async function sendToSelectedUsers(){
+  if (!sendToShortId || selectedSendUserIds.size === 0) return;
+  const btn = document.getElementById('sendToConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  const userIds = Array.from(selectedSendUserIds);
+  try {
+    await Promise.all(userIds.map(async (uid) => {
+      const convRes = await fetch('/api/conversations/with/' + uid);
+      const convData = await convRes.json();
+      if (!convRes.ok) throw new Error(convData.error || 'Failed');
+      return sendShortMessage(convData.id, sendToShortId);
+    }));
+
+    showToast('Sent successfully!');
+    closeSendTo();
+    loadChatInbox().catch(() => {});
+  } catch (err) {
+    showToast(err.message || 'Kuch logo ko nahi bhej sake');
+  } finally {
+    btn.disabled = false;
+    updateSendToButton();
+  }
 }
 
 function filterSendToGrid(query){
@@ -3252,27 +3378,14 @@ function filterSendToGrid(query){
   renderSendToGrid(q ? sendToPeople.filter(u => u.username.toLowerCase().includes(q)) : sendToPeople);
 }
 
-function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; }
-
-async function doSendShortTo(userId){
-  if (!sendToShortId) return;
-  const item = document.getElementById('sendToItem-' + userId);
-  if (!item || item.classList.contains('sent')) return;
-  item.classList.add('sent');
-  item.querySelector('.sendto-grid-name').insertAdjacentHTML('afterend', '<span class="sendto-grid-check">Sent ✓</span>');
-  try {
-    const convRes = await fetch('/api/conversations/with/' + userId);
-    const convData = await convRes.json();
-    if (!convRes.ok) throw new Error(convData.error || 'Could not send');
-    await sendShortMessage(convData.id, sendToShortId);
-    loadChatInbox().catch(() => {});
-  } catch (err) {
-    item.classList.remove('sent');
-    const chk = item.querySelector('.sendto-grid-check'); if (chk) chk.remove();
-    showToast(err.message);
-  }
+function closeSendTo(){ 
+  document.getElementById('sendToOverlay').classList.remove('open'); 
+  sendToShortId = null; 
+  sendToPeople = []; 
+  selectedSendUserIds.clear();
+  updateSendToButton();
 }
-
+  
 async function sendToAddToStory(){
   const id = sendToShortId;
   if (!id) return;
