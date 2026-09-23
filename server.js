@@ -1534,13 +1534,21 @@ function previewForMessage(m) {
 }
 async function enrichMessage(m, directUrl) {
   const out = {
-    id: m.id, conversationId: m.conversationId, senderId: m.senderId,
-    type: m.type, text: m.unsent ? null : (m.text || null),
-    createdAt: m.createdAt, editedAt: m.editedAt || null,
-    unsent: !!m.unsent, readBy: m.readBy || [],
-    mediaUrl: null, duration: m.duration || null,
-    shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null
-    out.reactions = m.reactions || {};
+    id: m.id, 
+    conversationId: m.conversationId, 
+    senderId: m.senderId,
+    type: m.type, 
+    text: m.unsent ? null : (m.text || null),
+    createdAt: m.createdAt, 
+    editedAt: m.editedAt || null,
+    unsent: !!m.unsent, 
+    readBy: m.readBy || [],
+    mediaUrl: null, 
+    duration: m.duration || null,
+    shortId: null, 
+    shortTitle: null, 
+    shortOwnerUsername: null
+    reactions = m.reactions || {};
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'e2');
