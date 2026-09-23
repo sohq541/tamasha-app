@@ -1561,13 +1561,6 @@ async function enrichMessage(m, directUrl) {
   }
   return out;
 }
-```[span_9](start_span)[span_9](end_span)
-
-**Farq kya hua?**
-Aapko bahar se `out.reactions = m.reactions || {};` likhne ki zaroorat hi nahi padegi[span_10](start_span)[span_10](end_span). Humne direct object ke andar `reactions: m.reactions || {}` daal diya hai[span_11](start_span)[span_11](end_span).
-
-Isse syntax error 100% khatam ho jayega aur Render par `Build successful` ke baad server bina crash hue turant **Live** ho jayega[span_12](start_span)[span_12](end_span).
-
 
 // ---------------- Ask AI: Groq + Tavily Integration ----------------
 const AI_ASSISTANT_ID = 'ai-assistant';
