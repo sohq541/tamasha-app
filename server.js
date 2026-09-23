@@ -1540,6 +1540,7 @@ async function enrichMessage(m, directUrl) {
     unsent: !!m.unsent, readBy: m.readBy || [],
     mediaUrl: null, duration: m.duration || null,
     shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null
+    out.reactions = m.reactions || {};
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'e2');
@@ -1742,6 +1743,154 @@ async function triggerAiReply(conversationId, currentUserId){
 }
 
 // ===================== CHAT / DM ROUTES =====================
+
+// --- In-memory status for Online & Typing ---
+const onlineUsers = new Map();
+const typingStatus = new Map();
+
+// 1. STORY HIGHLIGHTS
+async function readHighlights() {
+  return await e2TryReadJSON('highlights.json') || [];
+}
+async function writeHighlights(list) {
+  await e2WriteJSON('highlights.json', list);
+}
+
+app.get('/api/users/:id/highlights', async (req, res) => {
+  try {
+    const list = await readHighlights();
+    const userHighlights = list.filter(h => h.userId === req.params.id);
+    const directUrl = makeDirectUrlCache();
+    const enriched = await Promise.all(userHighlights.map(async h => ({
+      ...h,
+      coverUrl: h.coverKey ? await directUrl(h.coverKey, 'e2') : null,
+      stories: await Promise.all((h.stories || []).map(async s => ({
+        ...s,
+        mediaUrl: await directUrl(s.mediaFile, s.storageProvider || 'e2')
+      })))
+    })));
+    res.json({ highlights: enriched });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/highlights', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { title, storyIds } = req.body;
+    if (!title || !storyIds || !storyIds.length) return res.status(400).json({ error: 'Title aur stories select karein' });
+
+    const allStories = await readStories();
+    const selected = allStories.filter(s => storyIds.includes(s.id) && s.ownerId === currentUser.id);
+    if (!selected.length) return res.status(400).json({ error: 'Selected stories nahi mili' });
+
+    const highlights = await readHighlights();
+    const newHighlight = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      userId: currentUser.id,
+      title: title.trim().slice(0, 30),
+      coverKey: selected[0].mediaFile,
+      stories: selected,
+      createdAt: new Date().toISOString()
+    };
+    highlights.push(newHighlight);
+    await writeHighlights(highlights);
+    res.status(201).json(newHighlight);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 2. DM EMOJI REACTIONS
+app.post('/api/conversations/:id/messages/:messageId/react', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { emoji } = req.body;
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    const m = messages.find(x => x.id === req.params.messageId);
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+
+    if (!m.reactions) m.reactions = {};
+    if (m.reactions[currentUser.id] === emoji) {
+      delete m.reactions[currentUser.id];
+    } else {
+      m.reactions[currentUser.id] = emoji;
+    }
+    m.editedAt = new Date().toISOString();
+    await writeChatMessages(convo.id, messages);
+
+    const directUrl = makeDirectUrlCache();
+    const enriched = await enrichMessage(m, directUrl);
+    enriched.reactions = m.reactions;
+    res.json(enriched);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 3. ONLINE STATUS & TYPING INDICATOR
+app.post('/api/users/heartbeat', (req, res) => {
+  const currentUser = getUserFromReq(req);
+  if (currentUser) {
+    onlineUsers.set(currentUser.id, Date.now());
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/users/:id/status', (req, res) => {
+  const lastSeen = onlineUsers.get(req.params.id) || 0;
+  const isOnline = (Date.now() - lastSeen) < 15000;
+  res.json({ isOnline, lastSeen });
+});
+
+app.post('/api/conversations/:id/typing', (req, res) => {
+  const currentUser = getUserFromReq(req);
+  if (!currentUser) return res.status(401).json({ error: 'Login required' });
+  typingStatus.set(`${req.params.id}:${currentUser.id}`, Date.now());
+  res.json({ success: true });
+});
+
+app.get('/api/conversations/:id/typing', (req, res) => {
+  const currentUser = getUserFromReq(req);
+  const now = Date.now();
+  let isOtherTyping = false;
+  for (const [key, time] of typingStatus.entries()) {
+    if (key.startsWith(req.params.id + ':') && !key.endsWith(':' + (currentUser ? currentUser.id : ''))) {
+      if (now - time < 4000) isOtherTyping = true;
+    }
+  }
+  res.json({ typing: isOtherTyping });
+});
+
+// 4. CREATOR POST ANALYTICS
+app.get('/api/films/:id/analytics', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    if (f.ownerId !== currentUser.id && !isAdminBasicAuth(req)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const views = f.views || 0;
+    const likes = f.likes || 0;
+    const commentsCount = (f.comments || []).length;
+    const engagementRate = views > 0 ? (((likes + commentsCount) / views) * 100).toFixed(1) : 0;
+
+    res.json({
+      title: f.title,
+      type: f.type,
+      views,
+      likes,
+      commentsCount,
+      engagementRate: engagementRate + '%',
+      uploadedAt: f.uploadedAt
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/api/conversations', async (req, res) => {
   try {
