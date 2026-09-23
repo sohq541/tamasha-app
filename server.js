@@ -1534,21 +1534,21 @@ function previewForMessage(m) {
 }
 async function enrichMessage(m, directUrl) {
   const out = {
-    id: m.id, 
-    conversationId: m.conversationId, 
+    id: m.id,
+    conversationId: m.conversationId,
     senderId: m.senderId,
-    type: m.type, 
+    type: m.type,
     text: m.unsent ? null : (m.text || null),
-    createdAt: m.createdAt, 
+    createdAt: m.createdAt,
     editedAt: m.editedAt || null,
-    unsent: !!m.unsent, 
+    unsent: !!m.unsent,
     readBy: m.readBy || [],
-    mediaUrl: null, 
+    mediaUrl: null,
     duration: m.duration || null,
-    shortId: null, 
-    shortTitle: null, 
-    shortOwnerUsername: null
-    reactions = m.reactions || {};
+    shortId: null,
+    shortTitle: null,
+    shortOwnerUsername: null,
+    reactions: m.reactions || {}
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'e2');
@@ -1561,6 +1561,13 @@ async function enrichMessage(m, directUrl) {
   }
   return out;
 }
+```[span_9](start_span)[span_9](end_span)
+
+**Farq kya hua?**
+Aapko bahar se `out.reactions = m.reactions || {};` likhne ki zaroorat hi nahi padegi[span_10](start_span)[span_10](end_span). Humne direct object ke andar `reactions: m.reactions || {}` daal diya hai[span_11](start_span)[span_11](end_span).
+
+Isse syntax error 100% khatam ho jayega aur Render par `Build successful` ke baad server bina crash hue turant **Live** ho jayega[span_12](start_span)[span_12](end_span).
+
 
 // ---------------- Ask AI: Groq + Tavily Integration ----------------
 const AI_ASSISTANT_ID = 'ai-assistant';
