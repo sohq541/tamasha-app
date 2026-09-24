@@ -246,6 +246,10 @@
     color:rgba(255,255,255,0.9);z-index:6;pointer-events:none;text-shadow:0 4px 16px rgba(0,0,0,0.6);}
   .short-mute-btn{position:absolute;top:20px;right:20px;z-index:6;background:rgba(255,255,255,0.25);border:none;
     color:#fff;width:50px;height:50px;border-radius:50%;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .short-speed-badge{position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:6;
+    background:rgba(255,255,255,0.28);color:#fff;font-weight:800;font-size:15px;padding:6px 16px;
+    border-radius:20px;display:none;align-items:center;justify-content:center;pointer-events:none;
+    text-shadow:0 1px 4px rgba(0,0,0,0.5);}
   .short-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--cream-dim);text-align:center;padding:40px;}
 
   .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:flex-end;justify-content:center;z-index:150;}
@@ -459,112 +463,38 @@
   color:var(--cream-dim);font-size:11px;cursor:pointer;padding:6px 2px;font-family:'Mukta',sans-serif;}
 .sendto-action-icon{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;
   align-items:center;justify-content:center;font-size:19px;color:var(--cream);}
-.sendto-grid-item {
-  position: relative;
-  transition: transform 0.15s ease;
-}
-.sendto-grid-item.selected .sendto-grid-avatar,
-.sendto-grid-item.selected .sendto-grid-avatar-fallback {
-  box-shadow: 0 0 0 3px var(--marigold);
-}
-.sendto-select-badge {
-  position: absolute;
-  top: 0;
-  right: 6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1.5px solid var(--cream);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #fff;
-}
-.sendto-grid-item.selected .sendto-select-badge {
-  background: var(--marigold);
-  border-color: var(--marigold);
-}
-.sendto-bottom-bar {
-  margin-top: 12px;
-  padding: 8px 0 0;
-}
-.sendto-main-send-btn {
-  width: 100%;
-  background: var(--marigold);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 12px;
-  font-weight: 700;
-  font-size: 15px;
-  cursor: pointer;
-}
-.sendto-main-send-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-  /* --- Story Highlights --- */
-.highlights-bar {
-  display: flex; gap: 14px; overflow-x: auto; padding: 10px 0 16px; -webkit-overflow-scrolling: touch;
-}
-.highlights-bar::-webkit-scrollbar { display: none; }
-.highlight-item {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; flex-shrink: 0;
-}
-.highlight-ring {
-  width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid var(--gold-line); padding: 2px;
-  display: flex; align-items: center; justify-content: center;
-}
-.highlight-cover {
-  width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: var(--panel);
-}
-.highlight-add {
-  font-size: 24px; color: var(--marigold); display: flex; align-items: center; justify-content: center;
-}
-.highlight-title {
-  font-size: 11px; color: var(--cream-dim); max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+/* ===== Feature additions: saved posts, highlights, reactions, presence, insights ===== */
+.highlights-bar{display:flex;gap:14px;overflow-x:auto;padding:6px 16px 16px;-webkit-overflow-scrolling:touch;}
+.highlights-bar::-webkit-scrollbar{display:none;}
+.highlights-bar.hidden{display:none;}
+.highlight-title{font-size:11px;color:var(--cream-dim);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}
+.highlight-add-ring{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,0.06);border:1.5px dashed var(--gold-line);font-size:26px;color:var(--cream-dim);}
 
-/* --- Message Emoji Reactions --- */
-.reaction-picker {
-  position: absolute; bottom: 100%; display: flex; gap: 6px; background: var(--panel);
-  border: 1px solid var(--gold-line); border-radius: 30px; padding: 4px 8px; z-index: 50;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-}
-.reaction-picker span {
-  font-size: 20px; cursor: pointer; transition: transform 0.1s ease;
-}
-.reaction-picker span:hover { transform: scale(1.3); }
-.message-reaction-badge {
-  position: absolute; bottom: -8px; right: 4px; background: rgba(22, 18, 46, 0.95);
-  border: 1px solid var(--gold-line); border-radius: 12px; font-size: 12px; padding: 1px 5px;
-}
+.online-dot{position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;
+  background:#3ecf6b;border:2px solid var(--ink);display:none;}
+.online-dot.on{display:block;}
+.chat-typing-text{font-size:12px;color:var(--marigold);font-weight:600;margin-top:1px;}
+.chat-typing-text.hidden{display:none;}
 
-/* --- Online Dot & Typing Status --- */
-.online-indicator {
-  width: 10px; height: 10px; border-radius: 50%; background: #4EBA6F; border: 2px solid var(--ink);
-  display: inline-block; margin-left: 4px;
-}
-.typing-bar {
-  font-size: 12px; color: var(--marigold); font-style: italic; padding: 4px 16px;
-}
+.msg-reactions{display:flex;gap:3px;margin-top:2px;}
+.reaction-pill{background:rgba(255,255,255,0.09);border:1px solid var(--gold-line);border-radius:12px;
+  padding:1px 7px;font-size:12.5px;display:inline-flex;align-items:center;}
+.reaction-picker-row{display:flex;justify-content:space-around;padding:18px 10px;}
+.reaction-picker-emoji{font-size:32px;cursor:pointer;background:transparent;border:none;padding:6px;
+  border-radius:50%;transition:transform 0.1s;}
+.reaction-picker-emoji:active{transform:scale(1.3);}
 
-/* --- Analytics Modal --- */
-.analytics-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0;
-}
-.analytics-box {
-  background: rgba(255,255,255,0.05); border: 1px solid var(--gold-line); border-radius: 10px;
-  padding: 14px; text-align: center;
-}
-.analytics-val {
-  font-size: 20px; font-weight: 800; color: var(--marigold);
-}
-.analytics-lbl {
-  font-size: 12px; color: var(--cream-dim); margin-top: 2px;
-}
+.insights-stat-row{display:flex;justify-content:space-between;align-items:center;padding:13px 4px;
+  border-bottom:1px solid var(--gold-line);}
+.insights-stat-row:last-child{border-bottom:none;}
+.insights-stat-label{color:var(--cream-dim);font-size:14px;}
+.insights-stat-value{color:var(--cream);font-size:16px;font-weight:700;}
+
+.highlight-picker-list{max-height:50vh;overflow-y:auto;margin:10px 0;}
+.highlight-picker-item{display:flex;align-items:center;gap:12px;padding:10px 4px;cursor:pointer;}
+.highlight-picker-item img{width:48px;height:48px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;}
+.highlight-picker-item input[type="checkbox"]{width:20px;height:20px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -635,6 +565,9 @@
       <div class="action-row">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
+        <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()">1x</button>
+        <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
+        <button class="action-btn hidden" id="modalInsightsBtn" onclick="openInsights(currentFilm ? currentFilm.id : '')">📊 Insights</button>
         <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
         <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
         <button class="action-btn" onclick="reportCurrentFilm()" style="color:var(--cream-dim);">🚩 Report</button>
@@ -736,6 +669,7 @@
     <span class="story-viewer-username" id="storyViewerUsername"></span>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
+    <button class="story-viewer-close hidden" id="storyHighlightDeleteBtn" onclick="deleteHighlight(currentStoryUserQueue[currentStoryGroupIndex] && currentStoryUserQueue[currentStoryGroupIndex].highlightId)" style="font-size:13px;" title="Delete highlight">⭐🗑️</button>
     <button class="story-viewer-close" onclick="closeStoryViewer()">✕</button>
   </div>
   <div class="story-media-area" id="storyMediaArea">
@@ -779,10 +713,15 @@
 <div class="chat-full-overlay" id="chatConvoOverlay">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeChatConvo()">←</button>
-    <div id="chatConvoHeaderAvatarWrap" onclick="chatOpenOtherProfile()"></div>
-    <span class="chat-header-name" id="chatConvoHeaderName" onclick="chatOpenOtherProfile()"></span>
+    <div style="position:relative;">
+      <div id="chatConvoHeaderAvatarWrap" onclick="chatOpenOtherProfile()"></div>
+      <div class="online-dot" id="chatConvoOnlineDot"></div>
+    </div>
+    <div style="flex:1;min-width:0;cursor:pointer;" onclick="chatOpenOtherProfile()">
+      <div class="chat-header-name" id="chatConvoHeaderName" style="flex:none;"></div>
+      <div class="chat-typing-text hidden" id="chatConvoTypingText">typing...</div>
+    </div>
   </div>
-  <div id="chatTypingIndicator" class="typing-bar hidden">Typing...</div>
   <div class="chat-messages" id="chatMessagesArea"></div>
   <div class="chat-attach-preview hidden" id="chatAttachPreview"></div>
   <div class="chat-recording-row hidden" id="chatRecordingRow">
@@ -796,43 +735,13 @@
     <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">➤</button>
   </div>
 </div>
-  
-<!-- ===== POST ANALYTICS SHEET ===== -->
-<div class="sheet-overlay" id="analyticsOverlay" onclick="if(event.target===this) closeAnalytics()">
-  <div class="sheet" style="max-height:80vh;overflow-y:auto;">
-    <div class="sheet-header">
-      <h3>Post Insights</h3>
-      <button class="sheet-close" onclick="closeAnalytics()">✕</button>
-    </div>
-    <div id="analyticsBody">
-      <p class="comment-empty">Loading...</p>
-    </div>
-  </div>
-</div>
 
-<!-- ===== CREATE HIGHLIGHT SHEET ===== -->
-<div class="sheet-overlay" id="createHighlightOverlay" onclick="if(event.target===this) closeCreateHighlight()">
-  <div class="sheet" style="max-height:85vh;overflow-y:auto;">
-    <div class="sheet-header">
-      <h3>New Highlight</h3>
-      <button class="sheet-close" onclick="closeCreateHighlight()">✕</button>
-    </div>
-    <input type="text" id="highlightTitleInput" placeholder="Highlight Name (e.g. Travel, Fun)" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.06);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
-    <p style="font-size:13px;color:var(--cream-dim);margin:4px 0 8px;">Select Stories:</p>
-    <div id="highlightStoriesPickList" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:260px;overflow-y:auto;margin-bottom:14px;"></div>
-    <button type="button" onclick="saveNewHighlight()" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Save Highlight</button>
-  </div>
-</div>
-  
 <!-- ===== SEND TO (share short into chat) ===== -->
 <div class="sheet-overlay" id="sendToOverlay" onclick="if(event.target===this) closeSendTo()">
-  <div class="sheet" style="max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;">
+  <div class="sheet" style="max-height:82vh;overflow-y:auto;">
     <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
     <input type="text" class="sendto-search" id="sendToSearch" placeholder="Search" oninput="filterSendToGrid(this.value)">
-    <div class="sendto-grid" id="sendToList" style="flex:1;overflow-y:auto;"></div>
-    <div class="sendto-bottom-bar hidden" id="sendToBottomBar">
-      <button class="sendto-main-send-btn" id="sendToConfirmBtn" onclick="sendToSelectedUsers()">Send</button>
-    </div>
+    <div class="sendto-grid" id="sendToList"></div>
     <div class="sendto-actions">
       <button class="sendto-action-btn" onclick="sendToAddToStory()"><span class="sendto-action-icon">📖</span>Add to Story</button>
       <button class="sendto-action-btn" onclick="sendToExternalShare()"><span class="sendto-action-icon">↗</span>Share</button>
@@ -840,7 +749,7 @@
     </div>
   </div>
 </div>
-  
+
 <!-- ===== FOLLOWING / FOLLOWERS LIST ===== -->
 <div class="sheet-overlay" id="userListOverlay" onclick="if(event.target===this) closeUserList()">
   <div class="sheet" style="max-height:78vh;overflow-y:auto;">
@@ -860,6 +769,31 @@
     <div class="sheet-header"><h3>Edit Message</h3><button class="sheet-close" onclick="closeChatEdit()">✕</button></div>
     <textarea id="chatEditText" maxlength="2000" style="width:100%;min-height:80px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;"></textarea>
     <button onclick="saveChatEdit()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Save</button>
+  </div>
+</div>
+
+<!-- ===== MESSAGE REACTION PICKER ===== -->
+<div class="sheet-overlay" id="reactionPickerOverlay" onclick="if(event.target===this) closeReactionPicker()">
+  <div class="sheet">
+    <div class="reaction-picker-row" id="reactionPickerRow"></div>
+  </div>
+</div>
+
+<!-- ===== POST INSIGHTS (creator analytics) ===== -->
+<div class="sheet-overlay" id="insightsOverlay" onclick="if(event.target===this) closeInsights()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>View Insights</h3><button class="sheet-close" onclick="closeInsights()">✕</button></div>
+    <div id="insightsBody"><p class="comment-empty">Loading...</p></div>
+  </div>
+</div>
+
+<!-- ===== ADD TO HIGHLIGHT (pick stories) ===== -->
+<div class="sheet-overlay" id="highlightPickerOverlay" onclick="if(event.target===this) closeHighlightPicker()">
+  <div class="sheet" style="max-height:82vh;overflow-y:auto;">
+    <div class="sheet-header"><h3>New Highlight</h3><button class="sheet-close" onclick="closeHighlightPicker()">✕</button></div>
+    <input type="text" id="highlightTitleInput" maxlength="30" placeholder="Highlight title (e.g. Travel)" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;margin-bottom:6px;">
+    <div class="highlight-picker-list" id="highlightPickerList"></div>
+    <button onclick="submitHighlight()" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Create Highlight</button>
   </div>
 </div>
 
@@ -985,7 +919,8 @@ function closeAllOverlays(){
     chatInboxOverlay: closeChatInbox, chatConvoOverlay: closeChatConvo,
     chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit, chatMediaLightbox: closeChatMediaLightbox,
     sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal,
-    otherProfileOverlay: closeOtherProfile
+    otherProfileOverlay: closeOtherProfile,
+    reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -1106,7 +1041,7 @@ async function renderOtherProfile(userId, usernameHint){
 
   el.innerHTML = `
     <div class="profile-top-row">
-      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
+      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}<div class="online-dot ${pub.online ? 'on' : ''}" style="width:16px;height:16px;bottom:2px;right:2px;"></div></div>
       <div class="profile-stats">
         <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
         <div onclick="openUserList('${userId}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
@@ -1121,6 +1056,7 @@ async function renderOtherProfile(userId, usernameHint){
       ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
       <button class="profile-btn" onclick="copyProfileLink('${userId}')">Share Profile</button>
     </div>
+    <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
       <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
       <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
@@ -1132,6 +1068,7 @@ async function renderOtherProfile(userId, usernameHint){
       ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
     </div>
   `;
+  loadUserHighlights(userId, 'otherHighlightsBar', false);
 }
 
 function switchOtherProfileGrid(type){
@@ -1194,6 +1131,8 @@ async function renderProfile(){
       <a class="profile-btn" href="/admin.html" style="display:flex;align-items:center;justify-content:center;">Manage Uploads</a>
     </div>
 
+    <div class="highlights-bar" id="myHighlightsBar"></div>
+
     <div class="settings-panel hidden" id="settingsCard">
       <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Profile photo</h3>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
@@ -1237,6 +1176,7 @@ async function renderProfile(){
     <div class="profile-tabs-row">
       <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
       <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
+      <button class="tab-btn" id="profileTabSaved" onclick="switchProfileGrid('saved')" style="flex:1;">🔖 Saved</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
       ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
@@ -1244,14 +1184,33 @@ async function renderProfile(){
     <div class="profile-mygrid hidden" id="profileGridPhotos">
       ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
+    <div class="profile-mygrid hidden" id="profileGridSaved">
+      <p class="comment-empty">Loading...</p>
+    </div>
   `;
+  loadMyHighlights();
 }
 
 function switchProfileGrid(which){
   document.getElementById('profileTabVideos').classList.toggle('active', which === 'videos');
   document.getElementById('profileTabPhotos').classList.toggle('active', which === 'photos');
+  document.getElementById('profileTabSaved').classList.toggle('active', which === 'saved');
   document.getElementById('profileGridVideos').classList.toggle('hidden', which !== 'videos');
   document.getElementById('profileGridPhotos').classList.toggle('hidden', which !== 'photos');
+  document.getElementById('profileGridSaved').classList.toggle('hidden', which !== 'saved');
+  if (which === 'saved') loadSavedGrid();
+}
+
+async function loadSavedGrid(){
+  const el = document.getElementById('profileGridSaved');
+  try {
+    const res = await fetch('/api/me/saved');
+    const data = await res.json();
+    const saved = data.saved || [];
+    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi saved post nahi hai abhi.</p>';
+  } catch (e) {
+    el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
+  }
 }
 
 function toggleSettings(){
@@ -1866,10 +1825,12 @@ function renderShorts(shorts){
   if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="/admin.html" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
   container.innerHTML = shorts.map(f => {
     const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isSaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
     return `
     <div class="short-item" data-id="${f.id}">
       <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
+      <div class="short-speed-badge">⏩ 2x</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
@@ -1879,6 +1840,7 @@ function renderShorts(shorts){
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
+        <div><button class="short-action-btn ${isSaved ? 'liked' : ''}" id="short-save-${f.id}" onclick="toggleSaveShort('${f.id}', this)">${isSaved ? '🔖' : '📑'}</button></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
       </div>
@@ -1887,6 +1849,7 @@ function renderShorts(shorts){
   }).join('');
   setupShortsSwipeToProfile();
   setupShortsDoubleTapLike();
+  setupShortsHoldSpeed();
 }
 
 function setupShortsDoubleTapLike(){
@@ -1906,10 +1869,45 @@ function setupShortsDoubleTapLike(){
 }
 
 function toggleShortPlay(video){
+  if (video.dataset.skipNextTap === '1') { video.dataset.skipNextTap = ''; return; }
   const item = video.closest('.short-item');
   const icon = item.querySelector('.short-center-icon');
   if (video.paused) { video.play(); icon.style.display = 'none'; }
   else { video.pause(); icon.style.display = 'flex'; }
+}
+
+function setupShortsHoldSpeed(){
+  document.querySelectorAll('.short-item video[data-id]').forEach(video => {
+    if (video.dataset.holdReady) return;
+    video.dataset.holdReady = '1';
+    const item = video.closest('.short-item');
+    const badge = item.querySelector('.short-speed-badge');
+    let holdTimer = null, isHolding = false, startX = 0, startY = 0;
+
+    const engageHold = () => {
+      isHolding = true;
+      video.dataset.skipNextTap = '1';
+      video.playbackRate = 2;
+      if (badge) badge.style.display = 'flex';
+    };
+    const releaseHold = () => {
+      clearTimeout(holdTimer);
+      if (isHolding) { video.playbackRate = 1; if (badge) badge.style.display = 'none'; }
+      isHolding = false;
+    };
+    video.addEventListener('pointerdown', (e) => {
+      startX = e.clientX; startY = e.clientY;
+      holdTimer = setTimeout(engageHold, 280);
+    });
+    video.addEventListener('pointermove', (e) => {
+      if (holdTimer && !isHolding && (Math.abs(e.clientX - startX) > 12 || Math.abs(e.clientY - startY) > 12)) {
+        clearTimeout(holdTimer);
+      }
+    });
+    video.addEventListener('pointerup', releaseHold);
+    video.addEventListener('pointercancel', releaseHold);
+    video.addEventListener('pointerleave', releaseHold);
+  });
 }
 function toggleShortMute(e, btn){
   e.stopPropagation();
@@ -1919,12 +1917,62 @@ function toggleShortMute(e, btn){
 }
 
 let shortsObserver = null;
+// ---- Watch-time tracking (creator analytics) ----
+const watchAccum = {};
+function watchTimeStart(filmId){
+  if (!filmId) return;
+  if (!watchAccum[filmId]) watchAccum[filmId] = { startedAt: null, total: 0 };
+  watchAccum[filmId].startedAt = Date.now();
+}
+function watchTimeStop(filmId){
+  const a = watchAccum[filmId];
+  if (!a || !a.startedAt) return;
+  a.total += (Date.now() - a.startedAt) / 1000;
+  a.startedAt = null;
+}
+function watchTimeFlush(filmId){
+  if (!filmId) return;
+  watchTimeStop(filmId);
+  const a = watchAccum[filmId];
+  if (a && a.total > 1) {
+    fetch('/api/films/' + filmId + '/watch-time', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: Math.round(a.total) })
+    }).catch(() => {});
+  }
+  if (a) a.total = 0;
+}
+
+async function openInsights(filmId){
+  document.getElementById('insightsOverlay').classList.add('open');
+  const body = document.getElementById('insightsBody');
+  body.innerHTML = '<p class="comment-empty">Loading...</p>';
+  try {
+    const res = await fetch('/api/films/' + filmId + '/insights');
+    const d = await res.json();
+    if (!res.ok) { body.innerHTML = `<p class="comment-empty">${escapeHtml(d.error || 'Insights load nahi hue')}</p>`; return; }
+    const mins = Math.floor(d.avgWatchSeconds / 60), secs = d.avgWatchSeconds % 60;
+    body.innerHTML = `
+      <div class="insights-stat-row"><span class="insights-stat-label">Total Views</span><span class="insights-stat-value">${d.views}</span></div>
+      <div class="insights-stat-row"><span class="insights-stat-label">Likes</span><span class="insights-stat-value">${d.likes}</span></div>
+      <div class="insights-stat-row"><span class="insights-stat-label">Like Rate</span><span class="insights-stat-value">${d.likeRate}%</span></div>
+      <div class="insights-stat-row"><span class="insights-stat-label">Share Count</span><span class="insights-stat-value">${d.shares}</span></div>
+      <div class="insights-stat-row"><span class="insights-stat-label">Comments</span><span class="insights-stat-value">${d.commentCount}</span></div>
+      <div class="insights-stat-row"><span class="insights-stat-label">Average Watch Time</span><span class="insights-stat-value">${mins}m ${secs}s</span></div>
+    `;
+  } catch (e) {
+    body.innerHTML = '<p class="comment-empty">Couldn\'t load insights.</p>';
+  }
+}
+function closeInsights(){ document.getElementById('insightsOverlay').classList.remove('open'); }
+
 function setupShortsObserver(){
   if (shortsObserver) shortsObserver.disconnect();
   const videos = document.querySelectorAll('.short-item video');
   shortsObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       const video = entry.target;
+      const id = video.dataset.id;
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
         if (!video.src && video.dataset.src) video.src = video.dataset.src;
         video.play().catch(() => {
@@ -1933,10 +1981,11 @@ function setupShortsObserver(){
           if (btn) btn.textContent = '🔇';
           video.play().catch(() => {});
         });
-        const id = video.dataset.id;
         if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
+        watchTimeStart(id);
       } else {
         video.pause();
+        watchTimeFlush(id);
       }
     });
   }, { threshold: [0.6] });
@@ -1951,6 +2000,17 @@ async function likeShort(id, btn){
     if (!res.ok) return;
     document.getElementById('short-like-' + id).textContent = data.likes;
     btn.classList.toggle('liked', data.liked);
+  } catch (err) {}
+}
+
+async function toggleSaveShort(id, btn){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    btn.textContent = data.saved ? '🔖' : '📑';
+    btn.classList.toggle('liked', data.saved);
   } catch (err) {}
 }
 
@@ -1969,6 +2029,7 @@ function openMenu(id){
   `;
   if (isOwner) {
     itemsHtml += `
+      <div class="menu-item" onclick="closeMenu();openInsights('${id}')">📊 View Insights</div>
       <div class="menu-item" onclick="editCurrentShort()">✏️ Edit</div>
       <div class="menu-item" onclick="deleteCurrentShort()" style="color:#e88a8a;">🗑️ Delete</div>
     `;
@@ -2187,14 +2248,22 @@ async function deleteComment(filmId, commentId){
   }
 }
 async function playFilm(id){
+  if (currentFilm) watchTimeFlush(currentFilm.id);
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
   if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
   currentFilm = f;
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
-  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
-  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; }
+  const speedBtnEl = document.getElementById('speedBtn');
+  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; speedBtnEl.classList.add('hidden'); }
+  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; speedBtnEl.textContent = '1x'; speedBtnEl.classList.remove('hidden'); }
+  if (!playerEl.dataset.watchListeners) {
+    playerEl.dataset.watchListeners = '1';
+    playerEl.addEventListener('play', () => { if (currentFilm) watchTimeStart(currentFilm.id); });
+    playerEl.addEventListener('pause', () => { if (currentFilm) watchTimeStop(currentFilm.id); });
+    playerEl.addEventListener('ended', () => { if (currentFilm) watchTimeStop(currentFilm.id); });
+  }
 
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
@@ -2210,12 +2279,18 @@ async function playFilm(id){
   const isOwnerOfFilm = currentUser && f.ownerId === currentUser.id;
   document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
   document.getElementById('modalDeleteBtn').classList.toggle('hidden', !isOwnerOfFilm);
+  document.getElementById('modalInsightsBtn').classList.toggle('hidden', !isOwnerOfFilm);
 
   const likeBtn = document.getElementById('likeBtn');
   const alreadyLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
   likeBtn.classList.toggle('liked', alreadyLiked);
   likeBtn.disabled = false;
   document.getElementById('likeCount').textContent = f.likes || 0;
+
+  const saveBtn = document.getElementById('modalSaveBtn');
+  const alreadySaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
+  saveBtn.textContent = alreadySaved ? '🔖 Saved' : '📑 Save';
+  saveBtn.classList.toggle('liked', alreadySaved);
 
   renderCommentListInto('commentList', f.comments, f.id);
   document.getElementById('overlay').classList.add('open');
@@ -2224,11 +2299,37 @@ async function playFilm(id){
   }
 }
 
+async function toggleSaveCurrentFilm(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (!currentFilm) return;
+  try {
+    const res = await fetch('/api/films/' + currentFilm.id + '/save', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    const saveBtn = document.getElementById('modalSaveBtn');
+    saveBtn.textContent = data.saved ? '🔖 Saved' : '📑 Save';
+    saveBtn.classList.toggle('liked', data.saved);
+  } catch (e) {}
+}
+
 function closeModal(){
+  if (currentFilm) watchTimeFlush(currentFilm.id);
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
   document.getElementById('playerImg').src = '';
+}
+
+const PLAYER_SPEED_STEPS = [0.5, 1, 1.5, 2];
+function cyclePlayerSpeed(){
+  const player = document.getElementById('player');
+  const btn = document.getElementById('speedBtn');
+  const current = player.playbackRate || 1;
+  let idx = PLAYER_SPEED_STEPS.indexOf(current);
+  idx = (idx === -1 ? 1 : idx + 1) % PLAYER_SPEED_STEPS.length;
+  const rate = PLAYER_SPEED_STEPS[idx];
+  player.playbackRate = rate;
+  btn.textContent = rate + 'x';
 }
 
 function reportCurrentFilm(){
@@ -2264,6 +2365,7 @@ async function likeCurrentFilm(){
 
 function shareCurrentFilm(){
   if (!currentFilm) return;
+  fetch('/api/films/' + currentFilm.id + '/share', { method: 'POST' }).catch(() => {});
   const url = location.origin + '/?film=' + currentFilm.id;
   if (navigator.share) navigator.share({ title: currentFilm.title, text: 'Check out ' + currentFilm.title + ' on YouSeries!', url }).catch(() => {});
   else navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => {});
@@ -2557,7 +2659,8 @@ function startStoryPlayback(){
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
   document.getElementById('storyOwnerViewsBtn').classList.toggle('hidden', !isOwner);
-  document.getElementById('storyDeleteBtn').classList.toggle('hidden', !isOwner);
+  document.getElementById('storyDeleteBtn').classList.toggle('hidden', !isOwner || !!group.highlightId);
+  document.getElementById('storyHighlightDeleteBtn').classList.toggle('hidden', !isOwner || !group.highlightId);
   document.getElementById('storyViewCountLabel').textContent = story.viewCount || 0;
   document.getElementById('storyCommentCountLabel').textContent = story.commentCount || 0;
   document.getElementById('storyLikeBtn').textContent = '🤍';
@@ -2652,6 +2755,116 @@ function closeStoryViewer(){
   document.getElementById('storyCommentsDrawer').classList.remove('open');
   currentStoryId = null;
   loadStories();
+}
+
+// ---- Story Highlights ----
+async function loadMyHighlights(){
+  loadUserHighlights(currentUser.id, 'myHighlightsBar', true);
+}
+
+async function loadUserHighlights(userId, elId, isOwn){
+  const bar = document.getElementById(elId);
+  if (!bar) return;
+  let highlights = [];
+  try {
+    const res = await fetch('/api/users/' + userId + '/highlights');
+    const data = await res.json();
+    highlights = data.highlights || [];
+  } catch (e) {}
+
+  let html = isOwn ? `
+    <div class="story-avatar-wrap" onclick="openHighlightPicker()">
+      <div class="highlight-add-ring">+</div>
+      <div class="highlight-title">New</div>
+    </div>
+  ` : '';
+
+  highlights.forEach(h => {
+    html += `
+      <div class="story-avatar-wrap" onclick="openHighlightViewer('${h.id}')">
+        <div class="story-ring seen">
+          <div class="story-avatar-inner">${h.coverUrl ? `<img src="${h.coverUrl}">` : '<span>★</span>'}</div>
+        </div>
+        <div class="highlight-title">${escapeHtml(h.title)}</div>
+      </div>
+    `;
+  });
+
+  bar.innerHTML = html;
+  bar.classList.toggle('hidden', !html);
+}
+
+let highlightPickedStoryIds = [];
+async function openHighlightPicker(){
+  highlightPickedStoryIds = [];
+  document.getElementById('highlightTitleInput').value = '';
+  const list = document.getElementById('highlightPickerList');
+  list.innerHTML = '<p class="comment-empty">Loading...</p>';
+  document.getElementById('highlightPickerOverlay').classList.add('open');
+  try {
+    const res = await fetch('/api/me/stories');
+    const data = await res.json();
+    const stories = data.stories || [];
+    if (!stories.length) { list.innerHTML = '<p class="comment-empty">Koi story nahi mili. Pehle ek story post karo.</p>'; return; }
+    list.innerHTML = stories.map(s => `
+      <label class="highlight-picker-item">
+        <input type="checkbox" onchange="toggleHighlightStoryPick('${s.id}', this.checked)">
+        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}">` : `<img src="${s.mediaUrl}" style="background:#000;">`}
+        <span style="font-size:13px;color:var(--cream-dim);">${storyTimeAgo(s.createdAt)}${s.highlightId ? ' · already in a highlight' : ''}</span>
+      </label>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = '<p class="comment-empty">Couldn\'t load your stories.</p>';
+  }
+}
+function closeHighlightPicker(){ document.getElementById('highlightPickerOverlay').classList.remove('open'); }
+function toggleHighlightStoryPick(storyId, checked){
+  if (checked) { if (!highlightPickedStoryIds.includes(storyId)) highlightPickedStoryIds.push(storyId); }
+  else { highlightPickedStoryIds = highlightPickedStoryIds.filter(id => id !== storyId); }
+}
+async function submitHighlight(){
+  const title = document.getElementById('highlightTitleInput').value.trim();
+  if (!title) { alert('Highlight ko title do'); return; }
+  if (!highlightPickedStoryIds.length) { alert('Kam se kam ek story chuno'); return; }
+  try {
+    const res = await fetch('/api/highlights', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, storyIds: highlightPickedStoryIds })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Highlight nahi ban paayi'); return; }
+    closeHighlightPicker();
+    loadMyHighlights();
+  } catch (e) { alert('Highlight nahi ban paayi'); }
+}
+
+async function openHighlightViewer(highlightId){
+  try {
+    const res = await fetch('/api/highlights/' + highlightId);
+    if (!res.ok) return;
+    const h = await res.json();
+    if (!h.stories || !h.stories.length) return;
+    const group = {
+      ownerId: h.ownerId, ownerUsername: h.ownerUsername, ownerProfileImage: h.ownerProfileImage,
+      stories: h.stories, highlightId: h.id, highlightTitle: h.title
+    };
+    currentStoryUserQueue = [group];
+    currentStoryGroupIndex = 0;
+    currentStoryIndex = 0;
+    document.getElementById('storyViewerOverlay').classList.add('open');
+    document.getElementById('storyCommentsDrawer').classList.remove('open');
+    renderStoryProgressBars(group.stories.length);
+    startStoryPlayback();
+  } catch (e) {}
+}
+
+async function deleteHighlight(highlightId){
+  if (!confirm('Ye poori highlight delete karni hai? Stories delete nahi hongi, sirf highlight se hatengi.')) return;
+  try {
+    await fetch('/api/highlights/' + highlightId + '/delete', { method: 'POST' });
+    closeStoryViewer();
+    loadMyHighlights();
+  } catch (e) {}
 }
 
 async function deleteCurrentStory(){
@@ -2929,7 +3142,10 @@ async function loadChatInbox(){
     }
     el.innerHTML = list.map(c => `
       <div class="chat-inbox-row" onclick="openChatConvo('${c.otherUser.id}','${escapeHtml(c.otherUser.username)}')">
-        ${avatarOrFallback(c.otherUser.profileImage, c.otherUser.username, 'chat-inbox-avatar', 'chat-inbox-avatar-fallback')}
+        <div style="position:relative;flex-shrink:0;">
+          ${avatarOrFallback(c.otherUser.profileImage, c.otherUser.username, 'chat-inbox-avatar', 'chat-inbox-avatar-fallback')}
+          <div class="online-dot ${c.otherUser.online ? 'on' : ''}"></div>
+        </div>
         <div class="chat-inbox-info">
           <div class="chat-inbox-name">@${escapeHtml(c.otherUser.username)}</div>
           <div class="chat-inbox-preview ${c.unreadCount > 0 ? 'unread' : ''}">${escapeHtml(c.lastMessage ? c.lastMessage.preview : '')}</div>
@@ -2958,6 +3174,8 @@ async function openChatConvo(userId, usernameHint){
   chatLastFetchAt = null;
   document.getElementById('chatConvoHeaderName').textContent = '@' + (usernameHint || '');
   document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(null, usernameHint, 'chat-header-avatar', 'chat-header-avatar-fallback');
+  document.getElementById('chatConvoOnlineDot').classList.remove('on');
+  document.getElementById('chatConvoTypingText').classList.add('hidden');
   document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
   document.getElementById('chatConvoOverlay').classList.add('open');
 
@@ -2974,6 +3192,7 @@ async function openChatConvo(userId, usernameHint){
     renderChatMessages();
     scrollChatToBottom();
     markChatRead();
+    document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherUser.online);
     if (chatPollHandle) clearInterval(chatPollHandle);
     chatPollHandle = setInterval(pollChatMessages, 3500);
   } catch (err) {
@@ -3025,6 +3244,9 @@ async function pollChatMessages(){
       renderChatMessages();
       if (hasNewFromOther) { scrollChatToBottom(); markChatRead(); }
     }
+    document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherOnline);
+    const typingEl = document.getElementById('chatConvoTypingText');
+    typingEl.classList.toggle('hidden', !data.otherTyping);
   } catch (e) {}
 }
 
@@ -3041,15 +3263,56 @@ function renderChatMessages(){
   });
   el.innerHTML = html;
 }
-function renderReactionBadges(m) {
-  if (!m.reactions || !Object.keys(m.reactions).length) return '';
-  const ems = Object.values(m.reactions).slice(-3).join(' ');
-  return `<span class="message-reaction-badge">${ems}</span>`;
+
+function renderReactionPills(reactions){
+  if (!reactions || !Object.keys(reactions).length) return '';
+  const counts = {};
+  Object.values(reactions).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+  return `<div class="msg-reactions">${Object.entries(counts).map(([e, c]) => `<span class="reaction-pill">${e}${c > 1 ? ' ' + c : ''}</span>`).join('')}</div>`;
 }
-  
+
+let bubbleHoldTimer = null;
+function startBubbleHold(event, messageId){
+  clearTimeout(bubbleHoldTimer);
+  bubbleHoldTimer = setTimeout(() => { openReactionPicker(messageId); }, 420);
+}
+function endBubbleHold(event){
+  clearTimeout(bubbleHoldTimer);
+}
+
+let reactionTargetMessageId = null;
+function openReactionPicker(messageId){
+  reactionTargetMessageId = messageId;
+  const row = document.getElementById('reactionPickerRow');
+  const emojis = ['❤️', '😂', '😮', '😢', '👍'];
+  row.innerHTML = emojis.map(e => `<button class="reaction-picker-emoji" onclick="sendReaction('${e}')">${e}</button>`).join('');
+  document.getElementById('reactionPickerOverlay').classList.add('open');
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+function closeReactionPicker(){
+  document.getElementById('reactionPickerOverlay').classList.remove('open');
+  reactionTargetMessageId = null;
+}
+async function sendReaction(emoji){
+  const messageId = reactionTargetMessageId;
+  closeReactionPicker();
+  if (!chatConvoId || !messageId) return;
+  const msg = chatMessagesCache.find(m => m.id === messageId);
+  const wasSame = !!(msg && msg.reactions && msg.reactions[currentUser.id] === emoji);
+  try {
+    const res = await fetch('/api/conversations/' + chatConvoId + '/messages/' + messageId + '/react', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: wasSame ? null : emoji })
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+    if (msg) msg.reactions = data.reactions;
+    renderChatMessages();
+  } catch (e) {}
+}
+
 function renderChatBubble(m, mine){
   const rowCls = 'chat-msg-row ' + (mine ? 'mine' : 'theirs') + (m.unsent ? ' chat-msg-unsent' : '');
-  const reactBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 4px;" onclick='showReactionPicker(${JSON.stringify(m.id)}, this.parentElement)'>😊</button>`;
   const menuBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 6px;" onclick='openChatMsgMenu(${JSON.stringify(m.id)})'>⋮</button>`;
   let bubbleInner = '';
 
@@ -3057,7 +3320,7 @@ function renderChatBubble(m, mine){
     bubbleInner = `<div class="chat-bubble">${m.type === 'short' ? 'Short unsent' : 'Message unsent'}</div>`;
     return `<div class="${rowCls}"><div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${bubbleInner}</div></div>`;
   }
-    
+
   if (m.type === 'text') {
     bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
@@ -3083,7 +3346,8 @@ function renderChatBubble(m, mine){
   }
 
   return `<div class="${rowCls}">
-    <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${menuBtn}${bubbleInner}</div>
+    <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}" onpointerdown="startBubbleHold(event,${JSON.stringify(m.id)})" onpointerup="endBubbleHold(event)" onpointerleave="endBubbleHold(event)" onpointercancel="endBubbleHold(event)" oncontextmenu="event.preventDefault();return false;">${menuBtn}${bubbleInner}</div>
+    ${renderReactionPills(m.reactions) ? `<div style="display:flex;${mine ? 'justify-content:flex-end;' : ''}">${renderReactionPills(m.reactions)}</div>` : ''}
     <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}</div>
   </div>`;
 }
@@ -3106,10 +3370,14 @@ function scrollChatToBottom(){
   setTimeout(() => { el.scrollTop = el.scrollHeight; }, 30);
 }
 
+let lastTypingPingAt = 0;
 function onChatTextInput(el){
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
-  notifyTyping();
+  if (chatConvoId && Date.now() - lastTypingPingAt > 2000) {
+    lastTypingPingAt = Date.now();
+    fetch('/api/conversations/' + chatConvoId + '/typing', { method: 'POST' }).catch(() => {});
+  }
 }
 function onChatInputKeydown(event){
   if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
@@ -3351,19 +3619,14 @@ async function chatMsgMenuDelete(scope){
 
 // ---- Send To (share a short into chat) ----
 let sendToPeople = [];
-let selectedSendUserIds = new Set();
 
 async function openSendTo(shortId){
   sendToShortId = shortId;
   sendToPeople = [];
-  selectedSendUserIds.clear();
-  updateSendToButton();
-  
   document.getElementById('sendToSearch').value = '';
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
   listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
-  
   if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
   try {
     const [convRes, followRes] = await Promise.all([
@@ -3372,19 +3635,8 @@ async function openSendTo(shortId){
     const convData = await convRes.json();
     const followData = await followRes.json();
     const seen = new Set();
-    
-    (convData.conversations || []).forEach(c => { 
-      if (c.otherUser && c.otherUser.id !== 'ai-assistant' && !seen.has(c.otherUser.id)) { 
-        seen.add(c.otherUser.id); 
-        sendToPeople.push(c.otherUser); 
-      } 
-    });
-    (followData.users || []).forEach(u => { 
-      if (!seen.has(u.id)) { 
-        seen.add(u.id); 
-        sendToPeople.push(u); 
-      } 
-    });
+    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); sendToPeople.push(c.otherUser); } });
+    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
 
     if (!sendToPeople.length) {
       listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe bhej sako.</div>';
@@ -3399,73 +3651,12 @@ async function openSendTo(shortId){
 function renderSendToGrid(people){
   const listEl = document.getElementById('sendToList');
   if (!people.length) { listEl.innerHTML = '<p class="comment-empty">No results.</p>'; return; }
-  
-  listEl.innerHTML = people.map(u => {
-    const isSelected = selectedSendUserIds.has(u.id);
-    return `
-      <button type="button" class="sendto-grid-item ${isSelected ? 'selected' : ''}" id="sendToItem-${u.id}" onclick="toggleSelectSendUser('${u.id}')">
-        <div class="sendto-select-badge">${isSelected ? '✓' : ''}</div>
-        ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
-        <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
-      </button>
-    `;
-  }).join('');
-}
-
-function toggleSelectSendUser(userId){
-  if (selectedSendUserIds.has(userId)) {
-    selectedSendUserIds.delete(userId);
-  } else {
-    selectedSendUserIds.add(userId);
-  }
-  
-  const el = document.getElementById('sendToItem-' + userId);
-  if (el) {
-    const isSelected = selectedSendUserIds.has(userId);
-    el.classList.toggle('selected', isSelected);
-    const badge = el.querySelector('.sendto-select-badge');
-    if (badge) badge.textContent = isSelected ? '✓' : '';
-  }
-  updateSendToButton();
-}
-
-function updateSendToButton(){
-  const bar = document.getElementById('sendToBottomBar');
-  const btn = document.getElementById('sendToConfirmBtn');
-  const count = selectedSendUserIds.size;
-  
-  if (count > 0) {
-    bar.classList.remove('hidden');
-    btn.textContent = count === 1 ? 'Send' : `Send to ${count} people`;
-  } else {
-    bar.classList.add('hidden');
-  }
-}
-
-async function sendToSelectedUsers(){
-  if (!sendToShortId || selectedSendUserIds.size === 0) return;
-  const btn = document.getElementById('sendToConfirmBtn');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-
-  const userIds = Array.from(selectedSendUserIds);
-  try {
-    await Promise.all(userIds.map(async (uid) => {
-      const convRes = await fetch('/api/conversations/with/' + uid);
-      const convData = await convRes.json();
-      if (!convRes.ok) throw new Error(convData.error || 'Failed');
-      return sendShortMessage(convData.id, sendToShortId);
-    }));
-
-    showToast('Sent successfully!');
-    closeSendTo();
-    loadChatInbox().catch(() => {});
-  } catch (err) {
-    showToast(err.message || 'Kuch logo ko nahi bhej sake');
-  } finally {
-    btn.disabled = false;
-    updateSendToButton();
-  }
+  listEl.innerHTML = people.map(u => `
+    <button class="sendto-grid-item" id="sendToItem-${u.id}" onclick="doSendShortTo('${u.id}')">
+      ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
+      <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
+    </button>
+  `).join('');
 }
 
 function filterSendToGrid(query){
@@ -3473,14 +3664,28 @@ function filterSendToGrid(query){
   renderSendToGrid(q ? sendToPeople.filter(u => u.username.toLowerCase().includes(q)) : sendToPeople);
 }
 
-function closeSendTo(){ 
-  document.getElementById('sendToOverlay').classList.remove('open'); 
-  sendToShortId = null; 
-  sendToPeople = []; 
-  selectedSendUserIds.clear();
-  updateSendToButton();
+function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; }
+
+async function doSendShortTo(userId){
+  if (!sendToShortId) return;
+  const item = document.getElementById('sendToItem-' + userId);
+  if (!item || item.classList.contains('sent')) return;
+  item.classList.add('sent');
+  item.querySelector('.sendto-grid-name').insertAdjacentHTML('afterend', '<span class="sendto-grid-check">Sent ✓</span>');
+  try {
+    const convRes = await fetch('/api/conversations/with/' + userId);
+    const convData = await convRes.json();
+    if (!convRes.ok) throw new Error(convData.error || 'Could not send');
+    await sendShortMessage(convData.id, sendToShortId);
+    fetch('/api/films/' + sendToShortId + '/share', { method: 'POST' }).catch(() => {});
+    loadChatInbox().catch(() => {});
+  } catch (err) {
+    item.classList.remove('sent');
+    const chk = item.querySelector('.sendto-grid-check'); if (chk) chk.remove();
+    showToast(err.message);
+  }
 }
-  
+
 async function sendToAddToStory(){
   const id = sendToShortId;
   if (!id) return;
@@ -3500,6 +3705,7 @@ function sendToCopyLink(){
   const id = sendToShortId;
   closeSendTo();
   if (!id) return;
+  fetch('/api/films/' + id + '/share', { method: 'POST' }).catch(() => {});
   const film = allFilms.find(f => f.id === id);
   const isShort = film && film.type === 'short';
   const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
@@ -3510,6 +3716,7 @@ function sendToExternalShare(){
   const id = sendToShortId;
   closeSendTo();
   if (!id) return;
+  fetch('/api/films/' + id + '/share', { method: 'POST' }).catch(() => {});
   const film = allFilms.find(f => f.id === id);
   const isShort = film && film.type === 'short';
   const url = location.origin + (isShort ? '/?short=' + id : '/?film=' + id);
@@ -3601,6 +3808,7 @@ function setupShortsSwipeToProfile(){
 
 async function init(){
   try { await loadProfile(); } catch (e) { console.error('loadProfile failed:', e); }
+  if (currentUser) startHeartbeat();
   try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
   try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
   setupDoubleTapLike(
@@ -3609,6 +3817,15 @@ async function init(){
     () => document.getElementById('likeBtn').classList.contains('liked'),
     () => likeCurrentFilm()
   );
+}
+function sendHeartbeat(){
+  if (!currentUser || document.visibilityState === 'hidden') return;
+  fetch('/api/me/heartbeat', { method: 'POST' }).catch(() => {});
+}
+function startHeartbeat(){
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 45000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sendHeartbeat(); });
 }
 init();
 let uploadXhr = null;
@@ -3837,7 +4054,8 @@ async function startDirectUpload(meta, mainFile, posterFile){
     'profileMenuOverlay','menuOverlay','editSheetOverlay','sheetOverlay','overlay',
     'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','storyCommentsDrawer','notifOverlay',
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
-    'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay'
+    'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
+    'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -3858,7 +4076,10 @@ async function startDirectUpload(meta, mainFile, posterFile){
     sendToOverlay: () => closeSendTo(),
     userListOverlay: () => closeUserList(),
     otherProfileOverlay: () => closeOtherProfile(),
-    uploadModalOverlay: () => closeUploadModal()
+    uploadModalOverlay: () => closeUploadModal(),
+    reactionPickerOverlay: () => closeReactionPicker(),
+    insightsOverlay: () => closeInsights(),
+    highlightPickerOverlay: () => closeHighlightPicker()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
@@ -3921,139 +4142,6 @@ async function likeFeedPost(id, btn) {
 function shareCurrentFilmById(id, title) {
   if (!currentUser) { window.location.href = '/login.html'; return; }
   openSendTo(id);
-}
-  // --- Online & Typing Polling ---
-setInterval(() => {
-  if (currentUser) fetch('/api/users/heartbeat', { method: 'POST' }).catch(() => {});
-}, 10000);
-
-let chatStatusPollHandle = null;
-function startChatStatusPolling(convoId, otherUserId) {
-  if (chatStatusPollHandle) clearInterval(chatStatusPollHandle);
-  chatStatusPollHandle = setInterval(async () => {
-    if (!chatConvoId) return;
-    try {
-      const stRes = await fetch('/api/users/' + otherUserId + '/status');
-      const stData = await stRes.json();
-      const dot = document.getElementById('chatOnlineDot');
-      if (dot) dot.classList.toggle('hidden', !stData.isOnline);
-
-      const typRes = await fetch('/api/conversations/' + convoId + '/typing');
-      const typData = await typRes.json();
-      const typBar = document.getElementById('chatTypingIndicator');
-      if (typBar) typBar.classList.toggle('hidden', !typData.typing);
-    } catch(e) {}
-  }, 2500);
-}
-
-let lastTypingSent = 0;
-function notifyTyping() {
-  if (!chatConvoId) return;
-  const now = Date.now();
-  if (now - lastTypingSent > 2000) {
-    lastTypingSent = now;
-    fetch('/api/conversations/' + chatConvoId + '/typing', { method: 'POST' }).catch(() => {});
-  }
-}
-
-// --- Reactions Logic ---
-async function reactToMessage(messageId, emoji) {
-  if (!chatConvoId) return;
-  closeAllReactionPickers();
-  try {
-    const res = await fetch(`/api/conversations/${chatConvoId}/messages/${messageId}/react`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji })
-    });
-    const updated = await res.json();
-    const idx = chatMessagesCache.findIndex(x => x.id === messageId);
-    if (idx !== -1) chatMessagesCache[idx] = updated;
-    renderChatMessages();
-  } catch(e) {}
-}
-
-function showReactionPicker(msgId, parentEl) {
-  closeAllReactionPickers();
-  const picker = document.createElement('div');
-  picker.className = 'reaction-picker';
-  picker.id = 'activeReactionPicker';
-  const emojis = ['❤️', '😂', '🔥', '😮', '😢', '👍'];
-  picker.innerHTML = emojis.map(em => `<span onclick="event.stopPropagation();reactToMessage('${msgId}','${em}')">${em}</span>`).join('');
-  parentEl.appendChild(picker);
-}
-
-function closeAllReactionPickers() {
-  const p = document.getElementById('activeReactionPicker');
-  if (p) p.remove();
-}
-document.addEventListener('click', () => closeAllReactionPickers());
-
-// --- Creator Analytics Logic ---
-async function openPostAnalytics(filmId) {
-  document.getElementById('analyticsOverlay').classList.add('open');
-  const body = document.getElementById('analyticsBody');
-  body.innerHTML = '<p class="comment-empty">Loading insights...</p>';
-  try {
-    const res = await fetch('/api/films/' + filmId + '/analytics');
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error || 'Failed');
-    body.innerHTML = `
-      <div style="font-weight:700;font-size:16px;color:var(--cream);">${escapeHtml(d.title)}</div>
-      <div class="analytics-grid">
-        <div class="analytics-box"><div class="analytics-val">${d.views}</div><div class="analytics-lbl">Views</div></div>
-        <div class="analytics-box"><div class="analytics-val">${d.likes}</div><div class="analytics-lbl">Likes</div></div>
-        <div class="analytics-box"><div class="analytics-val">${d.commentsCount}</div><div class="analytics-lbl">Comments</div></div>
-        <div class="analytics-box"><div class="analytics-val">${d.engagementRate}</div><div class="analytics-lbl">Engagement</div></div>
-      </div>
-      <div style="font-size:12px;color:var(--cream-dim);text-align:center;">Uploaded on ${new Date(d.uploadedAt).toLocaleDateString()}</div>
-    `;
-  } catch(e) {
-    body.innerHTML = `<p class="comment-empty">${escapeHtml(e.message)}</p>`;
-  }
-}
-function closeAnalytics() {
-  document.getElementById('analyticsOverlay').classList.remove('open');
-}
-
-// --- Story Highlights Logic ---
-function openCreateHighlightModal() {
-  document.getElementById('createHighlightOverlay').classList.add('open');
-  const pickList = document.getElementById('highlightStoriesPickList');
-  const myStories = (window.activeStoriesByUser || {})[currentUser.id] || [];
-  if (!myStories.length) {
-    pickList.innerHTML = '<p class="comment-empty" style="grid-column:span 3;">Active story nahi mili highlight banane ke liye.</p>';
-    return;
-  }
-  pickList.innerHTML = myStories.map(s => `
-    <label style="position:relative;cursor:pointer;">
-      <input type="checkbox" name="hlStory" value="${s.id}" style="position:absolute;top:6px;left:6px;z-index:2;">
-      <div style="aspect-ratio:9/16;background:#000;border-radius:6px;overflow:hidden;">
-        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}" style="width:100%;height:100%;object-fit:cover;">` : `<video src="${s.mediaUrl}" style="width:100%;height:100%;object-fit:cover;"></video>`}
-      </div>
-    </label>
-  `).join('');
-}
-function closeCreateHighlight() {
-  document.getElementById('createHighlightOverlay').classList.remove('open');
-}
-
-async function saveNewHighlight() {
-  const title = document.getElementById('highlightTitleInput').value.trim();
-  const checkedBoxes = Array.from(document.querySelectorAll('input[name="hlStory"]:checked'));
-  const storyIds = checkedBoxes.map(b => b.value);
-  if (!title || !storyIds.length) { showToast('Title aur story chunein'); return; }
-  try {
-    const res = await fetch('/api/highlights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, storyIds })
-    });
-    if (!res.ok) throw new Error('Failed to create');
-    closeCreateHighlight();
-    showToast('Highlight ban gaya!');
-    renderProfile();
-  } catch(e) { showToast(e.message); }
 }
 </script>
 </body>
