@@ -544,7 +544,8 @@ app.get('/api/users/:id/public', async (req, res) => {
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
-      hideSensitiveContent: !!user.hideSensitiveContent
+      hideSensitiveContent: !!user.hideSensitiveContent,
+      online: isUserOnline(user)
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1033,6 +1034,68 @@ app.post('/api/films/:id/like', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/films/:id/save', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to save' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+
+    if (!f.savedBy) f.savedBy = [];
+    const idx = f.savedBy.indexOf(currentUser.id);
+    let saved;
+    if (idx === -1) { f.savedBy.push(currentUser.id); saved = true; }
+    else { f.savedBy.splice(idx, 1); saved = false; }
+
+    await writeFilms(films);
+    res.json({ saved });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:id/share', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    f.shares = (f.shares || 0) + 1;
+    await writeFilms(films);
+    res.json({ shares: f.shares });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:id/watch-time', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    const seconds = Math.max(0, Math.min(parseFloat(req.body.seconds) || 0, 6 * 60 * 60));
+    if (seconds > 0) {
+      f.watchSeconds = (f.watchSeconds || 0) + seconds;
+      f.watchSamples = (f.watchSamples || 0) + 1;
+      await writeFilms(films);
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/films/:id/insights', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Film not found' });
+    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    const views = f.views || 0;
+    const likes = f.likes || 0;
+    const shares = f.shares || 0;
+    const avgWatchSeconds = f.watchSamples ? Math.round((f.watchSeconds || 0) / f.watchSamples) : 0;
+    const likeRate = views ? Math.round((likes / views) * 1000) / 10 : 0;
+    res.json({ views, likes, likeRate, shares, avgWatchSeconds, commentCount: (f.comments || []).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/films/:id/comments', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -1210,6 +1273,19 @@ async function writeStories(stories) {
 function isStoryActive(s) {
   return (Date.now() - new Date(s.createdAt).getTime()) < STORY_TTL_MS;
 }
+const STORY_ARCHIVE_MS = 90 * 24 * 60 * 60 * 1000;
+function isStoryArchivable(s) {
+  if (s.highlightId) return true;
+  return (Date.now() - new Date(s.createdAt).getTime()) < STORY_ARCHIVE_MS;
+}
+
+// ---------------- Highlights "database" ----------------
+async function readHighlights() {
+  return await e2TryReadJSON('highlights.json') || [];
+}
+async function writeHighlights(list) {
+  await e2WriteJSON('highlights.json', list);
+}
 
 // ===================== STORY ROUTES =====================
 
@@ -1228,7 +1304,7 @@ app.post('/api/stories', (req, res, next) => {
     fs.unlink(mediaFile.path, () => {});
 
     let stories = await readStories();
-    stories = stories.filter(isStoryActive);
+    stories = stories.filter(isStoryArchivable);
     const newStory = {
       id,
       ownerId: req.currentUser.id,
@@ -1266,7 +1342,7 @@ app.post('/api/stories/from-film', async (req, res) => {
     await e2CopyObject(sourceKey, mediaKey);
 
     let stories = await readStories();
-    stories = stories.filter(isStoryActive);
+    stories = stories.filter(isStoryArchivable);
     const newStory = {
       id, ownerId: currentUser.id, ownerUsername: currentUser.username,
       mediaFile: mediaKey, mediaType: isVideo ? 'video' : 'photo', storageProvider: 'e2',
@@ -1458,7 +1534,143 @@ app.post('/api/stories/:id/delete', async (req, res) => {
     if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
     stories = stories.filter(x => x.id !== req.params.id);
     await writeStories(stories);
+
+    if (s.highlightId) {
+      let highlights = await readHighlights();
+      const h = highlights.find(x => x.id === s.highlightId);
+      if (h) {
+        h.storyIds = (h.storyIds || []).filter(id => id !== s.id);
+        if (!h.storyIds.length) highlights = highlights.filter(x => x.id !== h.id);
+        await writeHighlights(highlights);
+      }
+    }
+
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ===================== STORY HIGHLIGHTS =====================
+
+app.get('/api/me/stories', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const stories = (await readStories()).filter(s => s.ownerId === currentUser.id);
+    const directUrl = makeDirectUrlCache();
+    const out = await Promise.all(stories.slice().reverse().map(async s => ({
+      id: s.id, mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+      mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
+      active: isStoryActive(s), highlightId: s.highlightId || null
+    })));
+    res.json({ stories: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/highlights', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const title = (req.body.title || '').trim().slice(0, 30);
+    const storyIds = Array.isArray(req.body.storyIds) ? req.body.storyIds.slice(0, 50) : [];
+    if (!title) return res.status(400).json({ error: 'Highlight ko ek title do' });
+    if (!storyIds.length) return res.status(400).json({ error: 'Kam se kam ek story chuno' });
+
+    const stories = await readStories();
+    const mine = storyIds.map(id => stories.find(s => s.id === id && s.ownerId === currentUser.id)).filter(Boolean);
+    if (!mine.length) return res.status(404).json({ error: 'Stories nahi mili' });
+
+    const highlight = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      ownerId: currentUser.id, ownerUsername: currentUser.username,
+      title, storyIds: mine.map(s => s.id), createdAt: new Date().toISOString()
+    };
+    mine.forEach(s => { s.highlightId = highlight.id; });
+    await writeStories(stories);
+
+    const highlights = await readHighlights();
+    highlights.push(highlight);
+    await writeHighlights(highlights);
+    res.status(201).json(highlight);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/highlights/:id', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const highlights = await readHighlights();
+    const h = highlights.find(x => x.id === req.params.id);
+    if (!h) return res.status(404).json({ error: 'Highlight not found' });
+    if (h.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    const title = (req.body.title || '').trim().slice(0, 30);
+    if (title) h.title = title;
+    await writeHighlights(highlights);
+    res.json(h);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/highlights/:id/delete', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    let highlights = await readHighlights();
+    const h = highlights.find(x => x.id === req.params.id);
+    if (!h) return res.status(404).json({ error: 'Highlight not found' });
+    if (h.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    highlights = highlights.filter(x => x.id !== req.params.id);
+    await writeHighlights(highlights);
+
+    const stories = await readStories();
+    let changed = false;
+    stories.forEach(s => { if (s.highlightId === req.params.id) { delete s.highlightId; changed = true; } });
+    if (changed) await writeStories(stories);
+
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/users/:id/highlights', async (req, res) => {
+  try {
+    const highlights = (await readHighlights()).filter(h => h.ownerId === req.params.id);
+    const stories = await readStories();
+    const directUrl = makeDirectUrlCache();
+    const out = await Promise.all(highlights.map(async h => {
+      const cover = stories.find(s => s.id === h.storyIds[0]);
+      return {
+        id: h.id, title: h.title, storyCount: h.storyIds.length,
+        coverUrl: cover ? await directUrl(cover.mediaFile, cover.storageProvider) : null
+      };
+    }));
+    res.json({ highlights: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/highlights/:id', async (req, res) => {
+  try {
+    const highlights = await readHighlights();
+    const h = highlights.find(x => x.id === req.params.id);
+    if (!h) return res.status(404).json({ error: 'Highlight not found' });
+    const stories = await readStories();
+    const users = await readUsers();
+    const owner = users.find(u => u.id === h.ownerId);
+    const directUrl = makeDirectUrlCache();
+    const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+    const enrichedStories = await Promise.all(h.storyIds.map(async id => {
+      const s = stories.find(x => x.id === id);
+      if (!s) return null;
+      return {
+        id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
+        mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+        mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
+        viewCount: (s.views || []).length, commentCount: (s.comments || []).length
+      };
+    }));
+    res.json({
+      id: h.id, title: h.title, ownerId: h.ownerId,
+      ownerUsername: owner ? owner.username : h.ownerUsername,
+      ownerProfileImage: ownerAvatarUrl,
+      stories: enrichedStories.filter(Boolean)
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1495,6 +1707,18 @@ app.post('/api/notifications/mark-read', async (req, res) => {
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ---------------- Presence: typing + online status ----------------
+const typingState = {}; // key: conversationId+':'+userId -> last-typed timestamp (ms)
+const TYPING_TTL_MS = 4000;
+const ONLINE_THRESHOLD_MS = 70 * 1000;
+function isUserOnline(u) {
+  return !!(u && u.lastActiveAt && (Date.now() - new Date(u.lastActiveAt).getTime()) < ONLINE_THRESHOLD_MS);
+}
+function isOtherTyping(conversationId, otherUserId) {
+  const ts = typingState[conversationId + ':' + otherUserId];
+  return !!(ts && (Date.now() - ts) < TYPING_TTL_MS);
+}
 
 // ---------------- Chat / DM "database" ----------------
 async function readConversations() {
@@ -1534,20 +1758,12 @@ function previewForMessage(m) {
 }
 async function enrichMessage(m, directUrl) {
   const out = {
-    id: m.id,
-    conversationId: m.conversationId,
-    senderId: m.senderId,
-    type: m.type,
-    text: m.unsent ? null : (m.text || null),
-    createdAt: m.createdAt,
-    editedAt: m.editedAt || null,
-    unsent: !!m.unsent,
-    readBy: m.readBy || [],
-    mediaUrl: null,
-    duration: m.duration || null,
-    shortId: null,
-    shortTitle: null,
-    shortOwnerUsername: null,
+    id: m.id, conversationId: m.conversationId, senderId: m.senderId,
+    type: m.type, text: m.unsent ? null : (m.text || null),
+    createdAt: m.createdAt, editedAt: m.editedAt || null,
+    unsent: !!m.unsent, readBy: m.readBy || [],
+    mediaUrl: null, duration: m.duration || null,
+    shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null,
     reactions: m.reactions || {}
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
@@ -1752,154 +1968,6 @@ async function triggerAiReply(conversationId, currentUserId){
 
 // ===================== CHAT / DM ROUTES =====================
 
-// --- In-memory status for Online & Typing ---
-const onlineUsers = new Map();
-const typingStatus = new Map();
-
-// 1. STORY HIGHLIGHTS
-async function readHighlights() {
-  return await e2TryReadJSON('highlights.json') || [];
-}
-async function writeHighlights(list) {
-  await e2WriteJSON('highlights.json', list);
-}
-
-app.get('/api/users/:id/highlights', async (req, res) => {
-  try {
-    const list = await readHighlights();
-    const userHighlights = list.filter(h => h.userId === req.params.id);
-    const directUrl = makeDirectUrlCache();
-    const enriched = await Promise.all(userHighlights.map(async h => ({
-      ...h,
-      coverUrl: h.coverKey ? await directUrl(h.coverKey, 'e2') : null,
-      stories: await Promise.all((h.stories || []).map(async s => ({
-        ...s,
-        mediaUrl: await directUrl(s.mediaFile, s.storageProvider || 'e2')
-      })))
-    })));
-    res.json({ highlights: enriched });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/highlights', async (req, res) => {
-  try {
-    const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const { title, storyIds } = req.body;
-    if (!title || !storyIds || !storyIds.length) return res.status(400).json({ error: 'Title aur stories select karein' });
-
-    const allStories = await readStories();
-    const selected = allStories.filter(s => storyIds.includes(s.id) && s.ownerId === currentUser.id);
-    if (!selected.length) return res.status(400).json({ error: 'Selected stories nahi mili' });
-
-    const highlights = await readHighlights();
-    const newHighlight = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      userId: currentUser.id,
-      title: title.trim().slice(0, 30),
-      coverKey: selected[0].mediaFile,
-      stories: selected,
-      createdAt: new Date().toISOString()
-    };
-    highlights.push(newHighlight);
-    await writeHighlights(highlights);
-    res.status(201).json(newHighlight);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 2. DM EMOJI REACTIONS
-app.post('/api/conversations/:id/messages/:messageId/react', async (req, res) => {
-  try {
-    const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const { emoji } = req.body;
-    const convos = await readConversations();
-    const convo = convos.find(c => c.id === req.params.id);
-    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
-
-    const messages = await readChatMessages(convo.id);
-    const m = messages.find(x => x.id === req.params.messageId);
-    if (!m) return res.status(404).json({ error: 'Message not found' });
-
-    if (!m.reactions) m.reactions = {};
-    if (m.reactions[currentUser.id] === emoji) {
-      delete m.reactions[currentUser.id];
-    } else {
-      m.reactions[currentUser.id] = emoji;
-    }
-    m.editedAt = new Date().toISOString();
-    await writeChatMessages(convo.id, messages);
-
-    const directUrl = makeDirectUrlCache();
-    const enriched = await enrichMessage(m, directUrl);
-    enriched.reactions = m.reactions;
-    res.json(enriched);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 3. ONLINE STATUS & TYPING INDICATOR
-app.post('/api/users/heartbeat', (req, res) => {
-  const currentUser = getUserFromReq(req);
-  if (currentUser) {
-    onlineUsers.set(currentUser.id, Date.now());
-  }
-  res.json({ success: true });
-});
-
-app.get('/api/users/:id/status', (req, res) => {
-  const lastSeen = onlineUsers.get(req.params.id) || 0;
-  const isOnline = (Date.now() - lastSeen) < 15000;
-  res.json({ isOnline, lastSeen });
-});
-
-app.post('/api/conversations/:id/typing', (req, res) => {
-  const currentUser = getUserFromReq(req);
-  if (!currentUser) return res.status(401).json({ error: 'Login required' });
-  typingStatus.set(`${req.params.id}:${currentUser.id}`, Date.now());
-  res.json({ success: true });
-});
-
-app.get('/api/conversations/:id/typing', (req, res) => {
-  const currentUser = getUserFromReq(req);
-  const now = Date.now();
-  let isOtherTyping = false;
-  for (const [key, time] of typingStatus.entries()) {
-    if (key.startsWith(req.params.id + ':') && !key.endsWith(':' + (currentUser ? currentUser.id : ''))) {
-      if (now - time < 4000) isOtherTyping = true;
-    }
-  }
-  res.json({ typing: isOtherTyping });
-});
-
-// 4. CREATOR POST ANALYTICS
-app.get('/api/films/:id/analytics', async (req, res) => {
-  try {
-    const currentUser = getUserFromReq(req);
-    if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const films = await readFilms();
-    const f = films.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).json({ error: 'Film not found' });
-    if (f.ownerId !== currentUser.id && !isAdminBasicAuth(req)) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const views = f.views || 0;
-    const likes = f.likes || 0;
-    const commentsCount = (f.comments || []).length;
-    const engagementRate = views > 0 ? (((likes + commentsCount) / views) * 100).toFixed(1) : 0;
-
-    res.json({
-      title: f.title,
-      type: f.type,
-      views,
-      likes,
-      commentsCount,
-      engagementRate: engagementRate + '%',
-      uploadedAt: f.uploadedAt
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/api/conversations', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -1927,8 +1995,9 @@ app.get('/api/conversations', async (req, res) => {
           id: c.id,
           otherUser: other ? {
             id: other.id, username: other.username,
-            profileImage: other.profileImage ? await directUrl(other.profileImage, other.avatarStorageProvider) : null
-          } : { id: otherId, username: 'Unknown user', profileImage: null },
+            profileImage: other.profileImage ? await directUrl(other.profileImage, other.avatarStorageProvider) : null,
+            online: isUserOnline(other)
+          } : { id: otherId, username: 'Unknown user', profileImage: null, online: false },
           lastMessage: c.lastMessage,
           updatedAt: c.updatedAt,
           unreadCount
@@ -1987,7 +2056,8 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
       id: convo.id,
       otherUser: {
         id: target.id, username: target.username,
-        profileImage: target.profileImage ? await directUrl(target.profileImage, target.avatarStorageProvider) : null
+        profileImage: target.profileImage ? await directUrl(target.profileImage, target.avatarStorageProvider) : null,
+        online: isUserOnline(target)
       },
       messages
     });
@@ -2005,9 +2075,16 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     const since = req.query.since ? new Date(req.query.since).getTime() : 0;
     const directUrl = makeDirectUrlCache();
     let raw = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
-    if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since));
+    if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since) || (m.reactedAt && new Date(m.reactedAt).getTime() > since));
     const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl)));
-    res.json({ messages });
+
+    const otherId = convo.participants.find(p => p !== currentUser.id);
+    let otherOnline = false;
+    if (otherId && otherId !== AI_ASSISTANT_ID) {
+      const users = await readUsers();
+      otherOnline = isUserOnline(users.find(u => u.id === otherId));
+    }
+    res.json({ messages, otherTyping: otherId ? isOtherTyping(convo.id, otherId) : false, otherOnline });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -2146,6 +2223,40 @@ app.post('/api/conversations/:id/messages/:messageId/delete', async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '👍'];
+app.post('/api/conversations/:id/messages/:messageId/react', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    const m = messages.find(x => x.id === req.params.messageId);
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+
+    const emoji = req.body.emoji;
+    if (!m.reactions) m.reactions = {};
+    if (!emoji || !REACTION_EMOJIS.includes(emoji)) {
+      delete m.reactions[currentUser.id];
+    } else if (m.reactions[currentUser.id] === emoji) {
+      delete m.reactions[currentUser.id];
+    } else {
+      m.reactions[currentUser.id] = emoji;
+      if (m.senderId && m.senderId !== currentUser.id && m.senderId !== AI_ASSISTANT_ID) {
+        await notify(m.senderId, {
+          type: 'message_reaction', fromUserId: currentUser.id, fromUsername: currentUser.username,
+          conversationId: convo.id, message: `@${currentUser.username} reacted ${emoji} to your message`
+        });
+      }
+    }
+    m.reactedAt = new Date().toISOString();
+    await writeChatMessages(convo.id, messages);
+    res.json({ reactions: m.reactions });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/conversations/:id/read', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -2206,6 +2317,21 @@ app.get('/api/me/liked', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/me/saved', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const directUrl = makeDirectUrlCache();
+    const mine = films.filter(f => f.savedBy && f.savedBy.includes(currentUser.id));
+    const out = await Promise.all(mine.map(async f => ({
+      id: f.id, filmId: f.id, title: f.title, type: f.type,
+      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null
+    })));
+    res.json({ saved: out.reverse() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/me/comments', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -2226,6 +2352,31 @@ app.get('/api/me/comments', async (req, res) => {
     }
     out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ comments: out.slice(0, 100) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/me/heartbeat', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    me.lastActiveAt = new Date().toISOString();
+    await writeUsers(users);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/typing', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+    typingState[convo.id + ':' + currentUser.id] = Date.now();
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
