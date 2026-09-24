@@ -1,4 +1,4 @@
-# Tamasha — Indian cinema streaming demo (with real film upload)
+# Youseries — Indian streaming web (with real film upload)
 
 A simple full-stack app: upload video files through a form, and they show up
 on the homepage for anyone visiting the site to watch.
