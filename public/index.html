@@ -1751,6 +1751,9 @@ function renderHome(films) {
           <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
             ↗️
           </button>
+          <button class="feed-act-btn" id="feed-save-${f.id}" style="margin-left:auto;" onclick="toggleSaveFeedPost('${f.id}', this)">
+            ${f.savedBy && currentUser && f.savedBy.includes(currentUser.id) ? '🔖' : '📑'}
+          </button>
         </div>
 
         <div class="card-caption-area">
@@ -1825,7 +1828,6 @@ function renderShorts(shorts){
   if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="/admin.html" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
   container.innerHTML = shorts.map(f => {
     const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
-    const isSaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
     return `
     <div class="short-item" data-id="${f.id}">
       <video data-src="${f.videoUrl}" preload="none" loop playsinline data-id="${f.id}"></video>
@@ -1840,7 +1842,6 @@ function renderShorts(shorts){
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
-        <div><button class="short-action-btn ${isSaved ? 'liked' : ''}" id="short-save-${f.id}" onclick="toggleSaveShort('${f.id}', this)">${isSaved ? '🔖' : '📑'}</button></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
       </div>
@@ -2003,17 +2004,6 @@ async function likeShort(id, btn){
   } catch (err) {}
 }
 
-async function toggleSaveShort(id, btn){
-  if (!currentUser) { window.location.href = '/login.html'; return; }
-  try {
-    const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) return;
-    btn.textContent = data.saved ? '🔖' : '📑';
-    btn.classList.toggle('liked', data.saved);
-  } catch (err) {}
-}
-
 function shareShort(id){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   openSendTo(id);
@@ -2023,7 +2013,9 @@ function openMenu(id){
   currentShortId = id;
   const film = allFilms.find(f => f.id === id);
   const isOwner = currentUser && film && film.ownerId === currentUser.id;
+  const isSaved = !!(currentUser && film && film.savedBy && film.savedBy.includes(currentUser.id));
   let itemsHtml = `
+    <div class="menu-item" id="menuSaveItem" onclick="toggleSaveFromMenu('${id}')">${isSaved ? '🔖 Unsave' : '📑 Save'}</div>
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
     <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
   `;
@@ -2038,6 +2030,23 @@ function openMenu(id){
   document.getElementById('menuOverlay').classList.add('open');
 }
 function closeMenu(){ document.getElementById('menuOverlay').classList.remove('open'); }
+
+async function toggleSaveFromMenu(id){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    const film = allFilms.find(f => f.id === id);
+    if (film) {
+      if (!film.savedBy) film.savedBy = [];
+      if (data.saved) { if (!film.savedBy.includes(currentUser.id)) film.savedBy.push(currentUser.id); }
+      else film.savedBy = film.savedBy.filter(uid => uid !== currentUser.id);
+    }
+    const item = document.getElementById('menuSaveItem');
+    if (item) item.textContent = data.saved ? '🔖 Unsave' : '📑 Save';
+  } catch (err) {}
+}
 
 function editCurrentShort(){
   const film = allFilms.find(f => f.id === currentShortId);
@@ -2781,7 +2790,7 @@ async function loadUserHighlights(userId, elId, isOwn){
 
   highlights.forEach(h => {
     html += `
-      <div class="story-avatar-wrap" onclick="openHighlightViewer('${h.id}')">
+      <div class="story-avatar-wrap" onclick="openHighlightViewer('${h.id}')" ${isOwn ? `onpointerdown='startHighlightHold(event,${JSON.stringify(h.id)})' onpointerup="endHighlightHold()" onpointerleave="endHighlightHold()" onpointercancel="endHighlightHold()" oncontextmenu="event.preventDefault();return false;"` : ''}>
         <div class="story-ring seen">
           <div class="story-avatar-inner">${h.coverUrl ? `<img src="${h.coverUrl}">` : '<span>★</span>'}</div>
         </div>
@@ -2792,6 +2801,15 @@ async function loadUserHighlights(userId, elId, isOwn){
 
   bar.innerHTML = html;
   bar.classList.toggle('hidden', !html);
+}
+
+let highlightHoldTimer = null;
+function startHighlightHold(event, highlightId){
+  clearTimeout(highlightHoldTimer);
+  highlightHoldTimer = setTimeout(() => { deleteHighlight(highlightId); }, 500);
+}
+function endHighlightHold(){
+  clearTimeout(highlightHoldTimer);
 }
 
 let highlightPickedStoryIds = [];
@@ -4136,6 +4154,16 @@ async function likeFeedPost(id, btn) {
     if (!res.ok) return;
     btn.classList.toggle('liked', data.liked);
     btn.innerHTML = `${data.liked ? '❤️' : '♡'} <span class="like-num">${data.likes}</span>`;
+  } catch (err) {}
+}
+
+async function toggleSaveFeedPost(id, btn) {
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    btn.textContent = data.saved ? '🔖' : '📑';
   } catch (err) {}
 }
 
