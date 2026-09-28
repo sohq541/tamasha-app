@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YouSeries — Moderation</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--marigold-deep:#5B3FE0;--vermilion:#4361EE;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 60px;}
+  .wrap{max-width:720px;margin:0 auto;}
+  h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:24px;margin:0 0 4px;}
+  p.sub{color:var(--cream-dim);font-size:13.5px;margin:0 0 20px;}
+
+  .tabs{display:flex;gap:8px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px;}
+  .tab{flex-shrink:0;background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);
+    padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .tab.active{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+
+  .report-card{background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:16px;margin-bottom:12px;}
+  .report-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .badge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.3px;text-transform:uppercase;}
+  .badge-post{background:rgba(67,97,238,0.25);color:#8fa8ff;}
+  .badge-user{background:rgba(230,57,80,0.2);color:#e88a8a;}
+  .badge-comment{background:rgba(124,92,255,0.25);color:#b9a4ff;}
+  .badge-auto{background:rgba(255,180,0,0.2);color:#ffcf5c;}
+  .status-pill{font-size:10.5px;color:var(--cream-dim);margin-left:auto;}
+  .reason{font-weight:600;font-size:14.5px;}
+  .preview{color:var(--cream-dim);font-size:13px;margin:6px 0;word-break:break-word;}
+  .meta{font-size:12px;color:var(--cream-dim);}
+  .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream);padding:7px 12px;
+    border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .btn-danger{border-color:#E63950;color:#e88a8a;}
+  .btn-primary{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+  .empty{color:var(--cream-dim);font-size:14px;text-align:center;padding:40px 0;}
+  .loading{color:var(--cream-dim);font-size:14px;text-align:center;padding:40px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛡️ Moderation Panel</h1>
+  <p class="sub">Reports review karo, content hatao ya users suspend karo.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-filter="pending" onclick="setFilter('pending')">Pending</button>
+    <button class="tab" data-filter="resolved" onclick="setFilter('resolved')">Resolved</button>
+    <button class="tab" data-filter="dismissed" onclick="setFilter('dismissed')">Dismissed</button>
+    <button class="tab" data-filter="all" onclick="setFilter('all')">All</button>
+  </div>
+
+  <div id="list" class="loading">Loading reports…</div>
+</div>
+
+<script>
+let allReports = [];
+let currentFilter = 'pending';
+
+async function loadReports(){
+  const listEl = document.getElementById('list');
+  listEl.innerHTML = '<div class="loading">Loading reports…</div>';
+  try {
+    const res = await fetch('/api/admin/reports');
+    if (res.status === 401) { listEl.innerHTML = '<div class="empty">Login required — page reload karo.</div>'; return; }
+    const data = await res.json();
+    allReports = data.reports || [];
+    render();
+  } catch (e) {
+    listEl.innerHTML = '<div class="empty">Reports load nahi hue.</div>';
+  }
+}
+
+function setFilter(f){
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+  render();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function timeAgo(iso){
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+function render(){
+  const listEl = document.getElementById('list');
+  let rows = allReports;
+  if (currentFilter === 'pending') rows = rows.filter(r => r.status === 'pending');
+  else if (currentFilter === 'resolved') rows = rows.filter(r => r.status === 'resolved');
+  else if (currentFilter === 'dismissed') rows = rows.filter(r => r.status === 'dismissed');
+
+  if (!rows.length) { listEl.innerHTML = '<div class="empty">Yahan kuch nahi hai.</div>'; return; }
+
+  listEl.innerHTML = rows.map(r => {
+    const isAuto = r.reason === 'auto-spam';
+    const badgeCls = r.type === 'post' ? 'badge-post' : r.type === 'user' ? 'badge-user' : 'badge-comment';
+    const canRemoveContent = (r.type === 'post' || r.type === 'comment') && r.status === 'pending';
+    return `
+      <div class="report-card">
+        <div class="report-top">
+          <span class="badge ${badgeCls}">${escapeHtml(r.type)}</span>
+          ${isAuto ? '<span class="badge badge-auto">auto-flagged</span>' : ''}
+          <span class="status-pill">${escapeHtml(r.status)} · ${timeAgo(r.createdAt)}</span>
+        </div>
+        <div class="reason">${escapeHtml(reasonLabel(r.reason))}</div>
+        ${r.targetPreview ? `<div class="preview">"${escapeHtml(String(r.targetPreview).slice(0, 200))}"</div>` : ''}
+        <div class="meta">Reported by @${escapeHtml(r.reporterUsername || 'unknown')}${r.note ? ' · ' + escapeHtml(r.note) : ''}</div>
+        ${r.status === 'pending' ? `
+          <div class="actions">
+            <button class="btn" onclick="dismiss('${r.id}')">Dismiss</button>
+            ${canRemoveContent ? `<button class="btn btn-danger" onclick="removeContent('${r.id}')">Remove content</button>` : ''}
+            ${r.targetOwnerId ? `<button class="btn btn-primary" onclick="suspendUser('${r.targetOwnerId}', this)">Suspend user</button>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function reasonLabel(reason){
+  const map = {
+    spam: 'Spam', nudity: 'Nudity or sexual content', harassment: 'Harassment or bullying',
+    violence: 'Violence or dangerous content', hate_speech: 'Hate speech',
+    misinformation: 'False information', other: 'Something else', 'auto-spam': 'Auto-flagged: repeated/link-heavy'
+  };
+  return map[reason] || reason;
+}
+
+async function dismiss(id){
+  try {
+    await fetch('/api/admin/reports/' + id + '/dismiss', { method: 'POST' });
+    const r = allReports.find(x => x.id === id);
+    if (r) r.status = 'dismissed';
+    render();
+  } catch (e) {}
+}
+
+async function removeContent(id){
+  if (!confirm('Ye content permanently delete karna hai?')) return;
+  try {
+    await fetch('/api/admin/reports/' + id + '/remove-content', { method: 'POST' });
+    const r = allReports.find(x => x.id === id);
+    if (r) r.status = 'resolved';
+    render();
+  } catch (e) {}
+}
+
+async function suspendUser(userId, btn){
+  if (!confirm('Is user ko suspend karna hai? Wo login nahi kar paayenge.')) return;
+  try {
+    const res = await fetch('/api/admin/users/' + userId + '/suspend', { method: 'POST' });
+    const data = await res.json();
+    btn.textContent = data.suspended ? 'Suspended ✓' : 'Unsuspended';
+  } catch (e) {}
+}
+
+loadReports();
+</script>
+</body>
+</html>

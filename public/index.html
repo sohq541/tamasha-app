@@ -420,6 +420,7 @@
 .chat-short-bubble-title{font-size:12.5px;font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chat-short-bubble-tag{font-size:11px;color:var(--marigold);margin-top:2px;}
 .chat-msg-time{font-size:10.5px;color:var(--cream-dim);margin-top:2px;padding:0 4px;}
+.chat-msg-status{font-size:10.5px;color:var(--cream-dim);padding:0 4px;text-align:right;}
 .chat-msg-edited{font-size:10px;opacity:0.7;margin-left:4px;}
 .chat-msg-unsent .chat-bubble{font-style:italic;color:var(--cream-dim) !important;background:transparent !important;border:1px dashed var(--gold-line) !important;cursor:default;}
 
@@ -692,10 +693,19 @@
 </div>
 
 <!-- ===== OTHER USER'S PROFILE (separate from own Profile tab) ===== -->
+<div class="chat-full-overlay" id="hashtagFeedOverlay">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeHashtagFeed()">←</button>
+    <span class="chat-header-name" id="hashtagFeedTitle"></span>
+  </div>
+  <div class="profile-wrap" id="hashtagFeedContent" style="overflow-y:auto;flex:1;"></div>
+</div>
+
 <div class="chat-full-overlay" id="otherProfileOverlay">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeOtherProfile()">←</button>
-    <span class="chat-header-name" id="otherProfileHeaderName"></span>
+    <span class="chat-header-name" id="otherProfileHeaderName" style="flex:1;"></span>
+    <button class="chat-input-icon-btn" style="font-size:20px;" onclick="openProfileSafetyMenu()">⋮</button>
   </div>
   <div class="profile-wrap" id="otherProfileContent" style="overflow-y:auto;flex:1;"></div>
 </div>
@@ -797,6 +807,28 @@
   </div>
 </div>
 
+<!-- ===== SAFETY: profile "..." menu (Report user / Block / Restrict) ===== -->
+<div class="sheet-overlay" id="profileSafetyOverlay" onclick="if(event.target===this) closeProfileSafetyMenu()">
+  <div class="sheet">
+    <div id="profileSafetyMenuItems"></div>
+  </div>
+</div>
+
+<!-- ===== SAFETY: post "..." menu (Report post) ===== -->
+<div class="sheet-overlay" id="postSafetyOverlay" onclick="if(event.target===this) closePostSafetyMenu()">
+  <div class="sheet">
+    <div id="postSafetyMenuItems"></div>
+  </div>
+</div>
+
+<!-- ===== SAFETY: report reason picker ===== -->
+<div class="sheet-overlay" id="reportOverlay" onclick="if(event.target===this) closeReportSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>Report</h3><button class="sheet-close" onclick="closeReportSheet()">✕</button></div>
+    <div id="reportReasonList"></div>
+  </div>
+</div>
+
 <!-- ===== CHAT MEDIA LIGHTBOX (view photo/video sent in DM) ===== -->
 <div class="chat-media-lightbox" id="chatMediaLightbox" onclick="if(event.target===this) closeChatMediaLightbox()">
   <button class="chat-lightbox-close" onclick="closeChatMediaLightbox()">✕</button>
@@ -833,6 +865,9 @@
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
       <label>Description</label><textarea id="qDescription"></textarea>
+      <label>Collab with (@username, optional)</label><input type="text" id="qCollab" placeholder="@ahmed">
+      <label>Collaborator username (optional)</label>
+      <input type="text" id="qCollaborator" placeholder="@username — post unke profile pe bhi dikhega">
 
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
@@ -867,6 +902,57 @@ function escapeHtml(str){
   div.textContent = str || '';
   return div.innerHTML;
 }
+
+function escapeAttr(str){
+  return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escapeRegexJs(str){ return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function linkifyRich(text, mentions){
+  let out = escapeHtml(text || '');
+  (mentions || []).slice().sort((a, b) => b.username.length - a.username.length).forEach(m => {
+    const re = new RegExp('@' + escapeRegexJs(escapeHtml(m.username)) + '(?![\\w])', 'gi');
+    out = out.replace(re, `<span style="color:var(--marigold);cursor:pointer;font-weight:600;" data-uid="${escapeAttr(m.id)}" data-uname="${escapeAttr(m.username)}" onclick="event.stopPropagation();openMentionProfile(this)">@${escapeHtml(m.username)}</span>`);
+  });
+  return out.replace(/#(\w+)/g, (mm, tag) =>
+    `<span style="color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation();openHashtagFeed('${tag.toLowerCase()}')">#${tag}</span>`
+  );
+}
+function openMentionProfile(el){
+  closeAllOverlays();
+  goToProfileDirect(el.dataset.uid, el.dataset.uname);
+}
+function collabLabel(f){
+  if (!f || f.collabStatus !== 'accepted' || !f.collaboratorId) return '';
+  return `<span style="color:var(--cream-dim);"> × </span><span style="cursor:pointer;" data-uid="${escapeAttr(f.collaboratorId)}" data-uname="${escapeAttr(f.collaboratorUsername)}" onclick="event.stopPropagation();openMentionProfile(this)">@${escapeHtml(f.collaboratorUsername)}</span>`;
+}
+function isMyPost(f, userId){
+  return f.ownerId === userId || (f.collabStatus === 'accepted' && f.collaboratorId === userId);
+}
+
+function linkifyHashtags(text){
+  return escapeHtml(text || '').replace(/#(\w+)/g, (m, tag) =>
+    `<span style="color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation();openHashtagFeed('${tag.toLowerCase()}')">#${tag}</span>`
+  );
+}
+
+async function openHashtagFeed(tag){
+  document.getElementById('hashtagFeedTitle').textContent = '#' + tag;
+  document.getElementById('hashtagFeedContent').innerHTML = '<p class="comment-empty">Loading...</p>';
+  document.getElementById('hashtagFeedOverlay').classList.add('open');
+  try {
+    const res = await fetch('/api/hashtags/' + encodeURIComponent(tag));
+    const data = await res.json();
+    const films = data.films || [];
+    document.getElementById('hashtagFeedContent').innerHTML = `
+      <div class="profile-mygrid">
+        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Is hashtag ke saath koi post nahi hai.</p>'}
+      </div>
+    `;
+  } catch (e) {
+    document.getElementById('hashtagFeedContent').innerHTML = '<p class="comment-empty">Load nahi hua.</p>';
+  }
+}
+function closeHashtagFeed(){ document.getElementById('hashtagFeedOverlay').classList.remove('open'); }
 
 // ===== Double-tap to like (Instagram-style), reusable everywhere =====
 function showHeartBurst(container){
@@ -920,7 +1006,9 @@ function closeAllOverlays(){
     chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit, chatMediaLightbox: closeChatMediaLightbox,
     sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal,
     otherProfileOverlay: closeOtherProfile,
-    reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker
+    reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker,
+    profileSafetyOverlay: closeProfileSafetyMenu, postSafetyOverlay: closePostSafetyMenu, reportOverlay: closeReportSheet,
+    hashtagFeedOverlay: closeHashtagFeed
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -1034,10 +1122,29 @@ async function renderOtherProfile(userId, usernameHint){
     pub = await res.json();
   } catch (err) {}
   document.getElementById('otherProfileHeaderName').textContent = '@' + pub.username;
+  viewingProfile = { id: userId, username: pub.username, blocked: !!pub.blocked, restricted: !!pub.restricted };
 
-  const theirFilms = allFilms.filter(f => f.ownerId === userId);
+  const theirFilms = allFilms.filter(f => isMyPost(f, userId));
   const theirVideos = theirFilms.filter(f => f.type !== 'photo');
   const theirPhotos = theirFilms.filter(f => f.type === 'photo');
+
+  if (pub.hasBlockedMe) {
+    el.innerHTML = `<p class="comment-empty" style="padding:40px 20px;">Ye profile available nahi hai.</p>`;
+    return;
+  }
+  if (pub.blocked) {
+    el.innerHTML = `
+      <div class="profile-top-row">
+        <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
+      </div>
+      <div class="profile-username">@${escapeHtml(pub.username)}</div>
+      <p class="comment-empty" style="padding:20px;">Tumne is user ko block kiya hai. Inki posts, comments ya messages nahi dikhenge.</p>
+      <div class="profile-btn-row">
+        <button class="profile-btn primary" onclick="toggleBlockFromMenu('${userId}')">Unblock</button>
+      </div>
+    `;
+    return;
+  }
 
   el.innerHTML = `
     <div class="profile-top-row">
@@ -1078,6 +1185,100 @@ function switchOtherProfileGrid(type){
   document.getElementById('otherProfileGridPhotos').classList.toggle('hidden', type !== 'photos');
 }
 
+// ---- Safety / Moderation ----
+function openProfileSafetyMenu(){
+  if (!viewingProfile) return;
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const isBlocked = viewingProfile.blocked;
+  const isRestricted = viewingProfile.restricted;
+  document.getElementById('profileSafetyMenuItems').innerHTML = `
+    <div class="menu-item" onclick="closeProfileSafetyMenu();openReportSheet('user','${viewingProfile.id}')">🚩 Report @${escapeHtml(viewingProfile.username)}</div>
+    <div class="menu-item" onclick="toggleRestrictFromMenu('${viewingProfile.id}')">${isRestricted ? '✅ Unrestrict' : '🙈 Restrict'} @${escapeHtml(viewingProfile.username)}</div>
+    <div class="menu-item" style="color:#e88a8a;" onclick="toggleBlockFromMenu('${viewingProfile.id}')">${isBlocked ? '✅ Unblock' : '🚫 Block'} @${escapeHtml(viewingProfile.username)}</div>
+  `;
+  document.getElementById('profileSafetyOverlay').classList.add('open');
+}
+function closeProfileSafetyMenu(){ document.getElementById('profileSafetyOverlay').classList.remove('open'); }
+
+async function toggleBlockFromMenu(userId){
+  const willBlock = !(viewingProfile && viewingProfile.blocked);
+  closeProfileSafetyMenu();
+  if (!confirm(willBlock ? 'Is user ko block karna hai? Inki posts, comments aur messages nahi dikhenge.' : 'Is user ko unblock karna hai?')) return;
+  try {
+    const res = await fetch('/api/users/' + userId + '/block', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Kuch galat ho gaya'); return; }
+    const uname = viewingProfile ? viewingProfile.username : '';
+    renderOtherProfile(userId, uname);
+    loadFilms();
+  } catch (e) {}
+}
+
+async function toggleRestrictFromMenu(userId){
+  closeProfileSafetyMenu();
+  try {
+    const res = await fetch('/api/users/' + userId + '/restrict', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    if (viewingProfile) viewingProfile.restricted = data.restricted;
+    showToast(data.restricted ? 'Restrict kar diya' : 'Unrestrict kar diya');
+  } catch (e) {}
+}
+
+function openPostSafetyMenu(filmId){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const film = allFilms.find(f => f.id === filmId);
+  const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
+  if (!isOwner && film) {
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>`;
+    items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();confirmBlockFromPost('${film.ownerId}')">🚫 Block @${escapeHtml(film.ownerUsername || '')}</div>`;
+  }
+  document.getElementById('postSafetyMenuItems').innerHTML = items;
+  document.getElementById('postSafetyOverlay').classList.add('open');
+}
+function closePostSafetyMenu(){ document.getElementById('postSafetyOverlay').classList.remove('open'); }
+async function confirmBlockFromPost(userId){
+  if (!confirm('Is user ko block karna hai? Inki posts, comments aur messages nahi dikhenge.')) return;
+  try {
+    const res = await fetch('/api/users/' + userId + '/block', { method: 'POST' });
+    if (res.ok) { showToast('Block kar diya'); loadFilms(); }
+  } catch (e) {}
+}
+
+const REPORT_REASONS = [
+  ['spam', 'Spam'],
+  ['nudity', 'Nudity or sexual content'],
+  ['harassment', 'Harassment or bullying'],
+  ['violence', 'Violence or dangerous content'],
+  ['hate_speech', 'Hate speech'],
+  ['misinformation', 'False information'],
+  ['other', 'Something else']
+];
+let reportTarget = null;
+function openReportSheet(type, targetId){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  reportTarget = { type, targetId };
+  document.getElementById('reportReasonList').innerHTML = REPORT_REASONS.map(([val, label]) =>
+    `<div class="menu-item" onclick="submitReport('${val}')">${escapeHtml(label)}</div>`
+  ).join('');
+  document.getElementById('reportOverlay').classList.add('open');
+}
+function closeReportSheet(){ document.getElementById('reportOverlay').classList.remove('open'); reportTarget = null; }
+async function submitReport(reason){
+  if (!reportTarget) return;
+  const { type, targetId } = reportTarget;
+  closeReportSheet();
+  try {
+    const res = await fetch('/api/reports', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, targetId, reason })
+    });
+    if (res.ok) showToast('Report bhej diya. Dhanyavaad.');
+    else { const d = await res.json(); alert(d.error || 'Report nahi bhej paaye'); }
+  } catch (e) {}
+}
+
 async function renderProfile(){
   const el = document.getElementById('profileContent');
 
@@ -1103,7 +1304,7 @@ async function renderProfile(){
   } catch (err) {}
   window.myHideSensitive = !!mine.hideSensitiveContent;
 
-  const myFilms = allFilms.filter(f => f.ownerId === currentUser.id);
+  const myFilms = allFilms.filter(f => isMyPost(f, currentUser.id));
   const myVideos = myFilms.filter(f => f.type !== 'photo');
   const myPhotos = myFilms.filter(f => f.type === 'photo');
 
@@ -1727,10 +1928,11 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${collabLabel(f)}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
+          <button class="feed-act-btn" style="margin-left:auto;font-size:18px;" onclick="event.stopPropagation();openPostSafetyMenu('${f.id}')">⋮</button>
         </div>
 
         <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}">
@@ -1758,7 +1960,7 @@ function renderHome(films) {
 
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b> ${escapeHtml(f.title)}</div>
-          ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${escapeHtml(f.description)}</div>` : ''}
+          ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
         </div>
       </div>
     `;
@@ -1835,9 +2037,9 @@ function renderShorts(shorts){
       <div class="short-speed-badge">⏩ 2x</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
-        <p>${escapeHtml(f.description || '')}</p>
+        <p>${linkifyRich(f.description || '', f.mentions)}</p>
       </div>
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
@@ -2025,6 +2227,12 @@ function openMenu(id){
       <div class="menu-item" onclick="editCurrentShort()">✏️ Edit</div>
       <div class="menu-item" onclick="deleteCurrentShort()" style="color:#e88a8a;">🗑️ Delete</div>
     `;
+  } else if (film) {
+    itemsHtml += `
+      <div class="menu-item" onclick="closeMenu();openReportSheet('post','${id}')">🚩 Report post</div>
+      <div class="menu-item" onclick="closeMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>
+      <div class="menu-item" style="color:#e88a8a;" onclick="closeMenu();confirmBlockFromPost('${film.ownerId}')">🚫 Block @${escapeHtml(film.ownerUsername || '')}</div>
+    `;
   }
   document.getElementById('menuItemsContainer').innerHTML = itemsHtml;
   document.getElementById('menuOverlay').classList.add('open');
@@ -2171,6 +2379,9 @@ function saveMyCommentToken(commentId, editToken){
     const ageMs = Date.now() - new Date(c.createdAt).getTime();
     const canEdit = isMine && ageMs < 24 * 60 * 60 * 1000;
     const canDelete = isMine || isFilmOwner;
+    const canHide = !!(currentUser && film && isMyPost(film, currentUser.id)) && !isMine;
+    const canReport = currentUser && !isMine;
+    const hasMenu = canEdit || canDelete || canHide || canReport;
 
     return `
       <div class="comment-item" id="comment-${c.id}">
@@ -2179,19 +2390,22 @@ function saveMyCommentToken(commentId, editToken){
             ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
             <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>
             ${isCommentAuthor ? `<span style="background:var(--marigold);color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:0.3px;">Author</span>` : ''}
+            ${c.hidden ? `<span style="background:#7a5c00;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">Hidden</span>` : ''}
             ${c.edited ? '<span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}
           </div>
-          ${(canEdit || canDelete) ? `
+          ${hasMenu ? `
             <button type="button" onclick="event.stopPropagation(); toggleCommentActions('${c.id}')" style="background:transparent;border:none;color:var(--cream-dim);font-size:16px;cursor:pointer;padding:2px 6px;">⋮</button>
           ` : ''}
         </div>
 
-        <div class="comment-text" id="comment-text-${c.id}">${escapeHtml(c.text)}</div>
+        <div class="comment-text" id="comment-text-${c.id}">${linkifyRich(c.text, c.mentions)}</div>
         <div style="color:var(--cream-dim);font-size:11px;margin-top:3px;">${storyTimeAgo(c.createdAt)}</div>
 
-        ${(canEdit || canDelete) ? `
-          <div id="comment-actions-${c.id}" style="display:none;gap:12px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);">
+        ${hasMenu ? `
+          <div id="comment-actions-${c.id}" style="display:none;gap:12px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);flex-wrap:wrap;">
             ${canEdit ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--marigold);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); startEditComment('${filmId}','${c.id}')">✏️ Edit</button>` : ''}
+            ${canHide ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--cream-dim);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); toggleHideComment('${filmId}','${c.id}')">${c.hidden ? '👁️ Unhide' : '🙈 Hide'}</button>` : ''}
+            ${canReport ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--cream-dim);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); openReportSheet('comment','${filmId}:${c.id}')">🚩 Report</button>` : ''}
             ${canDelete ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:#e88a8a;cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); deleteComment('${filmId}','${c.id}')">🗑️ Delete</button>` : ''}
           </div>
         ` : ''}
@@ -2256,6 +2470,21 @@ async function deleteComment(filmId, commentId){
     showToast(err.message);
   }
 }
+async function toggleHideComment(filmId, commentId){
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/hide`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    [allFilms.find(f => f.id === filmId), (currentFilm && currentFilm.id === filmId) ? currentFilm : null].forEach(f => {
+      const c = f && f.comments && f.comments.find(x => x.id === commentId);
+      if (c) c.hidden = data.hidden;
+    });
+    if (currentFilm && currentFilm.id === filmId) renderCommentListInto('commentList', currentFilm.comments, filmId);
+    showToast(data.hidden ? 'Comment hide kar diya' : 'Comment wapas dikha diya');
+  } catch (err) {
+    showToast(err.message);
+  }
+}
 async function playFilm(id){
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const res = await fetch('/api/films/' + id);
@@ -2277,18 +2506,19 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
   } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
-  document.getElementById('mDesc').textContent = f.description || '';
+  document.getElementById('mDesc').innerHTML = linkifyRich(f.description || '', f.mentions);
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
   const isOwnerOfFilm = currentUser && f.ownerId === currentUser.id;
+  const isOwnerOrCollab = !!(currentUser && isMyPost(f, currentUser.id));
   document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
   document.getElementById('modalDeleteBtn').classList.toggle('hidden', !isOwnerOfFilm);
-  document.getElementById('modalInsightsBtn').classList.toggle('hidden', !isOwnerOfFilm);
+  document.getElementById('modalInsightsBtn').classList.toggle('hidden', !isOwnerOrCollab);
 
   const likeBtn = document.getElementById('likeBtn');
   const alreadyLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
@@ -3037,6 +3267,8 @@ function notifIcon(type){
   if (type === 'film_comment' || type === 'story_comment') return '💬';
   if (type === 'comment_like') return '❤️';
   if (type === 'message') return '✉️';
+  if (type === 'mention') return '@';
+  if (type === 'collab_invite' || type === 'collab_accepted') return '🤝';
   return '🔔';
 }
 
@@ -3057,6 +3289,7 @@ async function openNotifications(){
           <div style="flex:1;">
             <div style="font-size:13.5px;color:var(--cream);">${escapeHtml(n.message)}</div>
             <div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${storyTimeAgo(n.createdAt)}</div>
+            ${n.type === 'collab_invite' ? `<div style="display:flex;gap:8px;margin-top:8px;"><button type="button" class="profile-btn primary" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${n.filmId}','accept',this)">Accept</button><button type="button" class="profile-btn" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${n.filmId}','decline',this)">Decline</button></div>` : ''}
           </div>
           ${n.read ? '' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--marigold);flex-shrink:0;margin-top:5px;"></span>'}
         </div>
@@ -3073,6 +3306,16 @@ async function openNotifications(){
 }
 
 function closeNotifications(){ document.getElementById('notifOverlay').classList.remove('open'); }
+
+async function respondCollab(filmId, action, btn){
+  try {
+    const res = await fetch('/api/films/' + filmId + '/collab/' + action, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Kuch galat ho gaya'); return; }
+    btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:var(--cream-dim);">' + (action === 'accept' ? 'Collab accept ho gaya ✓' : 'Decline kar diya') + '</span>';
+    loadFilms();
+  } catch (e) {}
+}
 
 function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId){
   closeNotifications();
@@ -3273,11 +3516,13 @@ function renderChatMessages(){
   if (!chatMessagesCache.length) { el.innerHTML = '<div class="chat-empty">Say hi 👋</div>'; return; }
   let html = '';
   let lastDay = null;
-  chatMessagesCache.forEach(m => {
+  let lastMineIdx = -1;
+  chatMessagesCache.forEach((m, i) => { if (m.senderId === currentUser.id) lastMineIdx = i; });
+  chatMessagesCache.forEach((m, i) => {
     const day = chatDayLabel(m.createdAt);
     if (day !== lastDay) { html += `<div class="chat-day-divider">${day}</div>`; lastDay = day; }
     const mine = m.senderId === currentUser.id;
-    html += renderChatBubble(m, mine);
+    html += renderChatBubble(m, mine, mine && i === lastMineIdx);
   });
   el.innerHTML = html;
 }
@@ -3329,7 +3574,7 @@ async function sendReaction(emoji){
   } catch (e) {}
 }
 
-function renderChatBubble(m, mine){
+function renderChatBubble(m, mine, showStatus){
   const rowCls = 'chat-msg-row ' + (mine ? 'mine' : 'theirs') + (m.unsent ? ' chat-msg-unsent' : '');
   const menuBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 6px;" onclick='openChatMsgMenu(${JSON.stringify(m.id)})'>⋮</button>`;
   let bubbleInner = '';
@@ -3367,6 +3612,7 @@ function renderChatBubble(m, mine){
     <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}" onpointerdown='startBubbleHold(event,${JSON.stringify(m.id)})' onpointerup="endBubbleHold(event)" onpointerleave="endBubbleHold(event)" onpointercancel="endBubbleHold(event)" oncontextmenu="event.preventDefault();return false;">${menuBtn}${bubbleInner}</div>
     ${renderReactionPills(m.reactions) ? `<div style="display:flex;${mine ? 'justify-content:flex-end;' : ''}">${renderReactionPills(m.reactions)}</div>` : ''}
     <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}</div>
+    ${showStatus ? `<div class="chat-msg-status">${(m.readBy && m.readBy.length) ? 'Seen ✓✓' : 'Sent ✓'}</div>` : ''}
   </div>`;
 }
 
@@ -3871,6 +4117,7 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
     language: document.getElementById('qLanguage').value,
     genre: document.getElementById('qGenre').value,
     description: document.getElementById('qDescription').value,
+    collabUsername: document.getElementById('qCollab').value.trim(),
     isSensitive: document.getElementById('qSensitive').checked
   };
 
@@ -4073,7 +4320,8 @@ async function startDirectUpload(meta, mainFile, posterFile){
     'storyUploadOverlay','storyViewerOverlay','storyViewsOverlay','storyCommentsDrawer','notifOverlay',
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
-    'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay'
+    'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay',
+    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -4097,7 +4345,11 @@ async function startDirectUpload(meta, mainFile, posterFile){
     uploadModalOverlay: () => closeUploadModal(),
     reactionPickerOverlay: () => closeReactionPicker(),
     insightsOverlay: () => closeInsights(),
-    highlightPickerOverlay: () => closeHighlightPicker()
+    highlightPickerOverlay: () => closeHighlightPicker(),
+    profileSafetyOverlay: () => closeProfileSafetyMenu(),
+    postSafetyOverlay: () => closePostSafetyMenu(),
+    reportOverlay: () => closeReportSheet(),
+    hashtagFeedOverlay: () => closeHashtagFeed()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
