@@ -66,6 +66,64 @@ function signToken(user) {
 }
 
 function toBool(v) { return v === true || v === 'true'; }
+function extractHashtags(text) {
+  const matches = String(text || '').match(/#(\w+)/g) || [];
+  const tags = matches.map(t => t.slice(1).toLowerCase());
+  return [...new Set(tags)].slice(0, 30);
+}
+function escapeRegex(str) { return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function findMentionedUsers(text, users) {
+  const src = String(text || '');
+  if (!src.includes('@')) return [];
+  const found = [];
+  const sorted = users.filter(u => u.username).slice().sort((a, b) => b.username.length - a.username.length);
+  for (const u of sorted) {
+    const re = new RegExp('@' + escapeRegex(u.username) + '(?![\\w])', 'i');
+    if (re.test(src)) found.push({ id: u.id, username: u.username });
+    if (found.length >= 10) break;
+  }
+  return found;
+}
+async function notifyMentions(text, fromUser, context) {
+  const users = await readUsers();
+  const mentioned = findMentionedUsers(text, users);
+  for (const m of mentioned) {
+    if (m.id === fromUser.id) continue;
+    const target = users.find(u => u.id === m.id);
+    if (target && (target.blockedUsers || []).includes(fromUser.id)) continue;
+    await notify(m.id, {
+      type: 'mention', fromUserId: fromUser.id, fromUsername: fromUser.username,
+      filmId: context.filmId || null,
+      message: `@${fromUser.username} mentioned you ${context.label || ''}`
+    });
+  }
+  return mentioned;
+}
+
+// Collab: resolve "@username" (or plain username) to an existing user, and invite them
+async function decorateNewFilm(newFilm, body, currentUser) {
+  const users = await readUsers();
+  newFilm.mentions = findMentionedUsers((newFilm.title || '') + ' ' + (newFilm.description || ''), users);
+  const raw = String((body && body.collabUsername) || '').trim().replace(/^@/, '');
+  if (raw && currentUser) {
+    const target = users.find(u => (u.username || '').toLowerCase() === raw.toLowerCase());
+    if (target && target.id !== currentUser.id && !(target.blockedUsers || []).includes(currentUser.id)) {
+      newFilm.collaboratorId = target.id;
+      newFilm.collaboratorUsername = target.username;
+      newFilm.collabStatus = 'pending';
+    }
+  }
+}
+function isFilmOwnerOrCollab(f, userId) {
+  return !!(userId && (f.ownerId === userId || (f.collabStatus === 'accepted' && f.collaboratorId === userId)));
+}
+async function notifyCollabInvite(newFilm, currentUser) {
+  if (newFilm.collabStatus !== 'pending' || !currentUser) return;
+  await notify(newFilm.collaboratorId, {
+    type: 'collab_invite', fromUserId: currentUser.id, fromUsername: currentUser.username,
+    filmId: newFilm.id, message: `@${currentUser.username} ne tumhe "${newFilm.title}" pe collab ke liye invite kiya`
+  });
+}
 
 // ---------------- Backblaze B2 helper ----------------
 let b2Cache = { authToken: null, apiUrl: null, downloadUrl: null, expiresAt: 0 };
@@ -405,6 +463,14 @@ function readFileAsBuffer(filePath) {
   return buf;
 }
 
+app.get('/moderation.html', (req, res) => {
+  if (!isAdminBasicAuth(req)) {
+    res.set('WWW-Authenticate', 'Basic realm="Moderation"');
+    return res.status(401).send('Admin login required');
+  }
+  res.sendFile(path.join(__dirname, 'public', 'moderation.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ===================== AUTH ROUTES =====================
@@ -447,6 +513,7 @@ app.post('/api/login', async (req, res) => {
     if (!user.passwordHash) return res.status(401).json({ error: 'This account was created with Google. Please use "Continue with Google" below to log in.' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password' });
+    if (user.suspended) return res.status(403).json({ error: 'Ye account suspend kar diya gaya hai community guidelines violate karne ki wajah se.' });
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: user.id, email: user.email, username: user.username });
@@ -516,6 +583,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       users.push(user);
       await writeUsers(users);
     }
+    if (user.suspended) { res.redirect('/login.html?error=suspended'); return; }
 
     const token = signToken(user);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
@@ -527,6 +595,20 @@ app.get('/api/auth/google/callback', async (req, res) => {
 });
 
 app.get('/api/me', (req, res) => { res.json(getUserFromReq(req)); });
+
+app.get('/api/users/by-username/:username', async (req, res) => {
+  try {
+    const uname = String(req.params.username || '').toLowerCase();
+    const users = await readUsers();
+    const user = users.find(u => (u.username || '').toLowerCase() === uname);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const directUrl = makeDirectUrlCache();
+    res.json({
+      id: user.id, username: user.username,
+      profileImage: user.profileImage ? await directUrl(user.profileImage, user.avatarStorageProvider) : null
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/api/users/:id/public', async (req, res) => {
   try {
@@ -545,7 +627,10 @@ app.get('/api/users/:id/public', async (req, res) => {
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
       hideSensitiveContent: !!user.hideSensitiveContent,
-      online: isUserOnline(user)
+      online: isUserOnline(user),
+      blocked: !!(me && me.blockedUsers && me.blockedUsers.includes(user.id)),
+      restricted: !!(me && me.restrictedUsers && me.restrictedUsers.includes(user.id)),
+      hasBlockedMe: !!(currentUser && user.blockedUsers && user.blockedUsers.includes(currentUser.id))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -698,6 +783,53 @@ app.post('/api/users/:id/follow', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/users/:id/block', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (currentUser.id === req.params.id) return res.status(400).json({ error: 'You can\'t block yourself' });
+
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    const target = users.find(u => u.id === req.params.id);
+    if (!me || !target) return res.status(404).json({ error: 'User not found' });
+
+    if (!me.blockedUsers) me.blockedUsers = [];
+    const idx = me.blockedUsers.indexOf(target.id);
+    let blocked;
+    if (idx === -1) {
+      me.blockedUsers.push(target.id); blocked = true;
+      if (me.following) me.following = me.following.filter(id => id !== target.id);
+      if (target.following) target.following = target.following.filter(id => id !== me.id);
+    } else {
+      me.blockedUsers.splice(idx, 1); blocked = false;
+    }
+    await writeUsers(users);
+    res.json({ blocked });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/users/:id/restrict', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (currentUser.id === req.params.id) return res.status(400).json({ error: 'You can\'t restrict yourself' });
+
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    const target = users.find(u => u.id === req.params.id);
+    if (!me || !target) return res.status(404).json({ error: 'User not found' });
+
+    if (!me.restrictedUsers) me.restrictedUsers = [];
+    const idx = me.restrictedUsers.indexOf(target.id);
+    let restricted;
+    if (idx === -1) { me.restrictedUsers.push(target.id); restricted = true; }
+    else { me.restrictedUsers.splice(idx, 1); restricted = false; }
+    await writeUsers(users);
+    res.json({ restricted });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/users/:id/following', async (req, res) => {
   try {
     const users = await readUsers();
@@ -787,14 +919,27 @@ app.get('/api/films', async (req, res) => {
     const currentUser = getUserFromReq(req);
     const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
     const hideSensitive = me ? !!me.hideSensitiveContent : false;
+    const myBlocked = (me && me.blockedUsers) || [];
     const directUrl = makeDirectUrlCache();
 
     const out = await Promise.all(films
       .filter(f => !(hideSensitive && f.isSensitive))
+      .filter(f => !myBlocked.includes(f.ownerId))
+      .filter(f => {
+        const owner = users.find(u => u.id === f.ownerId);
+        return !(owner && owner.blockedUsers && me && owner.blockedUsers.includes(me.id));
+      })
       .map(async f => {
         const owner = users.find(u => u.id === f.ownerId);
         const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
-        const enrichedComments = await Promise.all((f.comments || []).map(async c => {
+        const ownerRestricted = (owner && owner.restrictedUsers) || [];
+        const isThisFilmOwner = isFilmOwnerOrCollab(f, me && me.id);
+        const visibleComments = (f.comments || []).filter(c => {
+          if (c.hidden && !isThisFilmOwner) return false;
+          if (!isThisFilmOwner && ownerRestricted.includes(c.userId) && !(me && me.id === c.userId)) return false;
+          return true;
+        });
+        const enrichedComments = await Promise.all(visibleComments.map(async c => {
           const cUser = users.find(u => u.id === c.userId);
           const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
           return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
@@ -812,16 +957,81 @@ app.get('/api/films', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/films/:id/collab/accept', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f || f.collaboratorId !== currentUser.id || f.collabStatus !== 'pending') return res.status(404).json({ error: 'Invite nahi mila' });
+    f.collabStatus = 'accepted';
+    await writeFilms(films);
+    await notify(f.ownerId, { type: 'collab_accepted', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} ne "${f.title}" ka collab accept kar liya` });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:id/collab/decline', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f || !f.collaboratorId) return res.status(404).json({ error: 'Collab nahi mila' });
+    if (f.collaboratorId !== currentUser.id && f.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus;
+    await writeFilms(films);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/users/lookup/:username', async (req, res) => {
+  try {
+    const uname = String(req.params.username || '').replace(/^@/, '').toLowerCase();
+    const u = (await readUsers()).find(x => (x.username || '').toLowerCase() === uname);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    res.json({ id: u.id, username: u.username });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/hashtags/:tag', async (req, res) => {
+  try {
+    const tag = String(req.params.tag || '').toLowerCase().replace(/^#/, '');
+    const films = await readFilms();
+    const users = await readUsers();
+    const currentUser = getUserFromReq(req);
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    const myBlocked = (me && me.blockedUsers) || [];
+    const directUrl = makeDirectUrlCache();
+
+    const matches = films.filter(f => (f.hashtags || []).includes(tag) && !myBlocked.includes(f.ownerId));
+    const out = await Promise.all(matches.map(async f => ({
+      id: f.id, title: f.title, type: f.type,
+      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+      views: f.views || 0, likes: f.likes || 0
+    })));
+    res.json({ tag, count: out.length, films: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/films/:id', async (req, res) => {
   try {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
+    const currentUser = getUserFromReq(req);
+    const isFilmOwner = isFilmOwnerOrCollab(f, currentUser && currentUser.id);
     const users = await readUsers();
     const owner = users.find(u => u.id === f.ownerId);
+    const ownerRestricted = (owner && owner.restrictedUsers) || [];
     const directUrl = makeDirectUrlCache();
     const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
-    const enrichedComments = await Promise.all((f.comments || []).map(async c => {
+    const visibleComments = (f.comments || []).filter(c => {
+      if (c.hidden && !isFilmOwner) return false;
+      if (!isFilmOwner && ownerRestricted.includes(c.userId) && !(currentUser && currentUser.id === c.userId)) return false;
+      return true;
+    });
+    const enrichedComments = await Promise.all(visibleComments.map(async c => {
       const cUser = users.find(u => u.id === c.userId);
       const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
       return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
@@ -877,13 +1087,16 @@ app.post('/api/films', (req, res, next) => {
         id, title, year: year || '', language: language || '', genre: genre || '',
         description: description || '', videoFile: null, posterFile: photoKey, type: 'photo',
         isSensitive: toBool(isSensitive),
+        hashtags: extractHashtags(title + ' ' + (description || '')),
         storageProvider: 'e2',
         ownerId: req.currentUser ? req.currentUser.id : 'admin',
         ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
         views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
       };
+      await decorateNewFilm(newFilm, req.body, req.currentUser);
       films.unshift(newFilm);
       await writeFilms(films);
+      await notifyCollabInvite(newFilm, req.currentUser);
       return res.status(201).json(newFilm);
     }
 
@@ -906,13 +1119,16 @@ app.post('/api/films', (req, res, next) => {
       description: description || '', videoFile: videoKey, posterFile: posterKey,
       type: type === 'short' ? 'short' : 'film',
       isSensitive: toBool(isSensitive),
+      hashtags: extractHashtags(title + ' ' + (description || '')),
       storageProvider: 'e2',
       ownerId: req.currentUser ? req.currentUser.id : 'admin',
       ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
       views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
     };
+    await decorateNewFilm(newFilm, req.body, req.currentUser);
     films.unshift(newFilm);
     await writeFilms(films);
+    await notifyCollabInvite(newFilm, req.currentUser);
     res.status(201).json(newFilm);
 
     // Generate thumbnail in the background so the upload response returns faster
@@ -963,6 +1179,7 @@ app.post('/api/films/finalize', async (req, res) => {
           id, title, year: year || '', language: language || '', genre: genre || '',
           description: description || '', videoFile: null, posterFile: mediaKey, type: 'photo',
           isSensitive: toBool(isSensitive),
+          hashtags: extractHashtags(title + ' ' + (description || '')),
           storageProvider: 'e2',
           ownerId: currentUser ? currentUser.id : 'admin',
           ownerUsername: currentUser ? currentUser.username : 'YouSeries',
@@ -973,14 +1190,18 @@ app.post('/api/films/finalize', async (req, res) => {
           description: description || '', videoFile: mediaKey, posterFile: posterKey || null,
           type: type === 'short' ? 'short' : 'film',
           isSensitive: toBool(isSensitive),
+          hashtags: extractHashtags(title + ' ' + (description || '')),
           storageProvider: 'e2',
           ownerId: currentUser ? currentUser.id : 'admin',
           ownerUsername: currentUser ? currentUser.username : 'YouSeries',
           views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
         };
 
+    await decorateNewFilm(newFilm, req.body, currentUser);
     films.unshift(newFilm);
     await writeFilms(films);
+    await notifyCollabInvite(newFilm, currentUser);
+    if (currentUser) await notifyMentions(newFilm.title + ' ' + newFilm.description, currentUser, { filmId: newFilm.id, label: `in "${newFilm.title}"` });
     res.status(201).json(newFilm);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1086,7 +1307,7 @@ app.get('/api/films/:id/insights', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
-    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'You don\'t have permission' });
     const views = f.views || 0;
     const likes = f.likes || 0;
     const shares = f.shares || 0;
@@ -1116,11 +1337,25 @@ app.post('/api/films/:id/comments', async (req, res) => {
       text: text.trim().slice(0, 500),
       createdAt: new Date().toISOString()
     };
+    comment.mentions = findMentionedUsers(comment.text, await readUsers());
     f.comments.push(comment);
     await writeFilms(films);
+    if (checkSpamAndRecord(currentUser.id, comment.text)) {
+      const reports = await readReports();
+      reports.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        type: 'comment', targetId: `${f.id}:${comment.id}`, filmId: f.id,
+        targetOwnerId: currentUser.id, targetPreview: comment.text,
+        reporterId: 'system', reporterUsername: 'Spam Detection',
+        reason: 'auto-spam', note: 'Automatically flagged for repeated/link-heavy content',
+        status: 'pending', createdAt: new Date().toISOString()
+      });
+      await writeReports(reports);
+    }
     if (f.ownerId) {
       await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} commented on your "${f.title}"` });
     }
+    await notifyMentions(comment.text, currentUser, { filmId: f.id, label: `in a comment on "${f.title}"` });
     res.status(201).json(comment);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1144,6 +1379,25 @@ app.post('/api/films/:filmId/comments/:commentId/delete', async (req, res) => {
     f.comments = f.comments.filter(c => c.id !== req.params.commentId);
     await writeFilms(films);
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:filmId/comments/:commentId/hide', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.filmId);
+    if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
+    if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'You don\'t have permission' });
+
+    const comment = f.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    comment.hidden = !comment.hidden;
+    await writeFilms(films);
+    res.json({ hidden: comment.hidden });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1192,6 +1446,22 @@ app.put('/api/films/:id', (req, res, next) => {
     if (genre !== undefined) f.genre = genre;
     if (description !== undefined) f.description = description;
     if (type !== undefined) f.type = type === 'short' ? 'short' : 'film';
+    if (title !== undefined || description !== undefined) {
+      f.hashtags = extractHashtags((f.title || '') + ' ' + (f.description || ''));
+      f.mentions = findMentionedUsers((f.title || '') + ' ' + (f.description || ''), await readUsers());
+    }
+    if (req.body.collabUsername !== undefined && isOwner) {
+      const rawCollab = String(req.body.collabUsername || '').trim().replace(/^@/, '');
+      if (!rawCollab) { delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus; }
+      else {
+        const allUsers = await readUsers();
+        const target = allUsers.find(u => (u.username || '').toLowerCase() === rawCollab.toLowerCase());
+        if (target && target.id !== req.currentUser.id && target.id !== f.collaboratorId && !(target.blockedUsers || []).includes(req.currentUser.id)) {
+          f.collaboratorId = target.id; f.collaboratorUsername = target.username; f.collabStatus = 'pending';
+          await notifyCollabInvite(f, req.currentUser);
+        }
+      }
+    }
 
     if (req.files && req.files.poster) {
       const posterFile = req.files.poster[0];
@@ -2041,6 +2311,9 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     const me = users.find(u => u.id === currentUser.id);
     const target = users.find(u => u.id === req.params.userId);
     if (!target) return res.status(404).json({ error: 'User not found' });
+    if ((me.blockedUsers || []).includes(target.id) || (target.blockedUsers || []).includes(me.id)) {
+      return res.status(403).json({ error: 'You can\'t message this user' });
+    }
 
     let convo = await getConversationForUsers(currentUser.id, target.id, false);
     if (!convo) {
@@ -2097,6 +2370,16 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const convos = await readConversations();
     const convo = convos.find(c => c.id === req.params.id);
     if (!convo || !convo.participants.includes(req.currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const otherParticipantId = convo.participants.find(p => p !== req.currentUser.id);
+    if (otherParticipantId && otherParticipantId !== AI_ASSISTANT_ID) {
+      const users = await readUsers();
+      const me = users.find(u => u.id === req.currentUser.id);
+      const other = users.find(u => u.id === otherParticipantId);
+      if ((me && me.blockedUsers && me.blockedUsers.includes(otherParticipantId)) || (other && other.blockedUsers && other.blockedUsers.includes(req.currentUser.id))) {
+        return res.status(403).json({ error: 'You can\'t message this user' });
+      }
+    }
 
     const text = (req.body.text || '').trim().slice(0, 2000);
     const shortId = req.body.shortId || null;
@@ -2509,6 +2792,134 @@ app.post('/api/push/unsubscribe', async (req, res) => {
     const filtered = subs.filter(s => s.subscription.endpoint !== endpoint);
     await e2WriteJSON('push-subscriptions.json', filtered);
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ===================== SAFETY / MODERATION =====================
+async function readReports() {
+  return await e2TryReadJSON('reports.json') || [];
+}
+async function writeReports(list) {
+  await e2WriteJSON('reports.json', list);
+}
+
+const recentCommentsByUser = {};
+function checkSpamAndRecord(userId, text) {
+  const now = Date.now();
+  if (!recentCommentsByUser[userId]) recentCommentsByUser[userId] = [];
+  recentCommentsByUser[userId] = recentCommentsByUser[userId].filter(e => now - e.ts < 10 * 60 * 1000);
+  recentCommentsByUser[userId].push({ text, ts: now });
+  const sameTextCount = recentCommentsByUser[userId].filter(e => e.text === text).length;
+  const linkCount = (text.match(/https?:\/\//g) || []).length;
+  return sameTextCount >= 3 || linkCount >= 3;
+}
+
+app.post('/api/reports', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { type, targetId, reason, note } = req.body;
+    if (!['post', 'user', 'comment'].includes(type)) return res.status(400).json({ error: 'Invalid report type' });
+    if (!targetId) return res.status(400).json({ error: 'Missing target' });
+
+    let targetOwnerId = null, targetPreview = null, filmId = null;
+    if (type === 'post') {
+      const films = await readFilms();
+      const f = films.find(x => x.id === targetId);
+      if (!f) return res.status(404).json({ error: 'Post not found' });
+      targetOwnerId = f.ownerId; targetPreview = f.title; filmId = f.id;
+    } else if (type === 'user') {
+      const users = await readUsers();
+      const u = users.find(x => x.id === targetId);
+      if (!u) return res.status(404).json({ error: 'User not found' });
+      targetOwnerId = u.id; targetPreview = u.username;
+    } else if (type === 'comment') {
+      const [fId, cId] = String(targetId).split(':');
+      const films = await readFilms();
+      const f = films.find(x => x.id === fId);
+      const c = f && (f.comments || []).find(x => x.id === cId);
+      if (!f || !c) return res.status(404).json({ error: 'Comment not found' });
+      targetOwnerId = c.userId; targetPreview = c.text; filmId = f.id;
+    }
+
+    const reports = await readReports();
+    const report = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type, targetId, filmId, targetOwnerId, targetPreview,
+      reporterId: currentUser.id, reporterUsername: currentUser.username,
+      reason: reason || 'other', note: (note || '').slice(0, 500),
+      status: 'pending', createdAt: new Date().toISOString()
+    };
+    reports.push(report);
+    await writeReports(reports);
+    res.status(201).json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+function requireAdmin(req, res, next) {
+  if (!isAdminBasicAuth(req)) {
+    res.set('WWW-Authenticate', 'Basic realm="Moderation"');
+    return res.status(401).json({ error: 'Admin login required' });
+  }
+  next();
+}
+
+app.get('/api/admin/reports', requireAdmin, async (req, res) => {
+  try {
+    const reports = await readReports();
+    res.json({ reports: reports.slice().reverse() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/reports/:id/dismiss', requireAdmin, async (req, res) => {
+  try {
+    const reports = await readReports();
+    const r = reports.find(x => x.id === req.params.id);
+    if (!r) return res.status(404).json({ error: 'Not found' });
+    r.status = 'dismissed';
+    await writeReports(reports);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/reports/:id/remove-content', requireAdmin, async (req, res) => {
+  try {
+    const reports = await readReports();
+    const r = reports.find(x => x.id === req.params.id);
+    if (!r) return res.status(404).json({ error: 'Not found' });
+
+    if (r.type === 'post' && r.filmId) {
+      let films = await readFilms();
+      const f = films.find(x => x.id === r.filmId);
+      if (f) {
+        if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
+        if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
+        films = films.filter(x => x.id !== r.filmId);
+        await writeFilms(films);
+      }
+    } else if (r.type === 'comment' && r.filmId) {
+      const films = await readFilms();
+      const f = films.find(x => x.id === r.filmId);
+      if (f && f.comments) {
+        const [, cId] = String(r.targetId).split(':');
+        f.comments = f.comments.filter(c => c.id !== cId);
+        await writeFilms(films);
+      }
+    }
+    r.status = 'resolved';
+    await writeReports(reports);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/users/:id/suspend', requireAdmin, async (req, res) => {
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === req.params.id);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    u.suspended = !u.suspended;
+    await writeUsers(users);
+    res.json({ suspended: u.suspended });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
