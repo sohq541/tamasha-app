@@ -496,6 +496,18 @@
 .highlight-picker-item{display:flex;align-items:center;gap:12px;padding:10px 4px;cursor:pointer;}
 .highlight-picker-item img{width:48px;height:48px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;}
 .highlight-picker-item input[type="checkbox"]{width:20px;height:20px;flex-shrink:0;}
+.collab-popup{margin-top:6px;background:var(--panel);border:1px solid var(--gold-line);border-radius:10px;max-height:220px;overflow-y:auto;}
+.collab-popup.hidden{display:none;}
+.collab-popup-item{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);}
+.collab-popup-item:last-child{border-bottom:none;}
+.collab-popup-item:active{background:rgba(124,92,255,0.25);}
+.collab-popup-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:linear-gradient(150deg,#3A2E7A,#4361EE);display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:15px;color:#fff;flex-shrink:0;overflow:hidden;}
+.collab-popup-avatar img{width:100%;height:100%;object-fit:cover;}
+.collab-popup-name{font-size:14.5px;color:var(--cream);font-weight:600;}
+.collab-popup-empty{padding:12px;font-size:13px;color:var(--cream-dim);text-align:center;}
+.collab-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(124,92,255,0.2);border:1px solid var(--marigold);border-radius:20px;padding:6px 10px 6px 12px;font-size:14px;color:var(--cream);font-weight:600;margin-top:4px;}
+.collab-chip.hidden{display:none;}
+.collab-chip button{background:transparent;border:none;color:var(--cream);font-size:15px;cursor:pointer;padding:0 2px;}
 </style>
 </head>
 <body>
@@ -536,10 +548,10 @@
 
 <div id="searchView" class="hidden">
   <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="Search films, shorts, people..." oninput="doSearch(this.value)">
+    <input type="text" id="searchInput" placeholder="Search films, shorts, people, #hashtags..." oninput="doSearch(this.value)">
   </div>
   <div class="search-results hidden" id="searchResults"></div>
-  <div class="search-placeholder" id="searchPlaceholder">Kuch bhi search karo — films, shorts ya log.</div>
+  <div class="search-placeholder" id="searchPlaceholder">Kuch bhi search karo — films, shorts, log ya #hashtag.</div>
 </div>
 
 <div id="shortsView">
@@ -568,6 +580,7 @@
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()">1x</button>
         <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
+        <button class="action-btn hidden" id="modalCollabBtn" onclick="openCollabSheet(currentFilm ? currentFilm.id : '')">🤝 Collab</button>
         <button class="action-btn hidden" id="modalInsightsBtn" onclick="openInsights(currentFilm ? currentFilm.id : '')">📊 Insights</button>
         <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
         <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
@@ -807,6 +820,18 @@
   </div>
 </div>
 
+<!-- ===== COLLAB (invite / manage) ===== -->
+<div class="sheet-overlay" id="collabOverlay" onclick="if(event.target===this) closeCollabSheet()">
+  <div class="sheet">
+    <div class="sheet-header"><h3>🤝 Collab</h3><button class="sheet-close" onclick="closeCollabSheet()">✕</button></div>
+    <p id="collabStatusText" style="color:var(--cream-dim);font-size:13.5px;margin:0 0 10px;"></p>
+    <input type="text" id="collabUserInput" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'sheetCollabPopup', 'sheet')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;">
+    <div class="collab-popup hidden" id="sheetCollabPopup"></div>
+    <button onclick="sendCollabInvite()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Invite bhejo</button>
+    <button id="collabRemoveBtn" onclick="removeCollab()" style="margin-top:8px;width:100%;background:transparent;color:#e88a8a;border:1px solid #E63950;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;">Collab hatao</button>
+  </div>
+</div>
+
 <!-- ===== SAFETY: profile "..." menu (Report user / Block / Restrict) ===== -->
 <div class="sheet-overlay" id="profileSafetyOverlay" onclick="if(event.target===this) closeProfileSafetyMenu()">
   <div class="sheet">
@@ -865,9 +890,10 @@
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
       <label>Description</label><textarea id="qDescription"></textarea>
-      <label>Collab with (@username, optional)</label><input type="text" id="qCollab" placeholder="@ahmed">
-      <label>Collaborator username (optional)</label>
-      <input type="text" id="qCollaborator" placeholder="@username — post unke profile pe bhi dikhega">
+      <label>🤝 Collab (optional) — dusre user ke saath post share karo</label>
+      <div class="collab-chip hidden" id="qCollabChip"></div>
+      <input type="text" id="qCollab" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
+      <div class="collab-popup hidden" id="qCollabPopup"></div>
 
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
@@ -927,6 +953,104 @@ function collabLabel(f){
 }
 function isMyPost(f, userId){
   return f.ownerId === userId || (f.collabStatus === 'accepted' && f.collaboratorId === userId);
+}
+
+let collabTargetId = null;
+let collabSuggestTimer = null;
+let qCollabSelected = null;
+function collabSearchInput(inputEl, popupId, mode){
+  clearTimeout(collabSuggestTimer);
+  const popup = document.getElementById(popupId);
+  const val = inputEl.value.trim().replace(/^@/, '');
+  if (!val) { popup.classList.add('hidden'); popup.innerHTML = ''; return; }
+  collabSuggestTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/users/search?q=' + encodeURIComponent(val));
+      const data = await res.json();
+      if (inputEl.value.trim().replace(/^@/, '') !== val) return;
+      const users = (data.users || []).filter(u => !currentUser || u.id !== currentUser.id);
+      popup.innerHTML = users.length ? users.map(u => `
+        <div class="collab-popup-item" data-uid="${escapeAttr(u.id)}" data-uname="${escapeAttr(u.username)}" onclick="pickCollabUser(this, '${mode}', '${popupId}')">
+          <div class="collab-popup-avatar">${u.profileImage ? `<img src="${escapeAttr(u.profileImage)}">` : escapeHtml((u.username[0] || '?').toUpperCase())}</div>
+          <span class="collab-popup-name">@${escapeHtml(u.username)}</span>
+        </div>`).join('') : '<div class="collab-popup-empty">Koi user nahi mila</div>';
+      popup.classList.remove('hidden');
+    } catch (e) {}
+  }, 200);
+}
+function pickCollabUser(el, mode, popupId){
+  const user = { id: el.dataset.uid, username: el.dataset.uname };
+  const popup = document.getElementById(popupId);
+  popup.classList.add('hidden'); popup.innerHTML = '';
+  if (mode === 'sheet') { sendCollabInvite(user.username); return; }
+  qCollabSelected = user;
+  document.getElementById('qCollab').classList.add('hidden');
+  const chip = document.getElementById('qCollabChip');
+  chip.innerHTML = `🤝 @${escapeHtml(user.username)} <button type="button" onclick="clearUploadCollab()" aria-label="Remove">✕</button>`;
+  chip.classList.remove('hidden');
+}
+function clearUploadCollab(){
+  qCollabSelected = null;
+  const input = document.getElementById('qCollab');
+  input.value = ''; input.classList.remove('hidden');
+  const chip = document.getElementById('qCollabChip');
+  chip.classList.add('hidden'); chip.innerHTML = '';
+  const popup = document.getElementById('qCollabPopup');
+  popup.classList.add('hidden'); popup.innerHTML = '';
+}
+function openCollabSheet(filmId){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const film = (currentFilm && currentFilm.id === filmId ? currentFilm : null) || allFilms.find(f => f.id === filmId);
+  if (!film || film.ownerId !== currentUser.id) { showToast('Sirf post ka owner collab set kar sakta hai'); return; }
+  collabTargetId = filmId;
+  let status = 'Abhi koi collab nahi hai. Jis user ko invite karoge, uske accept karne ke baad post dono profiles pe dikhegi.';
+  if (film.collaboratorUsername) {
+    status = film.collabStatus === 'accepted'
+      ? `Collab active: @${film.collaboratorUsername} ✓`
+      : `Invite pending: @${film.collaboratorUsername} ke accept karne ka wait hai`;
+  }
+  document.getElementById('collabStatusText').textContent = status;
+  document.getElementById('collabUserInput').value = '';
+  document.getElementById('sheetCollabPopup').classList.add('hidden');
+  document.getElementById('collabRemoveBtn').classList.toggle('hidden', !film.collaboratorUsername);
+  document.getElementById('collabOverlay').classList.add('open');
+}
+function closeCollabSheet(){ document.getElementById('collabOverlay').classList.remove('open'); collabTargetId = null; }
+function applyCollabToLocal(filmId, patch){
+  [allFilms.find(f => f.id === filmId), (currentFilm && currentFilm.id === filmId) ? currentFilm : null].forEach(f => {
+    if (!f) return;
+    ['collaboratorId', 'collaboratorUsername', 'collabStatus'].forEach(k => delete f[k]);
+    Object.assign(f, patch);
+  });
+}
+async function sendCollabInvite(usernameOverride){
+  const username = (typeof usernameOverride === 'string' ? usernameOverride : document.getElementById('collabUserInput').value).trim();
+  if (!username || !collabTargetId) { showToast('Username likho'); return; }
+  const id = collabTargetId;
+  try {
+    const res = await fetch('/api/films/' + id + '/collab', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Invite nahi gaya'); return; }
+    applyCollabToLocal(id, { collaboratorId: data.collaboratorId, collaboratorUsername: data.collaboratorUsername, collabStatus: 'pending' });
+    closeCollabSheet();
+    showToast('Invite bhej diya ✓');
+  } catch (e) { showToast('Invite nahi gaya'); }
+}
+async function removeCollab(){
+  if (!collabTargetId) return;
+  const id = collabTargetId;
+  try {
+    const res = await fetch('/api/films/' + id + '/collab', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: '' })
+    });
+    if (!res.ok) return;
+    applyCollabToLocal(id, {});
+    closeCollabSheet();
+    loadFilms();
+    showToast('Collab hata diya');
+  } catch (e) {}
 }
 
 function linkifyHashtags(text){
@@ -1008,7 +1132,7 @@ function closeAllOverlays(){
     otherProfileOverlay: closeOtherProfile,
     reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker,
     profileSafetyOverlay: closeProfileSafetyMenu, postSafetyOverlay: closePostSafetyMenu, reportOverlay: closeReportSheet,
-    hashtagFeedOverlay: closeHashtagFeed
+    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -1229,7 +1353,9 @@ function openPostSafetyMenu(filmId){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
-  let items = `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
+  let items = isOwner
+    ? `<div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div>`
+    : `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
   if (!isOwner && film) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>`;
     items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();confirmBlockFromPost('${film.ownerId}')">🚫 Block @${escapeHtml(film.ownerUsername || '')}</div>`;
@@ -1861,29 +1987,88 @@ function openShortAt(id){
   }, 50);
 }
 
+let searchUserTimer = null;
+function filmTags(f){
+  if (f.hashtags && f.hashtags.length) return f.hashtags;
+  const m = ((f.title || '') + ' ' + (f.description || '')).match(/#(\w+)/g) || [];
+  return [...new Set(m.map(t => t.slice(1).toLowerCase()))];
+}
+
 function doSearch(query){
   const resultsEl = document.getElementById('searchResults');
   const placeholderEl = document.getElementById('searchPlaceholder');
-  const q = query.trim().toLowerCase();
-  if (!q) { resultsEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); return; }
+  const raw = query.trim().toLowerCase();
+  if (!raw) { resultsEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); return; }
+  const isTagQuery = raw.startsWith('#');
+  const isUserQuery = raw.startsWith('@');
+  const q = raw.replace(/^[#@]/, '');
+  if (!q) {
+    placeholderEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
+    resultsEl.innerHTML = '<p class="comment-empty">' + (isTagQuery ? 'Hashtag likho, jaise #comedy' : 'Username likho') + '</p>';
+    return;
+  }
 
-  const matches = allFilms.filter(f => f.title.toLowerCase().includes(q));
+  // hashtags: count posts per tag
+  const tagCounts = {};
+  allFilms.forEach(f => filmTags(f).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+  const tagMatches = isUserQuery ? [] : Object.keys(tagCounts)
+    .filter(t => t.includes(q))
+    .sort((a, b) => (b.startsWith(q) - a.startsWith(q)) || (tagCounts[b] - tagCounts[a]))
+    .slice(0, 8);
+
+  const matches = isUserQuery ? [] : allFilms.filter(f => isTagQuery
+    ? filmTags(f).includes(q)
+    : (f.title.toLowerCase().includes(q) || filmTags(f).includes(q)));
 
   const seenUsers = new Set();
   const userMatches = [];
-  allFilms.forEach(f => {
-    if (f.ownerUsername && f.ownerId && !seenUsers.has(f.ownerId) && f.ownerUsername.toLowerCase().includes(q)) {
-      seenUsers.add(f.ownerId);
-      userMatches.push({ id: f.ownerId, username: f.ownerUsername, profileImage: f.ownerProfileImage });
-    }
-  });
+  if (!isTagQuery) {
+    allFilms.forEach(f => {
+      if (f.ownerUsername && f.ownerId && !seenUsers.has(f.ownerId) && f.ownerUsername.toLowerCase().includes(q)) {
+        seenUsers.add(f.ownerId);
+        userMatches.push({ id: f.ownerId, username: f.ownerUsername, profileImage: f.ownerProfileImage });
+      }
+    });
+  }
 
   placeholderEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
+  renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches);
 
-  if (matches.length === 0 && userMatches.length === 0) {
+  // people without posts: fetch from server
+  if (!isTagQuery) {
+    clearTimeout(searchUserTimer);
+    searchUserTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/users/search?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (document.getElementById('searchInput').value.trim().toLowerCase().replace(/^[#@]/, '') !== q) return;
+        (data.users || []).forEach(u => {
+          if (!seenUsers.has(u.id) && (!currentUser || u.id !== currentUser.id)) {
+            seenUsers.add(u.id);
+            userMatches.push({ id: u.id, username: u.username, profileImage: u.profileImage });
+          }
+        });
+        renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches);
+      } catch (e) {}
+    }, 300);
+  }
+}
+
+function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches){
+  if (matches.length === 0 && userMatches.length === 0 && tagMatches.length === 0) {
     resultsEl.innerHTML = '<p class="comment-empty">No matches found.</p>';
     return;
   }
+
+  const tagHtml = tagMatches.map(t => `
+    <div class="search-result-item" onclick="openHashtagFeed('${t}')">
+      <div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;color:var(--marigold);">#</div>
+      <div class="search-result-info">
+        <span class="search-result-title">#${escapeHtml(t)}</span>
+        <span class="search-result-tag">${tagCounts[t]} post${tagCounts[t] === 1 ? '' : 's'}</span>
+      </div>
+    </div>
+  `).join('');
 
   const userHtml = userMatches.map(u => `
     <div class="search-result-item" onclick="goToProfileDirect('${u.id}','${escapeHtml(u.username)}')">
@@ -1902,12 +2087,12 @@ function doSearch(query){
       <img class="search-result-thumb" src="${f.posterUrl || ''}">
       <div class="search-result-info">
         <span class="search-result-title">${escapeHtml(f.title)}</span>
-        <span class="search-result-tag">${f.type === 'short' ? 'Short' : 'Film'}</span>
+        <span class="search-result-tag">${f.type === 'short' ? 'Short' : f.type === 'photo' ? 'Photo' : 'Film'}</span>
       </div>
     </div>
   `).join('');
 
-  resultsEl.innerHTML = userHtml + filmHtml;
+  resultsEl.innerHTML = tagHtml + userHtml + filmHtml;
 }
 
 function renderHome(films) {
@@ -2223,6 +2408,7 @@ function openMenu(id){
   `;
   if (isOwner) {
     itemsHtml += `
+      <div class="menu-item" onclick="closeMenu();openCollabSheet('${id}')">🤝 Collab</div>
       <div class="menu-item" onclick="closeMenu();openInsights('${id}')">📊 View Insights</div>
       <div class="menu-item" onclick="editCurrentShort()">✏️ Edit</div>
       <div class="menu-item" onclick="deleteCurrentShort()" style="color:#e88a8a;">🗑️ Delete</div>
@@ -2519,6 +2705,7 @@ async function playFilm(id){
   document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
   document.getElementById('modalDeleteBtn').classList.toggle('hidden', !isOwnerOfFilm);
   document.getElementById('modalInsightsBtn').classList.toggle('hidden', !isOwnerOrCollab);
+  document.getElementById('modalCollabBtn').classList.toggle('hidden', !isOwnerOfFilm);
 
   const likeBtn = document.getElementById('likeBtn');
   const alreadyLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
@@ -4101,6 +4288,7 @@ function toggleQType(type){
 
 function openUploadModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  clearUploadCollab();
   document.getElementById('uploadModalOverlay').classList.add('open');
 }
 function closeUploadModal(){
@@ -4117,7 +4305,7 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
     language: document.getElementById('qLanguage').value,
     genre: document.getElementById('qGenre').value,
     description: document.getElementById('qDescription').value,
-    collabUsername: document.getElementById('qCollab').value.trim(),
+    collabUsername: qCollabSelected ? qCollabSelected.username : document.getElementById('qCollab').value.trim(),
     isSensitive: document.getElementById('qSensitive').checked
   };
 
@@ -4321,7 +4509,7 @@ async function startDirectUpload(meta, mainFile, posterFile){
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
     'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay',
-    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay'
+    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -4349,7 +4537,8 @@ async function startDirectUpload(meta, mainFile, posterFile){
     profileSafetyOverlay: () => closeProfileSafetyMenu(),
     postSafetyOverlay: () => closePostSafetyMenu(),
     reportOverlay: () => closeReportSheet(),
-    hashtagFeedOverlay: () => closeHashtagFeed()
+    hashtagFeedOverlay: () => closeHashtagFeed(),
+    collabOverlay: () => closeCollabSheet()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
