@@ -114,6 +114,9 @@ async function decorateNewFilm(newFilm, body, currentUser) {
     }
   }
 }
+function getFilmHashtags(f) {
+  return (f.hashtags && f.hashtags.length) ? f.hashtags : extractHashtags((f.title || '') + ' ' + (f.description || ''));
+}
 function isFilmOwnerOrCollab(f, userId) {
   return !!(userId && (f.ownerId === userId || (f.collabStatus === 'accepted' && f.collaboratorId === userId)));
 }
@@ -985,6 +988,55 @@ app.post('/api/films/:id/collab/decline', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/users/search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().replace(/^@/, '').toLowerCase();
+    if (!q) return res.json({ users: [] });
+    const currentUser = getUserFromReq(req);
+    const users = await readUsers();
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    const directUrl = makeDirectUrlCache();
+    const hits = users
+      .filter(u => u.username && u.username.toLowerCase().includes(q))
+      .filter(u => !(me && (me.blockedUsers || []).includes(u.id)) && !(me && (u.blockedUsers || []).includes(me.id)))
+      .sort((a, b) => (a.username.toLowerCase().startsWith(q) ? 0 : 1) - (b.username.toLowerCase().startsWith(q) ? 0 : 1))
+      .slice(0, 10);
+    const out = await Promise.all(hits.map(async u => ({
+      id: u.id, username: u.username,
+      profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null
+    })));
+    res.json({ users: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:id/collab', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Post nahi mili' });
+    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'Sirf post ka owner collab set kar sakta hai' });
+
+    const raw = String(req.body.username || '').trim().replace(/^@/, '');
+    if (!raw) {
+      delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus;
+      await writeFilms(films);
+      return res.json({ collabStatus: null });
+    }
+    const users = await readUsers();
+    const target = users.find(u => (u.username || '').toLowerCase() === raw.toLowerCase());
+    if (!target) return res.status(404).json({ error: 'Ye username nahi mila' });
+    if (target.id === currentUser.id) return res.status(400).json({ error: 'Apne aap ke saath collab nahi ho sakta' });
+    if ((target.blockedUsers || []).includes(currentUser.id)) return res.status(403).json({ error: 'Is user ko invite nahi kar sakte' });
+
+    f.collaboratorId = target.id; f.collaboratorUsername = target.username; f.collabStatus = 'pending';
+    await writeFilms(films);
+    await notifyCollabInvite(f, currentUser);
+    res.json({ collabStatus: 'pending', collaboratorId: target.id, collaboratorUsername: target.username });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/users/lookup/:username', async (req, res) => {
   try {
     const uname = String(req.params.username || '').replace(/^@/, '').toLowerCase();
@@ -1004,7 +1056,7 @@ app.get('/api/hashtags/:tag', async (req, res) => {
     const myBlocked = (me && me.blockedUsers) || [];
     const directUrl = makeDirectUrlCache();
 
-    const matches = films.filter(f => (f.hashtags || []).includes(tag) && !myBlocked.includes(f.ownerId));
+    const matches = films.filter(f => getFilmHashtags(f).includes(tag) && !myBlocked.includes(f.ownerId));
     const out = await Promise.all(matches.map(async f => ({
       id: f.id, title: f.title, type: f.type,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
