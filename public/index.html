@@ -1061,19 +1061,26 @@ function linkifyHashtags(text){
 
 async function openHashtagFeed(tag){
   document.getElementById('hashtagFeedTitle').textContent = '#' + tag;
-  document.getElementById('hashtagFeedContent').innerHTML = '<p class="comment-empty">Loading...</p>';
+  const contentEl = document.getElementById('hashtagFeedContent');
+  contentEl.innerHTML = '<p class="comment-empty" style="text-align:center;padding:40px 0;font-size:15px;">Loading…</p>';
   document.getElementById('hashtagFeedOverlay').classList.add('open');
   try {
     const res = await fetch('/api/hashtags/' + encodeURIComponent(tag));
+    if (!res.ok) throw new Error('bad response');
     const data = await res.json();
     const films = data.films || [];
-    document.getElementById('hashtagFeedContent').innerHTML = `
+    if (!films.length) {
+      contentEl.innerHTML = `<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">#${escapeHtml(tag)} ke saath abhi koi post nahi hai.</p>`;
+      return;
+    }
+    contentEl.innerHTML = `
+      <p style="color:var(--cream-dim);font-size:13px;margin:0 0 12px;">${films.length} post${films.length === 1 ? '' : 's'}</p>
       <div class="profile-mygrid">
-        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Is hashtag ke saath koi post nahi hai.</p>'}
+        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('')}
       </div>
     `;
   } catch (e) {
-    document.getElementById('hashtagFeedContent').innerHTML = '<p class="comment-empty">Load nahi hua.</p>';
+    contentEl.innerHTML = '<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">Load nahi hua — dubara try karo.</p>';
   }
 }
 function closeHashtagFeed(){ document.getElementById('hashtagFeedOverlay').classList.remove('open'); }
