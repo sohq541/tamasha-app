@@ -284,8 +284,7 @@
   .profile-mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .profile-mygrid-item{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:linear-gradient(150deg,#3A2E7A,#4361EE);}
   .profile-mygrid-item img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
-  
-                           
+
   .settings-panel{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:22px;margin-bottom:20px;}
   .settings-panel input, .settings-panel textarea, .settings-panel select{
     width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;
@@ -552,7 +551,7 @@
     <input type="text" id="searchInput" placeholder="Search films, shorts, people, #hashtags..." oninput="doSearch(this.value)">
   </div>
   <div class="search-results hidden" id="searchResults"></div>
-  <div class="search-placeholder" id="searchPlaceholder">any search — films, shorts, profile #hashtag.</div>
+  <div class="search-placeholder" id="searchPlaceholder">Kuch bhi search karo — films, shorts, log ya #hashtag.</div>
 </div>
 
 <div id="shortsView">
@@ -639,7 +638,7 @@
     <div class="sheet-header"><h3>Add to Story</h3><button class="sheet-close" onclick="closeStoryUploadModal()">✕</button></div>
     <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;" onchange="onStoryFilePicked(event)">
     <div id="storyPickArea" onclick="document.getElementById('storyFileInput').click()" style="border:2px dashed var(--gold-line);border-radius:12px;padding:40px 16px;text-align:center;cursor:pointer;color:var(--cream-dim);">
-      📷 set your story today
+      📷 Photo ya video chuno
     </div>
     <div class="story-upload-preview hidden" id="storyPreviewArea">
       <img id="storyPreviewImg" class="hidden">
@@ -712,8 +711,7 @@
     <button class="chat-header-back" onclick="closeHashtagFeed()">←</button>
     <span class="chat-header-name" id="hashtagFeedTitle"></span>
   </div>
-  <div class="profile-wrap" id="hashtagFeedContent" style="overflow-y:auto;flex:1;width:100%;box-sizing:border-box;"></div>
-  
+  <div class="profile-wrap" id="hashtagFeedContent" style="overflow-y:auto;flex:1;"></div>
 </div>
 
 <div class="chat-full-overlay" id="otherProfileOverlay">
@@ -829,8 +827,8 @@
     <p id="collabStatusText" style="color:var(--cream-dim);font-size:13.5px;margin:0 0 10px;"></p>
     <input type="text" id="collabUserInput" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'sheetCollabPopup', 'sheet')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;">
     <div class="collab-popup hidden" id="sheetCollabPopup"></div>
-    <button onclick="sendCollabInvite()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Invite your friends</button>
-    <button id="collabRemoveBtn" onclick="removeCollab()" style="margin-top:8px;width:100%;background:transparent;color:#e88a8a;border:1px solid #E63950;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;">Remove Collaboration</button>
+    <button onclick="sendCollabInvite()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Invite bhejo</button>
+    <button id="collabRemoveBtn" onclick="removeCollab()" style="margin-top:8px;width:100%;background:transparent;color:#e88a8a;border:1px solid #E63950;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;">Collab hatao</button>
   </div>
 </div>
 
@@ -892,7 +890,7 @@
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
       <label>Description</label><textarea id="qDescription"></textarea>
-      <label>🤝 Collab (optional) — Share Your contant another user</label>
+      <label>🤝 Collab (optional) — dusre user ke saath post share karo</label>
       <div class="collab-chip hidden" id="qCollabChip"></div>
       <input type="text" id="qCollab" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
       <div class="collab-popup hidden" id="qCollabPopup"></div>
@@ -1076,15 +1074,9 @@ async function openHashtagFeed(tag){
       return;
     }
     contentEl.innerHTML = `
-      <div style="width:100%;box-sizing:border-box;">
-        <p style="color:var(--cream-dim);font-size:13px;margin:0 0 12px;">${films.length} post${films.length === 1 ? '' : 's'}</p>
-        <div class="profile-mygrid">
-          ${films.map(f => `
-            <div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">
-              ${f.posterUrl ? `<img src="${escapeAttr(f.posterUrl)}">` : ''}
-            </div>
-          `).join('')}
-        </div>
+      <p style="color:var(--cream-dim);font-size:13px;margin:0 0 12px;">${films.length} post${films.length === 1 ? '' : 's'}</p>
+      <div class="profile-mygrid">
+        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('')}
       </div>
     `;
   } catch (e) {
