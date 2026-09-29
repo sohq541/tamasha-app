@@ -115,7 +115,10 @@ async function decorateNewFilm(newFilm, body, currentUser) {
   }
 }
 function getFilmHashtags(f) {
-  return (f.hashtags && f.hashtags.length) ? f.hashtags : extractHashtags((f.title || '') + ' ' + (f.description || ''));
+  const base = (f.hashtags && f.hashtags.length) ? f.hashtags : extractHashtags((f.title || '') + ' ' + (f.description || ''));
+  const commentText = (f.comments || []).map(c => c.text || '').join(' ');
+  if (!commentText.includes('#')) return base;
+  return [...new Set([...base, ...extractHashtags(commentText)])];
 }
 function isFilmOwnerOrCollab(f, userId) {
   return !!(userId && (f.ownerId === userId || (f.collabStatus === 'accepted' && f.collaboratorId === userId)));
