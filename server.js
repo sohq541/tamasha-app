@@ -11,7 +11,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
@@ -1218,16 +1218,117 @@ app.post('/api/upload/presign-url', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Resumable (multipart) uploads ----------------
+// Parts are sent through this server (same origin, so no bucket CORS needed). Each finished part lives in
+// storage under the uploadId, so after a refresh / back / app-kill the browser just asks which parts exist
+// and continues from there instead of starting over.
+const MP_KEY_RE = /^(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
+function mpAuth(req, res) {
+  const currentUser = getUserFromReq(req);
+  if (!currentUser && !isAdminBasicAuth(req)) { res.status(401).json({ error: 'Please log in' }); return null; }
+  return currentUser || { id: 'admin' };
+}
+async function mpListAllParts(key, uploadId) {
+  const parts = [];
+  let marker;
+  for (let i = 0; i < 20; i++) {
+    const out = await e2Client.send(new ListPartsCommand({ Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumberMarker: marker }));
+    (out.Parts || []).forEach(p => parts.push({ PartNumber: p.PartNumber, ETag: p.ETag, Size: p.Size }));
+    if (!out.IsTruncated) break;
+    marker = out.NextPartNumberMarker;
+  }
+  return parts.sort((a, b) => a.PartNumber - b.PartNumber);
+}
+
+app.post('/api/upload/mp/create', async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { fileName, contentType, folder } = req.body || {};
+    if (!fileName || !folder) return res.status(400).json({ error: 'A file name and folder are required' });
+    const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const ext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
+    const key = `${safeFolder}/${id}${ext}`;
+    const out = await e2Client.send(new CreateMultipartUploadCommand({
+      Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
+    }));
+    res.json({ key, uploadId: out.UploadId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }), async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { key, uploadId } = req.query;
+    const n = parseInt(req.query.n, 10);
+    if (!key || !MP_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad part request' });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty part' });
+    const out = await e2Client.send(new UploadPartCommand({
+      Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: n, Body: req.body, ContentLength: req.body.length
+    }));
+    res.json({ ok: true, etag: out.ETag });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/upload/mp/parts', async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { key, uploadId } = req.query;
+    if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
+    const parts = await mpListAllParts(key, uploadId);
+    res.json({ parts: parts.map(p => ({ n: p.PartNumber, size: p.Size })) });
+  } catch (err) {
+    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/upload/mp/complete', async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { key, uploadId, total } = req.body || {};
+    if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
+    const parts = await mpListAllParts(key, uploadId);
+    if (!parts.length || (total && parts.length !== Number(total))) return res.status(409).json({ error: 'Some parts are still missing', have: parts.length });
+    await e2Client.send(new CompleteMultipartUploadCommand({
+      Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId,
+      MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) }
+    }));
+    res.json({ ok: true, key });
+  } catch (err) {
+    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/upload/mp/abort', async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { key, uploadId } = req.body || {};
+    if (key && MP_KEY_RE.test(key) && uploadId) {
+      await e2Client.send(new AbortMultipartUploadCommand({ Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId })).catch(() => {});
+    }
+    res.json({ ok: true });
+  } catch (err) { res.json({ ok: true }); }
+});
+
 app.post('/api/films/finalize', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Please log in' });
-    const { title, year, language, genre, description, type, mediaKey, posterKey, isSensitive } = req.body;
+    const { title, year, language, genre, description, type, mediaKey, posterKey, isSensitive, clientUploadId } = req.body;
     if (!title) return res.status(400).json({ error: 'A title is required' });
     if (!mediaKey) return res.status(400).json({ error: 'Could not find a reference to the uploaded file' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const films = await readFilms();
+
+    // A resumed/retried upload must never create the same post twice.
+    if (clientUploadId) {
+      const ownerKey = currentUser ? currentUser.id : 'admin';
+      const dup = films.find(x => x.clientUploadId === clientUploadId && x.ownerId === ownerKey);
+      if (dup) return res.status(200).json(dup);
+    }
 
     const newFilm = type === 'photo'
       ? {
@@ -1252,6 +1353,7 @@ app.post('/api/films/finalize', async (req, res) => {
           views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
         };
 
+    if (clientUploadId) newFilm.clientUploadId = String(clientUploadId).slice(0, 64);
     await decorateNewFilm(newFilm, req.body, currentUser);
     films.unshift(newFilm);
     await writeFilms(films);
@@ -1456,6 +1558,35 @@ app.post('/api/films/:filmId/comments/:commentId/hide', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/films/:filmId/comments/:commentId/pin', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.filmId);
+    if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
+    if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'Sirf post owner pin kar sakta hai' });
+
+    const comment = f.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    if (comment.hidden) return res.status(400).json({ error: 'Hidden comment pin nahi ho sakta' });
+
+    const willPin = !comment.pinned;
+    f.comments.forEach(c => { c.pinned = false; });   // only one pinned comment per post
+    comment.pinned = willPin;
+    await writeFilms(films);
+
+    if (willPin && comment.userId && comment.userId !== currentUser.id) {
+      notify(comment.userId, {
+        type: 'comment_pin', fromUserId: currentUser.id, fromUsername: currentUser.username,
+        filmId: f.id, message: `@${currentUser.username} pinned your comment`
+      }).catch(() => {});
+    }
+    res.json({ pinned: willPin, commentId: comment.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/films/:filmId/comments/:commentId/edit', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -1549,8 +1680,9 @@ app.delete('/api/films/:id', (req, res, next) => {
     const isOwner = req.currentUser && f.ownerId === req.currentUser.id;
     if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'This isn\'t your content' });
 
-    if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
-    if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
+    // Storage cleanup is best-effort: a storage hiccup must never leave the owner unable to delete their own post.
+    try { if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); } } catch (e) {}
+    try { if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); } } catch (e) {}
 
     const remaining = films.filter(x => x.id !== req.params.id);
     await writeFilms(remaining);
@@ -2284,12 +2416,35 @@ async function triggerAiReply(conversationId, currentUserId){
       convo.lastMessage = { senderId: AI_ASSISTANT_ID, preview: previewForMessage(aiMsg), createdAt: aiMsg.createdAt };
       await writeConversations(convos);
     }
-    await notify(currentUserId, {
-      type: 'message', fromUserId: AI_ASSISTANT_ID, fromUsername: AI_ASSISTANT_USERNAME,
-      conversationId, message: '@Ask AI replied to you'
-    });
+    // Notify ONLY if the user has left the Ask AI chat (closed it / switched app / locked phone).
+    // If they are still looking at the chat, the reply just appears in the bubble list — no bell, no push.
+    if (!isViewingAiChat(currentUserId)) {
+      await notify(currentUserId, {
+        type: 'message', fromUserId: AI_ASSISTANT_ID, fromUsername: AI_ASSISTANT_USERNAME,
+        conversationId, message: '@Ask AI replied to you'
+      });
+    }
   } catch (err) { console.error('triggerAiReply failed:', err.message); }
 }
+
+// In-memory presence for the Ask AI chat (no storage reads/writes; resets on restart, which is fine).
+// The client pings every few seconds while the AI chat is open AND the page is visible, and sends
+// active:false the moment the chat is closed / page hidden. The TTL is the fallback if the app is killed.
+const AI_VIEW_TTL_MS = 9000;
+const aiViewing = new Map(); // userId -> last ping timestamp
+function isViewingAiChat(userId) {
+  const ts = aiViewing.get(userId);
+  if (!ts) return false;
+  if (Date.now() - ts > AI_VIEW_TTL_MS) { aiViewing.delete(userId); return false; }
+  return true;
+}
+app.post('/api/ai/viewing', (req, res) => {
+  const currentUser = getUserFromReq(req);
+  if (!currentUser) return res.status(401).json({ error: 'Login required' });
+  if (req.body && req.body.active) aiViewing.set(currentUser.id, Date.now());
+  else aiViewing.delete(currentUser.id);
+  res.json({ ok: true });
+});
 
 // ===================== CHAT / DM ROUTES =====================
 
