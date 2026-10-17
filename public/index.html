@@ -315,6 +315,17 @@
 .upload-progress-track{background:rgba(255,255,255,0.1);border-radius:999px;height:8px;overflow:hidden;}
 .upload-progress-fill{background:var(--marigold);height:100%;width:0%;transition:width 0.2s;}
 .upload-banner-stats{font-size:12px;color:var(--cream-dim);margin-top:6px;}
+.upload-card{margin:10px 12px;padding:12px 14px;background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;}
+.upc-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.upc-thumb{width:54px;height:54px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+.upc-thumb img{width:100%;height:100%;object-fit:cover;}
+.upc-info{flex:1;min-width:0;}
+.upc-title{font-weight:600;font-size:14px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.upc-status{font-size:12.5px;color:var(--cream-dim);margin-top:2px;}
+.upc-x{background:transparent;border:none;color:var(--cream-dim);font-size:18px;cursor:pointer;padding:4px 8px;}
+.upc-retry{margin-top:8px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;}
+.upload-progress-fill.upc-fill-done{background:#4caf50;}
+.upload-progress-fill.upc-fill-err{background:#e88a8a;}
   .hidden{display:none !important;}
 /* ===== STORIES ===== */
 .stories-bar{display:flex;gap:14px;overflow-x:auto;padding:14px 16px;border-bottom:1px solid var(--gold-line);-webkit-overflow-scrolling:touch;}
@@ -541,6 +552,7 @@
     <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
   </div>
   <div class="shorts-grid hidden" id="shortsGrid"></div>
+  <div id="uploadCards"></div>
   <div id="homeMainContent">
   <div id="grid" class="grid"></div>
   </div>
@@ -622,7 +634,7 @@
       <input type="text" id="editShortTitle" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
       <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Description</label>
       <textarea id="editShortDesc" style="width:100%;min-height:60px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;"></textarea>
-      <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Replace thumbnail (optional)</label>
+      <label id="editPosterLabel" style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">Replace thumbnail (optional)</label>
       <input type="file" id="editShortPoster" accept="image/*" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
       <button type="submit" style="margin-top:16px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Save changes</button>
       <div id="editShortStatus" style="margin-top:8px;font-size:13px;"></div>
@@ -905,14 +917,6 @@
   </div>
 </div>
 
-<div class="upload-banner hidden" id="uploadBanner">
-  <div class="upload-banner-top">
-    <span id="uploadBannerTitle">Uploading...</span>
-    <span id="uploadBannerPercent">0%</span>
-  </div>
-  <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
-  <div class="upload-banner-stats" id="uploadBannerStats"></div>
-</div>
 <script>
   window.onerror = function(msg, url, line, col) {
   alert('JS ERROR: ' + msg + ' at line ' + line);
@@ -1361,7 +1365,7 @@ function openPostSafetyMenu(filmId){
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
   let items = isOwner
-    ? `<div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div>`
+    ? `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`
     : `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
   if (!isOwner && film) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>`;
@@ -1371,6 +1375,35 @@ function openPostSafetyMenu(filmId){
   document.getElementById('postSafetyOverlay').classList.add('open');
 }
 function closePostSafetyMenu(){ document.getElementById('postSafetyOverlay').classList.remove('open'); }
+function setEditPosterLabel(film){
+  const el = document.getElementById('editPosterLabel');
+  if (el) el.textContent = (film && film.type === 'photo') ? 'Replace photo (optional)' : 'Replace thumbnail (optional)';
+}
+function openEditFromFeed(id){
+  const film = allFilms.find(f => f.id === id);
+  if (!film) return;
+  currentShortId = id;
+  document.getElementById('editShortTitle').value = film.title || '';
+  document.getElementById('editShortDesc').value = film.description || '';
+  document.getElementById('editShortPoster').value = '';
+  document.getElementById('editShortStatus').textContent = '';
+  setEditPosterLabel(film);
+  document.getElementById('editSheetOverlay').classList.add('open');
+}
+async function deleteFeedPost(id){
+  const film = allFilms.find(f => f.id === id);
+  if (!confirm((film && film.type === 'photo' ? 'Ye photo' : 'Ye video') + ' permanently delete karni hai?')) return;
+  try {
+    const res = await fetch('/api/films/' + id, { method: 'DELETE' });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
+    showToast('Deleted');
+    const card = document.getElementById('feed-card-' + id);
+    if (card) card.remove();
+    const item = document.querySelector('.short-item[data-id="' + id + '"]');
+    if (item) item.remove();
+    allFilms = allFilms.filter(f => f.id !== id);
+  } catch (err) { showToast(err.message); }
+}
 async function confirmBlockFromPost(userId){
   if (!confirm('Is user ko block karna hai? Inki posts, comments aur messages nahi dikhenge.')) return;
   try {
@@ -2457,6 +2490,7 @@ function editCurrentShort(){
   document.getElementById('editShortDesc').value = film.description || '';
   document.getElementById('editShortPoster').value = '';
   document.getElementById('editShortStatus').textContent = '';
+  setEditPosterLabel(film);
   document.getElementById('editSheetOverlay').classList.add('open');
 }
 function closeEditSheet(){ document.getElementById('editSheetOverlay').classList.remove('open'); }
@@ -2484,7 +2518,11 @@ document.getElementById('editShortForm').addEventListener('submit', async (e) =>
         if (h3) h3.textContent = film.title;
         if (p) p.textContent = film.description || '';
       }
+      const cap = document.querySelector('#feed-card-' + currentShortId + ' .card-caption-area');
+      if (cap) cap.innerHTML = '<div><b>@' + escapeHtml(film.ownerUsername || 'user') + '</b> ' + escapeHtml(film.title) + '</div>' +
+        (film.description ? '<div style="color:var(--cream-dim);margin-top:2px;">' + linkifyRich(film.description, film.mentions) + '</div>' : '');
     }
+    if (posterInput.files[0]) { try { loadFilms(); } catch (e) {} }
     statusEl.style.color = '#8fd19e'; statusEl.textContent = 'Saved!';
     setTimeout(() => closeEditSheet(), 800);
   } catch (err) {
@@ -2566,7 +2604,7 @@ function saveMyCommentToken(commentId, editToken){
   const film = allFilms.find(f => f.id === filmId);
   const isFilmOwner = currentUser && film && film.ownerId === currentUser.id;
 
-  listEl.innerHTML = comments.slice().reverse().map(c => {
+  listEl.innerHTML = comments.slice().reverse().sort((x, y) => (y.pinned ? 1 : 0) - (x.pinned ? 1 : 0)).map(c => {
     const isMine = currentUser && c.userId === currentUser.id;
     const isCommentAuthor = film && c.userId && c.userId === film.ownerId;
     const ageMs = Date.now() - new Date(c.createdAt).getTime();
@@ -2574,7 +2612,8 @@ function saveMyCommentToken(commentId, editToken){
     const canDelete = isMine || isFilmOwner;
     const canHide = !!(currentUser && film && isMyPost(film, currentUser.id)) && !isMine;
     const canReport = currentUser && !isMine;
-    const hasMenu = canEdit || canDelete || canHide || canReport;
+    const canPin = !!(currentUser && film && isMyPost(film, currentUser.id)) && !c.hidden;
+    const hasMenu = canEdit || canDelete || canHide || canReport || canPin;
 
     return `
       <div class="comment-item" id="comment-${c.id}">
@@ -2583,6 +2622,7 @@ function saveMyCommentToken(commentId, editToken){
             ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
             <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>
             ${isCommentAuthor ? `<span style="background:var(--marigold);color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:0.3px;">Author</span>` : ''}
+            ${c.pinned ? `<span style="background:rgba(255,255,255,0.14);color:var(--cream);font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">📌 Pinned</span>` : ''}
             ${c.hidden ? `<span style="background:#7a5c00;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">Hidden</span>` : ''}
             ${c.edited ? '<span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}
           </div>
@@ -2596,6 +2636,7 @@ function saveMyCommentToken(commentId, editToken){
 
         ${hasMenu ? `
           <div id="comment-actions-${c.id}" style="display:none;gap:12px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);flex-wrap:wrap;">
+            ${canPin ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--cream-dim);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); togglePinComment('${filmId}','${c.id}')">${c.pinned ? '📍 Unpin' : '📌 Pin'}</button>` : ''}
             ${canEdit ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--marigold);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); startEditComment('${filmId}','${c.id}')">✏️ Edit</button>` : ''}
             ${canHide ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--cream-dim);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); toggleHideComment('${filmId}','${c.id}')">${c.hidden ? '👁️ Unhide' : '🙈 Hide'}</button>` : ''}
             ${canReport ? `<button type="button" style="background:none;border:none;padding:0;font-size:12.5px;color:var(--cream-dim);cursor:pointer;font-weight:600;" onclick="event.stopPropagation(); openReportSheet('comment','${filmId}:${c.id}')">🚩 Report</button>` : ''}
@@ -2662,6 +2703,21 @@ async function deleteComment(filmId, commentId){
   } catch (err) {
     showToast(err.message);
   }
+}
+async function togglePinComment(filmId, commentId){
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/pin`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    [allFilms.find(f => f.id === filmId), (currentFilm && currentFilm.id === filmId) ? currentFilm : null].forEach(f => {
+      if (!f || !f.comments) return;
+      f.comments.forEach(c => { c.pinned = (data.pinned && c.id === commentId); });
+    });
+    if (currentFilm && currentFilm.id === filmId) renderCommentListInto('commentList', currentFilm.comments, filmId);
+    const sheetFilm = allFilms.find(f => f.id === filmId);
+    if (sheetFilm && document.getElementById('sheetCommentList')) renderCommentListInto('sheetCommentList', sheetFilm.comments, filmId);
+    showToast(data.pinned ? 'Comment pin ho gaya 📌' : 'Pin hata diya');
+  } catch (err) { showToast(err.message); }
 }
 async function toggleHideComment(filmId, commentId){
   try {
@@ -2834,6 +2890,7 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
   document.getElementById('editShortPoster').value = '';
   document.getElementById('editShortStatus').textContent = '';
   currentShortId = currentFilm.id;
+  setEditPosterLabel(currentFilm);
   document.getElementById('editSheetOverlay').classList.add('open');
 }
 
@@ -3650,6 +3707,7 @@ async function openChatConvo(userId, usernameHint){
     document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherUser.online);
     if (chatPollHandle) clearInterval(chatPollHandle);
     chatPollHandle = setInterval(pollChatMessages, 3500);
+    pingAiPresence();
   } catch (err) {
     document.getElementById('chatMessagesArea').innerHTML = `<div class="chat-empty">${escapeHtml(err.message)}</div>`;
   }
@@ -3663,6 +3721,7 @@ function closeChatConvo(){
   chatConvoId = null;
   chatOtherUser = null;
   chatMessagesCache = [];
+  pingAiPresence();
   if (document.getElementById('chatInboxOverlay').classList.contains('open')) {
     loadChatInbox().catch(() => {});
   }
@@ -4269,6 +4328,7 @@ async function init(){
   if (currentUser) startHeartbeat();
   try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
   try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
+  try { if (window.UploadMgr) UploadMgr.restore(); } catch (e) { console.error('restore uploads failed:', e); }
   setupDoubleTapLike(
     document.getElementById('playerMediaWrap'),
     null,
@@ -4280,6 +4340,30 @@ function sendHeartbeat(){
   if (!currentUser || document.visibilityState === 'hidden') return;
   fetch('/api/me/heartbeat', { method: 'POST' }).catch(() => {});
 }
+// ---- Ask AI presence: tells the server whether the user is looking at the AI chat right now, so the
+// "Ask AI replied" notification is only created when they have left the chat / switched app / locked the phone.
+let aiPresenceOn = false;
+function aiChatIsOpen(){
+  return !!(currentUser && chatOtherUser && chatOtherUser.id === 'ai-assistant'
+    && document.getElementById('chatConvoOverlay').classList.contains('open')
+    && document.visibilityState === 'visible');
+}
+function pingAiPresence(){
+  if (aiChatIsOpen()) {
+    aiPresenceOn = true;
+    fetch('/api/ai/viewing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: true }), keepalive: true }).catch(() => {});
+  } else if (aiPresenceOn) {
+    aiPresenceOn = false;
+    const body = JSON.stringify({ active: false });
+    let sent = false;
+    try { sent = !!(navigator.sendBeacon && navigator.sendBeacon('/api/ai/viewing', new Blob([body], { type: 'application/json' }))); } catch (e) {}
+    if (!sent) fetch('/api/ai/viewing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  }
+}
+setInterval(pingAiPresence, 4000);
+document.addEventListener('visibilitychange', pingAiPresence);
+window.addEventListener('pagehide', pingAiPresence);
+
 function startHeartbeat(){
   sendHeartbeat();
   setInterval(sendHeartbeat, 45000);
@@ -4326,23 +4410,9 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
     posterFile = document.getElementById('qPoster').files[0] || null;
   }
 
-  const DIRECT_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB — avoids Render's request size limit
-  const totalSize = mainFile.size + (posterFile ? posterFile.size : 0);
-
   closeUploadModal();
-
-  if (totalSize > DIRECT_UPLOAD_THRESHOLD) {
-    startDirectUpload(meta, mainFile, posterFile);
-  } else {
-    const formData = new FormData();
-    Object.entries(meta).forEach(([k, v]) => formData.append(k, v));
-    if (type === 'photo') formData.append('photo', mainFile);
-    else {
-      formData.append('video', mainFile);
-      if (posterFile) formData.append('poster', posterFile);
-    }
-    startUploadWithProgress(formData, meta.title);
-  }
+  UploadMgr.add(meta, mainFile, posterFile);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   document.getElementById('quickUploadForm').reset();
   toggleQType('film');
@@ -4353,155 +4423,289 @@ function formatBytes(bytes){
   return (bytes/(1024*1024)).toFixed(1) + ' MB';
 }
 
-function startUploadWithProgress(formData, title){
-  const banner = document.getElementById('uploadBanner');
-  const fill = document.getElementById('uploadProgressFill');
-  const percentEl = document.getElementById('uploadBannerPercent');
-  const statsEl = document.getElementById('uploadBannerStats');
-  const titleEl = document.getElementById('uploadBannerTitle');
+// ===================== RESUMABLE UPLOADS =====================
+// Uploads are cut into 8 MB parts that the server stores one by one. The picked file is kept in
+// IndexedDB, so if the page is refreshed / closed / the phone kills the browser, the next visit shows
+// the same upload card again and continues from the first missing part (nothing restarts from 0).
+window.UploadMgr = (function(){
+  const DB_NAME = 'tamasha-uploads', PART_SIZE = 8 * 1024 * 1024;
+  const jobs = new Map();          // id -> job (files stay in memory too)
+  const stats = new Map();         // id -> { done, current, lastBytes, lastTime, speed }
+  const xhrs = new Map();          // id -> running XHR
+  const urls = new Map();          // id -> object URL for card thumbnail
+  const queue = [];
+  let pumping = false, wakeLock = null, dbp = null, warnedNoIdb = false;
 
-  banner.classList.remove('hidden');
-  titleEl.textContent = 'Uploading: ' + title;
-  fill.style.width = '0%';
-  percentEl.textContent = '0%';
-  statsEl.textContent = '';
-
-  let lastLoaded = 0;
-  let lastTime = Date.now();
-
-  const xhr = new XMLHttpRequest();
-  uploadXhr = xhr;
-  xhr.open('POST', '/api/films');
-
-  xhr.upload.onprogress = function(e){
-    if (!e.lengthComputable) return;
-    const percent = Math.round((e.loaded / e.total) * 100);
-    fill.style.width = percent + '%';
-    percentEl.textContent = percent + '%';
-
-    const now = Date.now();
-    const timeDelta = (now - lastTime) / 1000;
-    const bytesDelta = e.loaded - lastLoaded;
-    if (timeDelta > 0.3) {
-      const speedMBps = (bytesDelta / timeDelta) / (1024*1024);
-      const remainingMB = ((e.total - e.loaded) / (1024*1024)).toFixed(1);
-      statsEl.textContent = `${speedMBps.toFixed(1)} MB/s · ${formatBytes(e.loaded)} / ${formatBytes(e.total)} · ${remainingMB} MB left`;
-      lastLoaded = e.loaded;
-      lastTime = now;
-    }
-  };
-
-  xhr.onload = function(){
-    uploadXhr = null;
-    if (xhr.status >= 200 && xhr.status < 300) {
-      titleEl.textContent = '✅ Upload complete: ' + title;
-      fill.style.width = '100%';
-      percentEl.textContent = '100%';
-      statsEl.textContent = 'Done!';
-      showToast('Upload successful! 🎉');
-      loadFilms();
-      setTimeout(() => banner.classList.add('hidden'), 3000);
-    } else {
-      let msg = 'Upload failed';
-      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e){}
-      titleEl.textContent = '❌ Failed: ' + msg;
-      statsEl.textContent = '';
-      setTimeout(() => banner.classList.add('hidden'), 4000);
-    }
-  };
-
-  xhr.onerror = function(){
-    uploadXhr = null;
-    titleEl.textContent = '❌ Upload failed (network error)';
-    setTimeout(() => banner.classList.add('hidden'), 4000);
-  };
-
-  xhr.send(formData);
-      }
-
-async function presignFile(file, folder){
-  const res = await fetch('/api/upload/presign-url', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName: file.name, contentType: file.type, folder })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Could not prepare the upload');
-  return data;
-}
-
-function putFileWithProgress(uploadUrl, file, onProgress){
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    uploadXhr = xhr;
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.upload.onprogress = function(e){
-      if (e.lengthComputable) onProgress(e.loaded);
-    };
-    xhr.onload = function(){
-      uploadXhr = null;
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error('Upload failed (status ' + xhr.status + ')'));
-    };
-    xhr.onerror = function(){ uploadXhr = null; reject(new Error('Network error during upload')); };
-    xhr.send(file);
-  });
-}
-
-async function startDirectUpload(meta, mainFile, posterFile){
-  const banner = document.getElementById('uploadBanner');
-  const fill = document.getElementById('uploadProgressFill');
-  const percentEl = document.getElementById('uploadBannerPercent');
-  const statsEl = document.getElementById('uploadBannerStats');
-  const titleEl = document.getElementById('uploadBannerTitle');
-
-  banner.classList.remove('hidden');
-  titleEl.textContent = 'Uploading: ' + meta.title;
-  fill.style.width = '0%';
-  percentEl.textContent = '0%';
-  statsEl.textContent = 'Large file — uploading directly to storage...';
-
-  const totalBytes = mainFile.size + (posterFile ? posterFile.size : 0);
-
-  const updateProgress = (bytesDone) => {
-    const percent = Math.round((bytesDone / totalBytes) * 100);
-    fill.style.width = percent + '%';
-    percentEl.textContent = percent + '%';
-    statsEl.textContent = `${formatBytes(bytesDone)} / ${formatBytes(totalBytes)}`;
-  };
-
-  try {
-    const mainFolder = meta.type === 'photo' ? 'posters' : 'videos';
-    const mainPresign = await presignFile(mainFile, mainFolder);
-    await putFileWithProgress(mainPresign.uploadUrl, mainFile, (loaded) => updateProgress(loaded));
-
-    let posterKey = null;
-    if (posterFile) {
-      const posterPresign = await presignFile(posterFile, 'posters');
-      await putFileWithProgress(posterPresign.uploadUrl, posterFile, (loaded) => updateProgress(mainFile.size + loaded));
-      posterKey = posterPresign.key;
-    }
-
-    const finalizeRes = await fetch('/api/films/finalize', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...meta, mediaKey: mainPresign.key, posterKey })
+  // ---------- IndexedDB (jobs = small metadata, files = the picked blobs, written once) ----------
+  function openDb(){
+    if (dbp) return dbp;
+    dbp = new Promise((resolve, reject) => {
+      if (!window.indexedDB) return reject(new Error('IndexedDB unavailable'));
+      const r = indexedDB.open(DB_NAME, 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('jobs', { keyPath: 'id' }); r.result.createObjectStore('files', { keyPath: 'id' }); };
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
     });
-    const finalizeData = await finalizeRes.json();
-    if (!finalizeRes.ok) throw new Error(finalizeData.error || 'Could not finish the upload');
-
-    titleEl.textContent = '✅ Upload complete: ' + meta.title;
-    fill.style.width = '100%';
-    percentEl.textContent = '100%';
-    statsEl.textContent = 'Done!';
-    showToast('Upload successful! 🎉');
-    loadFilms();
-    setTimeout(() => banner.classList.add('hidden'), 3000);
-  } catch (err) {
-    titleEl.textContent = '❌ Failed: ' + err.message;
-    statsEl.textContent = '';
-    setTimeout(() => banner.classList.add('hidden'), 4000);
+    return dbp;
   }
-}
+  async function tx(store, mode, fn){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const t = db.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => resolve(req && req.result);
+      t.onerror = () => reject(t.error); t.onabort = () => reject(t.error);
+    });
+  }
+  function jobMeta(job){
+    return { id: job.id, userId: job.userId, meta: job.meta, createdAt: job.createdAt,
+      main: { key: job.main.key, uploadId: job.main.uploadId, done: job.main.done, name: job.main.file.name, size: job.main.file.size },
+      poster: job.poster ? { key: job.poster.key, uploadId: job.poster.uploadId, done: job.poster.done, name: job.poster.file.name, size: job.poster.file.size } : null };
+  }
+  async function saveMeta(job){ try { await tx('jobs', 'readwrite', s => s.put(jobMeta(job))); return true; } catch (e) { return false; } }
+  async function saveNew(job){
+    try {
+      await tx('files', 'readwrite', s => s.put({ id: job.id, main: job.main.file, poster: job.poster ? job.poster.file : null }));
+      await tx('jobs', 'readwrite', s => s.put(jobMeta(job)));
+      return true;
+    } catch (e) { return false; }
+  }
+  async function dropStored(id){ try { await tx('jobs', 'readwrite', s => s.delete(id)); await tx('files', 'readwrite', s => s.delete(id)); } catch (e) {} }
+
+  // ---------- helpers ----------
+  const esc = s => (typeof escapeHtml === 'function') ? escapeHtml(String(s == null ? '' : s)) : String(s || '');
+  const fmt = b => (typeof formatBytes === 'function') ? formatBytes(b) : Math.round(b / 1024) + ' KB';
+  const authFail = () => { const e = new Error('Login expire ho gaya — dobara login karo, upload wahin se resume hoga'); e.auth = true; return e; };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function waitOnline(){ return new Promise(res => { if (navigator.onLine !== false) return res(); const h = () => { window.removeEventListener('online', h); res(); }; window.addEventListener('online', h); }); }
+  async function api(url, opts){
+    const res = await fetch(url, opts);
+    let data = {}; try { data = await res.json(); } catch (e) {}
+    if (res.status === 401) throw authFail();
+    if (!res.ok) { const e = new Error(data.error || ('Server error ' + res.status)); e.status = res.status; e.expired = !!data.expired; throw e; }
+    return data;
+  }
+  const jsonPost = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  function hasActive(){ for (const j of jobs.values()) if (j.status === 'uploading' || j.status === 'queued' || j.status === 'finalizing' || j.status === 'preparing') return true; return false; }
+  async function acquireWake(){ try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
+  function releaseWake(){ try { if (wakeLock && !hasActive()) { wakeLock.release(); wakeLock = null; } } catch (e) {} }
+
+  // ---------- card UI (Home page) ----------
+  function ensureCard(job){
+    const host = document.getElementById('uploadCards');
+    if (!host || document.getElementById('upc-' + job.id)) return;
+    let thumb = '🎬';
+    try {
+      const f = job.meta.type === 'photo' ? job.main.file : (job.poster ? job.poster.file : null);
+      if (f) { const u = URL.createObjectURL(f); urls.set(job.id, u); thumb = '<img src="' + u + '" alt="">'; }
+    } catch (e) {}
+    const el = document.createElement('div');
+    el.className = 'upload-card'; el.id = 'upc-' + job.id;
+    el.innerHTML =
+      '<div class="upc-row">' +
+        '<div class="upc-thumb" id="upc-thumb-' + job.id + '">' + thumb + '</div>' +
+        '<div class="upc-info"><div class="upc-title">' + esc(job.meta.title) + '</div><div class="upc-status" id="upc-status-' + job.id + '"></div></div>' +
+        '<button class="upc-x" title="Cancel upload" onclick="UploadMgr.cancel(\'' + job.id + '\')">✕</button>' +
+      '</div>' +
+      '<div class="upload-progress-track"><div class="upload-progress-fill" id="upc-fill-' + job.id + '"></div></div>' +
+      '<div class="upload-banner-stats" id="upc-stats-' + job.id + '"></div>' +
+      '<div id="upc-actions-' + job.id + '"></div>';
+    host.prepend(el);
+  }
+  function totalBytes(job){ return job.main.file.size + (job.poster ? job.poster.file.size : 0); }
+  function updateCard(job){
+    ensureCard(job);
+    const st = stats.get(job.id) || { done: 0, current: 0, speed: 0 };
+    const total = Math.max(1, totalBytes(job));
+    const loaded = Math.min(total, st.done + st.current);
+    const pct = job.status === 'finalizing' || job.status === 'done' ? 100 : Math.round(loaded / total * 100);
+    const $ = id => document.getElementById(id + '-' + job.id);
+    const fill = $('upc-fill'), status = $('upc-status'), statsEl = $('upc-stats'), actions = $('upc-actions');
+    if (!fill) return;
+    fill.style.width = pct + '%';
+    fill.classList.toggle('upc-fill-done', job.status === 'done');
+    fill.classList.toggle('upc-fill-err', job.status === 'error');
+    let text = '', sub = '';
+    if (job.status === 'preparing') text = 'Taiyaar ho raha hai…';
+    else if (job.status === 'queued') text = 'Line me hai — pehla upload khatam hote hi shuru hoga';
+    else if (job.status === 'uploading') {
+      text = 'Uploading… ' + pct + '%';
+      sub = fmt(loaded) + ' / ' + fmt(total) + (st.speed > 0 ? ' · ' + (st.speed / (1024 * 1024)).toFixed(1) + ' MB/s' : '');
+      if (job.waitingNet) text = '📡 Internet nahi hai — wapas aate hi resume hoga';
+    }
+    else if (job.status === 'finalizing') text = 'Post publish ho rahi hai…';
+    else if (job.status === 'done') text = '✅ Upload complete!';
+    else if (job.status === 'error') text = '❌ ' + (job.error || 'Upload ruk gaya') ;
+    status.textContent = text; statsEl.textContent = sub;
+    actions.innerHTML = job.status === 'error' ? '<button class="upc-retry" onclick="UploadMgr.retry(\'' + job.id + '\')">🔄 Retry / Resume</button>' : '';
+  }
+  function removeCard(job){
+    const el = document.getElementById('upc-' + job.id); if (el) el.remove();
+    const u = urls.get(job.id); if (u) { try { URL.revokeObjectURL(u); } catch (e) {} urls.delete(job.id); }
+  }
+  function setProgress(job, done, current){
+    const st = stats.get(job.id) || { done: 0, current: 0, lastBytes: 0, lastTime: Date.now(), speed: 0 };
+    st.done = done; st.current = current;
+    const now = Date.now(), bytes = done + current;
+    if (now - st.lastTime > 700) {
+      const sp = (bytes - st.lastBytes) / ((now - st.lastTime) / 1000);
+      st.speed = sp > 0 ? (st.speed ? st.speed * 0.6 + sp * 0.4 : sp) : st.speed;
+      st.lastBytes = bytes; st.lastTime = now;
+    }
+    stats.set(job.id, st); updateCard(job);
+  }
+
+  // ---------- upload engine ----------
+  function putPart(job, url, blob, onProg){
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest(); xhrs.set(job.id, x);
+      x.open('PUT', url); x.setRequestHeader('Content-Type', 'application/octet-stream');
+      x.upload.onprogress = e => { if (e.lengthComputable) onProg(e.loaded); };
+      x.onload = () => {
+        xhrs.delete(job.id);
+        if (x.status >= 200 && x.status < 300) return resolve();
+        if (x.status === 401) return reject(authFail());
+        let msg = 'Upload failed (' + x.status + ')'; try { msg = JSON.parse(x.responseText).error || msg; } catch (e) {}
+        const er = new Error(msg); er.status = x.status; reject(er);
+      };
+      x.onerror = () => { xhrs.delete(job.id); const er = new Error('Network error'); er.network = true; reject(er); };
+      x.onabort = () => { xhrs.delete(job.id); const er = new Error('cancelled'); er.cancelled = true; reject(er); };
+      x.send(blob);
+    });
+  }
+  async function uploadAsset(job, which, offset){
+    const a = job[which], size = a.file.size;
+    if (a.done) { setProgress(job, offset + size, 0); return; }
+    if (!a.uploadId) {
+      const c = await jsonPost('/api/upload/mp/create', {
+        fileName: a.file.name || (which === 'poster' ? 'poster.jpg' : 'file'), contentType: a.file.type || 'application/octet-stream',
+        folder: which === 'poster' ? 'posters' : (job.meta.type === 'photo' ? 'posters' : 'videos')
+      });
+      a.key = c.key; a.uploadId = c.uploadId; await saveMeta(job);
+    }
+    const totalParts = Math.max(1, Math.ceil(size / PART_SIZE));
+    let have = new Set();
+    try { const lp = await api('/api/upload/mp/parts?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId)); have = new Set(lp.parts.map(p => p.n)); }
+    catch (e) { if (e.expired) { a.key = null; a.uploadId = null; await saveMeta(job); return uploadAsset(job, which, offset); } throw e; }
+    let doneBytes = 0;
+    for (let n = 1; n <= totalParts; n++) {
+      if (job.cancelled) { const er = new Error('cancelled'); er.cancelled = true; throw er; }
+      const start = (n - 1) * PART_SIZE, end = Math.min(size, start + PART_SIZE), len = end - start;
+      if (have.has(n)) { doneBytes += len; setProgress(job, offset + doneBytes, 0); continue; }
+      const url = '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n;
+      let attempt = 0;
+      for (;;) {
+        try {
+          job.waitingNet = false;
+          await putPart(job, url, a.file.slice(start, end), loaded => setProgress(job, offset + doneBytes, loaded));
+          break;
+        } catch (e) {
+          if (e.cancelled || e.auth) throw e;
+          attempt++;
+          if (e.network || navigator.onLine === false) { job.waitingNet = true; updateCard(job); await waitOnline(); await sleep(800); attempt = Math.min(attempt, 3); continue; }
+          if (attempt >= 4) throw e;
+          await sleep(1000 * Math.pow(2, attempt));
+        }
+      }
+      doneBytes += len; setProgress(job, offset + doneBytes, 0);
+    }
+    for (let i = 0; ; i++) {
+      try { await jsonPost('/api/upload/mp/complete', { key: a.key, uploadId: a.uploadId, total: totalParts }); break; }
+      catch (e) { if (e.auth || i >= 3) throw e; await sleep(1500 * (i + 1)); }
+    }
+    a.done = true; await saveMeta(job);
+  }
+  async function runJob(job){
+    if (job.cancelled) return;
+    job.status = 'uploading'; job.error = ''; job.waitingNet = false;
+    setProgress(job, 0, 0); acquireWake();
+    try {
+      await uploadAsset(job, 'main', 0);
+      if (job.poster) await uploadAsset(job, 'poster', job.main.file.size);
+      if (job.cancelled) return;
+      job.status = 'finalizing'; updateCard(job);
+      const payload = Object.assign({}, job.meta, { mediaKey: job.main.key, posterKey: job.poster ? job.poster.key : null, clientUploadId: job.id });
+      for (let i = 0; ; i++) {
+        try { await jsonPost('/api/films/finalize', payload); break; }
+        catch (e) { if (e.auth || e.status === 400 || i >= 3) throw e; await sleep(1500 * (i + 1)); }
+      }
+      job.status = 'done'; updateCard(job);
+      await dropStored(job.id);
+      if (typeof showToast === 'function') showToast('Upload successful! 🎉');
+      if (typeof loadFilms === 'function') loadFilms();
+      setTimeout(() => { removeCard(job); jobs.delete(job.id); stats.delete(job.id); }, 2500);
+    } catch (e) {
+      if (e.cancelled || job.cancelled) return;
+      job.status = 'error'; job.error = e.message || 'Upload failed'; updateCard(job);
+    } finally { releaseWake(); }
+  }
+  async function pump(){
+    if (pumping) return; pumping = true;
+    while (queue.length) { const j = queue.shift(); if (!j.cancelled && jobs.has(j.id)) await runJob(j); }
+    pumping = false;
+  }
+  function enqueue(job){ job.status = 'queued'; updateCard(job); queue.push(job); pump(); }
+
+  // poster frame for videos (so feed cards have a thumbnail without any server-side work)
+  function makePosterFromVideo(file){
+    return new Promise(resolve => {
+      let done = false; const url = URL.createObjectURL(file); const v = document.createElement('video');
+      const finish = blob => { if (done) return; done = true; clearTimeout(timer); try { URL.revokeObjectURL(url); } catch (e) {} resolve(blob ? new File([blob], 'poster.jpg', { type: 'image/jpeg' }) : null); };
+      const timer = setTimeout(() => finish(null), 6000);
+      v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.src = url;
+      v.onloadedmetadata = () => { try { v.currentTime = Math.min(1, (v.duration || 2) / 4); } catch (e) { finish(null); } };
+      v.onseeked = () => { try {
+        const w = 640, h = Math.round(w * ((v.videoHeight || 360) / (v.videoWidth || 640)));
+        const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(v, 0, 0, w, h);
+        c.toBlob(b => finish(b), 'image/jpeg', 0.8);
+      } catch (e) { finish(null); } };
+      v.onerror = () => finish(null);
+    });
+  }
+
+  async function add(meta, mainFile, posterFile){
+    if (!currentUser) { window.location.href = '/login.html'; return; }
+    const job = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), userId: currentUser.id, meta, createdAt: Date.now(),
+      status: 'preparing', error: '', main: { file: mainFile, key: null, uploadId: null, done: false }, poster: posterFile ? { file: posterFile, key: null, uploadId: null, done: false } : null };
+    jobs.set(job.id, job); ensureCard(job); updateCard(job);
+    if (!job.poster && meta.type !== 'photo') {
+      const p = await makePosterFromVideo(mainFile).catch(() => null);
+      if (p) { job.poster = { file: p, key: null, uploadId: null, done: false }; const th = document.getElementById('upc-thumb-' + job.id); if (th) { const u = URL.createObjectURL(p); urls.set(job.id, u); th.innerHTML = '<img src="' + u + '" alt="">'; } }
+    }
+    const saved = await saveNew(job);
+    if (!saved && !warnedNoIdb) { warnedNoIdb = true; if (typeof showToast === 'function') showToast('Is browser me refresh ke baad upload resume nahi ho payega'); }
+    enqueue(job);
+  }
+
+  async function restore(){
+    if (!currentUser) return;
+    let rows = []; try { rows = await tx('jobs', 'readonly', s => s.getAll()); } catch (e) { return; }
+    for (const row of (rows || [])) {
+      if (row.userId !== currentUser.id || jobs.has(row.id)) continue;
+      let f = null; try { f = await tx('files', 'readonly', s => s.get(row.id)); } catch (e) {}
+      if (!f || !f.main) { dropStored(row.id); continue; }
+      const job = { id: row.id, userId: row.userId, meta: row.meta, createdAt: row.createdAt, status: 'queued', error: '',
+        main: { file: f.main, key: row.main.key, uploadId: row.main.uploadId, done: row.main.done },
+        poster: f.poster ? { file: f.poster, key: row.poster ? row.poster.key : null, uploadId: row.poster ? row.poster.uploadId : null, done: row.poster ? row.poster.done : false } : null };
+      jobs.set(job.id, job); ensureCard(job); enqueue(job);
+    }
+  }
+
+  function retry(id){ const j = jobs.get(id); if (!j) return; j.cancelled = false; j.error = ''; enqueue(j); }
+  async function cancel(id){
+    const j = jobs.get(id); if (!j) return;
+    if (!confirm('Ye upload cancel karna hai?')) return;
+    j.cancelled = true; const x = xhrs.get(id); if (x) { try { x.abort(); } catch (e) {} }
+    const q = queue.indexOf(j); if (q >= 0) queue.splice(q, 1);
+    removeCard(j); jobs.delete(id); stats.delete(id); dropStored(id);
+    [j.main, j.poster].forEach(a => { if (a && a.uploadId && !a.done) fetch('/api/upload/mp/abort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: a.key, uploadId: a.uploadId }) }).catch(() => {}); });
+    releaseWake();
+  }
+
+  window.addEventListener('beforeunload', e => { if (hasActive()) { e.preventDefault(); e.returnValue = ''; return ''; } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && hasActive()) acquireWake(); });
+  return { add, restore, retry, cancel };
+})();
 
 // ===== Unified back-button handling for every overlay/sheet =====
 // Every overlay below is opened/closed purely via the 'open' CSS class.
