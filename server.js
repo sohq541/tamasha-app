@@ -47,10 +47,24 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 app.use(cookieParser());
 app.use(express.json());
 
+// Suspended accounts: their login is blocked, and any session they already had (30-day token) stops working too.
+const suspendedIds = new Set();
+async function refreshSuspendedIds() {
+  try {
+    const users = await readUsers();
+    suspendedIds.clear();
+    users.forEach(u => { if (u && u.suspended) suspendedIds.add(u.id); });
+  } catch (e) { /* storage hiccup: keep the previous list */ }
+}
+
 function getUserFromReq(req) {
   const token = req.cookies.token;
   if (!token) return null;
-  try { return jwt.verify(token, JWT_SECRET); } catch (e) { return null; }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload && suspendedIds.has(payload.id)) return null;
+    return payload;
+  } catch (e) { return null; }
 }
 
 function isAdminBasicAuth(req) {
@@ -3129,8 +3143,73 @@ app.post('/api/admin/users/:id/suspend', requireAdmin, async (req, res) => {
     if (!u) return res.status(404).json({ error: 'User not found' });
     u.suspended = !u.suspended;
     await writeUsers(users);
+    if (u.suspended) suspendedIds.add(u.id); else suspendedIds.delete(u.id);
     res.json({ suspended: u.suspended });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Admin dashboard (owner-only, same ADMIN_USER / ADMIN_PASS login as the moderation panel) ----------------
+// Shows public activity + account stats. Private messages are deliberately NOT part of this.
+app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
+  try {
+    const [users, films, stories, reports] = await Promise.all([readUsers(), readFilms(), readStories(), readReports()]);
+    const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
+    const ts = x => (x ? new Date(x).getTime() || 0 : 0);
+    const postCount = {}, commentCount = {}, followers = {}, reportsAgainst = {};
+    let events = [];
+    let uploads24h = 0, comments24h = 0;
+    const byType = { film: 0, short: 0, photo: 0 };
+
+    films.forEach(f => {
+      const type = f.type === 'photo' ? 'photo' : f.type === 'short' ? 'short' : 'film';
+      byType[type]++;
+      if (f.ownerId && f.ownerId !== 'admin') postCount[f.ownerId] = (postCount[f.ownerId] || 0) + 1;
+      if (now - ts(f.uploadedAt) < DAY) uploads24h++;
+      events.push({ type: 'upload', at: f.uploadedAt, userId: f.ownerId, username: f.ownerUsername, text: type + ': ' + (f.title || '') });
+      (f.comments || []).forEach(c => {
+        if (c.userId) commentCount[c.userId] = (commentCount[c.userId] || 0) + 1;
+        if (now - ts(c.createdAt) < DAY) comments24h++;
+        events.push({ type: 'comment', at: c.createdAt, userId: c.userId, username: c.name,
+          text: String(c.text || '').slice(0, 140) + '  →  ' + (f.title || '') });
+      });
+    });
+    let stories24h = 0;
+    stories.forEach(st => {
+      if (now - ts(st.createdAt) < DAY) stories24h++;
+      events.push({ type: 'story', at: st.createdAt, userId: st.ownerId, username: st.ownerUsername, text: st.mediaType === 'video' ? 'video story' : 'photo story' });
+    });
+    users.forEach(u => {
+      (u.following || []).forEach(id => { followers[id] = (followers[id] || 0) + 1; });
+      events.push({ type: 'signup', at: u.createdAt, userId: u.id, username: u.username, text: 'naya account bana' });
+    });
+    reports.forEach(r => { if (r.targetOwnerId && r.status !== 'dismissed') reportsAgainst[r.targetOwnerId] = (reportsAgainst[r.targetOwnerId] || 0) + 1; });
+
+    events.sort((a, b) => ts(b.at) - ts(a.at));
+    events = events.slice(0, 100);
+
+    const rows = users.map(u => ({
+      id: u.id, username: u.username, email: u.email, createdAt: u.createdAt || null, lastActiveAt: u.lastActiveAt || null,
+      online: isUserOnline(u), suspended: !!u.suspended, google: !u.passwordHash,
+      posts: postCount[u.id] || 0, comments: commentCount[u.id] || 0, followers: followers[u.id] || 0, reports: reportsAgainst[u.id] || 0
+    })).sort((a, b) => ts(b.lastActiveAt) - ts(a.lastActiveAt) || ts(b.createdAt) - ts(a.createdAt));
+
+    res.json({
+      overview: {
+        totalUsers: users.length,
+        newToday: users.filter(u => now - ts(u.createdAt) < DAY).length,
+        new7d: users.filter(u => now - ts(u.createdAt) < 7 * DAY).length,
+        onlineNow: rows.filter(r => r.online).length,
+        activeToday: users.filter(u => now - ts(u.lastActiveAt) < DAY).length,
+        suspended: users.filter(u => u.suspended).length,
+        posts: byType, uploads24h, comments24h, stories24h,
+        pendingReports: reports.filter(r => r.status === 'pending').length
+      },
+      users: rows,
+      activity: events
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
+setTimeout(refreshSuspendedIds, 3000);
+setInterval(refreshSuspendedIds, 5 * 60 * 1000);
