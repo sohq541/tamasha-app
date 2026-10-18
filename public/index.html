@@ -590,13 +590,14 @@
       <div class="action-row">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
-        <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()">1x</button>
-        <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
-        <button class="action-btn hidden" id="modalCollabBtn" onclick="openCollabSheet(currentFilm ? currentFilm.id : '')">🤝 Collab</button>
-        <button class="action-btn hidden" id="modalInsightsBtn" onclick="openInsights(currentFilm ? currentFilm.id : '')">📊 Insights</button>
-        <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
-        <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
-        <button class="action-btn" onclick="reportCurrentFilm()" style="color:var(--cream-dim);">🚩 Report</button>
+        <button class="action-btn" id="playerMenuBtn" onclick="openPlayerMenu()" aria-label="More options" style="font-size:20px;padding:6px 16px;line-height:1;">⋮</button>
+        <div class="hidden" id="playerHiddenActions">
+          <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
+          <button class="action-btn hidden" id="modalCollabBtn" onclick="openCollabSheet(currentFilm ? currentFilm.id : '')">🤝 Collab</button>
+          <button class="action-btn hidden" id="modalInsightsBtn" onclick="openInsights(currentFilm ? currentFilm.id : '')">📊 Insights</button>
+          <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
+          <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
+        </div>
         <span class="view-count" id="viewCount"></span>
       </div>
       <div class="comments-section">
@@ -2742,9 +2743,8 @@ async function playFilm(id){
   currentFilm = f;
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
-  const speedBtnEl = document.getElementById('speedBtn');
-  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; speedBtnEl.classList.add('hidden'); }
-  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; speedBtnEl.textContent = '1x'; speedBtnEl.classList.remove('hidden'); }
+  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
+  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
   if (!playerEl.dataset.watchListeners) {
     playerEl.dataset.watchListeners = '1';
     playerEl.addEventListener('play', () => { if (currentFilm) watchTimeStart(currentFilm.id); });
@@ -2818,7 +2818,29 @@ function cyclePlayerSpeed(){
   idx = (idx === -1 ? 1 : idx + 1) % PLAYER_SPEED_STEPS.length;
   const rate = PLAYER_SPEED_STEPS[idx];
   player.playbackRate = rate;
-  btn.textContent = rate + 'x';
+  if (btn) btn.textContent = rate + 'x';
+}
+
+function openPlayerMenu(){
+  const f = currentFilm;
+  if (!f) return;
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const isOwner = f.ownerId === currentUser.id;
+  const canManage = !!isMyPost(f, currentUser.id);
+  const saveBtn = document.getElementById('modalSaveBtn');
+  const saved = !!(saveBtn && saveBtn.classList.contains('liked'));
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();toggleSaveCurrentFilm()">${saved ? '🔖 Unsave' : '📑 Save'}</div>`;
+  if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();editCurrentFilmModal()">✏️ Edit</div>`;
+  if (isOwner) items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteCurrentFilmModal()">🗑️ Delete</div>`;
+  if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${f.id}')">🤝 Collab</div>`;
+  if (canManage) items += `<div class="menu-item" onclick="closePostSafetyMenu();openInsights('${f.id}')">📊 View Insights</div>`;
+  if (!isOwner) {
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${f.id}')">🚩 Report post</div>`;
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${f.ownerId}')">🚩 Report @${escapeHtml(f.ownerUsername || '')}</div>`;
+    items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();confirmBlockFromPost('${f.ownerId}')">🚫 Block @${escapeHtml(f.ownerUsername || '')}</div>`;
+  }
+  document.getElementById('postSafetyMenuItems').innerHTML = items;
+  document.getElementById('postSafetyOverlay').classList.add('open');
 }
 
 function reportCurrentFilm(){
