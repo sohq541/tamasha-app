@@ -322,6 +322,31 @@
 .upc-info{flex:1;min-width:0;}
 .upc-title{font-weight:600;font-size:14px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .upc-status{font-size:12.5px;color:var(--cream-dim);margin-top:2px;}
+.vbadge{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#3897f0;color:#fff;font-size:9.5px;font-weight:800;margin-left:4px;vertical-align:middle;line-height:1;}
+.carousel{position:relative;width:100%;background:#000;}
+.carousel-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.carousel-track::-webkit-scrollbar{display:none;}
+.carousel-slide{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;background:#000;}
+.carousel-slide img,.carousel-slide video{width:100%;max-height:70vh;object-fit:contain;display:block;}
+.carousel-count{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:3px 9px;border-radius:12px;pointer-events:none;}
+.carousel-dots{display:flex;justify-content:center;gap:5px;padding:7px 0;background:transparent;}
+.cdot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);}
+.cdot.on{background:#7C5CFF;}
+.profile-mygrid-item{position:relative;}
+.grid-badge{position:absolute;top:6px;right:6px;font-size:13px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;padding:1px 5px;line-height:1.3;}
+.grid-badge.pin{right:auto;left:6px;}
+.note-pill{display:inline-block;margin:6px 0 2px;background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:5px 12px;font-size:12.5px;color:var(--cream);cursor:pointer;max-width:100%;}
+.note-pill.empty{color:var(--cream-dim);}
+.notes-strip{display:flex;gap:14px;overflow-x:auto;padding:14px 14px 4px;scrollbar-width:none;}
+.notes-strip:empty{display:none;}
+.note-item{flex:0 0 74px;text-align:center;cursor:pointer;}
+.note-bubble{position:relative;z-index:1;background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:5px 8px;font-size:11px;line-height:1.25;max-height:48px;overflow:hidden;margin:0 2px -9px;color:var(--cream);word-break:break-word;}
+.note-bubble.add{color:var(--cream-dim);}
+.note-avatar{width:58px;height:58px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-weight:700;margin:0 auto;overflow:hidden;}
+.note-avatar img{width:100%;height:100%;object-fit:cover;}
+.note-name{font-size:11px;color:var(--cream-dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.announce{display:flex;align-items:flex-start;gap:10px;margin:10px 12px 0;padding:11px 12px;background:rgba(124,92,255,.14);border:1px solid #7C5CFF;border-radius:12px;font-size:13.5px;}
+.announce .a-x{margin-left:auto;background:none;border:none;color:var(--cream-dim);font-size:16px;cursor:pointer;padding:0 4px;}
 .upc-x{background:transparent;border:none;color:var(--cream-dim);font-size:18px;cursor:pointer;padding:4px 8px;}
 .upc-retry{margin-top:8px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;}
 .upload-progress-fill.upc-fill-done{background:#4caf50;}
@@ -552,6 +577,7 @@
     <h3 class="section-title" id="shortsGridTitle" style="display:none;">Shorts</h3>
   </div>
   <div class="shorts-grid hidden" id="shortsGrid"></div>
+  <div id="announceBanner"></div>
   <div id="uploadCards"></div>
   <div id="homeMainContent">
   <div id="grid" class="grid"></div>
@@ -580,6 +606,7 @@
     <div id="playerMediaWrap" style="position:relative;">
       <video id="player" controls></video>
       <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
+      <div id="playerCarousel" style="display:none;"></div>
     </div>
     <div class="modal-body">
       <button class="modal-close" onclick="closeModal()">Close</button>
@@ -742,6 +769,7 @@
     <button class="chat-header-back" onclick="closeChatInbox()">←</button>
     <span class="chat-header-name">Messages</span>
   </div>
+  <div class="notes-strip" id="notesStrip"></div>
   <div class="chat-inbox-list" id="chatInboxList"></div>
 </div>
 
@@ -886,6 +914,7 @@
         <label><input type="radio" name="qType" value="film" checked onclick="toggleQType('film')"> Full Film</label>
         <label><input type="radio" name="qType" value="short" onclick="toggleQType('short')"> Short</label>
         <label><input type="radio" name="qType" value="photo" onclick="toggleQType('photo')"> Photo</label>
+        <label><input type="radio" name="qType" value="carousel" onclick="toggleQType('carousel')"> Carousel</label>
       </div>
 
       <div id="qVideoFields">
@@ -897,6 +926,11 @@
       <div id="qPhotoFields" class="hidden">
         <label>Photo *</label>
         <input type="file" id="qPhoto" accept="image/*">
+      </div>
+      <div id="qCarouselFields" class="hidden">
+        <label>Photos / videos * (2 se 10, pehli wali cover banegi)</label>
+        <input type="file" id="qCarousel" accept="image/*,video/*" multiple onchange="onCarouselPicked(this)">
+        <div id="qCarouselInfo" style="font-size:12.5px;color:var(--cream-dim);margin-top:6px;"></div>
       </div>
 
       <label>Year</label><input type="text" id="qYear">
@@ -1291,7 +1325,8 @@ async function renderOtherProfile(userId, usernameHint){
         <div onclick="openUserList('${userId}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username">@${escapeHtml(pub.username)}</div>
+    <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}</div>
+    ${pub.note ? `<div><span class="note-pill" style="cursor:default;">📝 ${escapeHtml(pub.note.text)}</span></div>` : ''}
     ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
     ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
     <div class="profile-btn-row">
@@ -1305,10 +1340,10 @@ async function renderOtherProfile(userId, usernameHint){
       <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="otherProfileGridVideos">
-      ${theirVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos yet.</p>'}
+      ${pinSort(theirVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
-      ${theirPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos yet.</p>'}
+      ${pinSort(theirPhotos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos yet.</p>'}
     </div>
   `;
   loadUserHighlights(userId, 'otherHighlightsBar', false);
@@ -1366,7 +1401,7 @@ function openPostSafetyMenu(filmId){
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
   let items = isOwner
-    ? `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`
+    ? `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`
     : `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
   if (!isOwner && film) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>`;
@@ -1470,6 +1505,8 @@ async function renderProfile(){
     mine = await res.json();
   } catch (err) {}
   window.myHideSensitive = !!mine.hideSensitiveContent;
+  window.myNote = mine.note || null;
+  window.myPinned = mine.pinnedFilmIds || [];
 
   const myFilms = allFilms.filter(f => isMyPost(f, currentUser.id));
   const myVideos = myFilms.filter(f => f.type !== 'photo');
@@ -1489,7 +1526,8 @@ async function renderProfile(){
         <div onclick="openUserList('${currentUser.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username">@${escapeHtml(currentUser.username)}</div>
+    <div class="profile-username">@${escapeHtml(currentUser.username)}${vb(mine.verified)}</div>
+    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) : '＋ Note chhodo (24 ghante)'}</span></div>
     ${(window.activeStoriesByUser||{})[currentUser.id] ? `<div style="margin:4px 0 8px;"><button type="button" onclick="openStoryViewer('${currentUser.id}')" style="background:rgba(124,92,255,0.15);border:1px solid #7C5CFF;color:#B388FF;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">▶ View my Story</button></div>` : ''}
     ${mine.bio ? `<div class="profile-bio">${escapeHtml(mine.bio)}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
@@ -1547,10 +1585,10 @@ async function renderProfile(){
       <button class="tab-btn" id="profileTabSaved" onclick="switchProfileGrid('saved')" style="flex:1;">🔖 Saved</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
-      ${myVideos.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
+      ${pinSort(myVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${myPhotos.map(f => `<div class="profile-mygrid-item" onclick="playFilm('${f.id}')">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
+      ${pinSort(myPhotos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridSaved">
       <p class="comment-empty">Loading...</p>
@@ -2067,7 +2105,7 @@ function doSearch(query){
     allFilms.forEach(f => {
       if (f.ownerUsername && f.ownerId && !seenUsers.has(f.ownerId) && f.ownerUsername.toLowerCase().includes(q)) {
         seenUsers.add(f.ownerId);
-        userMatches.push({ id: f.ownerId, username: f.ownerUsername, profileImage: f.ownerProfileImage });
+        userMatches.push({ id: f.ownerId, username: f.ownerUsername, profileImage: f.ownerProfileImage, verified: f.ownerVerified });
       }
     });
   }
@@ -2086,7 +2124,7 @@ function doSearch(query){
         (data.users || []).forEach(u => {
           if (!seenUsers.has(u.id) && (!currentUser || u.id !== currentUser.id)) {
             seenUsers.add(u.id);
-            userMatches.push({ id: u.id, username: u.username, profileImage: u.profileImage });
+            userMatches.push({ id: u.id, username: u.username, profileImage: u.profileImage, verified: u.verified });
           }
         });
         renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches);
@@ -2117,7 +2155,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
         ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;">`
         : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}
       <div class="search-result-info">
-        <span class="search-result-title">@${escapeHtml(u.username)}</span>
+        <span class="search-result-title">@${escapeHtml(u.username)}${vb(u.verified)}</span>
         <span class="search-result-tag">Profile</span>
       </div>
     </div>
@@ -2154,7 +2192,7 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${collabLabel(f)}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -2164,7 +2202,7 @@ function renderHome(films) {
         <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}">
           ${
             isPhoto
-              ? `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`
+              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`)
               : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
           }
         </div>
@@ -2185,7 +2223,7 @@ function renderHome(films) {
         </div>
 
         <div class="card-caption-area">
-          <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b> ${escapeHtml(f.title)}</div>
+          <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
           ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
         </div>
       </div>
@@ -2263,7 +2301,7 @@ function renderShorts(shorts){
       <div class="short-speed-badge">⏩ 2x</div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${linkifyRich(f.description || '', f.mentions)}</p>
       </div>
@@ -2621,7 +2659,7 @@ function saveMyCommentToken(commentId, editToken){
         <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
           <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="openCommentProfile('${c.userId}','${escapeHtml(c.name)}')">
             ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
-            <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>
+            <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>${vb(c.verified)}
             ${isCommentAuthor ? `<span style="background:var(--marigold);color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:0.3px;">Author</span>` : ''}
             ${c.pinned ? `<span style="background:rgba(255,255,255,0.14);color:var(--cream);font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">📌 Pinned</span>` : ''}
             ${c.hidden ? `<span style="background:#7a5c00;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">Hidden</span>` : ''}
@@ -2743,8 +2781,15 @@ async function playFilm(id){
   currentFilm = f;
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
-  if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
-  else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
+  const carEl = document.getElementById('playerCarousel');
+  if (f.slideUrls && f.slideUrls.length > 1) {
+    playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'none'; imgEl.src = '';
+    carEl.style.display = 'block'; carEl.innerHTML = carouselHtml(f);
+  } else {
+    carEl.style.display = 'none'; carEl.innerHTML = '';
+    if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
+    else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
+  }
   if (!playerEl.dataset.watchListeners) {
     playerEl.dataset.watchListeners = '1';
     playerEl.addEventListener('play', () => { if (currentFilm) watchTimeStart(currentFilm.id); });
@@ -2755,7 +2800,7 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
@@ -2801,8 +2846,134 @@ async function toggleSaveCurrentFilm(){
   } catch (e) {}
 }
 
+const vb = flag => flag ? '<span class="vbadge" title="Verified">✔</span>' : '';
+
+function carouselHtml(f){
+  const slides = f.slideUrls || [];
+  const n = slides.length;
+  return `<div class="carousel" data-n="${n}">
+    <div class="carousel-track" onscroll="carouselScroll(this)">
+      ${slides.map(sl => `<div class="carousel-slide">${sl.mediaType === 'video'
+        ? `<video src="${sl.url}" controls playsinline muted preload="metadata"></video>`
+        : `<img src="${sl.url}" alt="${escapeHtml(f.title)}" loading="lazy">`}</div>`).join('')}
+    </div>
+    <div class="carousel-count">1/${n}</div>
+    <div class="carousel-dots">${slides.map((_, i) => `<span class="cdot ${i === 0 ? 'on' : ''}"></span>`).join('')}</div>
+  </div>`;
+}
+function carouselScroll(track){
+  const w = track.clientWidth || 1;
+  const i = Math.round(track.scrollLeft / w);
+  const root = track.parentElement;
+  const cnt = root.querySelector('.carousel-count');
+  if (cnt) cnt.textContent = (i + 1) + '/' + root.dataset.n;
+  root.querySelectorAll('.cdot').forEach((d, k) => d.classList.toggle('on', k === i));
+  track.querySelectorAll('video').forEach((v, k) => { if (k !== i) v.pause(); });
+}
+
+// ---- Pin posts to profile (max 3) ----
+function pinSort(list, pins){
+  const order = pins || [];
+  const pinned = order.map(id => list.find(f => f.id === id)).filter(Boolean);
+  return pinned.concat(list.filter(f => !order.includes(f.id)));
+}
+function gridItemHtml(f, onclickJs, pinned){
+  const n = (f.slideUrls && f.slideUrls.length) || (f.slides && f.slides.length) || 0;
+  return `<div class="profile-mygrid-item" onclick="${onclickJs}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}</div>`;
+}
+async function togglePinProfile(id){
+  try {
+    const res = await fetch('/api/films/' + id + '/pin-profile', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    window.myPinned = data.pinnedFilmIds;
+    showToast(data.pinned ? 'Profile pe pin ho gayi 📌' : 'Pin hata diya');
+  } catch (e) { showToast(e.message); }
+}
+
+// ---- Notes (60 chars, 24h) ----
+function openNoteEditor(){
+  const cur = (window.myNote && window.myNote.text) || '';
+  const old = document.getElementById('noteOverlay'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'noteOverlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;';
+  el.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;">
+    <div style="font-weight:700;margin-bottom:4px;">📝 Apna Note</div>
+    <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Max 60 akshar. 24 ghante baad apne aap hat jayega. Followers ko Messages me dikhega.</div>
+    <input id="noteInput" type="text" maxlength="60" value="${escapeAttr(cur)}" placeholder="Kya chal raha hai?" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,.06);color:var(--cream);font-size:14px;">
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button type="button" class="profile-btn primary" style="flex:1;" onclick="saveNote()">Save</button>
+      ${cur ? '<button type="button" class="profile-btn" style="flex:1;" onclick="saveNote(true)">Hatao</button>' : ''}
+      <button type="button" class="profile-btn" style="flex:1;" onclick="document.getElementById(\'noteOverlay\').remove()">Cancel</button>
+    </div></div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { const i = document.getElementById('noteInput'); if (i) i.focus(); }, 50);
+}
+async function saveNote(clear){
+  const text = clear ? '' : (document.getElementById('noteInput').value || '');
+  try {
+    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    window.myNote = data.note;
+    const o = document.getElementById('noteOverlay'); if (o) o.remove();
+    showToast(data.note ? 'Note laga diya 📝' : 'Note hata diya');
+    if (document.getElementById('chatInboxOverlay').classList.contains('open')) loadNotesStrip();
+    try { renderProfile(); } catch (e) {}
+  } catch (e) { showToast(e.message); }
+}
+async function loadNotesStrip(){
+  const el = document.getElementById('notesStrip');
+  if (!el || !currentUser) return;
+  try {
+    const res = await fetch('/api/notes');
+    const data = await res.json();
+    const notes = data.notes || [];
+    const mine = notes.find(n => n.mine);
+    window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt } : null;
+    const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
+    const first = `<div class="note-item" onclick="openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) : '＋ Note'}</div>${av({ profileImage: null, username: currentUser.username })}<div class="note-name">Tumhara note</div></div>`;
+    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')"><div class="note-bubble">${escapeHtml(n.text)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
+    el.innerHTML = first + others;
+  } catch (e) {}
+}
+function closeChatInboxThenOpen(userId, username){ openChatConvo(userId, username); }
+
+// ---- Announcements (set from the admin dashboard) ----
+async function loadAnnouncementBanner(){
+  try {
+    const res = await fetch('/api/announcements');
+    const data = await res.json();
+    const a = (data.announcements || [])[0];
+    const box = document.getElementById('announceBanner');
+    if (!a || !box || localStorage.getItem('seenAnnouncement') === a.id) return;
+    box.innerHTML = `<div class="announce"><span>📢</span><div>${escapeHtml(a.message)}</div><button class="a-x" onclick="dismissAnnouncement('${a.id}')">✕</button></div>`;
+  } catch (e) {}
+}
+function dismissAnnouncement(id){
+  try { localStorage.setItem('seenAnnouncement', id); } catch (e) {}
+  const box = document.getElementById('announceBanner'); if (box) box.innerHTML = '';
+}
+async function prependAnnouncements(listEl){
+  try {
+    const res = await fetch('/api/announcements');
+    const data = await res.json();
+    const list = data.announcements || [];
+    if (!list.length) return;
+    const empty = listEl.querySelector('.comment-empty'); if (empty) empty.remove();
+    listEl.insertAdjacentHTML('afterbegin', list.map(a => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);">
+        <span style="font-size:18px;flex-shrink:0;">📢</span>
+        <div style="flex:1;"><div style="font-size:13.5px;color:var(--cream);">${escapeHtml(a.message)}</div><div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${storyTimeAgo(a.createdAt)}</div></div>
+      </div>`).join(''));
+    dismissAnnouncement(list[0].id);
+  } catch (e) {}
+}
+
 function closeModal(){
   if (currentFilm) watchTimeFlush(currentFilm.id);
+  const ce = document.getElementById('playerCarousel'); if (ce) { ce.innerHTML = ''; ce.style.display = 'none'; }
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
@@ -2831,6 +3002,7 @@ function openPlayerMenu(){
   const saved = !!(saveBtn && saveBtn.classList.contains('liked'));
   let items = `<div class="menu-item" onclick="closePostSafetyMenu();toggleSaveCurrentFilm()">${saved ? '🔖 Unsave' : '📑 Save'}</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();editCurrentFilmModal()">✏️ Edit</div>`;
+  if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${f.id}')">📌 Pin / Unpin on profile</div>`;
   if (isOwner) items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteCurrentFilmModal()">🗑️ Delete</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${f.id}')">🤝 Collab</div>`;
   if (canManage) items += `<div class="menu-item" onclick="closePostSafetyMenu();openInsights('${f.id}')">📊 View Insights</div>`;
@@ -3542,6 +3714,7 @@ function notifIcon(type){
   if (type === 'message') return '✉️';
   if (type === 'mention') return '@';
   if (type === 'collab_invite' || type === 'collab_accepted') return '🤝';
+  if (type === 'report_alert') return '🚨';
   return '🔔';
 }
 
@@ -3568,6 +3741,7 @@ async function openNotifications(){
         </div>
       `).join('');
     }
+    await prependAnnouncements(listEl);
     if (data.unreadCount > 0) {
       await fetch('/api/notifications/mark-read', { method: 'POST' });
       const badge = document.getElementById('notifBadge');
@@ -3592,6 +3766,7 @@ async function respondCollab(filmId, action, btn){
 
 function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId){
   closeNotifications();
+  if (type === 'report_alert') { window.location.href = '/dashboard.html'; return; }
   if (type === 'message') { openChatConvo(fromUserId, fromUsername); return; }
   if (filmId) { playFilm(filmId); return; }
   if (storyId) {
@@ -3664,6 +3839,7 @@ async function openChatInbox(){
 function closeChatInbox(){ document.getElementById('chatInboxOverlay').classList.remove('open'); }
 
 async function loadChatInbox(){
+  loadNotesStrip();
   const el = document.getElementById('chatInboxList');
   el.innerHTML = '<p class="comment-empty">Loading...</p>';
   try {
@@ -4330,7 +4506,10 @@ function setupHomeSwipeToShorts(){
   const grid = document.getElementById('grid');
   if (!grid || grid.dataset.swipeAttached) return;
   grid.dataset.swipeAttached = '1';
-  addSwipeLeftListener(grid, () => switchTab('shorts'));
+  addSwipeLeftListener(grid, (e) => {
+    if (e && e.target && e.target.closest && e.target.closest('.carousel')) return; // swiping inside a carousel must not leave the feed
+    switchTab('shorts');
+  });
 }
 
 function setupShortsSwipeToProfile(){
@@ -4351,6 +4530,7 @@ async function init(){
   try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
   try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
   try { if (window.UploadMgr) UploadMgr.restore(); } catch (e) { console.error('restore uploads failed:', e); }
+  try { loadAnnouncementBanner(); } catch (e) {}
   setupDoubleTapLike(
     document.getElementById('playerMediaWrap'),
     null,
@@ -4395,8 +4575,17 @@ init();
 let uploadXhr = null;
 
 function toggleQType(type){
-  document.getElementById('qVideoFields').classList.toggle('hidden', type === 'photo');
+  document.getElementById('qVideoFields').classList.toggle('hidden', type === 'photo' || type === 'carousel');
   document.getElementById('qPhotoFields').classList.toggle('hidden', type !== 'photo');
+  document.getElementById('qCarouselFields').classList.toggle('hidden', type !== 'carousel');
+}
+function onCarouselPicked(input){
+  const files = Array.from(input.files || []);
+  const info = document.getElementById('qCarouselInfo');
+  if (!files.length) { info.textContent = ''; return; }
+  const vids = files.filter(f => f.type.startsWith('video')).length;
+  info.style.color = (files.length < 2 || files.length > 10) ? '#e88a8a' : 'var(--cream-dim)';
+  info.textContent = files.length + ' chune (' + (files.length - vids) + ' photo, ' + vids + ' video)' + (files.length < 2 ? ' — kam se kam 2 chahiye' : files.length > 10 ? ' — maximum 10' : '');
 }
 
 function openUploadModal(){
@@ -4422,8 +4611,14 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
     isSensitive: document.getElementById('qSensitive').checked
   };
 
-  let mainFile, posterFile = null;
-  if (type === 'photo') {
+  let mainFile, posterFile = null, extraFiles = [];
+  if (type === 'carousel') {
+    const files = Array.from(document.getElementById('qCarousel').files || []);
+    if (files.length < 2) { alert('Carousel ke liye kam se kam 2 photo/video chuno'); return; }
+    if (files.length > 10) { alert('Maximum 10 photo/video chun sakte ho'); return; }
+    meta.type = 'photo';
+    mainFile = files[0]; extraFiles = files.slice(1);
+  } else if (type === 'photo') {
     mainFile = document.getElementById('qPhoto').files[0];
     if (!mainFile) { alert('Please choose a photo file'); return; }
   } else {
@@ -4433,7 +4628,7 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
   }
 
   closeUploadModal();
-  UploadMgr.add(meta, mainFile, posterFile);
+  UploadMgr.add(meta, mainFile, posterFile, extraFiles);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   document.getElementById('quickUploadForm').reset();
@@ -4482,12 +4677,13 @@ window.UploadMgr = (function(){
   function jobMeta(job){
     return { id: job.id, userId: job.userId, meta: job.meta, createdAt: job.createdAt,
       main: { key: job.main.key, uploadId: job.main.uploadId, done: job.main.done, name: job.main.file.name, size: job.main.file.size },
-      poster: job.poster ? { key: job.poster.key, uploadId: job.poster.uploadId, done: job.poster.done, name: job.poster.file.name, size: job.poster.file.size } : null };
+      poster: job.poster ? { key: job.poster.key, uploadId: job.poster.uploadId, done: job.poster.done, name: job.poster.file.name, size: job.poster.file.size } : null,
+      extras: (job.extras || []).map(a => ({ key: a.key, uploadId: a.uploadId, done: a.done, name: a.file.name, size: a.file.size })) };
   }
   async function saveMeta(job){ try { await tx('jobs', 'readwrite', s => s.put(jobMeta(job))); return true; } catch (e) { return false; } }
   async function saveNew(job){
     try {
-      await tx('files', 'readwrite', s => s.put({ id: job.id, main: job.main.file, poster: job.poster ? job.poster.file : null }));
+      await tx('files', 'readwrite', s => s.put({ id: job.id, main: job.main.file, poster: job.poster ? job.poster.file : null, extras: (job.extras || []).map(a => a.file) }));
       await tx('jobs', 'readwrite', s => s.put(jobMeta(job)));
       return true;
     } catch (e) { return false; }
@@ -4499,6 +4695,7 @@ window.UploadMgr = (function(){
   const fmt = b => (typeof formatBytes === 'function') ? formatBytes(b) : Math.round(b / 1024) + ' KB';
   const authFail = () => { const e = new Error('Login expire ho gaya — dobara login karo, upload wahin se resume hoga'); e.auth = true; return e; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const isVideoFile = f => !!(f && f.type && f.type.startsWith('video'));
   function waitOnline(){ return new Promise(res => { if (navigator.onLine !== false) return res(); const h = () => { window.removeEventListener('online', h); res(); }; window.addEventListener('online', h); }); }
   async function api(url, opts){
     const res = await fetch(url, opts);
@@ -4518,7 +4715,7 @@ window.UploadMgr = (function(){
     if (!host || document.getElementById('upc-' + job.id)) return;
     let thumb = '🎬';
     try {
-      const f = job.meta.type === 'photo' ? job.main.file : (job.poster ? job.poster.file : null);
+      const f = !isVideoFile(job.main.file) ? job.main.file : (job.poster ? job.poster.file : null);
       if (f) { const u = URL.createObjectURL(f); urls.set(job.id, u); thumb = '<img src="' + u + '" alt="">'; }
     } catch (e) {}
     const el = document.createElement('div');
@@ -4534,7 +4731,7 @@ window.UploadMgr = (function(){
       '<div id="upc-actions-' + job.id + '"></div>';
     host.prepend(el);
   }
-  function totalBytes(job){ return job.main.file.size + (job.poster ? job.poster.file.size : 0); }
+  function totalBytes(job){ return job.main.file.size + (job.poster ? job.poster.file.size : 0) + (job.extras || []).reduce((n, a) => n + a.file.size, 0); }
   function updateCard(job){
     ensureCard(job);
     const st = stats.get(job.id) || { done: 0, current: 0, speed: 0 };
@@ -4595,20 +4792,20 @@ window.UploadMgr = (function(){
       x.send(blob);
     });
   }
-  async function uploadAsset(job, which, offset){
-    const a = job[which], size = a.file.size;
+  async function uploadAsset(job, a, role, offset){
+    const size = a.file.size;
     if (a.done) { setProgress(job, offset + size, 0); return; }
     if (!a.uploadId) {
       const c = await jsonPost('/api/upload/mp/create', {
-        fileName: a.file.name || (which === 'poster' ? 'poster.jpg' : 'file'), contentType: a.file.type || 'application/octet-stream',
-        folder: which === 'poster' ? 'posters' : (job.meta.type === 'photo' ? 'posters' : 'videos')
+        fileName: a.name || a.file.name || (role === 'poster' ? 'poster.jpg' : 'file'), contentType: a.file.type || 'application/octet-stream',
+        folder: role === 'poster' ? 'posters' : (isVideoFile(a.file) ? 'videos' : ((job.extras && job.extras.length) ? 'photos' : 'posters'))
       });
       a.key = c.key; a.uploadId = c.uploadId; await saveMeta(job);
     }
     const totalParts = Math.max(1, Math.ceil(size / PART_SIZE));
     let have = new Set();
     try { const lp = await api('/api/upload/mp/parts?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId)); have = new Set(lp.parts.map(p => p.n)); }
-    catch (e) { if (e.expired) { a.key = null; a.uploadId = null; await saveMeta(job); return uploadAsset(job, which, offset); } throw e; }
+    catch (e) { if (e.expired) { a.key = null; a.uploadId = null; await saveMeta(job); return uploadAsset(job, a, role, offset); } throw e; }
     let doneBytes = 0;
     for (let n = 1; n <= totalParts; n++) {
       if (job.cancelled) { const er = new Error('cancelled'); er.cancelled = true; throw er; }
@@ -4642,11 +4839,16 @@ window.UploadMgr = (function(){
     job.status = 'uploading'; job.error = ''; job.waitingNet = false;
     setProgress(job, 0, 0); acquireWake();
     try {
-      await uploadAsset(job, 'main', 0);
-      if (job.poster) await uploadAsset(job, 'poster', job.main.file.size);
+      await uploadAsset(job, job.main, 'main', 0);
+      let off = job.main.file.size;
+      if (job.poster) { await uploadAsset(job, job.poster, 'poster', off); off += job.poster.file.size; }
+      for (const ex of (job.extras || [])) { await uploadAsset(job, ex, 'extra', off); off += ex.file.size; }
       if (job.cancelled) return;
       job.status = 'finalizing'; updateCard(job);
       const payload = Object.assign({}, job.meta, { mediaKey: job.main.key, posterKey: job.poster ? job.poster.key : null, clientUploadId: job.id });
+      if (job.extras && job.extras.length) {
+        payload.slides = [job.main].concat(job.extras).map(a => ({ key: a.key, mediaType: isVideoFile(a.file) ? 'video' : 'photo' }));
+      }
       for (let i = 0; ; i++) {
         try { await jsonPost('/api/films/finalize', payload); break; }
         catch (e) { if (e.auth || e.status === 400 || i >= 3) throw e; await sleep(1500 * (i + 1)); }
@@ -4685,12 +4887,13 @@ window.UploadMgr = (function(){
     });
   }
 
-  async function add(meta, mainFile, posterFile){
+  async function add(meta, mainFile, posterFile, extraFiles){
     if (!currentUser) { window.location.href = '/login.html'; return; }
     const job = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), userId: currentUser.id, meta, createdAt: Date.now(),
-      status: 'preparing', error: '', main: { file: mainFile, key: null, uploadId: null, done: false }, poster: posterFile ? { file: posterFile, key: null, uploadId: null, done: false } : null };
+      status: 'preparing', error: '', main: { file: mainFile, key: null, uploadId: null, done: false }, poster: posterFile ? { file: posterFile, key: null, uploadId: null, done: false } : null,
+      extras: (extraFiles || []).map(f => ({ file: f, key: null, uploadId: null, done: false })) };
     jobs.set(job.id, job); ensureCard(job); updateCard(job);
-    if (!job.poster && meta.type !== 'photo') {
+    if (!job.poster && isVideoFile(mainFile)) {
       const p = await makePosterFromVideo(mainFile).catch(() => null);
       if (p) { job.poster = { file: p, key: null, uploadId: null, done: false }; const th = document.getElementById('upc-thumb-' + job.id); if (th) { const u = URL.createObjectURL(p); urls.set(job.id, u); th.innerHTML = '<img src="' + u + '" alt="">'; } }
     }
@@ -4707,8 +4910,9 @@ window.UploadMgr = (function(){
       let f = null; try { f = await tx('files', 'readonly', s => s.get(row.id)); } catch (e) {}
       if (!f || !f.main) { dropStored(row.id); continue; }
       const job = { id: row.id, userId: row.userId, meta: row.meta, createdAt: row.createdAt, status: 'queued', error: '',
-        main: { file: f.main, key: row.main.key, uploadId: row.main.uploadId, done: row.main.done },
-        poster: f.poster ? { file: f.poster, key: row.poster ? row.poster.key : null, uploadId: row.poster ? row.poster.uploadId : null, done: row.poster ? row.poster.done : false } : null };
+        main: { file: f.main, name: row.main.name, key: row.main.key, uploadId: row.main.uploadId, done: row.main.done },
+        poster: f.poster ? { file: f.poster, name: row.poster ? row.poster.name : undefined, key: row.poster ? row.poster.key : null, uploadId: row.poster ? row.poster.uploadId : null, done: row.poster ? row.poster.done : false } : null,
+        extras: (f.extras || []).map((file, i) => { const m = (row.extras || [])[i] || {}; return { file, name: m.name, key: m.key || null, uploadId: m.uploadId || null, done: !!m.done }; }) };
       jobs.set(job.id, job); ensureCard(job); enqueue(job);
     }
   }
@@ -4720,7 +4924,7 @@ window.UploadMgr = (function(){
     j.cancelled = true; const x = xhrs.get(id); if (x) { try { x.abort(); } catch (e) {} }
     const q = queue.indexOf(j); if (q >= 0) queue.splice(q, 1);
     removeCard(j); jobs.delete(id); stats.delete(id); dropStored(id);
-    [j.main, j.poster].forEach(a => { if (a && a.uploadId && !a.done) fetch('/api/upload/mp/abort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: a.key, uploadId: a.uploadId }) }).catch(() => {}); });
+    [j.main, j.poster].concat(j.extras || []).forEach(a => { if (a && a.uploadId && !a.done) fetch('/api/upload/mp/abort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: a.key, uploadId: a.uploadId }) }).catch(() => {}); });
     releaseWake();
   }
 

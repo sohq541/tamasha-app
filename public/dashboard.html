@@ -46,6 +46,14 @@
   .ev .txt{font-size:13.5px;word-break:break-word;}
   .ev .when{font-size:11.5px;color:var(--cream-dim);}
   .empty,.loading{color:var(--cream-dim);font-size:14px;text-align:center;padding:40px 0;}
+  .meter{margin-top:8px;height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;}
+  .meter i{display:block;height:100%;background:var(--marigold);border-radius:6px;}
+  .meter i.warn{background:#ffcf5c;} .meter i.bad{background:#e63950;}
+  .big{font-family:'Baloo 2',sans-serif;font-size:22px;line-height:1.2;}
+  .chip{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:12px;background:rgba(124,92,255,.2);color:var(--cream);margin:3px 4px 0 0;}
+  .warnbox{background:rgba(255,180,0,.12);border:1px solid #ffcf5c;color:#ffe3a0;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:10px;}
+  textarea.t{width:100%;min-height:90px;background:rgba(255,255,255,.06);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;resize:vertical;}
+  .vtick{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#3897f0;color:#fff;font-size:9.5px;font-weight:800;}
   h3.sec{font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;}
 </style>
 </head>
@@ -61,6 +69,8 @@
     <button class="tab active" data-t="overview" onclick="setTab('overview')">Overview</button>
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
+    <button class="tab" data-t="trending" onclick="setTab('trending')">Trending</button>
+    <button class="tab" data-t="tools" onclick="setTab('tools')">Tools</button>
     <button class="tab" data-t="activity" onclick="setTab('activity')">Activity</button>
   </div>
 
@@ -69,6 +79,14 @@
 
 <script>
 let D = null, R = [], tab = 'overview', q = '';
+function fb(b){
+  b = Number(b) || 0;
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
+  return (b / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+const meterCls = p => p >= 90 ? 'bad' : p >= 70 ? 'warn' : '';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function ago(iso){
@@ -110,6 +128,8 @@ function render(){
   document.getElementById('reportsTab').textContent = pend ? 'Reports (' + pend + ')' : 'Reports';
   if (tab === 'overview') renderOverview();
   else if (tab === 'reports') renderReports();
+  else if (tab === 'trending') renderTrending();
+  else if (tab === 'tools') renderTools();
   else if (tab === 'users') renderUsers();
   else renderActivity();
 }
@@ -118,8 +138,8 @@ function renderOverview(){
   const o = D.overview;
   const stat = (n, label, cls, go) => `<div class="stat ${cls || ''}" ${go ? `onclick="setTab('${go}')" style="cursor:pointer;"` : ''}><b>${n}</b><span>${label}</span></div>`;
   const spamUsers = D.users.filter(u => u.reports > 0 && !u.suspended).sort((a, b) => b.reports - a.reports).slice(0, 5);
-  document.getElementById('view').innerHTML =
-    '<div class="grid">' +
+  document.getElementById('view').innerHTML = usageCards() +
+    '<div class="grid" style="margin-top:12px;">' +
       stat(o.onlineNow, '🟢 Abhi online') +
       stat(o.activeToday, 'Aaj active (24h)') +
       stat(o.totalUsers, 'Total users') +
@@ -136,12 +156,38 @@ function renderOverview(){
     (spamUsers.length ? '<h3 class="sec">Jin par reports hain</h3>' + spamUsers.map(userCard).join('') : '');
 }
 
+function usageCards(){
+  const st = D.storage || {}, eg = D.egress || {};
+  const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
+  const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
+  const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
+  const warn = (sp >= 80 || ep >= 80)
+    ? '<div class="warnbox">⚠️ IDrive free account me mahine ka download (egress) stored data ke 3 guna se zyada hua to account suspend ho sakta hai. Storage ya egress 80% ke paar hai — videos kam karo ya paid plan lo.</div>' : '';
+  return `
+    <div class="card">
+      <div class="row1"><b>💾 Storage</b><span class="meta push" style="margin:0;">${st.objects || 0} files</span></div>
+      ${st.ok ? `<div class="big">${fb(st.usedBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(st.limitBytes)}</span></div>
+      <div class="meter"><i class="${meterCls(sp)}" style="width:${sp.toFixed(1)}%"></i></div>
+      <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
+      <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
+    </div>
+    <div class="card">
+      <div class="row1"><b>📡 Egress (is mahine, ${esc(eg.month || '')})</b></div>
+      <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(eg.allowedBytes)} free</span></div>
+      <div class="meter"><i class="${meterCls(ep)}" style="width:${ep.toFixed(1)}%"></i></div>
+      <div class="meta">${ep.toFixed(1)}% use hua · free limit = stored data ka 3 guna</div>
+      <div class="nums"><span>Server reads: <b>${fb(eg.jsonBytes)}</b> (exact)</span><span>Videos/photos: <b>~${fb(eg.mediaBytes)}</b> (andaza, ${eg.views || 0} views)</span></div>
+      <div class="meta" style="margin-top:6px;">Asli number ke liye: IDrive e2 → Billing → Billing Overview. Server restart hone par ye ginti thodi kam dikh sakti hai.</div>
+      ${warn}
+    </div>`;
+}
+
 function userCard(u){
   return `
     <div class="card" id="u-${u.id}">
       <div class="row1">
         <span class="dot ${u.online ? 'on' : ''}"></span>
-        <span class="name">@${esc(u.username)}</span>
+        <span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>
         ${u.suspended ? '<span class="pill sus">suspended</span>' : ''}
         ${u.google ? '<span class="pill g">google</span>' : ''}
         ${u.reports ? `<span class="pill rep">${u.reports} report${u.reports > 1 ? 's' : ''}</span>` : ''}
@@ -150,6 +196,10 @@ function userCard(u){
       <div class="meta">${esc(u.email || '')}</div>
       <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 abhi online' : ago(u.lastActiveAt)}</div>
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
+      <div class="row1" style="margin-top:10px;">
+        <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Verified hatao' : '✔ Verify karo'}</button>
+        <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
+      </div>
     </div>`;
 }
 
@@ -199,6 +249,114 @@ async function removeReported(id){
     if (!res.ok) throw new Error('Failed');
     const r = R.find(x => x.id === id); if (r) r.status = 'resolved';
     render();
+  } catch (e) { alert(e.message); }
+}
+
+function renderTrending(){
+  const t = D.trending || { posts: [], hashtags: [], creators: [] };
+  const typeIcon = { film: '🎬', short: '⚡', photo: '🖼️', carousel: '❐' };
+  document.getElementById('view').innerHTML =
+    '<h3 class="sec" style="margin-top:0;">🔥 Top posts</h3>' +
+    (t.posts.length ? t.posts.map((p, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">${typeIcon[p.type] || ''} ${esc(p.title)}</span></div>
+      <div class="meta">@${esc(p.owner || 'user')}</div>
+      <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span></div></div>`).join('') : '<div class="empty">Abhi koi post nahi.</div>') +
+    '<h3 class="sec">#️⃣ Trending hashtags (14 din)</h3>' +
+    (t.hashtags.length ? '<div class="card">' + t.hashtags.map(h => `<span class="chip">#${esc(h.tag)} · ${h.count}</span>`).join('') + '</div>' : '<div class="empty">Koi hashtag nahi.</div>') +
+    '<h3 class="sec">⭐ Top creators</h3>' +
+    (t.creators.length ? t.creators.map((c, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">@${esc(c.username || 'user')}</span></div><div class="nums"><span><b>${c.posts}</b> posts</span><span><b>${c.score}</b> score</span></div></div>`).join('') : '<div class="empty">Koi creator nahi.</div>');
+}
+
+let ANN = [], BANNED = [];
+async function renderTools(){
+  const view = document.getElementById('view');
+  view.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const [a, b] = await Promise.all([fetch('/api/admin/announcements'), fetch('/api/admin/banned-words')]);
+    ANN = (await a.json()).announcements || [];
+    BANNED = (await b.json()).words || [];
+  } catch (e) {}
+  view.innerHTML = `
+    <div class="card">
+      <b>📢 Announcement bhejo</b>
+      <div class="meta">Sab users ko app me banner + notification list me dikhega (aur push, agar unhone allow kiya ho).</div>
+      <textarea class="t" id="annText" maxlength="300" placeholder="Jaise: Naya feature aa gaya — Carousel post try karo!"></textarea>
+      <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="sendAnnouncement()">📢 Bhejo</button></div>
+      ${ANN.length ? '<h3 class="sec">Purane announcements</h3>' + ANN.map(x => `<div class="ev" style="align-items:center;"><div class="txt" style="flex:1;">${esc(x.message)}<div class="when">${ago(x.createdAt)}</div></div><button class="btn btn-danger" onclick="deleteAnnouncement('${x.id}')">Delete</button></div>`).join('') : ''}
+    </div>
+    <div class="card">
+      <b>🔇 Banned words</b>
+      <div class="meta">Inme se koi bhi shabd comment, post title/description ya note me aaya to wo post nahi hoga. Comma ya nayi line se alag karo.</div>
+      <textarea class="t" id="bannedText" placeholder="shabd1, shabd2">${esc(BANNED.join(', '))}</textarea>
+      <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="saveBanned()">Save</button><span class="meta" id="bannedStatus" style="margin:0;"></span></div>
+    </div>
+    <div class="card">
+      <b>📥 Users ki list (CSV)</b>
+      <div class="meta">Naam, email, join date, posts, comments, followers — Excel/Sheets me khulega.</div>
+      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="exportCsv()">⬇️ Download CSV</button></div>
+    </div>
+    <div class="card">
+      <b>🚨 Report alert</b>
+      <div class="meta">Naya report aate hi tumhare account (email: tumhara ALERT_EMAIL_TO) ko app me notification + push milta hai. Gmail pe mail chahiye to Render me <b>RESEND_API_KEY</b> daalo (free plan pe SMTP band hai, isliye Resend use hota hai).</div>
+    </div>`;
+}
+async function sendAnnouncement(){
+  const text = document.getElementById('annText').value.trim();
+  if (!text) { alert('Message likho'); return; }
+  if (!confirm('Ye message sab users ko jayega. Bhejna hai?')) return;
+  try {
+    const res = await fetch('/api/admin/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderTools();
+  } catch (e) { alert(e.message); }
+}
+async function deleteAnnouncement(id){
+  if (!confirm('Ye announcement hata dein?')) return;
+  try { await fetch('/api/admin/announcements/' + id + '/delete', { method: 'POST' }); renderTools(); } catch (e) { alert(e.message); }
+}
+async function saveBanned(){
+  const status = document.getElementById('bannedStatus');
+  try {
+    const res = await fetch('/api/admin/banned-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: document.getElementById('bannedText').value }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    status.textContent = '✅ Saved (' + data.words.length + ' shabd)';
+  } catch (e) { status.textContent = '❌ ' + e.message; }
+}
+async function exportCsv(){
+  try {
+    const res = await fetch('/api/admin/users.csv');
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'youseries-users.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { alert(e.message); }
+}
+async function toggleVerify(id){
+  const u = D.users.find(x => x.id === id);
+  if (!u) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/verify', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    u.verified = data.verified;
+    render();
+  } catch (e) { alert(e.message); }
+}
+async function deleteUser(id){
+  const u = D.users.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm('⚠️ @' + u.username + ' ka account, saari posts, comments, stories aur messages PERMANENTLY delete ho jayenge. Wapas nahi aa sakta.\n\nPakka delete karna hai?')) return;
+  const typed = prompt('Confirm karne ke liye username likho: ' + u.username);
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== (u.username || '').toLowerCase()) { alert('Username match nahi hua — delete nahi kiya.'); return; }
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/delete', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    alert('@' + u.username + ' delete ho gaya.');
+    load();
   } catch (e) { alert(e.message); }
 }
 
