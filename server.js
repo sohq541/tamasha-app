@@ -11,7 +11,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
@@ -315,11 +315,24 @@ function makeDirectUrlCache() {
   };
 }
 
+// ---- Usage tracking (shown in the admin dashboard) ----
+// IDrive e2's free egress policy: monthly downloads must stay under ~3x the stored volume, otherwise a FREE account can be suspended.
+// Exact: bytes this server downloads from the bucket (the JSON "database"). Estimated: video/photo views x file size.
+const STORAGE_LIMIT_BYTES = (parseFloat(process.env.STORAGE_LIMIT_GB) || 10) * 1024 * 1024 * 1024;
+const usage = { month: new Date().toISOString().slice(0, 7), jsonBytes: 0, mediaBytes: 0, views: 0, dirty: false };
+function usageRoll() {
+  const m = new Date().toISOString().slice(0, 7);
+  if (usage.month !== m) { usage.month = m; usage.jsonBytes = 0; usage.mediaBytes = 0; usage.views = 0; usage.dirty = true; }
+}
+function usageAdd(field, n) { usageRoll(); usage[field] += n || 0; usage.dirty = true; }
+
 async function e2ReadJSON(key) {
   const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
   const chunks = [];
   for await (const chunk of data.Body) chunks.push(chunk);
-  return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+  const buf = Buffer.concat(chunks);
+  usageAdd('jsonBytes', buf.length);
+  return JSON.parse(buf.toString('utf-8'));
 }
 
 async function e2TryReadJSON(key) {
@@ -644,6 +657,9 @@ app.get('/api/users/:id/public', async (req, res) => {
 
     res.json({
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
+      verified: !!user.verified,
+      note: activeNote(user),
+      pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
       hideSensitiveContent: !!user.hideSensitiveContent,
@@ -962,13 +978,15 @@ app.get('/api/films', async (req, res) => {
         const enrichedComments = await Promise.all(visibleComments.map(async c => {
           const cUser = users.find(u => u.id === c.userId);
           const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
-          return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
+          return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl, verified: !!(cUser && cUser.verified) };
         }));
         const videoUrl = f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null;
         const posterUrl = f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null;
         return {
           ...f, comments: enrichedComments,
           videoUrl, posterUrl,
+          slideUrls: await buildSlideUrls(f, directUrl),
+          ownerVerified: !!(owner && owner.verified),
           ownerProfileImage: ownerAvatarUrl,
           isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
         };
@@ -1019,7 +1037,7 @@ app.get('/api/users/search', async (req, res) => {
       .sort((a, b) => (a.username.toLowerCase().startsWith(q) ? 0 : 1) - (b.username.toLowerCase().startsWith(q) ? 0 : 1))
       .slice(0, 10);
     const out = await Promise.all(hits.map(async u => ({
-      id: u.id, username: u.username,
+      id: u.id, username: u.username, verified: !!u.verified,
       profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null
     })));
     res.json({ users: out });
@@ -1077,6 +1095,7 @@ app.get('/api/hashtags/:tag', async (req, res) => {
     const out = await Promise.all(matches.map(async f => ({
       id: f.id, title: f.title, type: f.type,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+      isCarousel: Array.isArray(f.slides) && f.slides.length > 1,
       views: f.views || 0, likes: f.likes || 0
     })));
     res.json({ tag, count: out.length, films: out });
@@ -1103,12 +1122,14 @@ app.get('/api/films/:id', async (req, res) => {
     const enrichedComments = await Promise.all(visibleComments.map(async c => {
       const cUser = users.find(u => u.id === c.userId);
       const cAvatarUrl = cUser && cUser.profileImage ? await directUrl(cUser.profileImage, cUser.avatarStorageProvider) : null;
-      return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl };
+      return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl, verified: !!(cUser && cUser.verified) };
     }));
     res.json({
       ...f, comments: enrichedComments,
       videoUrl: f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+      slideUrls: await buildSlideUrls(f, directUrl),
+      ownerVerified: !!(owner && owner.verified),
       ownerProfileImage: ownerAvatarUrl
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1142,6 +1163,7 @@ app.post('/api/films', (req, res, next) => {
   try {
     const { title, year, language, genre, description, type, isSensitive } = req.body;
     if (!title) return res.status(400).json({ error: 'A title is required' });
+    if (!isAdminBasicAuth(req) && await findBannedWord((title || '') + ' ' + (description || ''))) return res.status(400).json({ error: 'Title ya description me aisa shabd hai jo allowed nahi hai' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -1333,6 +1355,14 @@ app.post('/api/films/finalize', async (req, res) => {
     const { title, year, language, genre, description, type, mediaKey, posterKey, isSensitive, clientUploadId } = req.body;
     if (!title) return res.status(400).json({ error: 'A title is required' });
     if (!mediaKey) return res.status(400).json({ error: 'Could not find a reference to the uploaded file' });
+    if (!isAdminBasicAuth(req) && await findBannedWord((title || '') + ' ' + (description || ''))) return res.status(400).json({ error: 'Title ya description me aisa shabd hai jo allowed nahi hai' });
+    // Carousel: several photos/videos in one post (slides[0] is also mediaKey)
+    let slides = [];
+    if (type === 'photo' && Array.isArray(req.body.slides)) {
+      slides = req.body.slides.slice(0, 10)
+        .filter(sl => sl && typeof sl.key === 'string' && MP_KEY_RE.test(sl.key) && (sl.mediaType === 'photo' || sl.mediaType === 'video'))
+        .map(sl => ({ key: sl.key, mediaType: sl.mediaType }));
+    }
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const films = await readFilms();
@@ -1368,6 +1398,10 @@ app.post('/api/films/finalize', async (req, res) => {
         };
 
     if (clientUploadId) newFilm.clientUploadId = String(clientUploadId).slice(0, 64);
+    if (newFilm.type === 'photo' && slides.length >= 2) {
+      newFilm.slides = slides;
+      newFilm.posterFile = posterKey || (slides[0].mediaType === 'photo' ? slides[0].key : null);
+    }
     await decorateNewFilm(newFilm, req.body, currentUser);
     films.unshift(newFilm);
     await writeFilms(films);
@@ -1384,6 +1418,11 @@ app.post('/api/films/:id/view', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
     f.views = (f.views || 0) + 1;
     await writeFilms(films);
+    try {
+      const sz = k => (k && storageStats.sizes.get(k)) || 0;
+      usageAdd('mediaBytes', f.type === 'photo' ? ((f.slides && f.slides.length > 1) ? f.slides.reduce((a, sl) => a + sz(sl.key), 0) : sz(f.posterFile)) : sz(f.videoFile));
+      usage.views++;
+    } catch (e) {}
 
     const currentUser = getUserFromReq(req);
     if (currentUser) {
@@ -1495,6 +1534,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
 
     const { text } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ error: 'Please write a comment' });
+    if (await findBannedWord(text)) return res.status(400).json({ error: 'Is comment me aisa shabd hai jo allowed nahi hai' });
 
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
@@ -1522,6 +1562,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
         status: 'pending', createdAt: new Date().toISOString()
       });
       await writeReports(reports);
+      alertAdminOfReport(reports[reports.length - 1]).catch(() => {});
     }
     if (f.ownerId) {
       await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} commented on your "${f.title}"` });
@@ -1633,6 +1674,7 @@ app.put('/api/films/:id', (req, res, next) => {
 }, upload.fields([{ name: 'poster', maxCount: 1 }]), async (req, res) => {
   try {
     const { title, year, language, genre, description, type } = req.body;
+    if (!isAdminBasicAuth(req) && (title !== undefined || description !== undefined) && await findBannedWord((title || '') + ' ' + (description || ''))) return res.status(400).json({ error: 'Title ya description me aisa shabd hai jo allowed nahi hai' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
@@ -1697,6 +1739,7 @@ app.delete('/api/films/:id', (req, res, next) => {
     // Storage cleanup is best-effort: a storage hiccup must never leave the owner unable to delete their own post.
     try { if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); } } catch (e) {}
     try { if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); } } catch (e) {}
+    for (const sl of (f.slides || [])) { try { if (f.storageProvider === 'e2') await e2DeleteFile(sl.key); else await b2DeleteFile(sl.key); } catch (e) {} }
 
     const remaining = films.filter(x => x.id !== req.params.id);
     await writeFilms(remaining);
@@ -3076,6 +3119,7 @@ app.post('/api/reports', async (req, res) => {
     };
     reports.push(report);
     await writeReports(reports);
+    alertAdminOfReport(report).catch(() => {});
     res.status(201).json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3187,9 +3231,27 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     events.sort((a, b) => ts(b.at) - ts(a.at));
     events = events.slice(0, 100);
 
+    // Trending: top posts, hashtags (last 14 days) and creators
+    const commentsOf = f => (f.comments || []).length;
+    const scoreOf = f => (f.views || 0) + (f.likes || 0) * 3 + commentsOf(f) * 2;
+    const trendingPosts = films.slice().sort((a, b) => scoreOf(b) - scoreOf(a)).slice(0, 8).map(f => ({
+      id: f.id, title: f.title, type: f.type === 'photo' ? ((f.slides && f.slides.length > 1) ? 'carousel' : 'photo') : (f.type === 'short' ? 'short' : 'film'),
+      owner: f.ownerUsername, views: f.views || 0, likes: f.likes || 0, comments: commentsOf(f), score: scoreOf(f)
+    }));
+    const tagCount = {};
+    films.forEach(f => { if (now - ts(f.uploadedAt) < 14 * DAY) getFilmHashtags(f).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }); });
+    const trendingTags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
+    const creatorAgg = {};
+    films.forEach(f => { if (!f.ownerId || f.ownerId === 'admin') return; const c = creatorAgg[f.ownerId] || (creatorAgg[f.ownerId] = { username: f.ownerUsername, posts: 0, score: 0 }); c.posts++; c.score += scoreOf(f); });
+    const trendingCreators = Object.values(creatorAgg).sort((a, b) => b.score - a.score).slice(0, 5);
+
+    // Storage + egress
+    const st = await refreshStorageStats();
+    usageRoll();
+
     const rows = users.map(u => ({
       id: u.id, username: u.username, email: u.email, createdAt: u.createdAt || null, lastActiveAt: u.lastActiveAt || null,
-      online: isUserOnline(u), suspended: !!u.suspended, google: !u.passwordHash,
+      online: isUserOnline(u), suspended: !!u.suspended, verified: !!u.verified, google: !u.passwordHash,
       posts: postCount[u.id] || 0, comments: commentCount[u.id] || 0, followers: followers[u.id] || 0, reports: reportsAgainst[u.id] || 0
     })).sort((a, b) => ts(b.lastActiveAt) - ts(a.lastActiveAt) || ts(b.createdAt) - ts(a.createdAt));
 
@@ -3204,12 +3266,297 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
         posts: byType, uploads24h, comments24h, stories24h,
         pendingReports: reports.filter(r => r.status === 'pending').length
       },
+      trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
+      storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
+      egress: { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, totalBytes: usage.jsonBytes + usage.mediaBytes, allowedBytes: st.usedBytes * 3, views: usage.views },
       users: rows,
       activity: events
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Storage stats ----------------
+let storageStats = { at: 0, usedBytes: 0, objects: 0, byFolder: {}, sizes: new Map(), ok: false, error: null };
+async function refreshStorageStats(force) {
+  if (!force && storageStats.at && Date.now() - storageStats.at < 10 * 60 * 1000) return storageStats;
+  try {
+    let token, total = 0, objects = 0;
+    const by = {}, sizes = new Map();
+    do {
+      const out = await e2Client.send(new ListObjectsV2Command({ Bucket: E2_BUCKET_NAME, ContinuationToken: token }));
+      for (const o of (out.Contents || [])) {
+        const size = o.Size || 0;
+        total += size; objects++;
+        const folder = o.Key.includes('/') ? o.Key.split('/')[0] : 'data (json)';
+        by[folder] = (by[folder] || 0) + size;
+        sizes.set(o.Key, size);
+      }
+      token = out.IsTruncated ? out.NextContinuationToken : undefined;
+    } while (token);
+    storageStats = { at: Date.now(), usedBytes: total, objects, byFolder: by, sizes, ok: true, error: null };
+  } catch (e) {
+    storageStats = { ...storageStats, at: Date.now(), ok: false, error: e.message };
+  }
+  return storageStats;
+}
+async function usageLoad() {
+  try {
+    const saved = await e2TryReadJSON('usage-stats.json');
+    if (saved && saved.month === new Date().toISOString().slice(0, 7)) { usage.jsonBytes += saved.jsonBytes || 0; usage.mediaBytes += saved.mediaBytes || 0; usage.views += saved.views || 0; }
+  } catch (e) {}
+}
+async function usageFlush() {
+  if (!usage.dirty) return;
+  usage.dirty = false;
+  try { await e2WriteJSON('usage-stats.json', { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, views: usage.views }); }
+  catch (e) { usage.dirty = true; }
+}
+
+// ---------------- Banned words ----------------
+let bannedCache = { words: null, at: 0 };
+async function getBannedWords() {
+  if (bannedCache.words && Date.now() - bannedCache.at < 60 * 1000) return bannedCache.words;
+  let list = bannedCache.words || [];
+  try { const saved = await e2TryReadJSON('banned-words.json'); if (Array.isArray(saved)) list = saved; } catch (e) {}
+  bannedCache = { words: list, at: Date.now() };
+  return list;
+}
+const escRe = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function findBannedWord(text) {
+  const words = await getBannedWords();
+  if (!words.length) return null;
+  const t = String(text || '').toLowerCase();
+  for (const w of words) {
+    const ww = String(w || '').toLowerCase().trim();
+    if (!ww) continue;
+    if (new RegExp('(^|[^\\p{L}\\p{N}])' + escRe(ww) + '($|[^\\p{L}\\p{N}])', 'u').test(t)) return ww;
+  }
+  return null;
+}
+
+// ---------------- Carousel / notes helpers ----------------
+async function buildSlideUrls(f, directUrl) {
+  if (!Array.isArray(f.slides) || f.slides.length < 2) return null;
+  return Promise.all(f.slides.map(async sl => ({ url: await directUrl(sl.key, f.storageProvider), mediaType: sl.mediaType })));
+}
+function activeNote(u) {
+  if (!u || !u.note || !u.note.text) return null;
+  if (Date.now() - new Date(u.note.createdAt).getTime() > 24 * 60 * 60 * 1000) return null;
+  return { text: u.note.text, createdAt: u.note.createdAt };
+}
+
+// ---------------- Report alerts (in-app + push to the owner's account, optional email through Resend) ----------------
+// Render's free plan blocks SMTP, so email goes over HTTPS. Set RESEND_API_KEY (+ optionally ALERT_EMAIL_TO) in Render to enable it.
+const ALERT_EMAIL_TO = process.env.ALERT_EMAIL_TO || 'sohailp541@gmail.com';
+async function alertAdminOfReport(r) {
+  try {
+    const label = `${r.type} report (${r.reason || 'other'})`;
+    const preview = r.targetPreview ? `: "${String(r.targetPreview).slice(0, 60)}"` : '';
+    const users = await readUsers();
+    const owners = users.filter(u => (u.email || '').toLowerCase() === ALERT_EMAIL_TO.toLowerCase());
+    for (const o of owners) {
+      await notify(o.id, { type: 'report_alert', fromUserId: 'system', fromUsername: 'Reports', message: `🚨 Naya ${label}${preview}` });
+    }
+    if (process.env.RESEND_API_KEY) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'YouSeries <onboarding@resend.dev>', to: [ALERT_EMAIL_TO], subject: '🚨 Naya report — ' + label,
+          text: `Naya ${label}\nReporter: ${r.reporterUsername || 'unknown'}\nNote: ${r.note || '-'}\n${r.targetPreview ? 'Content: ' + r.targetPreview + '\n' : ''}\nDashboard: /dashboard.html (Reports tab)` })
+      });
+    }
+  } catch (e) { console.error('report alert failed:', e.message); }
+}
+
+// ---------------- Pin posts to profile + Notes ----------------
+app.post('/api/films/:id/pin-profile', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const [users, films] = await Promise.all([readUsers(), readFilms()]);
+    const me = users.find(u => u.id === currentUser.id);
+    const f = films.find(x => x.id === req.params.id);
+    if (!me || !f) return res.status(404).json({ error: 'Post nahi mili' });
+    if (!isFilmOwnerOrCollab(f, me.id)) return res.status(403).json({ error: 'Sirf apni post pin kar sakte ho' });
+    const live = new Set(films.map(x => x.id));
+    let pins = (me.pinnedFilmIds || []).filter(id => live.has(id));
+    const has = pins.includes(f.id);
+    if (has) pins = pins.filter(id => id !== f.id);
+    else { if (pins.length >= 3) return res.status(400).json({ error: 'Sirf 3 posts pin ho sakti hain — pehle koi unpin karo' }); pins.push(f.id); }
+    me.pinnedFilmIds = pins;
+    await writeUsers(users);
+    res.json({ pinned: !has, pinnedFilmIds: pins });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/me/note', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const text = String((req.body && req.body.text) || '').trim().slice(0, 60);
+    if (text && await findBannedWord(text)) return res.status(400).json({ error: 'Is note me aisa shabd hai jo allowed nahi hai' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    if (text) me.note = { text, createdAt: new Date().toISOString() }; else delete me.note;
+    await writeUsers(users);
+    res.json({ note: activeNote(me) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/notes', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.json({ notes: [] });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.json({ notes: [] });
+    const directUrl = makeDirectUrlCache();
+    const list = users.filter(u => (u.id === me.id || (me.following || []).includes(u.id)) && activeNote(u)
+      && !(me.blockedUsers || []).includes(u.id) && !(u.blockedUsers || []).includes(me.id));
+    const notes = await Promise.all(list.map(async u => ({
+      userId: u.id, username: u.username, verified: !!u.verified, mine: u.id === me.id,
+      profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+      text: u.note.text, createdAt: u.note.createdAt
+    })));
+    notes.sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ notes });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------- Announcements ----------------
+async function readAnnouncements() { return (await e2TryReadJSON('announcements.json')) || []; }
+async function pushToAll(payload) {
+  const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+  let changed = false;
+  await Promise.allSettled(subs.map(async s => {
+    try { await webpush.sendNotification(s.subscription, JSON.stringify(payload)); }
+    catch (err) { if (err.statusCode === 404 || err.statusCode === 410) { s._dead = true; changed = true; } }
+  }));
+  if (changed) await e2WriteJSON('push-subscriptions.json', subs.filter(s => !s._dead));
+}
+app.get('/api/announcements', async (req, res) => {
+  try { const list = await readAnnouncements(); res.json({ announcements: list.slice(-5).reverse() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/admin/announcements', requireAdmin, async (req, res) => {
+  try { res.json({ announcements: (await readAnnouncements()).slice().reverse() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/announce', requireAdmin, async (req, res) => {
+  try {
+    const message = String((req.body && req.body.message) || '').trim().slice(0, 300);
+    if (!message) return res.status(400).json({ error: 'Message likho' });
+    const list = await readAnnouncements();
+    const a = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), message, createdAt: new Date().toISOString() };
+    list.push(a);
+    await e2WriteJSON('announcements.json', list.slice(-30));
+    pushToAll({ title: '📢 YouSeries', body: message }).catch(() => {});
+    res.json({ success: true, announcement: a });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/announcements/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const list = (await readAnnouncements()).filter(a => a.id !== req.params.id);
+    await e2WriteJSON('announcements.json', list);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------- Admin tools: verify, banned words, delete user, CSV ----------------
+app.post('/api/admin/users/:id/verify', requireAdmin, async (req, res) => {
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === req.params.id);
+    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    u.verified = !u.verified;
+    await writeUsers(users);
+    res.json({ verified: u.verified });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/banned-words', requireAdmin, async (req, res) => {
+  try { bannedCache.at = 0; res.json({ words: await getBannedWords() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/banned-words', requireAdmin, async (req, res) => {
+  try {
+    const raw = Array.isArray(req.body && req.body.words) ? req.body.words : String((req.body && req.body.words) || '').split(/[\n,]/);
+    const words = [...new Set(raw.map(w => String(w).trim().toLowerCase()).filter(w => w && w.length <= 40))].slice(0, 300);
+    await e2WriteJSON('banned-words.json', words);
+    bannedCache = { words, at: Date.now() };
+    res.json({ words });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/users/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    let users = await readUsers();
+    const u = users.find(x => x.id === id);
+    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    const delFile = async (key, provider) => { if (!key) return; try { if (provider === 'e2') await e2DeleteFile(key); else await b2DeleteFile(key); } catch (e) {} };
+
+    let films = await readFilms();
+    for (const f of films.filter(x => x.ownerId === id)) {
+      await delFile(f.videoFile, f.storageProvider); await delFile(f.posterFile, f.storageProvider);
+      for (const sl of (f.slides || [])) await delFile(sl.key, f.storageProvider);
+    }
+    films = films.filter(f => f.ownerId !== id);
+    films.forEach(f => {
+      if (Array.isArray(f.comments)) f.comments = f.comments.filter(c => c.userId !== id);
+      if (f.collaboratorId === id) { delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus; }
+    });
+    await writeFilms(films);
+
+    try {
+      let stories = await readStories();
+      for (const st of stories.filter(x => x.ownerId === id)) await delFile(st.mediaFile || st.videoFile || st.posterFile, st.storageProvider || 'e2');
+      stories = stories.filter(x => x.ownerId !== id);
+      await writeStories(stories);
+    } catch (e) {}
+
+    await delFile(u.profileImage, u.avatarStorageProvider);
+    users = users.filter(x => x.id !== id);
+    users.forEach(x => {
+      ['following', 'blockedUsers', 'restrictedUsers', 'pinnedFilmIds'].forEach(k => { if (Array.isArray(x[k])) x[k] = x[k].filter(v => v !== id); });
+    });
+    await writeUsers(users);
+    suspendedIds.delete(id);
+
+    try {
+      const notifs = (await e2TryReadJSON('notifications.json')) || [];
+      await e2WriteJSON('notifications.json', notifs.filter(n => n.userId !== id && n.fromUserId !== id));
+    } catch (e) {}
+    try {
+      const convos = await readConversations();
+      const gone = convos.filter(c => (c.participants || []).includes(id));
+      for (const c of gone) await e2DeleteFile(`chats/${c.id}.json`).catch(() => {});
+      await writeConversations(convos.filter(c => !(c.participants || []).includes(id)));
+    } catch (e) {}
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/users.csv', requireAdmin, async (req, res) => {
+  try {
+    const [users, films] = await Promise.all([readUsers(), readFilms()]);
+    const posts = {}, comments = {}, followers = {};
+    films.forEach(f => { posts[f.ownerId] = (posts[f.ownerId] || 0) + 1; (f.comments || []).forEach(c => { comments[c.userId] = (comments[c.userId] || 0) + 1; }); });
+    users.forEach(u => (u.following || []).forEach(i => { followers[i] = (followers[i] || 0) + 1; }));
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = ['username,email,joined,last_active,suspended,verified,posts,comments,followers'];
+    users.forEach(u => lines.push([u.username, u.email, u.createdAt || '', u.lastActiveAt || '', !!u.suspended, !!u.verified, posts[u.id] || 0, comments[u.id] || 0, followers[u.id] || 0].map(q).join(',')));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="youseries-users.csv"');
+    res.send('\ufeff' + lines.join('\n'));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
 setTimeout(refreshSuspendedIds, 3000);
 setInterval(refreshSuspendedIds, 5 * 60 * 1000);
+setTimeout(() => { usageLoad(); refreshStorageStats(true); }, 5000);
+setInterval(() => refreshStorageStats(true), 30 * 60 * 1000);
+setInterval(usageFlush, 5 * 60 * 1000);
+['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().finally(() => process.exit(0)); }));
