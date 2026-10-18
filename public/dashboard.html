@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>YouSeries — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--vermilion:#4361EE;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);--ok:#5ad19a;--bad:#e88a8a;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 70px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+  h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:24px;margin:0;}
+  p.sub{color:var(--cream-dim);font-size:13.5px;margin:0 0 16px;}
+  a.link{color:var(--marigold);font-size:13px;font-weight:600;text-decoration:none;}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;}
+  .tab{flex-shrink:0;background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .tab.active{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+  .btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream);padding:7px 12px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .btn-danger{border-color:#E63950;color:var(--bad);}
+  .btn-ok{border-color:var(--ok);color:var(--ok);}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .stat{background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:14px;}
+  .stat b{display:block;font-family:'Baloo 2',sans-serif;font-size:26px;line-height:1.1;}
+  .stat span{font-size:12.5px;color:var(--cream-dim);}
+  .stat.warn b{color:#ffcf5c;}
+  .card{background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:13px 14px;margin-bottom:10px;}
+  .row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .name{font-weight:700;font-size:15px;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555;display:inline-block;}
+  .dot.on{background:var(--ok);}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;}
+  .pill.sus{background:rgba(230,57,80,.2);color:var(--bad);}
+  .pill.g{background:rgba(67,97,238,.25);color:#8fa8ff;}
+  .pill.rep{background:rgba(255,180,0,.2);color:#ffcf5c;}
+  .meta{font-size:12px;color:var(--cream-dim);margin-top:4px;word-break:break-word;}
+  .nums{display:flex;gap:14px;font-size:12px;color:var(--cream-dim);margin-top:8px;flex-wrap:wrap;}
+  .nums b{color:var(--cream);}
+  .push{margin-left:auto;}
+  input.search{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:12px;}
+  .ev{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);}
+  .ev:last-child{border-bottom:none;}
+  .ev .ic{font-size:18px;width:24px;text-align:center;flex-shrink:0;}
+  .ev .txt{font-size:13.5px;word-break:break-word;}
+  .ev .when{font-size:11.5px;color:var(--cream-dim);}
+  .empty,.loading{color:var(--cream-dim);font-size:14px;text-align:center;padding:40px 0;}
+  h3.sec{font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>📊 Dashboard</h1>
+    <div><button class="btn" onclick="load()">↻ Refresh</button></div>
+  </div>
+  <p class="sub" id="updated">Loading…</p>
+
+  <div class="tabs">
+    <button class="tab active" data-t="overview" onclick="setTab('overview')">Overview</button>
+    <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
+    <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
+    <button class="tab" data-t="activity" onclick="setTab('activity')">Activity</button>
+  </div>
+
+  <div id="view"><div class="loading">Loading…</div></div>
+</div>
+
+<script>
+let D = null, R = [], tab = 'overview', q = '';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function ago(iso){
+  if (!iso) return 'kabhi nahi';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'abhi abhi';
+  if (s < 3600) return Math.floor(s / 60) + ' min pehle';
+  if (s < 86400) return Math.floor(s / 3600) + ' ghante pehle';
+  if (s < 86400 * 30) return Math.floor(s / 86400) + ' din pehle';
+  return new Date(iso).toLocaleDateString();
+}
+
+async function load(){
+  document.getElementById('updated').textContent = 'Loading…';
+  try {
+    const [res, res2] = await Promise.all([fetch('/api/admin/dashboard'), fetch('/api/admin/reports')]);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    D = data;
+    try { const rj = await res2.json(); R = res2.ok ? (rj.reports || []) : []; } catch (e) { R = []; }
+    document.getElementById('updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    render();
+  } catch (e) {
+    document.getElementById('view').innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>';
+    document.getElementById('updated').textContent = '';
+  }
+}
+
+function setTab(t){
+  tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+  render();
+}
+
+function render(){
+  if (!D) return;
+  const pend = R.filter(r => r.status === 'pending').length;
+  D.overview.pendingReports = pend;
+  document.getElementById('reportsTab').textContent = pend ? 'Reports (' + pend + ')' : 'Reports';
+  if (tab === 'overview') renderOverview();
+  else if (tab === 'reports') renderReports();
+  else if (tab === 'users') renderUsers();
+  else renderActivity();
+}
+
+function renderOverview(){
+  const o = D.overview;
+  const stat = (n, label, cls, go) => `<div class="stat ${cls || ''}" ${go ? `onclick="setTab('${go}')" style="cursor:pointer;"` : ''}><b>${n}</b><span>${label}</span></div>`;
+  const spamUsers = D.users.filter(u => u.reports > 0 && !u.suspended).sort((a, b) => b.reports - a.reports).slice(0, 5);
+  document.getElementById('view').innerHTML =
+    '<div class="grid">' +
+      stat(o.onlineNow, '🟢 Abhi online') +
+      stat(o.activeToday, 'Aaj active (24h)') +
+      stat(o.totalUsers, 'Total users') +
+      stat(o.newToday, 'Naye signup aaj') +
+      stat(o.new7d, 'Naye signup (7 din)') +
+      stat(o.suspended, 'Suspended') +
+      stat(o.uploads24h, 'Uploads (24h)') +
+      stat(o.comments24h, 'Comments (24h)') +
+      stat(o.stories24h, 'Stories (24h)') +
+      stat(o.pendingReports, 'Pending reports (tap)', o.pendingReports ? 'warn' : '', 'reports') +
+    '</div>' +
+    '<h3 class="sec">Total content</h3>' +
+    '<div class="grid">' + stat(o.posts.film, 'Full videos') + stat(o.posts.short, 'Shorts') + stat(o.posts.photo, 'Photos') + '</div>' +
+    (spamUsers.length ? '<h3 class="sec">Jin par reports hain</h3>' + spamUsers.map(userCard).join('') : '');
+}
+
+function userCard(u){
+  return `
+    <div class="card" id="u-${u.id}">
+      <div class="row1">
+        <span class="dot ${u.online ? 'on' : ''}"></span>
+        <span class="name">@${esc(u.username)}</span>
+        ${u.suspended ? '<span class="pill sus">suspended</span>' : ''}
+        ${u.google ? '<span class="pill g">google</span>' : ''}
+        ${u.reports ? `<span class="pill rep">${u.reports} report${u.reports > 1 ? 's' : ''}</span>` : ''}
+        <button class="btn push ${u.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${u.id}')">${u.suspended ? 'Unsuspend' : 'Suspend'}</button>
+      </div>
+      <div class="meta">${esc(u.email || '')}</div>
+      <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 abhi online' : ago(u.lastActiveAt)}</div>
+      <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
+    </div>`;
+}
+
+const REASONS = { spam: 'Spam', nudity: 'Nudity or sexual content', harassment: 'Harassment or bullying', violence: 'Violence or dangerous content',
+  hate_speech: 'Hate speech', misinformation: 'False information', other: 'Something else', 'auto-spam': 'Auto-flagged: repeated/link-heavy' };
+
+function reportCard(r){
+  const target = D.users.find(u => u.id === r.targetOwnerId);
+  const pending = r.status === 'pending';
+  const canRemove = (r.type === 'post' || r.type === 'comment') && pending;
+  return `
+    <div class="card">
+      <div class="row1">
+        <span class="pill g">${esc(r.type)}</span>
+        ${r.reason === 'auto-spam' ? '<span class="pill rep">auto-flagged</span>' : ''}
+        <span class="meta" style="margin:0 0 0 auto;">${esc(r.status)} · ${ago(r.createdAt)}</span>
+      </div>
+      <div class="name" style="margin-top:8px;">${esc(REASONS[r.reason] || r.reason)}</div>
+      ${r.targetPreview ? `<div class="meta">"${esc(String(r.targetPreview).slice(0, 200))}"</div>` : ''}
+      <div class="meta">Report kiya: @${esc(r.reporterUsername || 'unknown')}${r.note ? ' · ' + esc(r.note) : ''}</div>
+      ${target ? `<div class="meta">Jis par report hai: <b>@${esc(target.username)}</b>${target.suspended ? ' (suspended)' : ''}</div>` : ''}
+      ${pending ? `<div class="row1" style="margin-top:10px;">
+        <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
+        ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
+        ${target ? `<button class="btn ${target.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${target.id}')">${target.suspended ? 'Unsuspend user' : 'Suspend user'}</button>` : ''}
+      </div>` : ''}
+    </div>`;
+}
+function renderReports(){
+  const pend = R.filter(r => r.status === 'pending'), old = R.filter(r => r.status !== 'pending').slice(0, 20);
+  document.getElementById('view').innerHTML =
+    (pend.length ? pend.map(reportCard).join('') : '<div class="empty">✅ Koi pending report nahi hai.</div>') +
+    (old.length ? '<h3 class="sec">Purani reports</h3>' + old.map(reportCard).join('') : '');
+}
+async function dismissReport(id){
+  try {
+    const res = await fetch('/api/admin/reports/' + id + '/dismiss', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed');
+    const r = R.find(x => x.id === id); if (r) r.status = 'dismissed';
+    render();
+  } catch (e) { alert(e.message); }
+}
+async function removeReported(id){
+  if (!confirm('Ye content permanently delete karna hai?')) return;
+  try {
+    const res = await fetch('/api/admin/reports/' + id + '/remove-content', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed');
+    const r = R.find(x => x.id === id); if (r) r.status = 'resolved';
+    render();
+  } catch (e) { alert(e.message); }
+}
+
+function renderUsers(){
+  const view = document.getElementById('view');
+  view.innerHTML = '<input class="search" id="uq" placeholder="Username ya email se dhundho…" value="' + esc(q) + '"><div id="ulist"></div>';
+  const input = document.getElementById('uq');
+  input.addEventListener('input', () => { q = input.value; drawUsers(); });
+  drawUsers();
+}
+function drawUsers(){
+  const t = q.trim().toLowerCase();
+  const rows = D.users.filter(u => !t || (u.username || '').toLowerCase().includes(t) || (u.email || '').toLowerCase().includes(t));
+  document.getElementById('ulist').innerHTML = rows.length ? rows.map(userCard).join('') : '<div class="empty">Koi user nahi mila.</div>';
+}
+
+function renderActivity(){
+  const icon = { signup: '🆕', upload: '⬆️', comment: '💬', story: '🔵' };
+  const label = { signup: 'signup', upload: 'upload', comment: 'comment', story: 'story' };
+  document.getElementById('view').innerHTML = D.activity.length
+    ? '<div class="card">' + D.activity.map(e => `
+        <div class="ev"><div class="ic">${icon[e.type] || '•'}</div>
+          <div><div class="txt"><b>@${esc(e.username || 'unknown')}</b> · ${label[e.type] || e.type}<br>${esc(e.text)}</div>
+          <div class="when">${ago(e.at)}</div></div></div>`).join('') + '</div>'
+    : '<div class="empty">Abhi koi activity nahi.</div>';
+}
+
+async function toggleSuspend(id){
+  const u = D.users.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm(u.suspended ? '@' + u.username + ' ko unsuspend karna hai?' : '@' + u.username + ' ko suspend karna hai? Wo login nahi kar paayega aur uska session bhi band ho jayega.')) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/suspend', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    u.suspended = data.suspended;
+    D.overview.suspended += data.suspended ? 1 : -1;
+    render();
+  } catch (e) { alert(e.message); }
+}
+
+load();
+</script>
+</body>
+</html>
