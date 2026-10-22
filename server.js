@@ -227,6 +227,11 @@ async function b2DeleteFile(fileName) {
   });
 }
 
+// DRIVE_ONLY: no bucket at all. The JSON "database" AND every uploaded file live in a Google Drive folder (see the Drive section below).
+// Turned on when the GDRIVE_* variables are set and either STORAGE_MODE=gdrive or no E2_ACCESS_KEY_ID is configured.
+const DRIVE_ONLY = !!(process.env.GDRIVE_CLIENT_ID && process.env.GDRIVE_CLIENT_SECRET && process.env.GDRIVE_REFRESH_TOKEN)
+  && (process.env.STORAGE_MODE === 'gdrive' || !process.env.E2_ACCESS_KEY_ID);
+
 // ---------------- IDrive e2 (S3-compatible) helper ----------------
 const e2Client = new S3Client({
   region: E2_REGION,
@@ -236,18 +241,25 @@ const e2Client = new S3Client({
 });
 
 async function e2UploadBuffer(buffer, key, contentType) {
+  if (DRIVE_ONLY) { await gdPutByKey(key, buffer, contentType); return; }
   await e2Client.send(new PutObjectCommand({
     Bucket: E2_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType || 'application/octet-stream'
   }));
 }
 
 async function e2CopyObject(sourceKey, destKey) {
+  if (DRIVE_ONLY) { const buf = await gdGetByKey(sourceKey); await gdPutByKey(destKey, buf, 'application/octet-stream'); return; }
   await e2Client.send(new CopyObjectCommand({
     Bucket: E2_BUCKET_NAME, Key: destKey, CopySource: `${E2_BUCKET_NAME}/${encodeURIComponent(sourceKey)}`
   }));
 }
 
 async function e2StreamToResponse(key, req, res) {
+  if (DRIVE_ONLY) {
+    const id = await gdResolve(key).catch(() => null);
+    if (!id) return res.status(404).send('Not found');
+    return gdServe(id, req, res);
+  }
   try {
     const params = { Bucket: E2_BUCKET_NAME, Key: key };
     if (req.headers.range) params.Range = req.headers.range;
@@ -265,10 +277,13 @@ async function e2StreamToResponse(key, req, res) {
 }
 
 async function e2DeleteFile(key) {
+  if (typeof key === 'string' && key.startsWith('gd:')) { await gdDelete(key.slice(3)); return; }
+  if (DRIVE_ONLY) { try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {} return; }
   try { await e2Client.send(new DeleteObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key })); } catch (e) {}
 }
 
 async function e2GetPresignedUploadUrl(key, contentType) {
+  if (DRIVE_ONLY) throw new Error('Direct browser upload is not available with Google Drive storage');
   const command = new PutObjectCommand({
     Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
   });
@@ -276,6 +291,11 @@ async function e2GetPresignedUploadUrl(key, contentType) {
 }
 
 async function e2GetPresignedDownloadUrl(key) {
+  if (DRIVE_ONLY) {
+    const id = await gdResolve(key);
+    if (!id) throw new Error('File not found');
+    return '/media/gd/' + id;
+  }
   const command = new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key });
   return getSignedUrl(e2Client, command, { expiresIn: 3600 });
 }
@@ -305,6 +325,7 @@ function makeDirectUrlCache() {
   const cache = {};
   return async function directUrl(key, provider) {
     if (!key) return null;
+    if (typeof key === 'string' && key.startsWith('gd:')) return '/media/gd/' + key.slice(3);   // Google Drive file, streamed through this server
     const cacheKey = (provider || 'b2') + ':' + key;
     if (cache[cacheKey]) return cache[cacheKey];
     try {
@@ -319,20 +340,39 @@ function makeDirectUrlCache() {
 // IDrive e2's free egress policy: monthly downloads must stay under ~3x the stored volume, otherwise a FREE account can be suspended.
 // Exact: bytes this server downloads from the bucket (the JSON "database"). Estimated: video/photo views x file size.
 const STORAGE_LIMIT_BYTES = (parseFloat(process.env.STORAGE_LIMIT_GB) || 10) * 1024 * 1024 * 1024;
-const usage = { month: new Date().toISOString().slice(0, 7), jsonBytes: 0, mediaBytes: 0, views: 0, dirty: false };
+const usage = { month: new Date().toISOString().slice(0, 7), jsonBytes: 0, mediaBytes: 0, proxyBytes: 0, views: 0, dirty: false };
 function usageRoll() {
   const m = new Date().toISOString().slice(0, 7);
-  if (usage.month !== m) { usage.month = m; usage.jsonBytes = 0; usage.mediaBytes = 0; usage.views = 0; usage.dirty = true; }
+  if (usage.month !== m) { usage.month = m; usage.jsonBytes = 0; usage.mediaBytes = 0; usage.proxyBytes = 0; usage.views = 0; usage.dirty = true; }
 }
 function usageAdd(field, n) { usageRoll(); usage[field] += n || 0; usage.dirty = true; }
 
+// The JSON "database" files are cached in memory (this server is the only writer), so the bucket is read once per
+// JSON_CACHE_SECONDS instead of on every request. Writes update the cache straight away.
+const JSON_CACHE_MS = (parseInt(process.env.JSON_CACHE_SECONDS, 10) || (DRIVE_ONLY ? 3600 : 300)) * 1000;
+const jsonCache = new Map();
 async function e2ReadJSON(key) {
+  const hit = jsonCache.get(key);
+  if (hit && Date.now() - hit.at < JSON_CACHE_MS) return JSON.parse(hit.raw);
+  if (DRIVE_ONLY) {
+    const pend = gdPending.get(key);                       // a write that has not reached Drive yet is the newest truth
+    if (pend) return JSON.parse(pend.raw);
+    const buf = await gdGetByKey(key);
+    usageAdd('jsonBytes', buf.length);
+    const raw = buf.toString('utf-8');
+    const parsed = JSON.parse(raw);
+    jsonCache.set(key, { at: Date.now(), raw });
+    return parsed;
+  }
   const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
   const chunks = [];
   for await (const chunk of data.Body) chunks.push(chunk);
   const buf = Buffer.concat(chunks);
   usageAdd('jsonBytes', buf.length);
-  return JSON.parse(buf.toString('utf-8'));
+  const raw = buf.toString('utf-8');
+  const parsed = JSON.parse(raw);
+  jsonCache.set(key, { at: Date.now(), raw });
+  return parsed;
 }
 
 async function e2TryReadJSON(key) {
@@ -344,7 +384,14 @@ async function e2TryReadJSON(key) {
 }
 
 async function e2WriteJSON(key, data) {
-  await e2UploadBuffer(Buffer.from(JSON.stringify(data, null, 2)), key, 'application/json');
+  const raw = JSON.stringify(data, null, 2);
+  if (DRIVE_ONLY) {                                        // write-behind: memory is updated now, Drive a few seconds later
+    jsonCache.set(key, { at: Date.now(), raw });
+    gdQueueJSON(key, raw);
+    return;
+  }
+  await e2UploadBuffer(Buffer.from(raw), key, 'application/json');
+  jsonCache.set(key, { at: Date.now(), raw });
 }
 
 // If B2 is unreachable/capped, return null (caller can degrade gracefully) instead of throwing
@@ -1249,16 +1296,251 @@ app.post('/api/upload/presign-url', async (req, res) => {
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const key = `${safeFolder}/${id}${path.extname(fileName)}`;
+    if (DRIVE_ONLY) return res.status(501).json({ error: 'Use the resumable upload route' });
     const uploadUrl = await e2GetPresignedUploadUrl(key, contentType);
     res.json({ uploadUrl, key });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Google Drive media backend (optional) ----------------
+// Videos / photos of posts are stored in the owner's Google Drive (e.g. a Google One plan) and streamed through this server
+// at /media/gd/<fileId>. Only the "drive.file" scope is needed, so the app can see just the files it created.
+// Turn it on by setting GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET and GDRIVE_REFRESH_TOKEN. Without them uploads go to the bucket as before.
+const GD = {
+  clientId: process.env.GDRIVE_CLIENT_ID, clientSecret: process.env.GDRIVE_CLIENT_SECRET, refreshToken: process.env.GDRIVE_REFRESH_TOKEN,
+  folderId: process.env.GDRIVE_FOLDER_ID || null, folderName: process.env.GDRIVE_FOLDER_NAME || 'YouSeries Media',
+  tokenUrl: process.env.GDRIVE_TOKEN_URL || 'https://oauth2.googleapis.com/token',
+  apiBase: process.env.GDRIVE_API_BASE || 'https://www.googleapis.com/drive/v3',
+  uploadBase: process.env.GDRIVE_UPLOAD_BASE || 'https://www.googleapis.com/upload/drive/v3'
+};
+const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 85) * 1024 * 1024 * 1024;
+const GD_PART = 8 * 1024 * 1024;               // must match the browser's PART_SIZE (and be a multiple of 256 KiB)
+const gdEnabled = () => !!(GD.clientId && GD.clientSecret && GD.refreshToken);
+const isGdSession = s => typeof s === 'string' && s.startsWith(GD.uploadBase + '/files');
+const GD_KEY_RE = /^gd:[A-Za-z0-9_-]{8,100}$/;
+let gdToken = { value: null, exp: 0 };
+async function gdAccessToken() {
+  if (gdToken.value && Date.now() < gdToken.exp - 60000) return gdToken.value;
+  const res = await fetch(GD.tokenUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: GD.clientId, client_secret: GD.clientSecret, refresh_token: GD.refreshToken, grant_type: 'refresh_token' })
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) throw new Error('Google login failed: ' + (j.error_description || j.error || res.status));
+  gdToken = { value: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  return gdToken.value;
+}
+async function gdFolderId() {
+  if (GD.folderId) return GD.folderId;
+  const token = await gdAccessToken();
+  const q = encodeURIComponent(`name='${GD.folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const found = await (await fetch(`${GD.apiBase}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: { Authorization: 'Bearer ' + token } })).json();
+  if (found.files && found.files[0]) { GD.folderId = found.files[0].id; return GD.folderId; }
+  const made = await (await fetch(`${GD.apiBase}/files?fields=id`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: GD.folderName, mimeType: 'application/vnd.google-apps.folder' })
+  })).json();
+  if (!made.id) throw new Error('Could not create the Drive folder');
+  GD.folderId = made.id;
+  return GD.folderId;
+}
+async function gdCreateSession(name, mime, size) {
+  const token = await gdAccessToken();
+  const folder = await gdFolderId();
+  const res = await fetch(`${GD.uploadBase}/files?uploadType=resumable&fields=id`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mime || 'application/octet-stream', 'X-Upload-Content-Length': String(size) },
+    body: JSON.stringify({ name, parents: [folder] })
+  });
+  const loc = res.headers.get('location');
+  if (!res.ok || !loc) throw new Error('Drive refused the upload (' + res.status + ')');
+  return loc;
+}
+async function gdSessionStatus(session, size) {
+  const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes */${size}` } });
+  if (r.status === 200 || r.status === 201) { const j = await r.json().catch(() => ({})); return { done: true, id: j.id }; }
+  if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.headers.get('range') || ''); return { done: false, received: m ? Number(m[1]) + 1 : 0 }; }
+  if (r.status === 404 || r.status === 410) return { expired: true };
+  throw new Error('Drive status check failed (' + r.status + ')');
+}
+async function gdPutPart(session, buf, offset, size) {
+  const st = await gdSessionStatus(session, size);
+  if (st.expired) { const e = new Error('Upload session expired'); e.expired = true; throw e; }
+  if (st.done) return { done: true, id: st.id };
+  let data = buf, start = offset;
+  if (st.received > offset) {                    // part was partly received before a refresh: send only the missing tail
+    const skip = st.received - offset;
+    if (skip >= buf.length) return { done: false };
+    data = buf.subarray(skip); start = offset + skip;
+  } else if (st.received < offset) { const e = new Error('Part out of order'); e.status = 409; throw e; }
+  const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes ${start}-${start + data.length - 1}/${size}` }, body: data });
+  if (r.status === 200 || r.status === 201) { const j = await r.json().catch(() => ({})); return { done: true, id: j.id }; }
+  if (r.status === 308) return { done: false };
+  if (r.status === 404 || r.status === 410) { const e = new Error('Upload session expired'); e.expired = true; throw e; }
+  throw new Error('Drive upload failed (' + r.status + ')');
+}
+async function gdDelete(id) {
+  try {
+    if (!gdEnabled() || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) return;
+    await fetch(`${GD.apiBase}/files/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
+  } catch (e) { /* best effort */ }
+}
+let gdAboutCache = { at: 0, data: null };
+async function gdAbout() {
+  if (!gdEnabled()) return { enabled: false };
+  if (gdAboutCache.data && Date.now() - gdAboutCache.at < 10 * 60 * 1000) return gdAboutCache.data;
+  try {
+    const r = await fetch(`${GD.apiBase}/about?fields=storageQuota`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
+    const j = await r.json();
+    if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+    const q = j.storageQuota || {};
+    gdAboutCache = { at: Date.now(), data: { enabled: true, usedBytes: Number(q.usage) || 0, limitBytes: Number(q.limit) || null } };
+  } catch (e) { gdAboutCache = { at: Date.now(), data: { enabled: true, error: e.message } }; }
+  return gdAboutCache.data;
+}
+
+// Small files (thumbnails, avatars) are kept in memory so feeds do not hit Drive for every card.
+const gdSmall = new Map(); let gdSmallBytes = 0;
+const GD_SMALL_MAX_FILE = 1024 * 1024, GD_SMALL_CAP = 64 * 1024 * 1024;
+function gdSmallPut(id, buf, type) {
+  if (buf.length > GD_SMALL_MAX_FILE || gdSmall.has(id)) return;
+  gdSmall.set(id, { buf, type }); gdSmallBytes += buf.length;
+  for (const [k, v] of gdSmall) { if (gdSmallBytes <= GD_SMALL_CAP) break; gdSmall.delete(k); gdSmallBytes -= v.buf.length; }
+}
+
+// ---- Key based object store on Drive (DRIVE_ONLY mode): a Drive file is named exactly like the old bucket key ----
+const gdIdx = new Map();                // key (file name) -> Drive file id
+let gdIdxAt = 0, gdIdxSizes = new Map();
+async function gdIndexRefresh(force) {
+  if (!force && Date.now() - gdIdxAt < 20000) return;
+  gdIdxAt = Date.now();
+  const token = await gdAccessToken();
+  const folder = await gdFolderId();
+  let pageToken = '';
+  const seen = new Map(), sizes = new Map();
+  do {
+    const q = encodeURIComponent(`'${folder}' in parents and trashed=false`);
+    const r = await fetch(`${GD.apiBase}/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,size)${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + token } });
+    const j = await r.json();
+    if (!r.ok) throw new Error('Drive listing failed: ' + ((j.error && j.error.message) || r.status));
+    (j.files || []).forEach(f => { if (!seen.has(f.name)) { seen.set(f.name, f.id); sizes.set(f.name, Number(f.size) || 0); } });
+    pageToken = j.nextPageToken || '';
+  } while (pageToken);
+  seen.forEach((id, name) => gdIdx.set(name, id));
+  gdIdxSizes = sizes;
+}
+async function gdResolve(key) {
+  if (gdIdx.has(key)) return gdIdx.get(key);
+  try { await gdIndexRefresh(false); } catch (e) {}
+  return gdIdx.get(key) || null;
+}
+const gdKeyLocks = new Map();
+function gdWithLock(key, fn) {                      // one write at a time per key, so a key never gets two Drive files
+  const prev = gdKeyLocks.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(fn);
+  gdKeyLocks.set(key, next);
+  next.finally(() => { if (gdKeyLocks.get(key) === next) gdKeyLocks.delete(key); }).catch(() => {});
+  return next;
+}
+function gdPutByKey(key, buf, contentType) {
+  return gdWithLock(key, async () => {
+    const ct = contentType || 'application/octet-stream';
+    let id = await gdResolve(key);
+    if (id) {
+      const r = await fetch(`${GD.uploadBase}/files/${id}?uploadType=media`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': ct }, body: buf });
+      if (r.ok) return id;
+      if (r.status !== 404) throw new Error('Drive update failed (' + r.status + ')');
+      gdIdx.delete(key);                              // file was removed behind our back: create it again
+    }
+    if (!buf.length) { const e = new Error('Empty file'); throw e; }
+    const session = await gdCreateSession(key, ct, buf.length);
+    const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}` }, body: buf });
+    if (r.status !== 200 && r.status !== 201) throw new Error('Drive upload failed (' + r.status + ')');
+    const j = await r.json();
+    gdIdx.set(key, j.id);
+    gdIdxSizes.set(key, buf.length);
+    return j.id;
+  });
+}
+async function gdGetByKey(key) {
+  const id = await gdResolve(key);
+  const miss = () => { const e = new Error('NoSuchKey'); e.name = 'NoSuchKey'; return e; };
+  if (!id) throw miss();
+  const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
+  if (r.status === 404) { gdIdx.delete(key); throw miss(); }
+  if (!r.ok) throw new Error('Drive download failed (' + r.status + ')');
+  return Buffer.from(await r.arrayBuffer());
+}
+// JSON "database" writes are batched: memory is updated immediately, Drive gets the newest copy of each file every few seconds.
+const gdPending = new Map();
+let gdFlushTimer = null;
+function gdQueueJSON(key, raw) {
+  gdPending.set(key, { raw });
+  if (!gdFlushTimer) gdFlushTimer = setTimeout(() => { gdFlushTimer = null; gdFlushAll().catch(() => {}); }, 5000);
+}
+async function gdFlushAll() {
+  const items = Array.from(gdPending.entries());
+  await Promise.all(items.map(async ([key, v]) => {
+    try {
+      await gdPutByKey(key, Buffer.from(v.raw), 'application/json');
+      if (gdPending.get(key) === v) gdPending.delete(key);
+    } catch (e) {
+      console.error(`Drive save of ${key} failed (will retry):`, e.message);
+      if (!gdFlushTimer) gdFlushTimer = setTimeout(() => { gdFlushTimer = null; gdFlushAll().catch(() => {}); }, 15000);
+    }
+  }));
+}
+
+async function gdServe(id, req, res) {
+  if (!gdEnabled() || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) return res.status(404).end();
+  const range = req.headers.range;
+  // Render's free plan suspends the whole site for the rest of the month after 100 GB of outbound traffic, so media streaming
+  // stops a little earlier (GD_MONTHLY_CAP_GB, default 85) instead of taking the entire website down.
+  usageRoll();
+  if (usage.proxyBytes >= GD_MONTH_CAP && !gdSmall.has(id)) {
+    res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '86400');
+    return res.status(503).end('Is mahine ki bandwidth limit poori ho gayi — media agle mahine se chalega');
+  }
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Disposition', 'inline');
+  try {
+    const hit = !range && gdSmall.get(id);
+    if (hit) { res.setHeader('Content-Type', hit.type); res.setHeader('Content-Length', hit.buf.length); usageAdd('proxyBytes', hit.buf.length); return res.end(hit.buf); }
+    const ctrl = new AbortController();
+    res.on('close', () => ctrl.abort());
+    const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken(), ...(range ? { Range: range } : {}) }, signal: ctrl.signal });
+    if (r.status === 404) return res.status(404).end();
+    if (r.status === 403 || r.status === 429) { res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '3600'); return res.status(503).end('Drive ki download limit — thodi der baad try karo'); }
+    if (!r.ok && r.status !== 206) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).end(); }
+    ['content-type', 'content-length', 'content-range', 'etag', 'last-modified'].forEach(h => { const v = r.headers.get(h); if (v) res.setHeader(h, v); });
+    res.status(r.status);
+    const len = parseInt(r.headers.get('content-length') || '0', 10);
+    if (!range && len && len <= GD_SMALL_MAX_FILE) {
+      const buf = Buffer.from(await r.arrayBuffer());
+      gdSmallPut(id, buf, r.headers.get('content-type') || 'application/octet-stream');
+      usageAdd('proxyBytes', buf.length);
+      return res.end(buf);
+    }
+    const stream = Readable.fromWeb(r.body);
+    let sent = 0;
+    stream.on('data', c => { sent += c.length; });
+    stream.on('close', () => usageAdd('proxyBytes', sent));
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    if (!res.headersSent) { res.setHeader('Cache-Control', 'no-store'); res.status(502).end(); } else res.destroy();
+  }
+}
+app.get('/media/gd/:id', (req, res) => gdServe(req.params.id, req, res));
+
 // ---------------- Resumable (multipart) uploads ----------------
 // Parts are sent through this server (same origin, so no bucket CORS needed). Each finished part lives in
 // storage under the uploadId, so after a refresh / back / app-kill the browser just asks which parts exist
-// and continues from there instead of starting over.
+// and continues from there instead of starting over. Works against the S3 bucket or (if configured) Google Drive.
 const MP_KEY_RE = /^(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
+const keyOk = k => typeof k === 'string' && (MP_KEY_RE.test(k) || GD_KEY_RE.test(k));
 function mpAuth(req, res) {
   const currentUser = getUserFromReq(req);
   if (!currentUser && !isAdminBasicAuth(req)) { res.status(401).json({ error: 'Please log in' }); return null; }
@@ -1284,6 +1566,12 @@ app.post('/api/upload/mp/create', async (req, res) => {
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
+    if (gdEnabled()) {
+      const size = Number(req.body.size);
+      if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
+      const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
+      return res.json({ key: 'gd:pending', uploadId: session, provider: 'gdrive' });
+    }
     const key = `${safeFolder}/${id}${ext}`;
     const out = await e2Client.send(new CreateMultipartUploadCommand({
       Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
@@ -1297,19 +1585,37 @@ app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }),
     if (!mpAuth(req, res)) return;
     const { key, uploadId } = req.query;
     const n = parseInt(req.query.n, 10);
-    if (!key || !MP_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad part request' });
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty part' });
+    if (isGdSession(uploadId)) {
+      const size = Number(req.query.size), offset = Number(req.query.offset);
+      if (!(size > 0) || !(offset >= 0) || offset % 262144 !== 0 || offset + req.body.length > size) return res.status(400).json({ error: 'Bad part request' });
+      const out = await gdPutPart(uploadId, req.body, offset, size);
+      return res.json({ ok: true, done: !!out.done, key: out.done && out.id ? 'gd:' + out.id : undefined });
+    }
+    if (!key || !MP_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad part request' });
     const out = await e2Client.send(new UploadPartCommand({
       Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: n, Body: req.body, ContentLength: req.body.length
     }));
     res.json({ ok: true, etag: out.ETag });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err.expired) return res.status(404).json({ error: err.message, expired: true });
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 app.get('/api/upload/mp/parts', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
     const { key, uploadId } = req.query;
+    if (isGdSession(uploadId)) {
+      const size = Number(req.query.size);
+      if (!(size > 0)) return res.status(400).json({ error: 'Bad request' });
+      const st = await gdSessionStatus(uploadId, size);
+      if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
+      const total = Math.max(1, Math.ceil(size / GD_PART));
+      const have = st.done ? total : Math.floor(st.received / GD_PART);
+      return res.json({ parts: Array.from({ length: have }, (_, i) => ({ n: i + 1 })) });
+    }
     if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
     const parts = await mpListAllParts(key, uploadId);
     res.json({ parts: parts.map(p => ({ n: p.PartNumber, size: p.Size })) });
@@ -1323,6 +1629,14 @@ app.post('/api/upload/mp/complete', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
     const { key, uploadId, total } = req.body || {};
+    if (isGdSession(uploadId)) {
+      const size = Number(req.body.size);
+      if (!(size > 0)) return res.status(400).json({ error: 'Bad request' });
+      const st = await gdSessionStatus(uploadId, size);
+      if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
+      if (!st.done || !st.id) return res.status(409).json({ error: 'Some parts are still missing' });
+      return res.json({ ok: true, key: 'gd:' + st.id });
+    }
     if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
     const parts = await mpListAllParts(key, uploadId);
     if (!parts.length || (total && parts.length !== Number(total))) return res.status(409).json({ error: 'Some parts are still missing', have: parts.length });
@@ -1341,6 +1655,7 @@ app.post('/api/upload/mp/abort', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
     const { key, uploadId } = req.body || {};
+    if (isGdSession(uploadId)) { fetch(uploadId, { method: 'DELETE' }).catch(() => {}); return res.json({ ok: true }); }
     if (key && MP_KEY_RE.test(key) && uploadId) {
       await e2Client.send(new AbortMultipartUploadCommand({ Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId })).catch(() => {});
     }
@@ -1360,7 +1675,7 @@ app.post('/api/films/finalize', async (req, res) => {
     let slides = [];
     if (type === 'photo' && Array.isArray(req.body.slides)) {
       slides = req.body.slides.slice(0, 10)
-        .filter(sl => sl && typeof sl.key === 'string' && MP_KEY_RE.test(sl.key) && (sl.mediaType === 'photo' || sl.mediaType === 'video'))
+        .filter(sl => sl && keyOk(sl.key) && (sl.mediaType === 'photo' || sl.mediaType === 'video'))
         .map(sl => ({ key: sl.key, mediaType: sl.mediaType }));
     }
 
@@ -3267,8 +3582,11 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
         pendingReports: reports.filter(r => r.status === 'pending').length
       },
       trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
-      storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
-      egress: { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, totalBytes: usage.jsonBytes + usage.mediaBytes, allowedBytes: st.usedBytes * 3, views: usage.views },
+      storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: (DRIVE_ONLY && st.accountLimit) ? st.accountLimit : STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
+      egress: DRIVE_ONLY
+        ? { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views }
+        : { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, proxyBytes: usage.proxyBytes, totalBytes: usage.jsonBytes + usage.mediaBytes, allowedBytes: st.usedBytes * 3, views: usage.views },
+      drive: Object.assign({ driveOnly: DRIVE_ONLY }, await gdAbout()),
       users: rows,
       activity: events
     });
@@ -3279,6 +3597,17 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 let storageStats = { at: 0, usedBytes: 0, objects: 0, byFolder: {}, sizes: new Map(), ok: false, error: null };
 async function refreshStorageStats(force) {
   if (!force && storageStats.at && Date.now() - storageStats.at < 10 * 60 * 1000) return storageStats;
+  if (DRIVE_ONLY) {
+    try {
+      await gdIndexRefresh(true);
+      const about = await gdAbout();
+      const by = {};
+      let total = 0;
+      gdIdxSizes.forEach((size, name) => { const f = name.includes('/') ? name.split('/')[0] : 'data (json)'; by[f] = (by[f] || 0) + size; total += size; });
+      storageStats = { at: Date.now(), usedBytes: total, objects: gdIdx.size, byFolder: by, sizes: gdIdxSizes, ok: true, error: null, accountUsed: about.usedBytes, accountLimit: about.limitBytes };
+    } catch (e) { storageStats = { ...storageStats, at: Date.now(), ok: false, error: e.message }; }
+    return storageStats;
+  }
   try {
     let token, total = 0, objects = 0;
     const by = {}, sizes = new Map();
@@ -3302,13 +3631,13 @@ async function refreshStorageStats(force) {
 async function usageLoad() {
   try {
     const saved = await e2TryReadJSON('usage-stats.json');
-    if (saved && saved.month === new Date().toISOString().slice(0, 7)) { usage.jsonBytes += saved.jsonBytes || 0; usage.mediaBytes += saved.mediaBytes || 0; usage.views += saved.views || 0; }
+    if (saved && saved.month === new Date().toISOString().slice(0, 7)) { usage.jsonBytes += saved.jsonBytes || 0; usage.mediaBytes += saved.mediaBytes || 0; usage.proxyBytes += saved.proxyBytes || 0; usage.views += saved.views || 0; }
   } catch (e) {}
 }
 async function usageFlush() {
   if (!usage.dirty) return;
   usage.dirty = false;
-  try { await e2WriteJSON('usage-stats.json', { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, views: usage.views }); }
+  try { await e2WriteJSON('usage-stats.json', { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, proxyBytes: usage.proxyBytes, views: usage.views }); }
   catch (e) { usage.dirty = true; }
 }
 
@@ -3559,4 +3888,5 @@ setInterval(refreshSuspendedIds, 5 * 60 * 1000);
 setTimeout(() => { usageLoad(); refreshStorageStats(true); }, 5000);
 setInterval(() => refreshStorageStats(true), 30 * 60 * 1000);
 setInterval(usageFlush, 5 * 60 * 1000);
-['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().finally(() => process.exit(0)); }));
+['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().then(() => (DRIVE_ONLY ? gdFlushAll() : null)).catch(() => {}).finally(() => process.exit(0)); }));
+if (DRIVE_ONLY) { setTimeout(() => gdIndexRefresh(true).catch(e => console.error('Drive index failed:', e.message)), 1500); console.log('Storage mode: Google Drive only (no bucket)'); }
