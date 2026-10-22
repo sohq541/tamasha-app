@@ -156,12 +156,28 @@ function renderOverview(){
     (spamUsers.length ? '<h3 class="sec">Jin par reports hain</h3>' + spamUsers.map(userCard).join('') : '');
 }
 
+function driveCard(){
+  const dr = D.drive || {}, eg = D.egress || {};
+  if (!dr.enabled || dr.driveOnly) return '';
+  if (dr.error) return `<div class="card"><b>☁️ Google Drive</b><div class="meta">❌ ${esc(dr.error)}</div></div>`;
+  const p = dr.limitBytes ? Math.min(100, dr.usedBytes / dr.limitBytes * 100) : 0;
+  return `<div class="card">
+      <div class="row1"><b>☁️ Google Drive (videos/photos)</b></div>
+      <div class="big">${fb(dr.usedBytes)} ${dr.limitBytes ? `<span style="font-size:14px;color:var(--cream-dim);">/ ${fb(dr.limitBytes)}</span>` : ''}</div>
+      ${dr.limitBytes ? `<div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>` : ''}
+      <div class="meta">Is mahine server se stream hua: <b>${fb(eg.proxyBytes)}</b> (Render bandwidth me ginti hota hai)</div>
+    </div>`;
+}
+
 function usageCards(){
   const st = D.storage || {}, eg = D.egress || {};
   const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
   const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
   const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
-  const warn = (sp >= 80 || ep >= 80)
+  const render = eg.mode === 'render';
+  const warn = (render && ep >= 80)
+    ? '<div class="warnbox">⚠️ Render ki free bandwidth (100 GB/mahina) paar hui to poori site us mahine ke liye band ho jati hai. Isliye videos ek limit pe rok diye jate hain. Zyada traffic ho to Render ka paid plan lo ya videos chhote rakho.</div>'
+    : (!render && (sp >= 80 || ep >= 80))
     ? '<div class="warnbox">⚠️ IDrive free account me mahine ka download (egress) stored data ke 3 guna se zyada hua to account suspend ho sakta hai. Storage ya egress 80% ke paar hai — videos kam karo ya paid plan lo.</div>' : '';
   return `
     <div class="card">
@@ -171,13 +187,17 @@ function usageCards(){
       <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
       <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
     </div>
+    ${driveCard()}
     <div class="card">
-      <div class="row1"><b>📡 Egress (is mahine, ${esc(eg.month || '')})</b></div>
+      <div class="row1"><b>${render ? '📡 Server bandwidth' : '📡 Egress'} (is mahine, ${esc(eg.month || '')})</b></div>
       <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(eg.allowedBytes)} free</span></div>
       <div class="meter"><i class="${meterCls(ep)}" style="width:${ep.toFixed(1)}%"></i></div>
-      <div class="meta">${ep.toFixed(1)}% use hua · free limit = stored data ka 3 guna</div>
-      <div class="nums"><span>Server reads: <b>${fb(eg.jsonBytes)}</b> (exact)</span><span>Videos/photos: <b>~${fb(eg.mediaBytes)}</b> (andaza, ${eg.views || 0} views)</span></div>
-      <div class="meta" style="margin-top:6px;">Asli number ke liye: IDrive e2 → Billing → Billing Overview. Server restart hone par ye ginti thodi kam dikh sakti hai.</div>
+      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 100 GB/mahina (85 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
+      ${render
+        ? `<div class="nums"><span>Videos/photos stream hue: <b>${fb(eg.proxyBytes)}</b> (exact)</span><span>${eg.views || 0} views</span></div>
+           <div class="meta" style="margin-top:6px;">Asli number: Render dashboard → service → Metrics. Server restart pe ye ginti thodi kam dikh sakti hai.</div>`
+        : `<div class="nums"><span>Server reads: <b>${fb(eg.jsonBytes)}</b> (exact)</span><span>Videos/photos: <b>~${fb(eg.mediaBytes)}</b> (andaza, ${eg.views || 0} views)</span></div>
+           <div class="meta" style="margin-top:6px;">Asli number ke liye: IDrive e2 → Billing → Billing Overview. Server restart hone par ye ginti thodi kam dikh sakti hai.</div>`}
       ${warn}
     </div>`;
 }
