@@ -4797,21 +4797,21 @@ window.UploadMgr = (function(){
     if (a.done) { setProgress(job, offset + size, 0); return; }
     if (!a.uploadId) {
       const c = await jsonPost('/api/upload/mp/create', {
-        fileName: a.name || a.file.name || (role === 'poster' ? 'poster.jpg' : 'file'), contentType: a.file.type || 'application/octet-stream',
+        fileName: a.name || a.file.name || (role === 'poster' ? 'poster.jpg' : 'file'), contentType: a.file.type || 'application/octet-stream', size,
         folder: role === 'poster' ? 'posters' : (isVideoFile(a.file) ? 'videos' : ((job.extras && job.extras.length) ? 'photos' : 'posters'))
       });
       a.key = c.key; a.uploadId = c.uploadId; await saveMeta(job);
     }
     const totalParts = Math.max(1, Math.ceil(size / PART_SIZE));
     let have = new Set();
-    try { const lp = await api('/api/upload/mp/parts?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId)); have = new Set(lp.parts.map(p => p.n)); }
+    try { const lp = await api('/api/upload/mp/parts?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&size=' + size); have = new Set(lp.parts.map(p => p.n)); }
     catch (e) { if (e.expired) { a.key = null; a.uploadId = null; await saveMeta(job); return uploadAsset(job, a, role, offset); } throw e; }
     let doneBytes = 0;
     for (let n = 1; n <= totalParts; n++) {
       if (job.cancelled) { const er = new Error('cancelled'); er.cancelled = true; throw er; }
       const start = (n - 1) * PART_SIZE, end = Math.min(size, start + PART_SIZE), len = end - start;
       if (have.has(n)) { doneBytes += len; setProgress(job, offset + doneBytes, 0); continue; }
-      const url = '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n;
+      const url = '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n + '&size=' + size + '&offset=' + start;
       let attempt = 0;
       for (;;) {
         try {
@@ -4829,7 +4829,7 @@ window.UploadMgr = (function(){
       doneBytes += len; setProgress(job, offset + doneBytes, 0);
     }
     for (let i = 0; ; i++) {
-      try { await jsonPost('/api/upload/mp/complete', { key: a.key, uploadId: a.uploadId, total: totalParts }); break; }
+      try { const cr = await jsonPost('/api/upload/mp/complete', { key: a.key, uploadId: a.uploadId, total: totalParts, size }); if (cr && cr.key) a.key = cr.key; break; }
       catch (e) { if (e.auth || i >= 3) throw e; await sleep(1500 * (i + 1)); }
     }
     a.done = true; await saveMeta(job);
