@@ -3739,6 +3739,33 @@ app.get('/api/admin/users.csv', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Admin diagnostic: what Google says about a playable file (no secrets are shown) ----------------
+app.get('/api/admin/drive-test', requireAdmin, async (req, res) => {
+  const out = { apiKeySet: !!GD.apiKey, steps: [] };
+  try {
+    let id = String(req.query.id || '').replace(/[^A-Za-z0-9_-]/g, '');
+    if (!id) {
+      const media = [...gdIdx.entries()].filter(([name]) => !/\.json$/i.test(name) && /^(videos|posters|photos|stories)\//.test(name));
+      if (!media.length) return res.json({ ...out, error: 'Drive me koi media file nahi mili' });
+      id = media[media.length - 1][1];
+    }
+    out.fileId = id;
+    // 1) does the owner's Drive say the file is shared "anyone with link"?
+    const meta = await fetch(`${GD.apiBase}/files/${id}?fields=id,name,mimeType,size,shared,permissions(type,role)`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
+    const mj = await meta.json().catch(() => ({}));
+    out.steps.push({ step: 'owner check (OAuth)', status: meta.status, name: mj.name, size: mj.size, shared: mj.shared, permissions: mj.permissions, error: mj.error && mj.error.message });
+    // 2) can the browser's way (API key, no login) read it?
+    if (GD.apiKey) {
+      const r = await fetch(`${GD.apiBase}/files/${id}?alt=media&key=${GD.apiKey}`, { headers: { Range: 'bytes=0-15' } });
+      const body = await r.text().catch(() => '');
+      out.steps.push({ step: 'public playback check (API key)', status: r.status, contentType: r.headers.get('content-type'), error: r.ok ? null : body.slice(0, 400) });
+    } else {
+      out.steps.push({ step: 'public playback check (API key)', skipped: 'GDRIVE_API_KEY is not set' });
+    }
+    res.json(out);
+  } catch (e) { res.status(500).json({ ...out, error: e.message }); }
+});
+
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
 app.post('/api/admin/login', (req, res) => {
