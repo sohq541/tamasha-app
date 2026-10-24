@@ -171,7 +171,21 @@ function storeNeedsDrive() {
   if (!gdReady()) { const e = new Error('Google Drive is not configured (GDRIVE_CLIENT_ID / GDRIVE_CLIENT_SECRET / GDRIVE_REFRESH_TOKEN)'); e.status = 503; throw e; }
 }
 async function storePutBuffer(buffer, key, contentType) { storeNeedsDrive(); await gdPutByKey(key, buffer, contentType); }
-async function storeCopy(sourceKey, destKey) { storeNeedsDrive(); const buf = await gdGetByKey(sourceKey); await gdPutByKey(destKey, buf, 'application/octet-stream'); }
+async function storeCopy(sourceKey, destKey) {
+  storeNeedsDrive();
+  const srcId = typeof sourceKey === 'string' && sourceKey.startsWith('gd:') ? sourceKey.slice(3) : await gdResolve(sourceKey);
+  if (!srcId) { const e = new Error('Original file not found on Drive'); e.status = 404; throw e; }
+  // Drive copies the file on its own side: no bytes pass through this server, so no Render bandwidth is used
+  const r = await fetch(`${GD.apiBase}/files/${srcId}/copy?fields=id`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: destKey, parents: [await gdFolderId()] })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.id) throw new Error('Drive copy failed (' + r.status + ')');
+  gdIdx.set(destKey, j.id);
+  await gdMakePublic(j.id);
+  gdIdxShared.set(destKey, true);
+}
 async function storeDelete(key) {
   if (typeof key === 'string' && key.startsWith('gd:')) { await gdDelete(key.slice(3)); return; }
   try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {}
