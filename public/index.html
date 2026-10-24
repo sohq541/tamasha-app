@@ -619,7 +619,7 @@
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <div id="playerMediaWrap" style="position:relative;">
-      <video id="player" controls></video>
+      <video id="player" controls preload="auto" playsinline></video>
       <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
       <div id="playerCarousel" style="display:none;"></div>
     </div>
@@ -4847,14 +4847,16 @@ window.UploadMgr = (function(){
   }
 
   // ---------- upload engine ----------
-  function putPart(job, url, blob, onProg){
+  function putPart(job, url, blob, onProg, range){
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest(); xhrs.set(job.id, x);
       x.open('PUT', url); x.setRequestHeader('Content-Type', 'application/octet-stream');
+      if (range) x.setRequestHeader('Content-Range', range);
       x.upload.onprogress = e => { if (e.lengthComputable) onProg(e.loaded); };
       x.onload = () => {
         xhrs.delete(job.id);
         if (x.status >= 200 && x.status < 300) return resolve();
+        if (x.status === 308) return resolve();          // Google: part stored, continue with the next one
         if (x.status === 401) return reject(authFail());
         let msg = 'Upload failed (' + x.status + ')'; try { msg = JSON.parse(x.responseText).error || msg; } catch (e) {}
         const er = new Error(msg); er.status = x.status; reject(er);
@@ -4883,16 +4885,22 @@ window.UploadMgr = (function(){
       if (job.cancelled) { const er = new Error('cancelled'); er.cancelled = true; throw er; }
       const start = (n - 1) * PART_SIZE, end = Math.min(size, start + PART_SIZE), len = end - start;
       if (have.has(n)) { doneBytes += len; setProgress(job, offset + doneBytes, 0); continue; }
-      const url = '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n + '&size=' + size + '&offset=' + start;
+      // Google Drive session (https://...) = the browser uploads straight to Google: no bytes through Render.
+      // If that fails with a network error (e.g. a blocked connection), this part goes through our server instead.
+      const direct = /^https:\/\//.test(a.uploadId) && !(job.forceProxy);
+      const url = direct ? a.uploadId : '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n + '&size=' + size + '&offset=' + start;
+      const range = direct ? `bytes ${start}-${end - 1}/${size}` : null;
       let attempt = 0;
       for (;;) {
         try {
           job.waitingNet = false;
-          await putPart(job, url, a.file.slice(start, end), loaded => setProgress(job, offset + doneBytes, loaded));
+          const useUrl = (direct && job.directFails >= 2) ? '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n + '&size=' + size + '&offset=' + start : url;
+          await putPart(job, useUrl, a.file.slice(start, end), loaded => setProgress(job, offset + doneBytes, loaded), useUrl === url && direct ? range : null);
           break;
         } catch (e) {
           if (e.cancelled || e.auth) throw e;
           attempt++;
+          if (direct && e.network && navigator.onLine !== false) { job.directFails = (job.directFails || 0) + 1; if (job.directFails >= 2) job.forceProxy = true; await sleep(800); continue; }
           if (e.network || navigator.onLine === false) { job.waitingNet = true; updateCard(job); await waitOnline(); await sleep(800); attempt = Math.min(attempt, 3); continue; }
           if (attempt >= 4) throw e;
           await sleep(1000 * Math.pow(2, attempt));

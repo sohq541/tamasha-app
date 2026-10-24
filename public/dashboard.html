@@ -259,12 +259,11 @@ function usageCards(){
       <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
       <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
     </div>
-    ${driveCard()}
     <div class="card">
       <div class="row1"><b>${render ? '📡 Server bandwidth' : '📡 Egress'} (is mahine, ${esc(eg.month || '')})</b></div>
       <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(eg.allowedBytes)} free</span></div>
       <div class="meter"><i class="${meterCls(ep)}" style="width:${ep.toFixed(1)}%"></i></div>
-      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 100 GB/mahina (85 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
+      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 5 GB/mahina (4 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
       ${render
         ? `<div class="nums"><span>Videos/photos stream hue: <b>${fb(eg.proxyBytes)}</b> (exact)</span><span>${eg.views || 0} views</span></div>
            <div class="meta" style="margin-top:6px;">Asli number: Render dashboard → service → Metrics. Server restart pe ye ginti thodi kam dikh sakti hai.</div>`
