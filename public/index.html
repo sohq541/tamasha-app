@@ -6,6 +6,7 @@
 <title>YouSeries</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0B0A1F">
+<script>try{if(localStorage.getItem('appTheme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
@@ -13,7 +14,21 @@
   :root{
     --ink:#0B0A1F; --panel:#16122E; --marigold:#7C5CFF; --marigold-deep:#5B3FE0;
     --vermilion:#4361EE; --cream:#EDEBFF; --cream-dim:#A9A3C9; --gold-line: rgba(124,92,255,0.35);
+    --field:rgba(255,255,255,0.05); --chip:rgba(124,92,255,0.18);
   }
+  /* White theme: same layout, light surfaces. Chosen in Profile → Settings → Theme. */
+  html[data-theme="light"]{
+    --ink:#FFFFFF; --panel:#F4F3FA; --marigold:#5B3FE0; --marigold-deep:#4A2FD0;
+    --vermilion:#3550D8; --cream:#15132B; --cream-dim:#5E5878; --gold-line: rgba(91,63,224,0.28);
+    --field:#FFFFFF; --chip:rgba(91,63,224,0.12);
+  }
+  html[data-theme="light"] body{background:#FFFFFF;}
+  html[data-theme="light"] .tabs, html[data-theme="light"] header{background:#FFFFFF;}
+  html[data-theme="light"] input, html[data-theme="light"] textarea, html[data-theme="light"] select{background:var(--field) !important;color:var(--cream) !important;border-color:var(--gold-line) !important;}
+  html[data-theme="light"] .profile-menu, html[data-theme="light"] .sheet, html[data-theme="light"] .modal-card{background:var(--panel) !important;}
+  html[data-theme="light"] .comment-empty{color:var(--cream-dim);}
+  html[data-theme="light"] .action-btn{background:var(--field) !important;color:var(--cream) !important;}
+  html[data-theme="light"] .action-btn.liked{color:#fff !important;}
   *{box-sizing:border-box;}
   html,body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;height:100%;overscroll-behavior:none;touch-action:manipulation;}
   a{color:inherit;text-decoration:none;}
@@ -1708,6 +1723,13 @@ function confirmLogoutFromMenu(){
 }
 
 // ---- Settings and Privacy ----
+function toggleAppTheme(){
+  const light = document.documentElement.getAttribute('data-theme') !== 'light';
+  if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('appTheme', light ? 'light' : 'dark'); } catch (e) {}
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', light ? '#FFFFFF' : '#0B0A1F');
+  renderSettingsPrivacyMenu();
+}
 function renderSettingsPrivacyMenu(){
   setMenuTitle('Settings and Privacy', true, 'renderProfileMenuMain()');
   const pushEnabled = localStorage.getItem('pushEnabled') === '1';
@@ -1734,6 +1756,7 @@ function renderSettingsPrivacyMenu(){
         <span id="sensitiveToggleDot" style="position:absolute;top:3px;left:${window.myHideSensitive ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
       </label>
     </div>
+    ${menuRow(document.documentElement.getAttribute('data-theme') === 'light' ? '🌙' : '☀️', document.documentElement.getAttribute('data-theme') === 'light' ? 'Dark mode (black background)' : 'White mode (white background)', 'toggleAppTheme()')}
     ${menuRow('🆘', 'Help Desk', 'renderHelpDesk()')}
     ${menuRow('📄', 'Privacy Policy', "window.open('/privacy-policy.html','_blank')")}
     ${menuRow('📋', 'Terms and Conditions', "window.open('/terms-of-service.html','_blank')")}
@@ -1812,43 +1835,90 @@ async function toggleSensitiveSetting(checked){
 
 function renderHelpDesk(){
   setMenuTitle('Help Desk', true, 'renderSettingsPrivacyMenu()');
-  document.getElementById('profileMenuBody').innerHTML = `
-    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Describe your problem here — it'll be emailed straight to our team.</p>
+  const body = document.getElementById('profileMenuBody');
+  body.innerHTML = `
+    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Apna sawal likho. Jawab yahin dikhega, aur email me bhi aayega (agar email diya ho).</p>
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Tumhara naam</label>
     <input type="text" id="hdName" value="${currentUser ? escapeHtml(currentUser.username) : ''}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
-    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">User ID</label>
-    <input type="text" id="hdId" value="${currentUser ? currentUser.id : ''}" readonly style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.02);color:var(--cream-dim);margin-bottom:12px;box-sizing:border-box;">
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Email (jawab yahan bhi bhejenge)</label>
+    <input type="email" id="hdEmail" value="${currentUser && currentUser.email ? escapeHtml(currentUser.email) : ''}" placeholder="you@example.com" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
-    <textarea id="hdProblem" placeholder="Describe your problem in detail..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
+    <textarea id="hdProblem" placeholder="Apni problem detail me likho..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
     <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send</button>
     <div id="hdStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
+    <h3 style="font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 8px;">Tumhare messages</h3>
+    <div id="hdMine"><div class="comment-empty">Load ho raha hai…</div></div>
   `;
+  loadMyHelpTickets();
+}
+
+async function loadMyHelpTickets(){
+  const box = document.getElementById('hdMine');
+  if (!box) return;
+  if (!currentUser) { box.innerHTML = '<div class="comment-empty">Messages dekhne ke liye login karo.</div>'; return; }
+  try {
+    const res = await fetch('/api/help-desk/mine');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    const list = data.tickets || [];
+    if (!list.length) { box.innerHTML = '<div class="comment-empty">Abhi koi message nahi.</div>'; return; }
+    box.innerHTML = list.map(t => {
+      const stBadge = t.status === 'answered' ? '<span style="color:var(--ok);font-size:12px;">✅ Jawab aaya</span>'
+        : t.status === 'closed' ? '<span style="color:var(--cream-dim);font-size:12px;">🔒 Band</span>'
+        : '<span style="color:#ffcf5c;font-size:12px;">⏳ Pending</span>';
+      const thread = (t.replies || []).map(r => `
+        <div style="margin-top:8px;padding:9px 12px;border-radius:12px;max-width:92%;word-break:break-word;font-size:13.5px;${r.from === 'admin' ? 'background:rgba(124,92,255,.18);margin-left:auto;' : 'background:rgba(255,255,255,.05);border:1px solid var(--gold-line);'}">
+          ${escapeHtml(r.text)}<div style="font-size:11px;color:var(--cream-dim);margin-top:3px;">${r.from === 'admin' ? 'Help Desk' : 'Tum'} · ${storyTimeAgo(r.at)}</div>
+        </div>`).join('');
+      return `<div style="border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">${stBadge}<span style="font-size:11.5px;color:var(--cream-dim);">${storyTimeAgo(t.createdAt)}</span></div>
+        <div style="margin-top:8px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.05);font-size:13.5px;word-break:break-word;">${escapeHtml(t.problem)}</div>
+        ${thread}
+        ${t.status !== 'closed' ? `<div style="display:flex;gap:8px;margin-top:10px;">
+          <input id="hdr-${t.id}" type="text" placeholder="Reply likho…" maxlength="1000" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);">
+          <button type="button" onclick="replyMyHelpTicket('${t.id}')" style="background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:0 14px;font-weight:600;cursor:pointer;">Bhejo</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) { box.innerHTML = `<div class="comment-empty">❌ ${escapeHtml(e.message)}</div>`; }
+}
+
+async function replyMyHelpTicket(id){
+  const input = document.getElementById('hdr-' + id);
+  const message = (input && input.value || '').trim();
+  if (!message) { showToast('Reply likho'); return; }
+  try {
+    const res = await fetch('/api/help-desk/' + id + '/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    showToast('Reply bhej diya');
+    loadMyHelpTickets();
+  } catch (e) { showToast(e.message); }
 }
 
 async function submitHelpDesk(){
   const name = document.getElementById('hdName').value.trim();
-  const id = document.getElementById('hdId').value.trim();
+  const email = document.getElementById('hdEmail').value.trim();
   const problem = document.getElementById('hdProblem').value.trim();
   const btn = document.getElementById('hdSubmitBtn');
   const statusEl = document.getElementById('hdStatus');
   if (!problem) { showToast('Please describe your problem'); return; }
   btn.disabled = true; btn.textContent = 'Bhej rahe hain...'; statusEl.textContent = '';
-  const timeoutMs = 20000;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), 20000);
     const res = await fetch('/api/help-desk', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, userId: id, problem }),
+      body: JSON.stringify({ name, email, problem }),
       signal: controller.signal
     });
     clearTimeout(timer);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong while sending');
-    showToast('Sent! We\'ll reply soon.');
-    renderSettingsPrivacyMenu();
+    showToast('Sent! Jawab yahin dikhega.');
+    renderHelpDesk();
   } catch (err) {
-    statusEl.textContent = err.name === 'AbortError' ? 'Request timed out — the site is slow right now, please try again' : err.message;
+    statusEl.textContent = err.name === 'AbortError' ? 'Request timed out — dobara try karo' : err.message;
     statusEl.style.color = '#e88a8a';
     btn.disabled = false; btn.textContent = 'Send';
   }
@@ -3714,6 +3784,7 @@ function notifIcon(type){
   if (type === 'message') return '✉️';
   if (type === 'mention') return '@';
   if (type === 'collab_invite' || type === 'collab_accepted') return '🤝';
+  if (type === 'helpdesk_reply') return '🆘';
   if (type === 'report_alert') return '🚨';
   return '🔔';
 }
@@ -3767,6 +3838,7 @@ async function respondCollab(filmId, action, btn){
 function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId){
   closeNotifications();
   if (type === 'report_alert') { window.location.href = '/dashboard.html'; return; }
+  if (type === 'helpdesk_reply') { openProfileMenu(); setTimeout(() => { renderSettingsPrivacyMenu(); setTimeout(renderHelpDesk, 60); }, 60); return; }
   if (type === 'message') { openChatConvo(fromUserId, fromUsername); return; }
   if (filmId) { playFilm(filmId); return; }
   if (storyId) {
