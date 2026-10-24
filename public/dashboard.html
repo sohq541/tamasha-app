@@ -7,61 +7,139 @@
 <title>YouSeries — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--vermilion:#4361EE;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);--ok:#5ad19a;--bad:#e88a8a;}
+  :root {
+    --ink: #FFFFFF;
+    --panel: #F8F7FF;
+    --marigold: #7C5CFF;
+    --vermilion: #4361EE;
+    --cream: #16122E;
+    --cream-dim: #5E587D;
+    --gold-line: rgba(124,92,255,0.28);
+    --ok: #10b981;
+    --bad: #e63950;
+    --input-bg: rgba(124,92,255,0.05);
+    --meter-bg: rgba(124,92,255,0.12);
+    --border-sub: rgba(0,0,0,0.08);
+    --warn-bg: rgba(255,180,0,0.15);
+    --warn-text: #855800;
+  }
+  body.dark-mode {
+    --ink: #000000;
+    --panel: #11101C;
+    --marigold: #7C5CFF;
+    --vermilion: #4361EE;
+    --cream: #EDEBFF;
+    --cream-dim: #A9A3C9;
+    --gold-line: rgba(124,92,255,0.35);
+    --ok: #5ad19a;
+    --bad: #e88a8a;
+    --input-bg: rgba(255,255,255,0.06);
+    --meter-bg: rgba(255,255,255,0.12);
+    --border-sub: rgba(255,255,255,0.07);
+    --warn-bg: rgba(255,180,0,0.12);
+    --warn-text: #ffe3a0;
+  }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 70px;}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 70px;transition:background .25s,color .25s;}
   .wrap{max-width:760px;margin:0 auto;}
-  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;flex-wrap:wrap;}
+  .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   h1{font-family:'Baloo 2',sans-serif;color:var(--marigold);font-size:24px;margin:0;}
   p.sub{color:var(--cream-dim);font-size:13.5px;margin:0 0 16px;}
   a.link{color:var(--marigold);font-size:13px;font-weight:600;text-decoration:none;}
-  .tabs{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;}
-  .tab{flex-shrink:0;background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;}
+  .tab{flex-shrink:0;background:transparent;border:1px solid var(--gold-line);color:var(--cream-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;transition:.2s;}
   .tab.active{background:var(--marigold);border-color:var(--marigold);color:#fff;}
-  .btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream);padding:7px 12px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;}
+  .btn{background:transparent;border:1px solid var(--gold-line);color:var(--cream);padding:7px 12px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;transition:.2s;}
+  .btn:hover{background:rgba(124,92,255,0.1);}
+  .btn-primary{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+  .btn-primary:hover{opacity:0.9;background:var(--marigold);}
   .btn-danger{border-color:#E63950;color:var(--bad);}
   .btn-ok{border-color:var(--ok);color:var(--ok);}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
   .stat{background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:14px;}
   .stat b{display:block;font-family:'Baloo 2',sans-serif;font-size:26px;line-height:1.1;}
   .stat span{font-size:12.5px;color:var(--cream-dim);}
-  .stat.warn b{color:#ffcf5c;}
+  .stat.warn b{color:#f59e0b;}
   .card{background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:13px 14px;margin-bottom:10px;}
   .row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .name{font-weight:700;font-size:15px;}
-  .dot{width:9px;height:9px;border-radius:50%;background:#555;display:inline-block;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#888;display:inline-block;}
   .dot.on{background:var(--ok);}
   .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;}
   .pill.sus{background:rgba(230,57,80,.2);color:var(--bad);}
-  .pill.g{background:rgba(67,97,238,.25);color:#8fa8ff;}
-  .pill.rep{background:rgba(255,180,0,.2);color:#ffcf5c;}
+  .pill.g{background:rgba(67,97,238,.2);color:var(--vermilion);}
+  body.dark-mode .pill.g{color:#8fa8ff;}
+  .pill.rep{background:rgba(255,180,0,.2);color:#d97706;}
+  body.dark-mode .pill.rep{color:#ffcf5c;}
   .meta{font-size:12px;color:var(--cream-dim);margin-top:4px;word-break:break-word;}
   .nums{display:flex;gap:14px;font-size:12px;color:var(--cream-dim);margin-top:8px;flex-wrap:wrap;}
   .nums b{color:var(--cream);}
   .push{margin-left:auto;}
-  input.search{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:12px;}
-  .ev{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);}
+  input.search, input.inp{width:100%;background:var(--input-bg);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;margin-bottom:12px;outline:none;}
+  input.search:focus, input.inp:focus, textarea.t:focus{border-color:var(--marigold);}
+  .ev{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-sub);}
   .ev:last-child{border-bottom:none;}
   .ev .ic{font-size:18px;width:24px;text-align:center;flex-shrink:0;}
   .ev .txt{font-size:13.5px;word-break:break-word;}
   .ev .when{font-size:11.5px;color:var(--cream-dim);}
   .empty,.loading{color:var(--cream-dim);font-size:14px;text-align:center;padding:40px 0;}
-  .meter{margin-top:8px;height:9px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden;}
+  .meter{margin-top:8px;height:9px;border-radius:6px;background:var(--meter-bg);overflow:hidden;}
   .meter i{display:block;height:100%;background:var(--marigold);border-radius:6px;}
   .meter i.warn{background:#ffcf5c;} .meter i.bad{background:#e63950;}
   .big{font-family:'Baloo 2',sans-serif;font-size:22px;line-height:1.2;}
-  .chip{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:12px;background:rgba(124,92,255,.2);color:var(--cream);margin:3px 4px 0 0;}
-  .warnbox{background:rgba(255,180,0,.12);border:1px solid #ffcf5c;color:#ffe3a0;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:10px;}
-  textarea.t{width:100%;min-height:90px;background:rgba(255,255,255,.06);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;resize:vertical;}
+  .chip{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:12px;background:rgba(124,92,255,.18);color:var(--cream);margin:3px 4px 0 0;}
+  .warnbox{background:var(--warn-bg);border:1px solid #ffcf5c;color:var(--warn-text);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:10px;}
+  textarea.t{width:100%;min-height:90px;background:var(--input-bg);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;resize:vertical;outline:none;}
   .vtick{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#3897f0;color:#fff;font-size:9.5px;font-weight:800;}
   h3.sec{font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;}
+
+  /* Login & Password Show/Hide Styles */
+  .login-overlay{position:fixed;inset:0;background:var(--ink);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .login-card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:24px 20px;box-shadow:0 12px 32px rgba(0,0,0,0.12);}
+  .login-card h2{font-family:'Baloo 2',sans-serif;color:var(--marigold);margin:0 0 4px;font-size:22px;}
+  .pass-wrap{position:relative;width:100%;margin-bottom:12px;}
+  .pass-wrap input.inp{margin-bottom:0;padding-right:44px;}
+  .pass-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--cream-dim);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:6px;}
+  .pass-toggle:hover{color:var(--marigold);}
+  .user-pass-box{display:inline-flex;align-items:center;gap:6px;background:var(--input-bg);border:1px solid var(--gold-line);padding:2px 8px;border-radius:6px;font-family:monospace;font-size:12px;color:var(--cream);}
+  .eye-sm{background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;color:var(--marigold);font-weight:600;}
 </style>
 </head>
 <body>
+
+<!-- Login Modal / Gate -->
+<div id="loginOverlay" class="login-overlay" style="display:none;">
+  <div class="login-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>🔐 Admin Login</h2>
+      <button class="btn" type="button" onclick="toggleTheme()" id="loginThemeBtn">🌙 Dark</button>
+    </div>
+    <p class="sub" style="margin-bottom:16px;">YouSeries Dashboard kholne ke liye login karein</p>
+    <form onsubmit="handleLogin(event)">
+      <label class="meta" style="display:block;margin-bottom:4px;font-weight:600;">Username / Email (Optional)</label>
+      <input type="text" id="loginUser" class="inp" placeholder="Admin username ya email">
+      
+      <label class="meta" style="display:block;margin-bottom:4px;font-weight:600;">Admin Password / Key</label>
+      <div class="pass-wrap">
+        <input type="password" id="loginPass" class="inp" placeholder="Password daalein…" required>
+        <button type="button" class="pass-toggle" onclick="toggleInputPass('loginPass', this)" title="Show/Hide Password">👁️</button>
+      </div>
+      <div id="loginErr" class="meta" style="color:var(--bad);margin-bottom:10px;display:none;"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:10px;font-size:14px;" id="loginSubmitBtn">Login →</button>
+    </form>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top">
     <h1>📊 Dashboard</h1>
-    <div><button class="btn" onclick="load()">↻ Refresh</button></div>
+    <div class="top-actions">
+      <button class="btn" onclick="toggleTheme()" id="themeBtn">🌙 Dark Mode</button>
+      <button class="btn" onclick="openLoginModal()">🔑 Login</button>
+      <button class="btn" onclick="load()">↻ Refresh</button>
+      <button class="btn btn-danger" id="logoutBtn" style="display:none;" onclick="handleLogout()">Logout</button>
+    </div>
   </div>
   <p class="sub" id="updated">Loading…</p>
 
@@ -79,6 +157,134 @@
 
 <script>
 let D = null, R = [], tab = 'overview', q = '';
+const FIVE_GB = 5 * 1024 * 1024 * 1024; // 5 GB Render Free Egress Limit
+
+// Theme (White default, Black on Dark Mode)
+function applyTheme(dark) {
+  document.body.classList.toggle('dark-mode', dark);
+  const label = dark ? '☀️ White Mode' : '🌙 Dark Mode';
+  const tBtn = document.getElementById('themeBtn');
+  const lBtn = document.getElementById('loginThemeBtn');
+  if (tBtn) tBtn.textContent = label;
+  if (lBtn) lBtn.textContent = dark ? '☀️ White' : '🌙 Dark';
+}
+function toggleTheme() {
+  const isDark = !document.body.classList.contains('dark-mode');
+  localStorage.setItem('ys_dash_theme', isDark ? 'dark' : 'light');
+  applyTheme(isDark);
+}
+applyTheme(localStorage.getItem('ys_dash_theme') === 'dark');
+
+// Password Show / Hide helper for any input
+function toggleInputPass(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁️';
+  }
+}
+
+// Toggle User Password visibility in Users card
+function toggleUserPass(uid) {
+  const span = document.getElementById('upass-' + uid);
+  const btn = document.getElementById('ubtn-' + uid);
+  if (!span || !btn) return;
+  const real = span.getAttribute('data-pass') || '';
+  if (span.getAttribute('data-shown') === '1') {
+    span.textContent = '••••••••';
+    span.setAttribute('data-shown', '0');
+    btn.textContent = '👁️ Show';
+  } else {
+    span.textContent = real;
+    span.setAttribute('data-shown', '1');
+    btn.textContent = '🙈 Hide';
+  }
+}
+
+// Auth headers helper so saved admin key/token is sent automatically
+function authFetch(url, opts = {}) {
+  const key = localStorage.getItem('ys_admin_key') || '';
+  const headers = Object.assign({}, opts.headers || {});
+  if (key) {
+    headers['x-admin-key'] = key;
+    headers['Authorization'] = 'Bearer ' + key;
+  }
+  return fetch(url, Object.assign({}, opts, { headers, credentials: 'include' }));
+}
+
+function openLoginModal() {
+  document.getElementById('loginErr').style.display = 'none';
+  document.getElementById('loginUser').value = localStorage.getItem('ys_admin_user') || '';
+  document.getElementById('loginPass').value = localStorage.getItem('ys_admin_key') || '';
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  const btn = document.getElementById('loginSubmitBtn');
+  errEl.style.display = 'none';
+  btn.textContent = 'Checking…';
+
+  try {
+    // 1. Try common backend login endpoints if available
+    try {
+      const loginRes = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username: user, email: user, password: pass, key: pass })
+      });
+      if (loginRes.ok) {
+        const lj = await loginRes.json().catch(() => ({}));
+        if (lj.token || lj.key) localStorage.setItem('ys_admin_key', lj.token || lj.key);
+      } else if (user) {
+        await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username: user, email: user, password: pass })
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
+    // Save credentials locally for header/session auth
+    localStorage.setItem('ys_admin_key', pass);
+    if (user) localStorage.setItem('ys_admin_user', user);
+    localStorage.setItem('ys_admin_logged_in', '1');
+
+    // Verify dashboard access
+    const testRes = await authFetch('/api/admin/dashboard?key=' + encodeURIComponent(pass));
+    if (testRes.status === 401 || testRes.status === 403) {
+      throw new Error('Invalid Admin Password ya aapko admin access nahi hai.');
+    }
+
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'inline-block';
+    load();
+  } catch (err) {
+    errEl.textContent = '❌ ' + (err.message || 'Login failed');
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Login →';
+  }
+}
+
+function handleLogout() {
+  if (!confirm('Dashboard se logout karna hai?')) return;
+  localStorage.removeItem('ys_admin_key');
+  localStorage.removeItem('ys_admin_logged_in');
+  fetch('/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  document.getElementById('logoutBtn').style.display = 'none';
+  openLoginModal();
+}
+
 function fb(b){
   b = Number(b) || 0;
   if (b < 1024) return b + ' B';
@@ -100,9 +306,22 @@ function ago(iso){
 }
 
 async function load(){
+  if (!localStorage.getItem('ys_admin_logged_in')) {
+    openLoginModal();
+    return;
+  }
+  document.getElementById('logoutBtn').style.display = 'inline-block';
   document.getElementById('updated').textContent = 'Loading…';
   try {
-    const [res, res2] = await Promise.all([fetch('/api/admin/dashboard'), fetch('/api/admin/reports')]);
+    const keyParam = localStorage.getItem('ys_admin_key') ? '?key=' + encodeURIComponent(localStorage.getItem('ys_admin_key')) : '';
+    const [res, res2] = await Promise.all([
+      authFetch('/api/admin/dashboard' + keyParam),
+      authFetch('/api/admin/reports' + keyParam)
+    ]);
+    if (res.status === 401 || res.status === 403) {
+      openLoginModal();
+      throw new Error('Please login with Admin credentials');
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     D = data;
@@ -110,7 +329,7 @@ async function load(){
     document.getElementById('updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
     render();
   } catch (e) {
-    document.getElementById('view').innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>';
+    document.getElementById('view').innerHTML = '<div class="empty">❌ ' + esc(e.message) + ' <br><br><button class="btn btn-primary" onclick="openLoginModal()">🔑 Login Karein</button></div>';
     document.getElementById('updated').textContent = '';
   }
 }
@@ -171,12 +390,15 @@ function driveCard(){
 
 function usageCards(){
   const st = D.storage || {}, eg = D.egress || {};
+  const render = eg.mode === 'render' || !eg.mode;
+  // Render free plan egress is 5 GB (5 * 1024^3 bytes)
+  const allowedBytes = render ? FIVE_GB : (eg.allowedBytes || FIVE_GB);
   const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
-  const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
+  const ep = allowedBytes ? Math.min(100, (eg.totalBytes || 0) / allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
   const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
-  const render = eg.mode === 'render';
+  
   const warn = (render && ep >= 80)
-    ? '<div class="warnbox">⚠️ Render ki free bandwidth (100 GB/mahina) paar hui to poori site us mahine ke liye band ho jati hai. Isliye videos ek limit pe rok diye jate hain. Zyada traffic ho to Render ka paid plan lo ya videos chhote rakho.</div>'
+    ? '<div class="warnbox">⚠️ Render ki free bandwidth (5 GB/mahina) paar hui to poori site us mahine ke liye band ho jati hai. Isliye videos ek limit (4.2 GB) pe rok diye jate hain. Zyada traffic ho to Render ka paid plan lo ya videos chhote rakho.</div>'
     : (!render && (sp >= 80 || ep >= 80))
     ? '<div class="warnbox">⚠️ IDrive free account me mahine ka download (egress) stored data ke 3 guna se zyada hua to account suspend ho sakta hai. Storage ya egress 80% ke paar hai — videos kam karo ya paid plan lo.</div>' : '';
   return `
@@ -190,9 +412,9 @@ function usageCards(){
     ${driveCard()}
     <div class="card">
       <div class="row1"><b>${render ? '📡 Server bandwidth' : '📡 Egress'} (is mahine, ${esc(eg.month || '')})</b></div>
-      <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(eg.allowedBytes)} free</span></div>
+      <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(allowedBytes)} free</span></div>
       <div class="meter"><i class="${meterCls(ep)}" style="width:${ep.toFixed(1)}%"></i></div>
-      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 100 GB/mahina (85 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
+      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 5 GB/mahina (4.2 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
       ${render
         ? `<div class="nums"><span>Videos/photos stream hue: <b>${fb(eg.proxyBytes)}</b> (exact)</span><span>${eg.views || 0} views</span></div>
            <div class="meta" style="margin-top:6px;">Asli number: Render dashboard → service → Metrics. Server restart pe ye ginti thodi kam dikh sakti hai.</div>`
@@ -203,6 +425,7 @@ function usageCards(){
 }
 
 function userCard(u){
+  const userPass = u.password || u.plainPassword || u.pass || u.passwordHash || '';
   return `
     <div class="card" id="u-${u.id}">
       <div class="row1">
@@ -214,6 +437,13 @@ function userCard(u){
         <button class="btn push ${u.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${u.id}')">${u.suspended ? 'Unsuspend' : 'Suspend'}</button>
       </div>
       <div class="meta">${esc(u.email || '')}</div>
+      <div class="meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <span>🔑 Password:</span>
+        <span class="user-pass-box">
+          <span id="upass-${u.id}" data-pass="${esc(userPass || (u.google ? 'Google Auth (No Password)' : 'Hidden in Backend'))}" data-shown="0">••••••••</span>
+          <button type="button" class="eye-sm" id="ubtn-${u.id}" onclick="toggleUserPass('${u.id}')">👁️ Show</button>
+        </span>
+      </div>
       <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 abhi online' : ago(u.lastActiveAt)}</div>
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
@@ -256,7 +486,7 @@ function renderReports(){
 }
 async function dismissReport(id){
   try {
-    const res = await fetch('/api/admin/reports/' + id + '/dismiss', { method: 'POST' });
+    const res = await authFetch('/api/admin/reports/' + id + '/dismiss', { method: 'POST' });
     if (!res.ok) throw new Error('Failed');
     const r = R.find(x => x.id === id); if (r) r.status = 'dismissed';
     render();
@@ -265,7 +495,7 @@ async function dismissReport(id){
 async function removeReported(id){
   if (!confirm('Ye content permanently delete karna hai?')) return;
   try {
-    const res = await fetch('/api/admin/reports/' + id + '/remove-content', { method: 'POST' });
+    const res = await authFetch('/api/admin/reports/' + id + '/remove-content', { method: 'POST' });
     if (!res.ok) throw new Error('Failed');
     const r = R.find(x => x.id === id); if (r) r.status = 'resolved';
     render();
@@ -291,11 +521,23 @@ async function renderTools(){
   const view = document.getElementById('view');
   view.innerHTML = '<div class="loading">Loading…</div>';
   try {
-    const [a, b] = await Promise.all([fetch('/api/admin/announcements'), fetch('/api/admin/banned-words')]);
+    const [a, b] = await Promise.all([authFetch('/api/admin/announcements'), authFetch('/api/admin/banned-words')]);
     ANN = (await a.json()).announcements || [];
     BANNED = (await b.json()).words || [];
   } catch (e) {}
+  const savedKey = localStorage.getItem('ys_admin_key') || '';
   view.innerHTML = `
+    <div class="card">
+      <b>🔐 Admin Session Password / Key</b>
+      <div class="meta">Yahan se apna saved Admin Password / Key dekh ya badal sakte ho:</div>
+      <div class="pass-wrap" style="margin-top:8px;">
+        <input type="password" id="toolsAdminKey" class="inp" value="${esc(savedKey)}" placeholder="Admin key / password">
+        <button type="button" class="pass-toggle" onclick="toggleInputPass('toolsAdminKey', this)">👁️</button>
+      </div>
+      <div class="row1">
+        <button class="btn btn-ok" onclick="localStorage.setItem('ys_admin_key', document.getElementById('toolsAdminKey').value); alert('✅ Admin Key updated!');">Save Key</button>
+      </div>
+    </div>
     <div class="card">
       <b>📢 Announcement bhejo</b>
       <div class="meta">Sab users ko app me banner + notification list me dikhega (aur push, agar unhone allow kiya ho).</div>
@@ -324,7 +566,7 @@ async function sendAnnouncement(){
   if (!text) { alert('Message likho'); return; }
   if (!confirm('Ye message sab users ko jayega. Bhejna hai?')) return;
   try {
-    const res = await fetch('/api/admin/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+    const res = await authFetch('/api/admin/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     renderTools();
@@ -332,12 +574,12 @@ async function sendAnnouncement(){
 }
 async function deleteAnnouncement(id){
   if (!confirm('Ye announcement hata dein?')) return;
-  try { await fetch('/api/admin/announcements/' + id + '/delete', { method: 'POST' }); renderTools(); } catch (e) { alert(e.message); }
+  try { await authFetch('/api/admin/announcements/' + id + '/delete', { method: 'POST' }); renderTools(); } catch (e) { alert(e.message); }
 }
 async function saveBanned(){
   const status = document.getElementById('bannedStatus');
   try {
-    const res = await fetch('/api/admin/banned-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: document.getElementById('bannedText').value }) });
+    const res = await authFetch('/api/admin/banned-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: document.getElementById('bannedText').value }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     status.textContent = '✅ Saved (' + data.words.length + ' shabd)';
@@ -345,7 +587,7 @@ async function saveBanned(){
 }
 async function exportCsv(){
   try {
-    const res = await fetch('/api/admin/users.csv');
+    const res = await authFetch('/api/admin/users.csv');
     if (!res.ok) throw new Error('Export failed');
     const blob = await res.blob();
     const a = document.createElement('a');
@@ -357,7 +599,7 @@ async function toggleVerify(id){
   const u = D.users.find(x => x.id === id);
   if (!u) return;
   try {
-    const res = await fetch('/api/admin/users/' + id + '/verify', { method: 'POST' });
+    const res = await authFetch('/api/admin/users/' + id + '/verify', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     u.verified = data.verified;
@@ -372,7 +614,7 @@ async function deleteUser(id){
   if (typed === null) return;
   if (typed.trim().toLowerCase() !== (u.username || '').toLowerCase()) { alert('Username match nahi hua — delete nahi kiya.'); return; }
   try {
-    const res = await fetch('/api/admin/users/' + id + '/delete', { method: 'POST' });
+    const res = await authFetch('/api/admin/users/' + id + '/delete', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     alert('@' + u.username + ' delete ho gaya.');
@@ -409,7 +651,7 @@ async function toggleSuspend(id){
   if (!u) return;
   if (!confirm(u.suspended ? '@' + u.username + ' ko unsuspend karna hai?' : '@' + u.username + ' ko suspend karna hai? Wo login nahi kar paayega aur uska session bhi band ho jayega.')) return;
   try {
-    const res = await fetch('/api/admin/users/' + id + '/suspend', { method: 'POST' });
+    const res = await authFetch('/api/admin/users/' + id + '/suspend', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     u.suspended = data.suspended;
