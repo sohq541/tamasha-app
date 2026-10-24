@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { Readable } = require('stream');
+const zlib = require('zlib');
+const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 const bcrypt = require('bcryptjs');
@@ -11,8 +13,6 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, CopyObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -21,16 +21,7 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme123';
 
-const B2_KEY_ID = process.env.B2_KEY_ID;
-const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
-const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
-const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
 
-const E2_ACCESS_KEY_ID = process.env.E2_ACCESS_KEY_ID;
-const E2_SECRET_ACCESS_KEY = process.env.E2_SECRET_ACCESS_KEY;
-const E2_BUCKET_NAME = process.env.E2_BUCKET_NAME;
-const E2_REGION = process.env.E2_REGION;
-const E2_ENDPOINT = process.env.E2_ENDPOINT;
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -46,6 +37,22 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 app.use(cookieParser());
 app.use(express.json());
+// Render's free plan includes only 5 GB of outbound traffic a month, so JSON responses are gzip-compressed.
+app.use((req, res, next) => {
+  const orig = res.json.bind(res);
+  res.json = (obj) => {
+    if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '') || res.headersSent) return orig(obj);
+    const body = JSON.stringify(obj);
+    if (body === undefined || body.length < 1024) return orig(obj);
+    zlib.gzip(body, (err, buf) => {
+      if (err) return orig(obj);
+      res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding', 'Content-Length': buf.length });
+      res.end(buf);
+    });
+    return res;
+  };
+  next();
+});
 
 // Suspended accounts: their login is blocked, and any session they already had (30-day token) stops working too.
 const suspendedIds = new Set();
@@ -67,12 +74,23 @@ function getUserFromReq(req) {
   } catch (e) { return null; }
 }
 
+const ADMIN_COOKIE = 'admin_token';
+function safeEq(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
 function isAdminBasicAuth(req) {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Basic ')) return false;
-  const decoded = Buffer.from(header.split(' ')[1], 'base64').toString();
-  const [user, pass] = decoded.split(':');
-  return user === ADMIN_USER && pass === ADMIN_PASS;
+  if (header && header.startsWith('Basic ')) {
+    const decoded = Buffer.from(header.split(' ')[1], 'base64').toString();
+    const idx = decoded.indexOf(':');
+    const user = decoded.slice(0, idx), pass = decoded.slice(idx + 1);
+    if (idx > -1 && safeEq(user, ADMIN_USER) && safeEq(pass, ADMIN_PASS)) return true;
+  }
+  const tok = req.cookies && req.cookies[ADMIN_COOKIE];      // login form on the dashboard sets this cookie
+  if (tok) { try { const p = jwt.verify(tok, JWT_SECRET); return !!(p && p.role === 'admin'); } catch (e) {} }
+  return false;
 }
 
 function signToken(user) {
@@ -145,200 +163,42 @@ async function notifyCollabInvite(newFilm, currentUser) {
   });
 }
 
-// ---------------- Backblaze B2 helper ----------------
-let b2Cache = { authToken: null, apiUrl: null, downloadUrl: null, expiresAt: 0 };
-
-async function b2Authorize() {
-  if (b2Cache.authToken && Date.now() < b2Cache.expiresAt) return b2Cache;
-  const credentials = Buffer.from(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`).toString('base64');
-  const res = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
-    headers: { Authorization: `Basic ${credentials}` }
-  });
-  if (!res.ok) throw new Error('B2 authorization failed: ' + (await res.text()));
-  const data = await res.json();
-  b2Cache = {
-    authToken: data.authorizationToken,
-    apiUrl: data.apiInfo.storageApi.apiUrl,
-    downloadUrl: data.apiInfo.storageApi.downloadUrl,
-    expiresAt: Date.now() + 12 * 60 * 60 * 1000
-  };
-  return b2Cache;
+// ---------------- File storage: Google Drive only ----------------
+// Every file (videos, photos, avatars, stories, chat media) and the JSON "database" files live in one Google Drive folder.
+// Each Drive file is named by its key (e.g. "videos/abc.mp4", "films.json"). See the Google Drive section below.
+const gdReady = () => gdEnabled();
+function storeNeedsDrive() {
+  if (!gdReady()) { const e = new Error('Google Drive is not configured (GDRIVE_CLIENT_ID / GDRIVE_CLIENT_SECRET / GDRIVE_REFRESH_TOKEN)'); e.status = 503; throw e; }
 }
-
-async function b2GetUploadUrl() {
-  const { authToken, apiUrl } = await b2Authorize();
-  const res = await fetch(`${apiUrl}/b2api/v3/b2_get_upload_url`, {
-    method: 'POST',
-    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bucketId: B2_BUCKET_ID })
-  });
-  if (!res.ok) throw new Error('B2 get upload url failed: ' + (await res.text()));
-  return res.json();
-}
-
-async function b2UploadBuffer(buffer, fileName, contentType) {
-  const { uploadUrl, authorizationToken } = await b2GetUploadUrl();
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: authorizationToken,
-      'X-Bz-File-Name': encodeURIComponent(fileName),
-      'Content-Type': contentType || 'b2/x-auto',
-      'X-Bz-Content-Sha1': 'do_not_verify',
-      'Content-Length': buffer.length
-    },
-    body: buffer
-  });
-  if (!res.ok) throw new Error('B2 upload failed: ' + (await res.text()));
-  return res.json();
-}
-
-async function b2StreamToResponse(fileName, req, res) {
-  const { authToken, downloadUrl } = await b2Authorize();
-  const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}`;
-  const headers = { Authorization: authToken };
-  if (req.headers.range) headers.Range = req.headers.range;
-  const b2res = await fetch(url, { headers });
-  if (!b2res.ok && b2res.status !== 206) {
-    return res.status(b2res.status === 404 ? 404 : 502).send('Could not fetch file from storage');
-  }
-  res.status(b2res.status);
-  ['content-type', 'content-length', 'content-range', 'accept-ranges'].forEach(h => {
-    const v = b2res.headers.get(h);
-    if (v) res.set(h, v);
-  });
-  Readable.fromWeb(b2res.body).pipe(res);
-}
-
-async function b2DeleteFile(fileName) {
-  const { authToken, apiUrl } = await b2Authorize();
-  const listRes = await fetch(`${apiUrl}/b2api/v3/b2_list_file_names`, {
-    method: 'POST',
-    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bucketId: B2_BUCKET_ID, startFileName: fileName, maxFileCount: 1 })
-  });
-  const listData = await listRes.json();
-  const match = listData.files && listData.files.find(f => f.fileName === fileName);
-  if (!match) return;
-  await fetch(`${apiUrl}/b2api/v3/b2_delete_file_version`, {
-    method: 'POST',
-    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName, fileId: match.fileId })
-  });
-}
-
-// DRIVE_ONLY: no bucket at all. The JSON "database" AND every uploaded file live in a Google Drive folder (see the Drive section below).
-// Turned on when the GDRIVE_* variables are set and either STORAGE_MODE=gdrive or no E2_ACCESS_KEY_ID is configured.
-const DRIVE_ONLY = !!(process.env.GDRIVE_CLIENT_ID && process.env.GDRIVE_CLIENT_SECRET && process.env.GDRIVE_REFRESH_TOKEN)
-  && (process.env.STORAGE_MODE === 'gdrive' || !process.env.E2_ACCESS_KEY_ID);
-
-// ---------------- IDrive e2 (S3-compatible) helper ----------------
-const e2Client = new S3Client({
-  region: E2_REGION,
-  endpoint: E2_ENDPOINT,
-  credentials: { accessKeyId: E2_ACCESS_KEY_ID, secretAccessKey: E2_SECRET_ACCESS_KEY },
-  forcePathStyle: true
-});
-
-async function e2UploadBuffer(buffer, key, contentType) {
-  if (DRIVE_ONLY) { await gdPutByKey(key, buffer, contentType); return; }
-  await e2Client.send(new PutObjectCommand({
-    Bucket: E2_BUCKET_NAME, Key: key, Body: buffer, ContentType: contentType || 'application/octet-stream'
-  }));
-}
-
-async function e2CopyObject(sourceKey, destKey) {
-  if (DRIVE_ONLY) { const buf = await gdGetByKey(sourceKey); await gdPutByKey(destKey, buf, 'application/octet-stream'); return; }
-  await e2Client.send(new CopyObjectCommand({
-    Bucket: E2_BUCKET_NAME, Key: destKey, CopySource: `${E2_BUCKET_NAME}/${encodeURIComponent(sourceKey)}`
-  }));
-}
-
-async function e2StreamToResponse(key, req, res) {
-  if (DRIVE_ONLY) {
-    const id = await gdResolve(key).catch(() => null);
-    if (!id) return res.status(404).send('Not found');
-    return gdServe(id, req, res);
-  }
-  try {
-    const params = { Bucket: E2_BUCKET_NAME, Key: key };
-    if (req.headers.range) params.Range = req.headers.range;
-    const data = await e2Client.send(new GetObjectCommand(params));
-    res.status(req.headers.range ? 206 : 200);
-    if (data.ContentType) res.set('content-type', data.ContentType);
-    if (data.ContentLength != null) res.set('content-length', data.ContentLength);
-    if (data.ContentRange) res.set('content-range', data.ContentRange);
-    res.set('accept-ranges', 'bytes');
-    data.Body.pipe(res);
-  } catch (err) {
-    if (err.name === 'NoSuchKey') return res.status(404).send('Not found');
-    res.status(502).send('Could not fetch file from storage');
-  }
-}
-
-async function e2DeleteFile(key) {
+async function storePutBuffer(buffer, key, contentType) { storeNeedsDrive(); await gdPutByKey(key, buffer, contentType); }
+async function storeCopy(sourceKey, destKey) { storeNeedsDrive(); const buf = await gdGetByKey(sourceKey); await gdPutByKey(destKey, buf, 'application/octet-stream'); }
+async function storeDelete(key) {
   if (typeof key === 'string' && key.startsWith('gd:')) { await gdDelete(key.slice(3)); return; }
-  if (DRIVE_ONLY) { try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {} return; }
-  try { await e2Client.send(new DeleteObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key })); } catch (e) {}
+  try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {}
 }
-
-async function e2GetPresignedUploadUrl(key, contentType) {
-  if (DRIVE_ONLY) throw new Error('Direct browser upload is not available with Google Drive storage');
-  const command = new PutObjectCommand({
-    Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
-  });
-  return getSignedUrl(e2Client, command, { expiresIn: 900 });
+async function storeUrl(key) {                                   // a link the browser can open (direct Google link or our /media route)
+  storeNeedsDrive();
+  const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key);
+  if (!id) throw new Error('File not found');
+  return gdMediaUrl(id);
 }
-
-async function e2GetPresignedDownloadUrl(key) {
-  if (DRIVE_ONLY) {
-    const id = await gdResolve(key);
-    if (!id) throw new Error('File not found');
-    return '/media/gd/' + id;
-  }
-  const command = new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key });
-  return getSignedUrl(e2Client, command, { expiresIn: 3600 });
+async function storeStream(key, req, res) {                      // serve a stored file through this server (used by old-style routes)
+  const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key).catch(() => null);
+  if (!id) return res.status(404).send('Not found');
+  return gdServe(id, req, res);
 }
-
-let b2DownloadAuthCache = { token: null, expiresAt: 0 };
-async function getB2DownloadAuthToken() {
-  if (b2DownloadAuthCache.token && Date.now() < b2DownloadAuthCache.expiresAt) return b2DownloadAuthCache.token;
-  const { authToken, apiUrl } = await b2Authorize();
-  const res = await fetch(`${apiUrl}/b2api/v3/b2_get_download_authorization`, {
-    method: 'POST',
-    headers: { Authorization: authToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bucketId: B2_BUCKET_ID, fileNamePrefix: '', validDurationInSeconds: 3600 })
-  });
-  const data = await res.json();
-  if (!data.authorizationToken) throw new Error('Could not get B2 download authorization');
-  b2DownloadAuthCache = { token: data.authorizationToken, expiresAt: Date.now() + 3500 * 1000 };
-  return b2DownloadAuthCache.token;
-}
-
-async function b2GetDirectUrl(fileName) {
-  const { downloadUrl } = await b2Authorize();
-  const token = await getB2DownloadAuthToken();
-  return `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(fileName)}?Authorization=${encodeURIComponent(token)}`;
-}
-
+// one place that turns a stored key into a URL for the browser; never throws
 function makeDirectUrlCache() {
   const cache = {};
-  return async function directUrl(key, provider) {
+  return async function directUrl(key) {
     if (!key) return null;
-    if (typeof key === 'string' && key.startsWith('gd:')) return '/media/gd/' + key.slice(3);   // Google Drive file, streamed through this server
-    const cacheKey = (provider || 'b2') + ':' + key;
-    if (cache[cacheKey]) return cache[cacheKey];
-    try {
-      const url = provider === 'e2' ? await e2GetPresignedDownloadUrl(key) : await b2GetDirectUrl(key);
-      cache[cacheKey] = url;
-      return url;
-    } catch (e) { return null; }
+    if (cache[key]) return cache[key];
+    try { const url = await storeUrl(key); cache[key] = url; return url; } catch (e) { return null; }
   };
 }
 
 // ---- Usage tracking (shown in the admin dashboard) ----
-// IDrive e2's free egress policy: monthly downloads must stay under ~3x the stored volume, otherwise a FREE account can be suspended.
-// Exact: bytes this server downloads from the bucket (the JSON "database"). Estimated: video/photo views x file size.
+// Usage counters shown on the dashboard: JSON reads from Drive (exact), media served through this server (exact).
 const STORAGE_LIMIT_BYTES = (parseFloat(process.env.STORAGE_LIMIT_GB) || 10) * 1024 * 1024 * 1024;
 const usage = { month: new Date().toISOString().slice(0, 7), jsonBytes: 0, mediaBytes: 0, proxyBytes: 0, views: 0, dirty: false };
 function usageRoll() {
@@ -347,93 +207,56 @@ function usageRoll() {
 }
 function usageAdd(field, n) { usageRoll(); usage[field] += n || 0; usage.dirty = true; }
 
-// The JSON "database" files are cached in memory (this server is the only writer), so the bucket is read once per
+// The JSON "database" files are cached in memory (this server is the only writer), so Drive is read once per
 // JSON_CACHE_SECONDS instead of on every request. Writes update the cache straight away.
-const JSON_CACHE_MS = (parseInt(process.env.JSON_CACHE_SECONDS, 10) || (DRIVE_ONLY ? 3600 : 300)) * 1000;
+const JSON_CACHE_MS = (parseInt(process.env.JSON_CACHE_SECONDS, 10) || 3600) * 1000;
 const jsonCache = new Map();
-async function e2ReadJSON(key) {
+async function storeReadJSON(key) {
   const hit = jsonCache.get(key);
   if (hit && Date.now() - hit.at < JSON_CACHE_MS) return JSON.parse(hit.raw);
-  if (DRIVE_ONLY) {
-    const pend = gdPending.get(key);                       // a write that has not reached Drive yet is the newest truth
-    if (pend) return JSON.parse(pend.raw);
-    const buf = await gdGetByKey(key);
-    usageAdd('jsonBytes', buf.length);
-    const raw = buf.toString('utf-8');
-    const parsed = JSON.parse(raw);
-    jsonCache.set(key, { at: Date.now(), raw });
-    return parsed;
-  }
-  const data = await e2Client.send(new GetObjectCommand({ Bucket: E2_BUCKET_NAME, Key: key }));
-  const chunks = [];
-  for await (const chunk of data.Body) chunks.push(chunk);
-  const buf = Buffer.concat(chunks);
+  const pend = gdPending.get(key);                               // a write that has not reached Drive yet is the newest truth
+  if (pend) return JSON.parse(pend.raw);
+  const buf = await gdGetByKey(key);
   usageAdd('jsonBytes', buf.length);
   const raw = buf.toString('utf-8');
-  const parsed = JSON.parse(raw);
   jsonCache.set(key, { at: Date.now(), raw });
-  return parsed;
+  return JSON.parse(raw);
 }
 
-async function e2TryReadJSON(key) {
-  try { return await e2ReadJSON(key); }
-  catch (e) {
-    if (e.name !== 'NoSuchKey') console.error(`e2TryReadJSON('${key}') failed:`, e.message);
-    return null;
-  }
+async function storeTryReadJSON(key) {
+  try { return await storeReadJSON(key); } catch (e) { return null; }
 }
 
-async function e2WriteJSON(key, data) {
+async function storeWriteJSON(key, data) {
   const raw = JSON.stringify(data, null, 2);
-  if (DRIVE_ONLY) {                                        // write-behind: memory is updated now, Drive a few seconds later
-    jsonCache.set(key, { at: Date.now(), raw });
-    gdQueueJSON(key, raw);
-    return;
-  }
-  await e2UploadBuffer(Buffer.from(raw), key, 'application/json');
   jsonCache.set(key, { at: Date.now(), raw });
+  gdQueueJSON(key, raw);                                          // write-behind: memory now, Drive within a few seconds
 }
 
-// If B2 is unreachable/capped, return null (caller can degrade gracefully) instead of throwing
-async function b2TryReadJSON(fileName) {
-  try {
-    const { authToken, downloadUrl } = await b2Authorize();
-    const url = `${downloadUrl}/file/${B2_BUCKET_NAME}/${fileName}`;
-    const res = await fetch(url, { headers: { Authorization: authToken } });
-    if (res.status === 404) return [];
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) { return null; }
-}
 
-async function getMigrationStatus() {
-  const status = await e2TryReadJSON('migration-status.json');
-  return status || { films: false, users: false, stories: false };
-}
-async function markMigrated(key) {
-  const status = await getMigrationStatus();
-  status[key] = true;
-  await e2WriteJSON('migration-status.json', status);
-}
+
+
+
+
 
 // ---------------- Notifications ----------------
 async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, conversationId, message }) {
   if (!toUserId || toUserId === fromUserId) return;
   try {
-    const notifications = await e2TryReadJSON('notifications.json') || [];
+    const notifications = await storeTryReadJSON('notifications.json') || [];
     notifications.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       userId: toUserId, type, fromUserId, fromUsername,
       filmId: filmId || null, storyId: storyId || null, conversationId: conversationId || null,
       message, read: false, createdAt: new Date().toISOString()
     });
-    await e2WriteJSON('notifications.json', notifications.slice(-500));
+    await storeWriteJSON('notifications.json', notifications.slice(-500));
   } catch (e) { console.error('notify failed:', e.message); }
   sendPushToUser(toUserId, { title: 'YouSeries', body: message, filmId, storyId, conversationId, fromUserId, fromUsername }).catch(() => {});
 }
 
 async function sendPushToUser(userId, payload) {
-  const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+  const subs = await storeTryReadJSON('push-subscriptions.json') || [];
   const mine = subs.filter(s => s.userId === userId);
   if (!mine.length) return;
   let changed = false;
@@ -447,7 +270,7 @@ async function sendPushToUser(userId, payload) {
       }
     }
   }
-  if (changed) await e2WriteJSON('push-subscriptions.json', subs);
+  if (changed) await storeWriteJSON('push-subscriptions.json', subs);
 }
 
 function generateThumbnail(videoBuffer, ext) {
@@ -481,48 +304,22 @@ const FILMS_CACHE_MS = 15000;
 
 async function readFilms() {
   if (filmsCache.data && Date.now() < filmsCache.expiresAt) return filmsCache.data;
-  const status = await getMigrationStatus();
-  let films = await e2TryReadJSON('films.json') || [];
-
-  if (!status.films) {
-    const b2Films = await b2TryReadJSON('films.json');
-    if (b2Films !== null) {
-      const existingIds = new Set(b2Films.map(f => f.id));
-      films = [...b2Films, ...films.filter(f => !existingIds.has(f.id))];
-      await e2WriteJSON('films.json', films);
-      await markMigrated('films');
-    }
-    // else: B2 is still unreachable/capped — serve whatever's on e2 (new uploads) for now, retry next time
-  }
-
+  const films = await storeTryReadJSON('films.json') || [];
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
   return films;
 }
 
 async function writeFilms(films) {
-  await e2WriteJSON('films.json', films);
+  await storeWriteJSON('films.json', films);
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
 }
 
 // ---------------- Users "database" ----------------
 async function readUsers() {
-  const status = await getMigrationStatus();
-  let users = await e2TryReadJSON('users.json') || [];
-
-  if (!status.users) {
-    const b2Users = await b2TryReadJSON('users.json');
-    if (b2Users !== null) {
-      const existingIds = new Set(b2Users.map(u => u.id));
-      users = [...b2Users, ...users.filter(u => !existingIds.has(u.id))];
-      await e2WriteJSON('users.json', users);
-      await markMigrated('users');
-    }
-  }
-
-  return users;
+  return await storeTryReadJSON('users.json') || [];
 }
 async function writeUsers(users) {
-  await e2WriteJSON('users.json', users);
+  await storeWriteJSON('users.json', users);
 }
 
 // ---------------- Express setup ----------------
@@ -551,6 +348,32 @@ app.get('/moderation.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'moderation.html'));
 });
 
+const gzStatic = new Map();
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || !/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return next();
+  const rel = req.path === '/' ? '/index.html' : req.path;
+  if (!/\.(html|js|css|svg|json|txt)$/i.test(rel) || rel.includes('..')) return next();
+  const file = path.join(__dirname, 'public', rel);
+  if (!file.startsWith(path.join(__dirname, 'public'))) return next();
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) return next();
+    const cached = gzStatic.get(file);
+    const send = buf => {
+      res.type(path.extname(file));
+      res.set({ 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding', 'Cache-Control': 'no-cache', 'Content-Length': buf.length });
+      res.end(buf);
+    };
+    if (cached && cached.mtime === st.mtimeMs) return send(cached.buf);
+    fs.readFile(file, (e2, data) => {
+      if (e2) return next();
+      zlib.gzip(data, { level: 9 }, (e3, buf) => {
+        if (e3) return next();
+        gzStatic.set(file, { mtime: st.mtimeMs, buf });
+        send(buf);
+      });
+    });
+  });
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ===================== AUTH ROUTES =====================
@@ -725,13 +548,13 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'A photo file is required' });
 
     const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
-    await e2UploadBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
+    await storePutBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     user.profileImage = key;
-    user.avatarStorageProvider = 'e2';
+    user.avatarStorageProvider = 'gdrive';
     await writeUsers(users);
 
     res.json({ profileImage: '/media/avatar/' + currentUser.id });
@@ -743,8 +566,7 @@ app.get('/media/avatar/:id', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.id === req.params.id);
     if (!user || !user.profileImage) return res.status(404).send('Not found');
-    if (user.avatarStorageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(user.profileImage));
-    else await b2StreamToResponse(user.profileImage, req, res);
+    return storeStream(user.profileImage, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -1187,8 +1009,7 @@ app.get('/media/video/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.videoFile) return res.status(404).send('Not found');
-    if (f.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(f.videoFile));
-    else await b2StreamToResponse(f.videoFile, req, res);
+    return storeStream(f.videoFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -1197,8 +1018,7 @@ app.get('/media/poster/:id', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.posterFile) return res.status(404).send('Not found');
-    if (f.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(f.posterFile));
-    else await b2StreamToResponse(f.posterFile, req, res);
+    return storeStream(f.posterFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -1218,7 +1038,7 @@ app.post('/api/films', (req, res, next) => {
       if (!req.files || !req.files.photo) return res.status(400).json({ error: 'A photo file is required' });
       const photoFile = req.files.photo[0];
       const photoKey = `posters/${id}${path.extname(photoFile.originalname)}`;
-      await e2UploadBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
+      await storePutBuffer(readFileAsBuffer(photoFile.path), photoKey, photoFile.mimetype);
 
       const films = await readFilms();
       const newFilm = {
@@ -1226,7 +1046,7 @@ app.post('/api/films', (req, res, next) => {
         description: description || '', videoFile: null, posterFile: photoKey, type: 'photo',
         isSensitive: toBool(isSensitive),
         hashtags: extractHashtags(title + ' ' + (description || '')),
-        storageProvider: 'e2',
+        storageProvider: 'gdrive',
         ownerId: req.currentUser ? req.currentUser.id : 'admin',
         ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
         views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -1242,13 +1062,13 @@ app.post('/api/films', (req, res, next) => {
 
     const videoFile = req.files.video[0];
     const videoKey = `videos/${id}${path.extname(videoFile.originalname)}`;
-    await e2UploadBuffer(fs.readFileSync(videoFile.path), videoKey, videoFile.mimetype);
+    await storePutBuffer(fs.readFileSync(videoFile.path), videoKey, videoFile.mimetype);
 
     let posterKey = null;
     if (req.files.poster) {
       const posterFile = req.files.poster[0];
       posterKey = `posters/${id}${path.extname(posterFile.originalname)}`;
-      await e2UploadBuffer(readFileAsBuffer(posterFile.path), posterKey, posterFile.mimetype);
+      await storePutBuffer(readFileAsBuffer(posterFile.path), posterKey, posterFile.mimetype);
     }
 
     const films = await readFilms();
@@ -1258,7 +1078,7 @@ app.post('/api/films', (req, res, next) => {
       type: type === 'short' ? 'short' : 'film',
       isSensitive: toBool(isSensitive),
       hashtags: extractHashtags(title + ' ' + (description || '')),
-      storageProvider: 'e2',
+      storageProvider: 'gdrive',
       ownerId: req.currentUser ? req.currentUser.id : 'admin',
       ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
       views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -1276,7 +1096,7 @@ app.post('/api/films', (req, res, next) => {
         .then(async (thumbBuffer) => {
           fs.unlink(videoPathForThumb, () => {});
           const genPosterKey = `posters/${id}.jpg`;
-          await e2UploadBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
+          await storePutBuffer(thumbBuffer, genPosterKey, 'image/jpeg');
           const latestFilms = await readFilms();
           const f = latestFilms.find(x => x.id === id);
           if (f) { f.posterFile = genPosterKey; await writeFilms(latestFilms); }
@@ -1296,25 +1116,34 @@ app.post('/api/upload/presign-url', async (req, res) => {
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const key = `${safeFolder}/${id}${path.extname(fileName)}`;
-    if (DRIVE_ONLY) return res.status(501).json({ error: 'Use the resumable upload route' });
-    const uploadUrl = await e2GetPresignedUploadUrl(key, contentType);
-    res.json({ uploadUrl, key });
+    return res.status(501).json({ error: 'Use the resumable upload route' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---------------- Google Drive media backend (optional) ----------------
+// ---------------- Google Drive (the only storage) ----------------
 // Videos / photos of posts are stored in the owner's Google Drive (e.g. a Google One plan) and streamed through this server
 // at /media/gd/<fileId>. Only the "drive.file" scope is needed, so the app can see just the files it created.
-// Turn it on by setting GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET and GDRIVE_REFRESH_TOKEN. Without them uploads go to the bucket as before.
+// Needs GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET and GDRIVE_REFRESH_TOKEN.
 const GD = {
   clientId: process.env.GDRIVE_CLIENT_ID, clientSecret: process.env.GDRIVE_CLIENT_SECRET, refreshToken: process.env.GDRIVE_REFRESH_TOKEN,
+  apiKey: process.env.GDRIVE_API_KEY || null,   // optional: files become public-by-link and the browser loads them straight from Google (no Render bandwidth)
   folderId: process.env.GDRIVE_FOLDER_ID || null, folderName: process.env.GDRIVE_FOLDER_NAME || 'YouSeries Media',
   tokenUrl: process.env.GDRIVE_TOKEN_URL || 'https://oauth2.googleapis.com/token',
   apiBase: process.env.GDRIVE_API_BASE || 'https://www.googleapis.com/drive/v3',
   uploadBase: process.env.GDRIVE_UPLOAD_BASE || 'https://www.googleapis.com/upload/drive/v3'
 };
-const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 85) * 1024 * 1024 * 1024;
+const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 4) * 1024 * 1024 * 1024;   // Render free = 5 GB/month outbound; keep ~1 GB for pages and API
 const GD_PART = 8 * 1024 * 1024;               // must match the browser's PART_SIZE (and be a multiple of 256 KiB)
+const gdMediaUrl = id => GD.apiKey ? `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${GD.apiKey}` : '/media/gd/' + id;
+async function gdMakePublic(id) {
+  if (!GD.apiKey) return;
+  try {
+    await fetch(`${GD.apiBase}/files/${id}/permissions`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    });
+  } catch (e) { /* best effort */ }
+}
 const gdEnabled = () => !!(GD.clientId && GD.clientSecret && GD.refreshToken);
 const isGdSession = s => typeof s === 'string' && s.startsWith(GD.uploadBase + '/files');
 const GD_KEY_RE = /^gd:[A-Za-z0-9_-]{8,100}$/;
@@ -1373,6 +1202,7 @@ async function gdPutPart(session, buf, offset, size) {
     if (skip >= buf.length) return { done: false };
     data = buf.subarray(skip); start = offset + skip;
   } else if (st.received < offset) { const e = new Error('Part out of order'); e.status = 409; throw e; }
+  usageAdd('proxyBytes', data.length);
   const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes ${start}-${start + data.length - 1}/${size}` }, body: data });
   if (r.status === 200 || r.status === 201) { const j = await r.json().catch(() => ({})); return { done: true, id: j.id }; }
   if (r.status === 308) return { done: false };
@@ -1408,9 +1238,9 @@ function gdSmallPut(id, buf, type) {
   for (const [k, v] of gdSmall) { if (gdSmallBytes <= GD_SMALL_CAP) break; gdSmall.delete(k); gdSmallBytes -= v.buf.length; }
 }
 
-// ---- Key based object store on Drive (DRIVE_ONLY mode): a Drive file is named exactly like the old bucket key ----
+// ---- Key based object store on Drive: a Drive file is named exactly like its storage key (e.g. videos/abc.mp4) ----
 const gdIdx = new Map();                // key (file name) -> Drive file id
-let gdIdxAt = 0, gdIdxSizes = new Map();
+let gdIdxAt = 0, gdIdxSizes = new Map(), gdIdxShared = new Map();
 async function gdIndexRefresh(force) {
   if (!force && Date.now() - gdIdxAt < 20000) return;
   gdIdxAt = Date.now();
@@ -1418,23 +1248,37 @@ async function gdIndexRefresh(force) {
   const folder = await gdFolderId();
   let pageToken = '';
   const seen = new Map(), sizes = new Map();
+  gdIdxShared = new Map();
   do {
     const q = encodeURIComponent(`'${folder}' in parents and trashed=false`);
-    const r = await fetch(`${GD.apiBase}/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,size)${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + token } });
+    const r = await fetch(`${GD.apiBase}/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,size,shared)${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + token } });
     const j = await r.json();
     if (!r.ok) throw new Error('Drive listing failed: ' + ((j.error && j.error.message) || r.status));
-    (j.files || []).forEach(f => { if (!seen.has(f.name)) { seen.set(f.name, f.id); sizes.set(f.name, Number(f.size) || 0); } });
+    (j.files || []).forEach(f => { if (!seen.has(f.name)) { seen.set(f.name, f.id); sizes.set(f.name, Number(f.size) || 0); gdIdxShared.set(f.name, !!f.shared); } });
     pageToken = j.nextPageToken || '';
   } while (pageToken);
   seen.forEach((id, name) => gdIdx.set(name, id));
   gdIdxSizes = sizes;
 }
+let gdLastMissRefresh = 0;
 async function gdResolve(key) {
   if (gdIdx.has(key)) return gdIdx.get(key);
-  try { await gdIndexRefresh(false); } catch (e) {}
+  // a key we do not know yet: look at Drive again, but at most once every 2 seconds
+  if (Date.now() - gdLastMissRefresh > 2000) { gdLastMissRefresh = Date.now(); try { await gdIndexRefresh(true); } catch (e) {} }
   return gdIdx.get(key) || null;
 }
 const gdKeyLocks = new Map();
+async function gdEnsurePublic() {                       // files uploaded before GDRIVE_API_KEY was set
+  if (!GD.apiKey) return;
+  let n = 0;
+  for (const [name, id] of gdIdx) {
+    if (/\.json$/i.test(name) || gdIdxShared.get(name) === true) continue;
+    await gdMakePublic(id); gdIdxShared.set(name, true);
+    if (++n >= 300) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  if (n) console.log(`Drive: made ${n} existing media files viewable by link`);
+}
 function gdWithLock(key, fn) {                      // one write at a time per key, so a key never gets two Drive files
   const prev = gdKeyLocks.get(key) || Promise.resolve();
   const next = prev.catch(() => {}).then(fn);
@@ -1454,11 +1298,13 @@ function gdPutByKey(key, buf, contentType) {
     }
     if (!buf.length) { const e = new Error('Empty file'); throw e; }
     const session = await gdCreateSession(key, ct, buf.length);
+    usageAdd('proxyBytes', buf.length);
     const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}` }, body: buf });
     if (r.status !== 200 && r.status !== 201) throw new Error('Drive upload failed (' + r.status + ')');
     const j = await r.json();
     gdIdx.set(key, j.id);
     gdIdxSizes.set(key, buf.length);
+    if (!/\.json$/i.test(key)) { await gdMakePublic(j.id); gdIdxShared.set(key, true); }
     return j.id;
   });
 }
@@ -1494,8 +1340,8 @@ async function gdFlushAll() {
 async function gdServe(id, req, res) {
   if (!gdEnabled() || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) return res.status(404).end();
   const range = req.headers.range;
-  // Render's free plan suspends the whole site for the rest of the month after 100 GB of outbound traffic, so media streaming
-  // stops a little earlier (GD_MONTHLY_CAP_GB, default 85) instead of taking the entire website down.
+  // Render's free plan only includes 5 GB of outbound traffic a month (more is billed at $0.15/GB), so media streaming
+  // stops at GD_MONTHLY_CAP_GB (default 4) instead of letting the whole site run into overage.
   usageRoll();
   if (usage.proxyBytes >= GD_MONTH_CAP && !gdSmall.has(id)) {
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '86400');
@@ -1535,68 +1381,47 @@ async function gdServe(id, req, res) {
 }
 app.get('/media/gd/:id', (req, res) => gdServe(req.params.id, req, res));
 
-// ---------------- Resumable (multipart) uploads ----------------
-// Parts are sent through this server (same origin, so no bucket CORS needed). Each finished part lives in
-// storage under the uploadId, so after a refresh / back / app-kill the browser just asks which parts exist
-// and continues from there instead of starting over. Works against the S3 bucket or (if configured) Google Drive.
-const MP_KEY_RE = /^(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
-const keyOk = k => typeof k === 'string' && (MP_KEY_RE.test(k) || GD_KEY_RE.test(k));
+// ---------------- Resumable uploads (Google Drive) ----------------
+// The browser cuts a file into 8 MB parts and sends them here. Drive keeps the upload session, so after a refresh the
+// browser asks which parts arrived and continues. Finished files are named "gd:<fileId>".
+const keyOk = k => typeof k === 'string' && GD_KEY_RE.test(k);
 function mpAuth(req, res) {
   const currentUser = getUserFromReq(req);
   if (!currentUser && !isAdminBasicAuth(req)) { res.status(401).json({ error: 'Please log in' }); return null; }
   return currentUser || { id: 'admin' };
 }
-async function mpListAllParts(key, uploadId) {
-  const parts = [];
-  let marker;
-  for (let i = 0; i < 20; i++) {
-    const out = await e2Client.send(new ListPartsCommand({ Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumberMarker: marker }));
-    (out.Parts || []).forEach(p => parts.push({ PartNumber: p.PartNumber, ETag: p.ETag, Size: p.Size }));
-    if (!out.IsTruncated) break;
-    marker = out.NextPartNumberMarker;
-  }
-  return parts.sort((a, b) => a.PartNumber - b.PartNumber);
-}
 
 app.post('/api/upload/mp/create', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { fileName, contentType, folder } = req.body || {};
+    const { fileName, contentType, folder, size: sizeRaw } = req.body || {};
     if (!fileName || !folder) return res.status(400).json({ error: 'A file name and folder are required' });
+    storeNeedsDrive();
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
+    const size = Number(sizeRaw);
+    if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
+    usageRoll();
+    if (usage.proxyBytes + size >= GD_MONTH_CAP) return res.status(503).json({ error: 'Is mahine ki server bandwidth limit poori ho gayi — upload agle mahine se chalega' });
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
-    if (gdEnabled()) {
-      const size = Number(req.body.size);
-      if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
-      const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
-      return res.json({ key: 'gd:pending', uploadId: session, provider: 'gdrive' });
-    }
-    const key = `${safeFolder}/${id}${ext}`;
-    const out = await e2Client.send(new CreateMultipartUploadCommand({
-      Bucket: E2_BUCKET_NAME, Key: key, ContentType: contentType || 'application/octet-stream'
-    }));
-    res.json({ key, uploadId: out.UploadId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
+    res.json({ key: 'gd:pending', uploadId: session, provider: 'gdrive' });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
 app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }), async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { key, uploadId } = req.query;
-    const n = parseInt(req.query.n, 10);
+    const { uploadId } = req.query;
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty part' });
-    if (isGdSession(uploadId)) {
-      const size = Number(req.query.size), offset = Number(req.query.offset);
-      if (!(size > 0) || !(offset >= 0) || offset % 262144 !== 0 || offset + req.body.length > size) return res.status(400).json({ error: 'Bad part request' });
-      const out = await gdPutPart(uploadId, req.body, offset, size);
-      return res.json({ ok: true, done: !!out.done, key: out.done && out.id ? 'gd:' + out.id : undefined });
-    }
-    if (!key || !MP_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad part request' });
-    const out = await e2Client.send(new UploadPartCommand({
-      Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: n, Body: req.body, ContentLength: req.body.length
-    }));
-    res.json({ ok: true, etag: out.ETag });
+    if (!isGdSession(uploadId)) return res.status(400).json({ error: 'Bad part request' });
+    const size = Number(req.query.size), offset = Number(req.query.offset);
+    if (!(size > 0) || !(offset >= 0) || offset % 262144 !== 0 || offset + req.body.length > size) return res.status(400).json({ error: 'Bad part request' });
+    usageRoll();
+    if (usage.proxyBytes >= GD_MONTH_CAP) return res.status(503).json({ error: 'Is mahine ki server bandwidth limit poori ho gayi — upload agle mahine se chalega' });
+    const out = await gdPutPart(uploadId, req.body, offset, size);
+    if (out.done && out.id) await gdMakePublic(out.id);
+    res.json({ ok: true, done: !!out.done, key: out.done && out.id ? 'gd:' + out.id : undefined });
   } catch (err) {
     if (err.expired) return res.status(404).json({ error: err.message, expired: true });
     res.status(err.status || 500).json({ error: err.message });
@@ -1606,59 +1431,36 @@ app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }),
 app.get('/api/upload/mp/parts', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { key, uploadId } = req.query;
-    if (isGdSession(uploadId)) {
-      const size = Number(req.query.size);
-      if (!(size > 0)) return res.status(400).json({ error: 'Bad request' });
-      const st = await gdSessionStatus(uploadId, size);
-      if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
-      const total = Math.max(1, Math.ceil(size / GD_PART));
-      const have = st.done ? total : Math.floor(st.received / GD_PART);
-      return res.json({ parts: Array.from({ length: have }, (_, i) => ({ n: i + 1 })) });
-    }
-    if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
-    const parts = await mpListAllParts(key, uploadId);
-    res.json({ parts: parts.map(p => ({ n: p.PartNumber, size: p.Size })) });
-  } catch (err) {
-    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
-    res.status(500).json({ error: err.message });
-  }
+    const { uploadId } = req.query;
+    const size = Number(req.query.size);
+    if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
+    const st = await gdSessionStatus(uploadId, size);
+    if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
+    const total = Math.max(1, Math.ceil(size / GD_PART));
+    const have = st.done ? total : Math.floor(st.received / GD_PART);
+    res.json({ parts: Array.from({ length: have }, (_, i) => ({ n: i + 1 })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/upload/mp/complete', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { key, uploadId, total } = req.body || {};
-    if (isGdSession(uploadId)) {
-      const size = Number(req.body.size);
-      if (!(size > 0)) return res.status(400).json({ error: 'Bad request' });
-      const st = await gdSessionStatus(uploadId, size);
-      if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
-      if (!st.done || !st.id) return res.status(409).json({ error: 'Some parts are still missing' });
-      return res.json({ ok: true, key: 'gd:' + st.id });
-    }
-    if (!key || !MP_KEY_RE.test(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
-    const parts = await mpListAllParts(key, uploadId);
-    if (!parts.length || (total && parts.length !== Number(total))) return res.status(409).json({ error: 'Some parts are still missing', have: parts.length });
-    await e2Client.send(new CompleteMultipartUploadCommand({
-      Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId,
-      MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) }
-    }));
-    res.json({ ok: true, key });
-  } catch (err) {
-    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
-    res.status(500).json({ error: err.message });
-  }
+    const { uploadId } = req.body || {};
+    const size = Number((req.body || {}).size);
+    if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
+    const st = await gdSessionStatus(uploadId, size);
+    if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
+    if (!st.done || !st.id) return res.status(409).json({ error: 'Some parts are still missing' });
+    await gdMakePublic(st.id);
+    res.json({ ok: true, key: 'gd:' + st.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/upload/mp/abort', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { key, uploadId } = req.body || {};
-    if (isGdSession(uploadId)) { fetch(uploadId, { method: 'DELETE' }).catch(() => {}); return res.json({ ok: true }); }
-    if (key && MP_KEY_RE.test(key) && uploadId) {
-      await e2Client.send(new AbortMultipartUploadCommand({ Bucket: E2_BUCKET_NAME, Key: key, UploadId: uploadId })).catch(() => {});
-    }
+    const { uploadId } = req.body || {};
+    if (isGdSession(uploadId)) fetch(uploadId, { method: 'DELETE' }).catch(() => {});
     res.json({ ok: true });
   } catch (err) { res.json({ ok: true }); }
 });
@@ -1695,7 +1497,7 @@ app.post('/api/films/finalize', async (req, res) => {
           description: description || '', videoFile: null, posterFile: mediaKey, type: 'photo',
           isSensitive: toBool(isSensitive),
           hashtags: extractHashtags(title + ' ' + (description || '')),
-          storageProvider: 'e2',
+          storageProvider: 'gdrive',
           ownerId: currentUser ? currentUser.id : 'admin',
           ownerUsername: currentUser ? currentUser.username : 'YouSeries',
           views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -1706,7 +1508,7 @@ app.post('/api/films/finalize', async (req, res) => {
           type: type === 'short' ? 'short' : 'film',
           isSensitive: toBool(isSensitive),
           hashtags: extractHashtags(title + ' ' + (description || '')),
-          storageProvider: 'e2',
+          storageProvider: 'gdrive',
           ownerId: currentUser ? currentUser.id : 'admin',
           ownerUsername: currentUser ? currentUser.username : 'YouSeries',
           views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
@@ -1868,7 +1670,9 @@ app.post('/api/films/:id/comments', async (req, res) => {
     await writeFilms(films);
     if (checkSpamAndRecord(currentUser.id, comment.text)) {
       const reports = await readReports();
-      reports.push({
+      const already = reports.some(r => r.reason === 'auto-spam' && r.status === 'pending' && r.targetOwnerId === currentUser.id
+        && r.targetPreview === comment.text && Date.now() - new Date(r.createdAt).getTime() < 10 * 60 * 1000);
+      if (!already) reports.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         type: 'comment', targetId: `${f.id}:${comment.id}`, filmId: f.id,
         targetOwnerId: currentUser.id, targetPreview: comment.text,
@@ -1876,8 +1680,10 @@ app.post('/api/films/:id/comments', async (req, res) => {
         reason: 'auto-spam', note: 'Automatically flagged for repeated/link-heavy content',
         status: 'pending', createdAt: new Date().toISOString()
       });
-      await writeReports(reports);
-      alertAdminOfReport(reports[reports.length - 1]).catch(() => {});
+      if (!already) {
+        await writeReports(reports);
+        alertAdminOfReport(reports[reports.length - 1]).catch(() => {});
+      }
     }
     if (f.ownerId) {
       await notify(f.ownerId, { type: 'film_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} commented on your "${f.title}"` });
@@ -2023,15 +1829,11 @@ app.put('/api/films/:id', (req, res, next) => {
     if (req.files && req.files.poster) {
       const posterFile = req.files.poster[0];
       const newPosterKey = `posters/${f.id}-edit${Date.now()}${path.extname(posterFile.originalname)}`;
-      await e2UploadBuffer(readFileAsBuffer(posterFile.path), newPosterKey, posterFile.mimetype);
+      await storePutBuffer(readFileAsBuffer(posterFile.path), newPosterKey, posterFile.mimetype);
       const oldPoster = f.posterFile;
-      const oldProvider = f.storageProvider;
       f.posterFile = newPosterKey;
-      f.storageProvider = 'e2';
-      if (oldPoster) {
-        if (oldProvider === 'e2') e2DeleteFile(oldPoster).catch(() => {});
-        else b2DeleteFile(oldPoster).catch(() => {});
-      }
+      f.storageProvider = 'gdrive';
+      if (oldPoster) storeDelete(oldPoster).catch(() => {});
     }
 
     await writeFilms(films);
@@ -2052,9 +1854,9 @@ app.delete('/api/films/:id', (req, res, next) => {
     if (!isOwner && !isAdminBasicAuth(req)) return res.status(403).json({ error: 'This isn\'t your content' });
 
     // Storage cleanup is best-effort: a storage hiccup must never leave the owner unable to delete their own post.
-    try { if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); } } catch (e) {}
-    try { if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); } } catch (e) {}
-    for (const sl of (f.slides || [])) { try { if (f.storageProvider === 'e2') await e2DeleteFile(sl.key); else await b2DeleteFile(sl.key); } catch (e) {} }
+    try { await storeDelete(f.videoFile); } catch (e) {}
+    try { await storeDelete(f.posterFile); } catch (e) {}
+    for (const sl of (f.slides || [])) { try { await storeDelete(sl.key); } catch (e) {} }
 
     const remaining = films.filter(x => x.id !== req.params.id);
     await writeFilms(remaining);
@@ -2069,33 +1871,22 @@ const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 
 // ---------------- Watch history ----------------
 async function readWatchHistory() {
-  return await e2TryReadJSON('watch-history.json') || [];
+  return await storeTryReadJSON('watch-history.json') || [];
 }
 async function writeWatchHistory(list) {
-  await e2WriteJSON('watch-history.json', list.slice(-3000));
+  await storeWriteJSON('watch-history.json', list.slice(-3000));
 }
 
 async function readStories() {
   if (storiesCache.data && Date.now() < storiesCache.expiresAt) return storiesCache.data;
-  const status = await getMigrationStatus();
-  let stories = await e2TryReadJSON('stories.json') || [];
-
-  if (!status.stories) {
-    const b2Stories = await b2TryReadJSON('stories.json');
-    if (b2Stories !== null) {
-      const existingIds = new Set(b2Stories.map(s => s.id));
-      stories = [...b2Stories, ...stories.filter(s => !existingIds.has(s.id))];
-      await e2WriteJSON('stories.json', stories);
-      await markMigrated('stories');
-    }
-  }
+  let stories = await storeTryReadJSON('stories.json') || [];
 
   storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
   return stories;
 }
 
 async function writeStories(stories) {
-  await e2WriteJSON('stories.json', stories);
+  await storeWriteJSON('stories.json', stories);
   storiesCache = { data: stories, expiresAt: Date.now() + STORIES_CACHE_MS };
 }
 
@@ -2110,10 +1901,10 @@ function isStoryArchivable(s) {
 
 // ---------------- Highlights "database" ----------------
 async function readHighlights() {
-  return await e2TryReadJSON('highlights.json') || [];
+  return await storeTryReadJSON('highlights.json') || [];
 }
 async function writeHighlights(list) {
-  await e2WriteJSON('highlights.json', list);
+  await storeWriteJSON('highlights.json', list);
 }
 
 // ===================== STORY ROUTES =====================
@@ -2129,7 +1920,7 @@ app.post('/api/stories', (req, res, next) => {
     const isVideo = mediaFile.mimetype.startsWith('video');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const mediaKey = `stories/${id}${path.extname(mediaFile.originalname)}`;
-    await e2UploadBuffer(fs.readFileSync(mediaFile.path), mediaKey, mediaFile.mimetype);
+    await storePutBuffer(fs.readFileSync(mediaFile.path), mediaKey, mediaFile.mimetype);
     fs.unlink(mediaFile.path, () => {});
 
     let stories = await readStories();
@@ -2140,7 +1931,7 @@ app.post('/api/stories', (req, res, next) => {
       ownerUsername: req.currentUser.username,
       mediaFile: mediaKey,
       mediaType: isVideo ? 'video' : 'photo',
-      storageProvider: 'e2',
+      storageProvider: 'gdrive',
       textOverlay: (req.body.textOverlay || '').slice(0, 200),
       createdAt: new Date().toISOString(),
       views: [],
@@ -2168,13 +1959,13 @@ app.post('/api/stories/from-film', async (req, res) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = path.extname(sourceKey) || (isVideo ? '.mp4' : '.jpg');
     const mediaKey = `stories/${id}${ext}`;
-    await e2CopyObject(sourceKey, mediaKey);
+    await storeCopy(sourceKey, mediaKey);
 
     let stories = await readStories();
     stories = stories.filter(isStoryArchivable);
     const newStory = {
       id, ownerId: currentUser.id, ownerUsername: currentUser.username,
-      mediaFile: mediaKey, mediaType: isVideo ? 'video' : 'photo', storageProvider: 'e2',
+      mediaFile: mediaKey, mediaType: isVideo ? 'video' : 'photo', storageProvider: 'gdrive',
       textOverlay: '', createdAt: new Date().toISOString(), views: [], comments: []
     };
     stories.unshift(newStory);
@@ -2252,8 +2043,7 @@ app.get('/media/story/:id', async (req, res) => {
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s || !s.mediaFile) return res.status(404).send('Not found');
-    if (s.storageProvider === 'e2') return res.redirect(302, await e2GetPresignedDownloadUrl(s.mediaFile));
-    else await b2StreamToResponse(s.mediaFile, req, res);
+    return storeStream(s.mediaFile, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -2360,7 +2150,7 @@ app.post('/api/stories/:id/delete', async (req, res) => {
     const s = stories.find(x => x.id === req.params.id);
     if (!s) return res.status(404).json({ error: 'Story not found' });
     if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
-    if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
+    await storeDelete(s.mediaFile);
     stories = stories.filter(x => x.id !== req.params.id);
     await writeStories(stories);
 
@@ -2508,7 +2298,7 @@ app.get('/api/notifications', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const all = await e2TryReadJSON('notifications.json') || [];
+    const all = await storeTryReadJSON('notifications.json') || [];
     const mine = all.filter(n => n.userId === currentUser.id).slice().reverse().slice(0, 50);
     const unreadCount = mine.filter(n => !n.read).length;
     res.json({ notifications: mine, unreadCount });
@@ -2519,7 +2309,7 @@ app.get('/api/notifications/unread-count', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.json({ unreadCount: 0 });
-    const all = await e2TryReadJSON('notifications.json') || [];
+    const all = await storeTryReadJSON('notifications.json') || [];
     const unreadCount = all.filter(n => n.userId === currentUser.id && !n.read).length;
     res.json({ unreadCount });
   } catch (err) { res.json({ unreadCount: 0 }); }
@@ -2529,10 +2319,10 @@ app.post('/api/notifications/mark-read', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const all = await e2TryReadJSON('notifications.json') || [];
+    const all = await storeTryReadJSON('notifications.json') || [];
     let changed = false;
     all.forEach(n => { if (n.userId === currentUser.id && !n.read) { n.read = true; changed = true; } });
-    if (changed) await e2WriteJSON('notifications.json', all);
+    if (changed) await storeWriteJSON('notifications.json', all);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2551,19 +2341,19 @@ function isOtherTyping(conversationId, otherUserId) {
 
 // ---------------- Chat / DM "database" ----------------
 async function readConversations() {
-  return await e2TryReadJSON('conversations.json') || [];
+  return await storeTryReadJSON('conversations.json') || [];
 }
 async function writeConversations(list) {
-  await e2WriteJSON('conversations.json', list);
+  await storeWriteJSON('conversations.json', list);
 }
 function conversationIdFor(a, b) {
   return [a, b].sort().join('_');
 }
 async function readChatMessages(conversationId) {
-  return await e2TryReadJSON(`chats/${conversationId}.json`) || [];
+  return await storeTryReadJSON(`chats/${conversationId}.json`) || [];
 }
 async function writeChatMessages(conversationId, messages) {
-  await e2WriteJSON(`chats/${conversationId}.json`, messages);
+  await storeWriteJSON(`chats/${conversationId}.json`, messages);
 }
 async function getConversationForUsers(userA, userB, createIfMissing) {
   const list = await readConversations();
@@ -2596,7 +2386,7 @@ async function enrichMessage(m, directUrl) {
     reactions: m.reactions || {}
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
-    out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'e2');
+    out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'gdrive');
   }
   if (!m.unsent && m.type === 'short') {
     out.shortId = m.shortId;
@@ -2979,7 +2769,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       const isAudio = mediaFile.mimetype.startsWith('audio') || isVoice;
       type = isAudio ? 'voice' : (isVideo ? 'video' : 'photo');
       mediaKey = `chats/${convo.id}/${id}${path.extname(mediaFile.originalname) || (isAudio ? '.webm' : '')}`;
-      await e2UploadBuffer(readFileAsBuffer(mediaFile.path), mediaKey, mediaFile.mimetype);
+      await storePutBuffer(readFileAsBuffer(mediaFile.path), mediaKey, mediaFile.mimetype);
       mediaType = type;
       if (isAudio && req.body.duration) duration = parseFloat(req.body.duration) || null;
     } else if (shortId) {
@@ -2994,7 +2784,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const newMessage = {
       id, conversationId: convo.id, senderId: req.currentUser.id,
       type, text: text || null,
-      mediaKey, mediaType, storageProvider: 'e2', duration,
+      mediaKey, mediaType, storageProvider: 'gdrive', duration,
       shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
       createdAt: new Date().toISOString(), editedAt: null,
       deletedFor: [], unsent: false, readBy: [req.currentUser.id]
@@ -3070,7 +2860,7 @@ app.post('/api/conversations/:id/messages/:messageId/delete', async (req, res) =
     const scope = req.body.scope === 'everyone' ? 'everyone' : 'me';
     if (scope === 'everyone') {
       if (m.senderId !== currentUser.id) return res.status(403).json({ error: 'You can only delete your own messages for everyone' });
-      if (m.mediaKey) { await e2DeleteFile(m.mediaKey); m.mediaKey = null; }
+      if (m.mediaKey) { await storeDelete(m.mediaKey); m.mediaKey = null; }
       m.unsent = true;
       m.text = null;
       m.editedAt = new Date().toISOString(); // so live polling (since=editedAt) picks up the unsend immediately
@@ -3266,8 +3056,8 @@ app.post('/api/me/delete', async (req, res) => {
     const films = await readFilms();
     const myFilms = films.filter(f => f.ownerId === currentUser.id);
     for (const f of myFilms) {
-      if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
-      if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
+      await storeDelete(f.videoFile);
+      await storeDelete(f.posterFile);
     }
     const remainingFilms = films.filter(f => f.ownerId !== currentUser.id);
     await writeFilms(remainingFilms);
@@ -3275,7 +3065,7 @@ app.post('/api/me/delete', async (req, res) => {
     let stories = await readStories();
     const myStories = stories.filter(s => s.ownerId === currentUser.id);
     for (const s of myStories) {
-      if (s.mediaFile) { if (s.storageProvider === 'e2') await e2DeleteFile(s.mediaFile); else await b2DeleteFile(s.mediaFile); }
+      await storeDelete(s.mediaFile);
     }
     await writeStories(stories.filter(s => s.ownerId !== currentUser.id));
 
@@ -3283,16 +3073,14 @@ app.post('/api/me/delete', async (req, res) => {
     const myConversations = conversations.filter(c => c.participants.includes(currentUser.id));
     for (const c of myConversations) {
       const messages = await readChatMessages(c.id);
-      for (const m of messages) { if (m.mediaKey) await e2DeleteFile(m.mediaKey); }
-      await e2DeleteFile(`chats/${c.id}.json`);
+      for (const m of messages) { if (m.mediaKey) await storeDelete(m.mediaKey); }
+      await storeDelete(`chats/${c.id}.json`);
     }
     await writeConversations(conversations.filter(c => !c.participants.includes(currentUser.id)));
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
-    if (user && user.profileImage) {
-      if (user.avatarStorageProvider === 'e2') await e2DeleteFile(user.profileImage); else await b2DeleteFile(user.profileImage);
-    }
+    if (user && user.profileImage) await storeDelete(user.profileImage);
     users.forEach(u => { if (u.following) u.following = u.following.filter(id => id !== currentUser.id); });
     const remainingUsers = users.filter(u => u.id !== currentUser.id);
     await writeUsers(remainingUsers);
@@ -3304,46 +3092,125 @@ app.post('/api/me/delete', async (req, res) => {
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+// ---------------- Help desk: tickets stored for the dashboard (with email), admin replies shown back to the user ----------------
+async function readHelpdesk() { return (await storeTryReadJSON('helpdesk.json')) || []; }
+async function writeHelpdesk(list) { await storeWriteJSON('helpdesk.json', list); }
+const helpRate = new Map();
+function helpRateOk(key) {
+  const now = Date.now();
+  const arr = (helpRate.get(key) || []).filter(t => now - t < 60 * 60 * 1000);
+  if (arr.length >= 5) { helpRate.set(key, arr); return false; }
+  arr.push(now); helpRate.set(key, arr); return true;
+}
+const looksLikeEmail = e => typeof e === 'string' && e.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+async function sendResendMail(to, subject, text) {
+  if (!RESEND_API_KEY) return false;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST', headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'YouSeries Help Desk <onboarding@resend.dev>', to: [to], subject, text })
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+function ticketView(t) {
+  return { id: t.id, problem: t.problem, status: t.status, createdAt: t.createdAt, replies: t.replies || [], hasNewReply: !!t.hasNewReply };
+}
+
 app.post('/api/help-desk', async (req, res) => {
   try {
-    const { name, userId, problem } = req.body;
-    if (!problem || !problem.trim()) {
-      return res.status(400).json({ error: 'Please describe your problem' });
-    }
+    const currentUser = getUserFromReq(req);
+    const { name, problem, email } = req.body || {};
+    const text = String(problem || '').trim().slice(0, 2000);
+    if (!text) return res.status(400).json({ error: 'Please describe your problem' });
+    const contact = String(email || (currentUser && currentUser.email) || '').trim();
+    if (contact && !looksLikeEmail(contact)) return res.status(400).json({ error: 'Email sahi nahi lag raha' });
+    if (!helpRateOk(currentUser ? 'u:' + currentUser.id : 'ip:' + req.ip)) return res.status(429).json({ error: 'Bahut zyada messages — thodi der baad try karo' });
 
-    if (!RESEND_API_KEY) {
-      console.error('Help desk: RESEND_API_KEY env var missing or empty');
-      return res.status(500).json({ error: 'Email service isn\'t set up yet, please try again later' });
-    }
+    const list = await readHelpdesk();
+    const ticket = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      userId: currentUser ? currentUser.id : null,
+      username: currentUser ? currentUser.username : null,
+      name: String(name || (currentUser && currentUser.username) || 'User').slice(0, 60),
+      email: contact || null,
+      problem: text, status: 'open', createdAt: new Date().toISOString(), replies: []
+    };
+    list.push(ticket);
+    await writeHelpdesk(list.slice(-1000));
+    // tell the owner: in-app notification (+ email through Resend if configured) — never blocks the ticket itself
+    alertAdminText(`📩 Naya Help Desk message: ${ticket.name}${ticket.email ? ' (' + ticket.email + ')' : ''} — "${text.slice(0, 80)}"`).catch(() => {});
+    sendResendMail('sohailp541@gmail.com', 'YouSeries Help Desk - ' + ticket.name,
+      `Name: ${ticket.name}\nEmail: ${ticket.email || '-'}\nUser ID: ${ticket.userId || '-'}\n\nProblem:\n${text}\n\nDashboard → Help Desk me jawab de sakte ho.`).catch(() => {});
+    res.status(201).json({ success: true, id: ticket.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    console.log('Help desk: sending mail via Resend for user', userId || '-');
+app.get('/api/help-desk/mine', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const list = await readHelpdesk();
+    const mine = list.filter(t => t.userId === currentUser.id);
+    const out = mine.slice().reverse().map(ticketView);
+    let changed = false;
+    mine.forEach(t => { if (t.hasNewReply) { t.hasNewReply = false; changed = true; } });
+    if (changed) await writeHelpdesk(list);
+    res.json({ tickets: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'YouSeries Help Desk <onboarding@resend.dev>',
-        to: ['sohailp541@gmail.com'],
-        subject: 'YouSeries Help Desk - ' + (name || 'User'),
-        text: `Name: ${name || '-'}\nUser ID: ${userId || '-'}\n\nProblem:\n${problem}`
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to send email via Resend');
-    }
-
-    console.log('Help desk: mail sent successfully via Resend');
+app.post('/api/help-desk/:id/reply', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const text = String((req.body && req.body.message) || '').trim().slice(0, 1000);
+    if (!text) return res.status(400).json({ error: 'Message likho' });
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id && x.userId === currentUser.id);
+    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    if (!helpRateOk('u:' + currentUser.id)) return res.status(429).json({ error: 'Bahut zyada messages — thodi der baad try karo' });
+    t.replies = t.replies || [];
+    t.replies.push({ from: 'user', text, at: new Date().toISOString() });
+    t.status = 'open'; t.adminSeen = false;
+    await writeHelpdesk(list);
+    alertAdminText(`💬 Help Desk follow-up: ${t.name} — "${text.slice(0, 80)}"`).catch(() => {});
     res.json({ success: true });
-  } catch (err) {
-    console.error('Help desk mail error:', err);
-    res.status(500).json({ error: 'Email bhejne me error aaya: ' + err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/helpdesk', requireAdmin, async (req, res) => {
+  try {
+    const list = await readHelpdesk();
+    res.json({ tickets: list.slice().reverse().sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1)) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/helpdesk/:id/reply', requireAdmin, async (req, res) => {
+  try {
+    const text = String((req.body && req.body.message) || '').trim().slice(0, 1500);
+    if (!text) return res.status(400).json({ error: 'Jawab likho' });
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id);
+    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    t.replies = t.replies || [];
+    t.replies.push({ from: 'admin', text, at: new Date().toISOString() });
+    t.hasNewReply = true; t.adminSeen = true; t.status = 'answered';
+    await writeHelpdesk(list);
+    if (t.userId) await notify(t.userId, { type: 'helpdesk_reply', fromUserId: 'system', fromUsername: 'Help Desk', message: '🆘 Help Desk ne tumhare sawal ka jawab diya' });
+    let emailed = false;
+    if (t.email) emailed = await sendResendMail(t.email, 'YouSeries Help Desk — tumhare sawal ka jawab', `Hi ${t.name},\n\n${text}\n\n— YouSeries Help Desk\n\n(Tumhara sawal: ${t.problem.slice(0, 200)})`);
+    res.json({ success: true, emailed });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/helpdesk/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const status = (req.body && req.body.status) === 'closed' ? 'closed' : 'open';
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id);
+    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    t.status = status; await writeHelpdesk(list);
+    res.json({ success: true, status });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/push/vapid-public-key', (req, res) => {
@@ -3357,11 +3224,11 @@ app.post('/api/push/subscribe', async (req, res) => {
     const { subscription } = req.body;
     if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
 
-    const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+    const subs = await storeTryReadJSON('push-subscriptions.json') || [];
     const existingIdx = subs.findIndex(s => s.subscription.endpoint === subscription.endpoint);
     const entry = { userId: currentUser.id, subscription, createdAt: new Date().toISOString() };
     if (existingIdx !== -1) subs[existingIdx] = entry; else subs.push(entry);
-    await e2WriteJSON('push-subscriptions.json', subs);
+    await storeWriteJSON('push-subscriptions.json', subs);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3370,19 +3237,19 @@ app.post('/api/push/unsubscribe', async (req, res) => {
   try {
     const { endpoint } = req.body;
     if (!endpoint) return res.status(400).json({ error: 'Endpoint required' });
-    const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+    const subs = await storeTryReadJSON('push-subscriptions.json') || [];
     const filtered = subs.filter(s => s.subscription.endpoint !== endpoint);
-    await e2WriteJSON('push-subscriptions.json', filtered);
+    await storeWriteJSON('push-subscriptions.json', filtered);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ===================== SAFETY / MODERATION =====================
 async function readReports() {
-  return await e2TryReadJSON('reports.json') || [];
+  return await storeTryReadJSON('reports.json') || [];
 }
 async function writeReports(list) {
-  await e2WriteJSON('reports.json', list);
+  await storeWriteJSON('reports.json', list);
 }
 
 const recentCommentsByUser = {};
@@ -3441,7 +3308,7 @@ app.post('/api/reports', async (req, res) => {
 
 function requireAdmin(req, res, next) {
   if (!isAdminBasicAuth(req)) {
-    res.set('WWW-Authenticate', 'Basic realm="Moderation"');
+    if (!req.headers['x-no-prompt']) res.set('WWW-Authenticate', 'Basic realm="Moderation"');   // dashboard has its own login form
     return res.status(401).json({ error: 'Admin login required' });
   }
   next();
@@ -3475,8 +3342,8 @@ app.post('/api/admin/reports/:id/remove-content', requireAdmin, async (req, res)
       let films = await readFilms();
       const f = films.find(x => x.id === r.filmId);
       if (f) {
-        if (f.videoFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.videoFile); else await b2DeleteFile(f.videoFile); }
-        if (f.posterFile) { if (f.storageProvider === 'e2') await e2DeleteFile(f.posterFile); else await b2DeleteFile(f.posterFile); }
+        await storeDelete(f.videoFile);
+        await storeDelete(f.posterFile);
         films = films.filter(x => x.id !== r.filmId);
         await writeFilms(films);
       }
@@ -3582,11 +3449,9 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
         pendingReports: reports.filter(r => r.status === 'pending').length
       },
       trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
-      storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: (DRIVE_ONLY && st.accountLimit) ? st.accountLimit : STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
-      egress: DRIVE_ONLY
-        ? { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views }
-        : { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, proxyBytes: usage.proxyBytes, totalBytes: usage.jsonBytes + usage.mediaBytes, allowedBytes: st.usedBytes * 3, views: usage.views },
-      drive: Object.assign({ driveOnly: DRIVE_ONLY }, await gdAbout()),
+      storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
+      egress: { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views },
+      drive: Object.assign({ direct: !!GD.apiKey }, await gdAbout()),
       users: rows,
       activity: events
     });
@@ -3597,47 +3462,25 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 let storageStats = { at: 0, usedBytes: 0, objects: 0, byFolder: {}, sizes: new Map(), ok: false, error: null };
 async function refreshStorageStats(force) {
   if (!force && storageStats.at && Date.now() - storageStats.at < 10 * 60 * 1000) return storageStats;
-  if (DRIVE_ONLY) {
-    try {
-      await gdIndexRefresh(true);
-      const about = await gdAbout();
-      const by = {};
-      let total = 0;
-      gdIdxSizes.forEach((size, name) => { const f = name.includes('/') ? name.split('/')[0] : 'data (json)'; by[f] = (by[f] || 0) + size; total += size; });
-      storageStats = { at: Date.now(), usedBytes: total, objects: gdIdx.size, byFolder: by, sizes: gdIdxSizes, ok: true, error: null, accountUsed: about.usedBytes, accountLimit: about.limitBytes };
-    } catch (e) { storageStats = { ...storageStats, at: Date.now(), ok: false, error: e.message }; }
-    return storageStats;
-  }
   try {
-    let token, total = 0, objects = 0;
-    const by = {}, sizes = new Map();
-    do {
-      const out = await e2Client.send(new ListObjectsV2Command({ Bucket: E2_BUCKET_NAME, ContinuationToken: token }));
-      for (const o of (out.Contents || [])) {
-        const size = o.Size || 0;
-        total += size; objects++;
-        const folder = o.Key.includes('/') ? o.Key.split('/')[0] : 'data (json)';
-        by[folder] = (by[folder] || 0) + size;
-        sizes.set(o.Key, size);
-      }
-      token = out.IsTruncated ? out.NextContinuationToken : undefined;
-    } while (token);
-    storageStats = { at: Date.now(), usedBytes: total, objects, byFolder: by, sizes, ok: true, error: null };
-  } catch (e) {
-    storageStats = { ...storageStats, at: Date.now(), ok: false, error: e.message };
-  }
+    await gdIndexRefresh(true);
+    const about = await gdAbout();
+    const by = {}; let total = 0;
+    for (const [name, size] of gdIdxSizes) { const nm = String(name); const f = nm.includes('/') ? nm.split('/')[0] : 'data (json)'; by[f] = (by[f] || 0) + (Number(size) || 0); total += Number(size) || 0; }
+    storageStats = { at: Date.now(), usedBytes: total, objects: gdIdx.size, byFolder: by, sizes: gdIdxSizes, ok: true, error: null, accountUsed: about.usedBytes, accountLimit: about.limitBytes };
+  } catch (e) { storageStats = { ...storageStats, at: Date.now(), ok: false, error: e.message }; }
   return storageStats;
 }
 async function usageLoad() {
   try {
-    const saved = await e2TryReadJSON('usage-stats.json');
+    const saved = await storeTryReadJSON('usage-stats.json');
     if (saved && saved.month === new Date().toISOString().slice(0, 7)) { usage.jsonBytes += saved.jsonBytes || 0; usage.mediaBytes += saved.mediaBytes || 0; usage.proxyBytes += saved.proxyBytes || 0; usage.views += saved.views || 0; }
   } catch (e) {}
 }
 async function usageFlush() {
   if (!usage.dirty) return;
   usage.dirty = false;
-  try { await e2WriteJSON('usage-stats.json', { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, proxyBytes: usage.proxyBytes, views: usage.views }); }
+  try { await storeWriteJSON('usage-stats.json', { month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: usage.mediaBytes, proxyBytes: usage.proxyBytes, views: usage.views }); }
   catch (e) { usage.dirty = true; }
 }
 
@@ -3646,7 +3489,7 @@ let bannedCache = { words: null, at: 0 };
 async function getBannedWords() {
   if (bannedCache.words && Date.now() - bannedCache.at < 60 * 1000) return bannedCache.words;
   let list = bannedCache.words || [];
-  try { const saved = await e2TryReadJSON('banned-words.json'); if (Array.isArray(saved)) list = saved; } catch (e) {}
+  try { const saved = await storeTryReadJSON('banned-words.json'); if (Array.isArray(saved)) list = saved; } catch (e) {}
   bannedCache = { words: list, at: Date.now() };
   return list;
 }
@@ -3754,15 +3597,15 @@ app.get('/api/notes', async (req, res) => {
 });
 
 // ---------------- Announcements ----------------
-async function readAnnouncements() { return (await e2TryReadJSON('announcements.json')) || []; }
+async function readAnnouncements() { return (await storeTryReadJSON('announcements.json')) || []; }
 async function pushToAll(payload) {
-  const subs = await e2TryReadJSON('push-subscriptions.json') || [];
+  const subs = await storeTryReadJSON('push-subscriptions.json') || [];
   let changed = false;
   await Promise.allSettled(subs.map(async s => {
     try { await webpush.sendNotification(s.subscription, JSON.stringify(payload)); }
     catch (err) { if (err.statusCode === 404 || err.statusCode === 410) { s._dead = true; changed = true; } }
   }));
-  if (changed) await e2WriteJSON('push-subscriptions.json', subs.filter(s => !s._dead));
+  if (changed) await storeWriteJSON('push-subscriptions.json', subs.filter(s => !s._dead));
 }
 app.get('/api/announcements', async (req, res) => {
   try { const list = await readAnnouncements(); res.json({ announcements: list.slice(-5).reverse() }); }
@@ -3779,7 +3622,7 @@ app.post('/api/admin/announce', requireAdmin, async (req, res) => {
     const list = await readAnnouncements();
     const a = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), message, createdAt: new Date().toISOString() };
     list.push(a);
-    await e2WriteJSON('announcements.json', list.slice(-30));
+    await storeWriteJSON('announcements.json', list.slice(-30));
     pushToAll({ title: '📢 YouSeries', body: message }).catch(() => {});
     res.json({ success: true, announcement: a });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3787,7 +3630,7 @@ app.post('/api/admin/announce', requireAdmin, async (req, res) => {
 app.post('/api/admin/announcements/:id/delete', requireAdmin, async (req, res) => {
   try {
     const list = (await readAnnouncements()).filter(a => a.id !== req.params.id);
-    await e2WriteJSON('announcements.json', list);
+    await storeWriteJSON('announcements.json', list);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3812,7 +3655,7 @@ app.post('/api/admin/banned-words', requireAdmin, async (req, res) => {
   try {
     const raw = Array.isArray(req.body && req.body.words) ? req.body.words : String((req.body && req.body.words) || '').split(/[\n,]/);
     const words = [...new Set(raw.map(w => String(w).trim().toLowerCase()).filter(w => w && w.length <= 40))].slice(0, 300);
-    await e2WriteJSON('banned-words.json', words);
+    await storeWriteJSON('banned-words.json', words);
     bannedCache = { words, at: Date.now() };
     res.json({ words });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3824,7 +3667,7 @@ app.post('/api/admin/users/:id/delete', requireAdmin, async (req, res) => {
     let users = await readUsers();
     const u = users.find(x => x.id === id);
     if (!u) return res.status(404).json({ error: 'User nahi mila' });
-    const delFile = async (key, provider) => { if (!key) return; try { if (provider === 'e2') await e2DeleteFile(key); else await b2DeleteFile(key); } catch (e) {} };
+    const delFile = async (key, provider) => { if (!key) return; try { await storeDelete(key); } catch (e) {} };
 
     let films = await readFilms();
     for (const f of films.filter(x => x.ownerId === id)) {
@@ -3840,7 +3683,7 @@ app.post('/api/admin/users/:id/delete', requireAdmin, async (req, res) => {
 
     try {
       let stories = await readStories();
-      for (const st of stories.filter(x => x.ownerId === id)) await delFile(st.mediaFile || st.videoFile || st.posterFile, st.storageProvider || 'e2');
+      for (const st of stories.filter(x => x.ownerId === id)) await delFile(st.mediaFile || st.videoFile || st.posterFile, st.storageProvider || 'gdrive');
       stories = stories.filter(x => x.ownerId !== id);
       await writeStories(stories);
     } catch (e) {}
@@ -3854,13 +3697,13 @@ app.post('/api/admin/users/:id/delete', requireAdmin, async (req, res) => {
     suspendedIds.delete(id);
 
     try {
-      const notifs = (await e2TryReadJSON('notifications.json')) || [];
-      await e2WriteJSON('notifications.json', notifs.filter(n => n.userId !== id && n.fromUserId !== id));
+      const notifs = (await storeTryReadJSON('notifications.json')) || [];
+      await storeWriteJSON('notifications.json', notifs.filter(n => n.userId !== id && n.fromUserId !== id));
     } catch (e) {}
     try {
       const convos = await readConversations();
       const gone = convos.filter(c => (c.participants || []).includes(id));
-      for (const c of gone) await e2DeleteFile(`chats/${c.id}.json`).catch(() => {});
+      for (const c of gone) await storeDelete(`chats/${c.id}.json`).catch(() => {});
       await writeConversations(convos.filter(c => !(c.participants || []).includes(id)));
     } catch (e) {}
     res.json({ success: true });
@@ -3882,11 +3725,44 @@ app.get('/api/admin/users.csv', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------- Admin login form (dashboard) ----------------
+const adminLoginTries = new Map();
+app.post('/api/admin/login', (req, res) => {
+  const ip = req.ip || 'ip';
+  const now = Date.now();
+  const tries = (adminLoginTries.get(ip) || []).filter(t => now - t < 15 * 60 * 1000);
+  if (tries.length >= 8) return res.status(429).json({ error: 'Bahut zyada galat koshish — 15 minute baad try karo' });
+  const { username, password } = req.body || {};
+  if (!safeEq(username || '', ADMIN_USER) || !safeEq(password || '', ADMIN_PASS)) {
+    tries.push(now); adminLoginTries.set(ip, tries);
+    return res.status(401).json({ error: 'Username ya password galat hai' });
+  }
+  adminLoginTries.delete(ip);
+  const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
+  res.cookie(ADMIN_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: !!req.secure, maxAge: 12 * 60 * 60 * 1000 });
+  res.json({ success: true });
+});
+app.post('/api/admin/logout', (req, res) => { res.clearCookie(ADMIN_COOKIE); res.json({ success: true }); });
+app.get('/api/admin/me', (req, res) => {
+  if (!isAdminBasicAuth(req)) return res.status(401).json({ error: 'Admin login required' });
+  res.json({ admin: true });
+});
+
+// a plain-text alert for the owner (in-app notification on the owner's account + optional email)
+async function alertAdminText(message) {
+  try {
+    const users = await readUsers();
+    for (const o of users.filter(u => (u.email || '').toLowerCase() === ALERT_EMAIL_TO.toLowerCase())) {
+      await notify(o.id, { type: 'report_alert', fromUserId: 'system', fromUsername: 'Dashboard', message });
+    }
+  } catch (e) { console.error('admin alert failed:', e.message); }
+}
+
 app.listen(PORT, () => { console.log(`YouSeries server running on port ${PORT}`); });
 setTimeout(refreshSuspendedIds, 3000);
 setInterval(refreshSuspendedIds, 5 * 60 * 1000);
 setTimeout(() => { usageLoad(); refreshStorageStats(true); }, 5000);
 setInterval(() => refreshStorageStats(true), 30 * 60 * 1000);
 setInterval(usageFlush, 5 * 60 * 1000);
-['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().then(() => (DRIVE_ONLY ? gdFlushAll() : null)).catch(() => {}).finally(() => process.exit(0)); }));
-if (DRIVE_ONLY) { setTimeout(() => gdIndexRefresh(true).catch(e => console.error('Drive index failed:', e.message)), 1500); console.log('Storage mode: Google Drive only (no bucket)'); }
+['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().then(() => gdFlushAll()).catch(() => {}).finally(() => process.exit(0)); }));
+if (gdEnabled()) { setTimeout(() => gdIndexRefresh(true).then(() => gdEnsurePublic()).catch(e => console.error('Drive index failed:', e.message)), 1500); console.log('Storage: Google Drive'); }
