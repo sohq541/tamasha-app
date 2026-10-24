@@ -6,6 +6,24 @@
 <title>YouSeries</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0B0A1F">
+<script>
+// Media fallback: if a Google Drive link (googleapis.com) fails to load in this browser, switch that one
+// image/video to our own /media/gd/<id> route. Works for photos, posters, avatars and videos.
+(function(){
+  document.addEventListener('error', function(e){
+    var t = e.target;
+    if (!t || !(t.tagName === 'IMG' || t.tagName === 'VIDEO' || t.tagName === 'SOURCE')) return;
+    var src = t.currentSrc || t.src || '';
+    var m = /googleapis\.com\/drive\/v3\/files\/([A-Za-z0-9_-]+)/.exec(src);
+    if (!m || t.dataset.gdFallback) return;
+    t.dataset.gdFallback = '1';
+    var to = '/media/gd/' + m[1];
+    if (t.tagName === 'SOURCE' && t.parentNode) { t.src = to; t.parentNode.load && t.parentNode.load(); return; }
+    t.src = to;
+    if (t.tagName === 'VIDEO') t.load();
+  }, true);
+})();
+</script>
 <script>try{if(localStorage.getItem('appTheme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -4915,7 +4933,8 @@ window.UploadMgr = (function(){
     a.done = true; await saveMeta(job);
   }
   async function runJob(job){
-    if (job.cancelled) return;
+    if (job.cancelled || job.running) return;
+    job.running = true;
     job.status = 'uploading'; job.error = ''; job.waitingNet = false;
     setProgress(job, 0, 0); acquireWake();
     try {
@@ -4941,14 +4960,17 @@ window.UploadMgr = (function(){
     } catch (e) {
       if (e.cancelled || job.cancelled) return;
       job.status = 'error'; job.error = e.message || 'Upload failed'; updateCard(job);
-    } finally { releaseWake(); }
+    } finally { job.running = false; releaseWake(); }
   }
   async function pump(){
     if (pumping) return; pumping = true;
     while (queue.length) { const j = queue.shift(); if (!j.cancelled && jobs.has(j.id)) await runJob(j); }
     pumping = false;
   }
-  function enqueue(job){ job.status = 'queued'; updateCard(job); queue.push(job); pump(); }
+  function enqueue(job){
+    if (job.running || job.status === 'done' || job.status === 'finalizing' || queue.includes(job)) return;   // never start the same upload twice
+    job.status = 'queued'; updateCard(job); queue.push(job); pump();
+  }
 
   // poster frame for videos (so feed cards have a thumbnail without any server-side work)
   function makePosterFromVideo(file){
