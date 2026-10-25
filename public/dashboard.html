@@ -84,6 +84,7 @@
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
+    <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
     <button class="tab" data-t="trending" onclick="setTab('trending')">Trending</button>
     <button class="tab" data-t="tools" onclick="setTab('tools')">Tools</button>
     <button class="tab" data-t="activity" onclick="setTab('activity')">Activity</button>
@@ -200,6 +201,7 @@ function render(){
   if (tab === 'overview') renderOverview();
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
+  else if (tab === 'bluetick') renderBluetickAdmin();
   else if (tab === 'trending') renderTrending();
   else if (tab === 'tools') renderTools();
   else if (tab === 'users') renderUsers();
@@ -386,6 +388,79 @@ async function setHelpStatus(id, status){
     if (!res.ok) throw new Error('Failed');
     const t = H.find(x => x.id === id); if (t) t.status = status;
     render();
+  } catch (e) { alert(e.message); }
+}
+
+let BT = null;
+async function renderBluetickAdmin(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/admin/bluetick', { headers: { 'x-no-prompt': '1' } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    BT = data;
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; return; }
+  const st = BT.settings || {};
+  const pending = BT.requests.filter(r => r.status === 'pending');
+  const done = BT.requests.filter(r => r.status !== 'pending').slice(0, 30);
+  const rq = r => `<div class="card">
+      <div class="row1"><span class="name">@${esc(r.username)}</span><span class="pill ${r.status === 'approved' ? 'g' : r.status === 'rejected' ? 'sus' : 'rep'}">${esc(r.status)}</span><span class="meta push" style="margin:0;">${ago(r.createdAt)}</span></div>
+      <div class="meta">UTR: <b>${esc(r.utr)}</b> · ₹${esc(r.amount)}</div>
+      ${r.reason ? `<div class="meta">Reason: ${esc(r.reason)}</div>` : ''}
+      ${r.status === 'pending' ? `<div class="row1" style="margin-top:10px;">
+        <button class="btn btn-ok" onclick="decideBluetick('${r.id}', true)">✔ Approve (30 din)</button>
+        <button class="btn btn-danger" onclick="decideBluetick('${r.id}', false)">Reject</button>
+      </div>` : ''}
+    </div>`;
+  v.innerHTML = `
+    <div class="card">
+      <b>💳 Payment settings</b>
+      <div class="meta">Users ko yahi UPI ID aur QR dikhega. Price ₹5 se ₹49 ke beech.</div>
+      <label class="meta" style="display:block;margin-top:10px;">Price (₹ / mahine)</label>
+      <input id="btPrice" type="number" min="5" max="49" value="${esc(st.price || 49)}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+      <label class="meta" style="display:block;margin-top:10px;">UPI ID</label>
+      <input id="btUpi" type="text" value="${esc(st.upi || '')}" placeholder="yourname@upi" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+      <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">Save</button></div>
+      <label class="meta" style="display:block;margin-top:14px;">QR image (UPI QR screenshot)</label>
+      <input id="btQr" type="file" accept="image/*">
+      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">QR upload karo</button>${st.qrUrl ? '<span class="meta" style="margin:0 0 0 8px;">✅ QR set hai</span>' : ''}</div>
+    </div>
+    <h3 class="sec">Pending (${pending.length})</h3>
+    ${pending.map(rq).join('') || '<div class="empty">Koi pending request nahi.</div>'}
+    <h3 class="sec">Purani requests</h3>
+    ${done.map(rq).join('') || '<div class="empty">Abhi kuch nahi.</div>'}`;
+}
+async function decideBluetick(id, approve){
+  let reason = '';
+  if (!approve) { reason = prompt('Reject ka reason (user ko dikhega):', '') || ''; }
+  else if (!confirm('Approve karke 30 din ka blue tick dena hai?')) return;
+  try {
+    const res = await fetch('/api/admin/bluetick/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ approve, reason }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderBluetickAdmin();
+  } catch (e) { alert(e.message); }
+}
+async function saveBluetickSettings(){
+  try {
+    const res = await fetch('/api/admin/bluetick/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ price: document.getElementById('btPrice').value, upi: document.getElementById('btUpi').value }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    alert('Saved ✔');
+    renderBluetickAdmin();
+  } catch (e) { alert(e.message); }
+}
+async function uploadBluetickQr(){
+  const f = document.getElementById('btQr').files[0];
+  if (!f) { alert('QR image chuno'); return; }
+  const fd = new FormData(); fd.append('qr', f);
+  try {
+    const res = await fetch('/api/admin/bluetick/qr', { method: 'POST', body: fd, headers: { 'x-no-prompt': '1' } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    alert('QR upload ho gaya ✔');
+    renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
 

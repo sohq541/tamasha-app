@@ -1741,6 +1741,71 @@ function confirmLogoutFromMenu(){
 }
 
 // ---- Settings and Privacy ----
+async function openBlueTick(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  closeProfileMenu && closeProfileMenu();
+  const old = document.getElementById('blueOverlay'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'blueOverlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;';
+  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:380px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">✔ Blue tick</div><div id="blueBody" style="font-size:13.5px;color:var(--cream-dim);">Load ho raha hai…</div><button type="button" onclick="document.getElementById(\'blueOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Band karo</button></div>';
+  document.body.appendChild(el);
+  renderBlueTick();
+}
+function blueBar(label, have, need){
+  const pct = Math.min(100, Math.round(have / need * 100));
+  const ok = have >= need;
+  return `<div style="margin-top:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--cream);"><span>${label}</span><span>${Math.min(have, need)} / ${need} ${ok ? '✅' : ''}</span></div><div style="height:8px;border-radius:6px;background:var(--field);overflow:hidden;margin-top:5px;"><div style="height:100%;width:${pct}%;background:${ok ? '#5ad19a' : 'var(--marigold)'};"></div></div></div>`;
+}
+async function renderBlueTick(){
+  const body = document.getElementById('blueBody');
+  if (!body) return;
+  try {
+    const res = await fetch('/api/bluetick/status');
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    let html = '';
+    if (d.free) {
+      html += '<div style="color:var(--ok);font-weight:600;">✔ Criteria poore hue — tumhara blue tick permanent hai (free)</div>';
+    } else if (d.verified) {
+      const until = d.verifiedUntil ? new Date(d.verifiedUntil).toLocaleDateString() : '';
+      html += `<div style="color:var(--ok);font-weight:600;">✔ Tumhara paid blue tick active hai${until ? ' (' + until + ' tak)' : ''}</div>`;
+    }
+    html += '<div style="margin-top:8px;font-size:12.5px;">Free: 10 followers aur 150 total views poore karo, to blue tick permanent mil jayega.</div>';
+    html += '<div style="margin-top:6px;">Criteria:</div>';
+    html += blueBar('Followers', d.followers, d.minFollowers);
+    html += blueBar('Total views', d.views, d.minViews);
+    if (d.latest && d.latest.status === 'rejected') html += `<div style="margin-top:12px;color:var(--bad);">Pichhli request reject hui${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. Dobara try kar sakte ho.</div>`;
+    if (d.pending) {
+      html += '<div style="margin-top:14px;color:#ffcf5c;">⏳ Tumhari request check ho rahi hai. Approve hone par notification aayega.</div>';
+    } else if (d.free) {
+      /* permanent free tick: no payment needed */
+    } else {
+      html += `<div style="margin-top:14px;font-weight:600;color:var(--cream);">Monthly: ₹${d.price} / mahine</div>`;
+      html += '<div style="margin-top:4px;font-size:12.5px;">Criteria ka wait nahi karna? Ye amount UPI se pay karo. Har 30 din baad dobara pay karna hoga.</div>';
+      if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;">`;
+      if (d.upi) html += `<div style="text-align:center;color:var(--cream);font-weight:600;">${escapeHtml(d.upi)}</div>`;
+      html += `<div style="margin-top:12px;">Payment ke baad 12-digit UPI transaction ID (UTR) yahan daalo:</div>
+        <input id="blueUtr" type="text" inputmode="numeric" maxlength="16" placeholder="123456789012" style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        <button type="button" onclick="submitBlueTick()" style="margin-top:10px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Request bhejo</button>
+        <div id="blueMsg" style="margin-top:8px;color:#e88a8a;"></div>`;
+    }
+    body.innerHTML = html;
+  } catch (e) { body.textContent = '❌ ' + e.message; }
+}
+async function submitBlueTick(){
+  const utr = (document.getElementById('blueUtr').value || '').replace(/\s/g, '');
+  const msg = document.getElementById('blueMsg');
+  if (!/^\d{12}$/.test(utr)) { msg.textContent = 'UTR 12 digits ka hona chahiye'; return; }
+  try {
+    const res = await fetch('/api/bluetick/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utr }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    showToast('Request bhej di ✔');
+    renderBlueTick();
+  } catch (e) { msg.textContent = e.message; }
+}
+
 function toggleAppTheme(){
   const light = document.documentElement.getAttribute('data-theme') !== 'light';
   if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
@@ -1775,6 +1840,7 @@ function renderSettingsPrivacyMenu(){
       </label>
     </div>
     ${menuRow(document.documentElement.getAttribute('data-theme') === 'light' ? '🌙' : '☀️', document.documentElement.getAttribute('data-theme') === 'light' ? 'Dark mode (black background)' : 'White mode (white background)', 'toggleAppTheme()')}
+    ${menuRow('✔', 'Blue tick', 'openBlueTick()')}
     ${menuRow('🆘', 'Help Desk', 'renderHelpDesk()')}
     ${menuRow('📄', 'Privacy Policy', "window.open('/privacy-policy.html','_blank')")}
     ${menuRow('📋', 'Terms and Conditions', "window.open('/terms-of-service.html','_blank')")}
