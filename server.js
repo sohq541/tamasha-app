@@ -3870,11 +3870,15 @@ app.post('/api/admin/bluetick/qr', requireAdmin, upload.single('qr'), async (req
   try {
     if (!req.file) return res.status(400).json({ error: 'QR image chuno' });
     const buf = readFileAsBuffer(req.file.path);
-    await storePutBuffer(buf, BT_KEY_QR, req.file.mimetype || 'image/png');
+    // a new name for every upload, so browsers never show the old QR from cache
+    const key = 'bluetick/qr-' + Date.now().toString(36) + '.png';
+    await storePutBuffer(buf, key, req.file.mimetype || 'image/png');
     const st = await readBlueSettings();
-    st.qrUrl = BT_KEY_QR;
+    const old = st.qrUrl;
+    st.qrUrl = key;
     await writeBlueSettings(st);
-    res.json({ success: true });
+    if (old && old !== key) storeDelete(old).catch(() => {});
+    res.json({ success: true, qrUrl: key });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
