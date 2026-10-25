@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard.html
+Disallow: /admin.html
+Disallow: /moderation.html
+
+Sitemap: https://www.tamasha.qd.je/sitemap.xml
