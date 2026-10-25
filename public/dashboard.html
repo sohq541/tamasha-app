@@ -85,6 +85,8 @@
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
+    <button class="tab" data-t="moderation" onclick="setTab('moderation')">🛡️ Queue</button>
+    <button class="tab" data-t="searches" onclick="setTab('searches')">🔎 Searches</button>
     <button class="tab" data-t="trending" onclick="setTab('trending')">Trending</button>
     <button class="tab" data-t="tools" onclick="setTab('tools')">Tools</button>
     <button class="tab" data-t="activity" onclick="setTab('activity')">Activity</button>
@@ -202,6 +204,8 @@ function render(){
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
   else if (tab === 'bluetick') renderBluetickAdmin();
+  else if (tab === 'moderation') renderModeration();
+  else if (tab === 'searches') renderSearches();
   else if (tab === 'trending') renderTrending();
   else if (tab === 'tools') renderTools();
   else if (tab === 'users') renderUsers();
@@ -291,6 +295,7 @@ function userCard(u){
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Verified hatao' : '✔ Verify karo'}</button>
+        <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
       </div>
     </div>`;
@@ -392,6 +397,74 @@ async function setHelpStatus(id, status){
 }
 
 let BT = null;
+async function renderModeration(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/admin/moderation', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    v.innerHTML = `
+      <div class="card">
+        <b>🛡️ Upload review</b>
+        <div class="meta">On karo to naye uploads users ko tab tak nahi dikhenge jab tak tum approve na karo.</div>
+        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Review band karo' : 'Review on karo'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
+      </div>
+      <h3 class="sec">Queue (${d.queue.length})</h3>
+      ${d.queue.map(f => `<div class="card">
+        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
+        <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
+        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button><button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button></div>
+      </div>`).join('') || '<div class="empty">Queue khali hai.</div>'}`;
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+async function toggleReview(on){
+  await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ reviewUploads: on }) });
+  renderModeration();
+}
+async function modDecide(id, approve){
+  if (!approve && !confirm('Ye post permanently delete karni hai?')) return;
+  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
+  renderModeration();
+}
+async function renderSearches(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/admin/search-terms', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">Users kya dhoondh rahe hain. Content ke ideas ke liye.</div></div>` +
+      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">Abhi koi search nahi hua.</div>');
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+async function showUserDetail(id){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/detail', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const u = d.user;
+    v.innerHTML = `
+      <div class="card">
+        <button class="btn" onclick="setTab('users')">← Users</button>
+        <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
+        <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
+        <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
+        <div class="meta">Blue tick: ${u.blueFree ? 'free (permanent)' : (u.blueUntil ? 'paid, ' + new Date(u.blueUntil).toLocaleDateString() + ' tak' : 'nahi')}</div>
+        <div class="nums"><span><b>${d.followers}</b> followers</span><span><b>${d.following}</b> following</span><span><b>${d.totalViews}</b> total views</span><span><b>${d.commentsWritten}</b> comments</span></div>
+      </div>
+      <h3 class="sec">Posts (${d.posts.length})</h3>
+      ${d.posts.map(p => `<div class="card"><div class="row1"><span class="name">${esc(p.title)}</span><span class="pill g">${esc(p.type)}</span>${p.pending ? '<span class="pill rep">review me</span>' : ''}${p.scheduledFor ? '<span class="pill rep">scheduled</span>' : ''}</div>
+        <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span><span>${ago(p.uploadedAt)}</span></div></div>`).join('') || '<div class="empty">Koi post nahi.</div>'}
+      <h3 class="sec">Reports against (${d.reportsAgainst.length})</h3>
+      ${d.reportsAgainst.map(r => `<div class="card"><div class="meta">${esc(r.reason || '')} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">Koi report nahi.</div>'}
+      <h3 class="sec">Blue tick requests (${d.bluetickRequests.length})</h3>
+      ${d.bluetickRequests.map(r => `<div class="card"><div class="meta">₹${esc(r.amount)} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">Koi request nahi.</div>'}
+      <h3 class="sec">Help desk (${d.helpTickets.length})</h3>
+      ${d.helpTickets.map(h => `<div class="card"><div class="meta">${esc(h.problem)} · ${esc(h.status)}</div></div>`).join('') || '<div class="empty">Koi message nahi.</div>'}`;
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
 async function renderBluetickAdmin(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
