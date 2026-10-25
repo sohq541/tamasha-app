@@ -254,9 +254,19 @@ async function storeWriteJSON(key, data) {
 
 
 // ---------------- Notifications ----------------
+const NOTIF_CATS = {
+  like: ['comment_like'], comment: ['film_comment', 'story_comment'], follow: ['follow'], mention: ['mention'],
+  message: ['message'], collab: ['collab_invite', 'collab_accepted'], story: ['story_view', 'story_reaction', 'story_comment']
+};
 async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, conversationId, message }) {
   if (!toUserId || toUserId === fromUserId) return;
   try {
+    // respect the user's notification settings (system messages always come through)
+    const cat = Object.keys(NOTIF_CATS).find(c => NOTIF_CATS[c].includes(type));
+    if (cat && fromUserId !== 'system') {
+      const owner = (await readUsers()).find(u => u.id === toUserId);
+      if (owner && owner.notifPrefs && owner.notifPrefs[cat] === false) return;
+    }
     const notifications = await storeTryReadJSON('notifications.json') || [];
     notifications.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -841,7 +851,10 @@ app.get('/api/films', async (req, res) => {
     const myBlocked = (me && me.blockedUsers) || [];
     const directUrl = makeDirectUrlCache();
 
+    const nowMs = Date.now();
     const out = await Promise.all(films
+      .filter(f => !(f.pendingReview && !(currentUser && f.ownerId === currentUser.id)))
+      .filter(f => !(f.publishAt && new Date(f.publishAt).getTime() > nowMs && !(currentUser && f.ownerId === currentUser.id)))
       .filter(f => !(hideSensitive && f.isSensitive))
       .filter(f => !myBlocked.includes(f.ownerId))
       .filter(f => {
@@ -1528,6 +1541,12 @@ app.post('/api/films/finalize', async (req, res) => {
         };
 
     if (clientUploadId) newFilm.clientUploadId = String(clientUploadId).slice(0, 64);
+    // scheduled publish: the post stays hidden until this time
+    const when = req.body.publishAt ? new Date(req.body.publishAt) : null;
+    if (when && !isNaN(when) && when.getTime() > Date.now()) newFilm.publishAt = when.toISOString();
+    // optional review queue: new uploads wait for the owner's approval in the dashboard
+    const modSet = (await storeTryReadJSON('moderation-settings.json')) || {};
+    if (modSet.reviewUploads && !(req.currentUser && req.currentUser.role === 'admin') && !isAdminBasicAuth(req)) newFilm.pendingReview = true;
     if (newFilm.type === 'photo' && slides.length >= 2) {
       newFilm.slides = slides;
       newFilm.posterFile = posterKey || (slides[0].mediaType === 'photo' ? slides[0].key : null);
@@ -3579,6 +3598,27 @@ app.post('/api/films/:id/pin-profile', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/me/notif-prefs', async (req, res) => {
+  const cu = getUserFromReq(req);
+  if (!cu) return res.status(401).json({ error: 'Login required' });
+  const me = (await readUsers()).find(u => u.id === cu.id);
+  const prefs = me && me.notifPrefs || {};
+  const out = {}; Object.keys(NOTIF_CATS).forEach(c => { out[c] = prefs[c] !== false; });
+  res.json(out);
+});
+app.put('/api/me/notif-prefs', async (req, res) => {
+  const cu = getUserFromReq(req);
+  if (!cu) return res.status(401).json({ error: 'Login required' });
+  const users = await readUsers();
+  const me = users.find(u => u.id === cu.id);
+  if (!me) return res.status(404).json({ error: 'User not found' });
+  const body = req.body || {};
+  me.notifPrefs = me.notifPrefs || {};
+  Object.keys(NOTIF_CATS).forEach(c => { if (typeof body[c] === 'boolean') me.notifPrefs[c] = body[c]; });
+  await writeUsers(users);
+  res.json({ success: true });
+});
+
 app.post('/api/me/note', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -3662,6 +3702,77 @@ app.post('/api/admin/users/:id/verify', requireAdmin, async (req, res) => {
     u.verified = !u.verified;
     await writeUsers(users);
     res.json({ verified: u.verified });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/search-log', async (req, res) => {
+  try {
+    const q = String((req.body && req.body.q) || '').trim().toLowerCase().slice(0, 60);
+    if (q.length < 2) return res.json({ ok: true });
+    const terms = (await storeTryReadJSON('search-terms.json')) || {};
+    terms[q] = { count: ((terms[q] && terms[q].count) || 0) + 1, last: new Date().toISOString() };
+    const keys = Object.keys(terms);
+    if (keys.length > 500) keys.sort((a, b) => terms[a].count - terms[b].count).slice(0, keys.length - 500).forEach(k => delete terms[k]);
+    await storeWriteJSON('search-terms.json', terms);
+    res.json({ ok: true });
+  } catch (err) { res.json({ ok: true }); }
+});
+app.get('/api/admin/search-terms', requireAdmin, async (req, res) => {
+  const terms = (await storeTryReadJSON('search-terms.json')) || {};
+  const top = Object.entries(terms).map(([term, v]) => ({ term, count: v.count, last: v.last }))
+    .sort((a, b) => b.count - a.count).slice(0, 30);
+  res.json({ terms: top });
+});
+
+// ---------- 4. moderation queue ----------
+app.get('/api/admin/moderation', requireAdmin, async (req, res) => {
+  const set = (await storeTryReadJSON('moderation-settings.json')) || {};
+  const films = await readFilms();
+  res.json({ reviewUploads: !!set.reviewUploads, queue: films.filter(f => f.pendingReview).map(f => ({ id: f.id, title: f.title, type: f.type, owner: f.ownerUsername, uploadedAt: f.uploadedAt, videoUrl: null })) });
+});
+app.post('/api/admin/moderation/settings', requireAdmin, async (req, res) => {
+  const set = (await storeTryReadJSON('moderation-settings.json')) || {};
+  set.reviewUploads = !!(req.body && req.body.reviewUploads);
+  await storeWriteJSON('moderation-settings.json', set);
+  res.json({ success: true, reviewUploads: set.reviewUploads });
+});
+app.post('/api/admin/moderation/:id/approve', requireAdmin, async (req, res) => {
+  const films = await readFilms();
+  const f = films.find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: 'Post nahi mili' });
+  delete f.pendingReview;
+  await writeFilms(films);
+  res.json({ success: true });
+});
+app.post('/api/admin/moderation/:id/reject', requireAdmin, async (req, res) => {
+  let films = await readFilms();
+  const f = films.find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: 'Post nahi mili' });
+  await storeDelete(f.videoFile); await storeDelete(f.posterFile);
+  films = films.filter(x => x.id !== f.id);
+  await writeFilms(films);
+  res.json({ success: true });
+});
+
+// ---------- 5. one user's full picture for the dashboard ----------
+app.get('/api/admin/users/:id/detail', requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const [users, films, reqs, tickets, reports] = await Promise.all([readUsers(), readFilms(), readBlueRequests(), readHelpdesk(), readReports()]);
+    const u = users.find(x => x.id === id);
+    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    const mine = films.filter(f => f.ownerId === id);
+    res.json({
+      user: { id: u.id, username: u.username, email: u.email, createdAt: u.createdAt, lastActiveAt: u.lastActiveAt, suspended: !!u.suspended, verified: !!u.verified, blueFree: !!u.blueFree, blueUntil: u.blueUntil || null, google: !u.passwordHash, notifPrefs: u.notifPrefs || {} },
+      followers: users.filter(x => (x.following || []).includes(id)).length,
+      following: (u.following || []).length,
+      posts: mine.map(f => ({ id: f.id, title: f.title, type: f.type, views: f.views || 0, likes: (f.likes || 0), comments: (f.comments || []).length, uploadedAt: f.uploadedAt, pending: !!f.pendingReview, scheduledFor: f.publishAt || null })),
+      totalViews: mine.reduce((a, f) => a + (f.views || 0), 0),
+      commentsWritten: films.reduce((a, f) => a + (f.comments || []).filter(c => c.userId === id).length, 0),
+      reportsAgainst: reports.filter(r => r.targetOwnerId === id).map(r => ({ type: r.type, reason: r.reason, status: r.status, createdAt: r.createdAt })),
+      bluetickRequests: reqs.filter(r => r.userId === id).map(r => ({ status: r.status, amount: r.amount, createdAt: r.createdAt })),
+      helpTickets: tickets.filter(t => t.userId === id).map(t => ({ problem: t.problem, status: t.status, createdAt: t.createdAt }))
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
