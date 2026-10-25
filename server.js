@@ -1146,7 +1146,7 @@ const GD = {
   apiBase: process.env.GDRIVE_API_BASE || 'https://www.googleapis.com/drive/v3',
   uploadBase: process.env.GDRIVE_UPLOAD_BASE || 'https://www.googleapis.com/upload/drive/v3'
 };
-const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 4) * 1024 * 1024 * 1024;   // Render free = 5 GB/month outbound; keep ~1 GB for pages and API
+const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 4.5) * 1024 * 1024 * 1024;   // Render free = 5 GB/month outbound; keep ~1 GB for pages and API
 const GD_PART = 8 * 1024 * 1024;               // must match the browser's PART_SIZE (and be a multiple of 256 KiB)
 const gdMediaUrl = id => GD.apiKey ? `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${GD.apiKey}` : '/media/gd/' + id;
 async function gdMakePublic(id) {
@@ -3465,6 +3465,11 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
       trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
       storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
       egress: { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views },
+      google: {
+        limitBytes: Math.min(1024, Math.max(1, parseFloat(process.env.GOOGLE_MONTHLY_LIMIT_GB) || 750)) * 1024 * 1024 * 1024,
+        usedBytes: usage.jsonBytes + usage.proxyBytes + usage.mediaBytes,
+        parts: { json: usage.jsonBytes, server: usage.proxyBytes, direct: usage.mediaBytes }
+      },
       drive: Object.assign({ direct: !!GD.apiKey }, await gdAbout()),
       users: rows,
       activity: events
@@ -3879,6 +3884,17 @@ app.post('/api/admin/bluetick/qr', requireAdmin, upload.single('qr'), async (req
     await writeBlueSettings(st);
     if (old && old !== key) storeDelete(old).catch(() => {});
     res.json({ success: true, qrUrl: key });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/bluetick/qr/delete', requireAdmin, async (req, res) => {
+  try {
+    const st = await readBlueSettings();
+    const old = st.qrUrl;
+    st.qrUrl = null;
+    await writeBlueSettings(st);
+    if (old) storeDelete(old).catch(() => {});
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
