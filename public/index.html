@@ -1771,10 +1771,12 @@ async function renderBlueTick(){
       const until = d.verifiedUntil ? new Date(d.verifiedUntil).toLocaleDateString() : '';
       html += `<div style="color:var(--ok);font-weight:600;">✔ Tumhara paid blue tick active hai${until ? ' (' + until + ' tak)' : ''}</div>`;
     }
-    html += '<div style="margin-top:8px;font-size:12.5px;">Free: 10 followers aur 150 total views poore karo, to blue tick permanent mil jayega.</div>';
-    html += '<div style="margin-top:6px;">Criteria:</div>';
-    html += blueBar('Followers', d.followers, d.minFollowers);
-    html += blueBar('Total views', d.views, d.minViews);
+    if (!d.verified) {
+      html += '<div style="margin-top:8px;font-size:12.5px;">Free: 10 followers aur 150 total views poore karo, to blue tick permanent mil jayega.</div>';
+      html += '<div style="margin-top:6px;">Criteria:</div>';
+      html += blueBar('Followers', d.followers, d.minFollowers);
+      html += blueBar('Total views', d.views, d.minViews);
+    }
     if (d.latest && d.latest.status === 'rejected') html += `<div style="margin-top:12px;color:var(--bad);">Pichhli request reject hui${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. Dobara try kar sakte ho.</div>`;
     if (d.pending) {
       html += '<div style="margin-top:14px;color:#ffcf5c;">⏳ Tumhari request check ho rahi hai. Approve hone par notification aayega.</div>';
@@ -1783,8 +1785,11 @@ async function renderBlueTick(){
     } else {
       html += `<div style="margin-top:14px;font-weight:600;color:var(--cream);">Monthly: ₹${d.price} / mahine</div>`;
       html += '<div style="margin-top:4px;font-size:12.5px;">Criteria ka wait nahi karna? Ye amount UPI se pay karo. Har 30 din baad dobara pay karna hoga.</div>';
+      if (!d.qrUrl && !d.upi) html += '<div style="margin-top:12px;color:#ffcf5c;">Payment details abhi set nahi hue. Thodi der baad dobara kholo.</div>';
       if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;">`;
       if (d.upi) html += `<div style="text-align:center;color:var(--cream);font-weight:600;">${escapeHtml(d.upi)}</div>`;
+      if (d.upi) html += `<a href="upi://pay?pa=${encodeURIComponent(d.upi)}&pn=${encodeURIComponent('YouSeries')}&am=${encodeURIComponent(d.price)}&cu=INR&tn=${encodeURIComponent('YouSeries Blue tick')}" style="display:block;margin-top:12px;text-align:center;background:var(--marigold);color:#fff;padding:12px;border-radius:8px;font-weight:600;text-decoration:none;">₹${d.price} UPI app se pay karo</a>
+        <div style="text-align:center;font-size:11.5px;margin-top:4px;">Button se UPI app khulegi (GPay, PhonePe, Paytm). Payment ke baad UTR yahan daalo.</div>`;
       html += `<div style="margin-top:12px;">Payment ke baad 12-digit UPI transaction ID (UTR) yahan daalo:</div>
         <input id="blueUtr" type="text" inputmode="numeric" maxlength="16" placeholder="123456789012" style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
         <button type="button" onclick="submitBlueTick()" style="margin-top:10px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Request bhejo</button>
