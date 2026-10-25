@@ -1146,7 +1146,8 @@ const GD = {
   apiBase: process.env.GDRIVE_API_BASE || 'https://www.googleapis.com/drive/v3',
   uploadBase: process.env.GDRIVE_UPLOAD_BASE || 'https://www.googleapis.com/upload/drive/v3'
 };
-const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 4.5) * 1024 * 1024 * 1024;   // Render free = 5 GB/month outbound; keep ~1 GB for pages and API
+// Optional server-side cap (only if GD_MONTHLY_CAP_GB is set). Off by default: uploads and playback are not stopped by it.
+const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 0) > 0 ? parseFloat(process.env.GD_MONTHLY_CAP_GB) * 1024 * 1024 * 1024 : Infinity;
 const GD_PART = 8 * 1024 * 1024;               // must match the browser's PART_SIZE (and be a multiple of 256 KiB)
 const gdMediaUrl = id => GD.apiKey ? `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${GD.apiKey}` : '/media/gd/' + id;
 async function gdMakePublic(id) {
@@ -1415,7 +1416,6 @@ app.post('/api/upload/mp/create', async (req, res) => {
     const size = Number(sizeRaw);
     if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
     usageRoll();
-    if (usage.proxyBytes + size >= GD_MONTH_CAP) return res.status(503).json({ error: 'Is mahine ki server bandwidth limit poori ho gayi — upload agle mahine se chalega' });
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
     const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
@@ -1432,7 +1432,6 @@ app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }),
     const size = Number(req.query.size), offset = Number(req.query.offset);
     if (!(size > 0) || !(offset >= 0) || offset % 262144 !== 0 || offset + req.body.length > size) return res.status(400).json({ error: 'Bad part request' });
     usageRoll();
-    if (usage.proxyBytes >= GD_MONTH_CAP) return res.status(503).json({ error: 'Is mahine ki server bandwidth limit poori ho gayi — upload agle mahine se chalega' });
     const out = await gdPutPart(uploadId, req.body, offset, size);
     if (out.done && out.id) await gdMakePublic(out.id);
     res.json({ ok: true, done: !!out.done, key: out.done && out.id ? 'gd:' + out.id : undefined });
