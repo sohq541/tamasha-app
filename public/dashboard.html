@@ -243,16 +243,26 @@ function driveCard(){
     </div>`;
 }
 
+function googleCard(){
+  const g = D.google || {};
+  if (!g.limitBytes) return '';
+  const p = Math.min(100, g.usedBytes / g.limitBytes * 100);
+  const pa = g.parts || {};
+  return `<div class="card">
+      <div class="row1"><b>☁️ Google bandwidth (is mahine, estimate)</b></div>
+      <div class="big">${fb(g.usedBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(g.limitBytes)} limit</span></div>
+      <div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>
+      <div class="meta">${p.toFixed(1)}% use hua. Limit Render me GOOGLE_MONTHLY_LIMIT_GB se badal sakte ho (max 1 TB).</div>
+      <div class="nums"><span>Server se Google: <b>${fb(pa.server)}</b></span><span>Playback (estimate): <b>${fb(pa.direct)}</b></span><span>Database: <b>${fb(pa.json)}</b></span></div>
+      <div class="meta" style="margin-top:6px;">Google ki asli monthly limit ye dashboard nahi batata. Ye sirf hamara andaza hai. Playback direct Google se hota hai, isliye wo estimate hai.</div>
+    </div>`;
+}
+
 function usageCards(){
   const st = D.storage || {}, eg = D.egress || {};
   const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
   const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
   const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
-  const render = eg.mode === 'render';
-  const warn = (render && ep >= 80)
-    ? '<div class="warnbox">⚠️ Render ki free bandwidth (100 GB/mahina) paar hui to poori site us mahine ke liye band ho jati hai. Isliye videos ek limit pe rok diye jate hain. Zyada traffic ho to Render ka paid plan lo ya videos chhote rakho.</div>'
-    : (!render && (sp >= 80 || ep >= 80))
-    ? '<div class="warnbox">⚠️ IDrive free account me mahine ka download (egress) stored data ke 3 guna se zyada hua to account suspend ho sakta hai. Storage ya egress 80% ke paar hai — videos kam karo ya paid plan lo.</div>' : '';
   return `
     <div class="card">
       <div class="row1"><b>💾 Storage</b><span class="meta push" style="margin:0;">${st.objects || 0} files</span></div>
@@ -261,18 +271,8 @@ function usageCards(){
       <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
       <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
     </div>
-    <div class="card">
-      <div class="row1"><b>${render ? '📡 Server bandwidth' : '📡 Egress'} (is mahine, ${esc(eg.month || '')})</b></div>
-      <div class="big">${fb(eg.totalBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(eg.allowedBytes)} free</span></div>
-      <div class="meter"><i class="${meterCls(ep)}" style="width:${ep.toFixed(1)}%"></i></div>
-      <div class="meta">${ep.toFixed(1)}% use hua · ${render ? 'Render free plan = 5 GB/mahina (4 GB pe media rok diya jata hai)' : 'free limit = stored data ka 3 guna'}</div>
-      ${render
-        ? `<div class="nums"><span>Videos/photos stream hue: <b>${fb(eg.proxyBytes)}</b> (exact)</span><span>${eg.views || 0} views</span></div>
-           <div class="meta" style="margin-top:6px;">Asli number: Render dashboard → service → Metrics. Server restart pe ye ginti thodi kam dikh sakti hai.</div>`
-        : `<div class="nums"><span>Server reads: <b>${fb(eg.jsonBytes)}</b> (exact)</span><span>Videos/photos: <b>~${fb(eg.mediaBytes)}</b> (andaza, ${eg.views || 0} views)</span></div>
-           <div class="meta" style="margin-top:6px;">Asli number ke liye: IDrive e2 → Billing → Billing Overview. Server restart hone par ye ginti thodi kam dikh sakti hai.</div>`}
-      ${warn}
-    </div>`;
+    ${googleCard()}
+  `;
 }
 
 function userCard(u){
@@ -424,7 +424,7 @@ async function renderBluetickAdmin(){
       <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">Save</button></div>
       <label class="meta" style="display:block;margin-top:14px;">QR image (UPI QR screenshot)</label>
       <input id="btQr" type="file" accept="image/*">
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">QR upload karo</button>${st.qrUrl ? '<span class="meta" style="margin:0 0 0 8px;">✅ QR set hai</span>' : ''}</div>
+      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">QR upload karo</button>${st.qrUrl ? '<button class="btn btn-danger" onclick="deleteBluetickQr()">QR delete karo</button><span class="meta" style="margin:0 0 0 8px;">✅ QR set hai</span>' : ''}</div>
     </div>
     <h3 class="sec">Pending (${pending.length})</h3>
     ${pending.map(rq).join('') || '<div class="empty">Koi pending request nahi.</div>'}
@@ -448,6 +448,15 @@ async function saveBluetickSettings(){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     alert('Saved ✔');
+    renderBluetickAdmin();
+  } catch (e) { alert(e.message); }
+}
+async function deleteBluetickQr(){
+  if (!confirm('QR delete karna hai? Users ko QR nahi dikhega.')) return;
+  try {
+    const res = await fetch('/api/admin/bluetick/qr/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
