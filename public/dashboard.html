@@ -69,10 +69,49 @@
   textarea.t{width:100%;min-height:90px;background:rgba(255,255,255,.06);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;resize:vertical;}
   .vtick{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#3897f0;color:#fff;font-size:9.5px;font-weight:800;}
   h3.sec{font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 8px;}
+
+/* ===== Redesign: sidebar layout + colored stat cards ===== */
+.app-shell{display:grid;grid-template-columns:230px 1fr;min-height:100vh;}
+.side{background:linear-gradient(180deg,#2563eb 0%,#6d28d9 100%);color:#fff;padding:20px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;}
+.brand{font-family:'Baloo 2',sans-serif;font-size:20px;font-weight:800;margin:0 0 20px 6px;}
+.brand small{display:block;font-family:'Mukta',sans-serif;font-size:12px;opacity:.75;font-weight:400;}
+.nav{display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto;}
+.nav .tab{background:transparent;border:none;color:#dbeafe;text-align:left;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600;white-space:nowrap;}
+.nav .tab:hover{background:rgba(255,255,255,.10);}
+.nav .tab.active{background:rgba(255,255,255,.2);color:#fff;}
+.side-foot{margin-top:12px;}
+.side-foot .btn{width:100%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;}
+.main{padding:24px 28px 70px;min-width:0;}
+.grid .stat{color:#fff;border:none;border-radius:16px;padding:18px;box-shadow:0 10px 22px rgba(0,0,0,.14);}
+.grid .stat b{color:#fff;font-size:30px;}
+.grid .stat span{color:rgba(255,255,255,.9);font-size:13px;}
+.grid .stat:nth-child(4n+1){background:linear-gradient(135deg,#3b82f6,#1d4ed8);}
+.grid .stat:nth-child(4n+2){background:linear-gradient(135deg,#8b5cf6,#6d28d9);}
+.grid .stat:nth-child(4n+3){background:linear-gradient(135deg,#10b981,#047857);}
+.grid .stat:nth-child(4n+4){background:linear-gradient(135deg,#f97316,#ea580c);}
+.grid .stat.warn{background:linear-gradient(135deg,#f59e0b,#d97706);}
+.card{border-radius:14px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
+@media (min-width:1000px){ .grid{grid-template-columns:repeat(4,1fr);} }
+@media (max-width:820px){
+  .app-shell{grid-template-columns:1fr;}
+  .side{position:sticky;top:0;z-index:5;height:auto;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;}
+  .brand{margin:0 8px 0 0;font-size:16px;white-space:nowrap;}
+  .brand small{display:none;}
+  .nav{flex-direction:row;overflow-x:auto;flex:1;gap:6px;}
+  .side-foot{margin:0 0 0 auto;}
+  .side-foot .btn{width:auto;padding:6px 10px;}
+  .main{padding:16px 14px 70px;}
+}
 </style>
 </head>
 <body>
-<div class="wrap" id="appWrap">
+<div class="app-shell" id="appWrap">
+<aside class="side">
+  <div class="brand">📊 Admin<small>Dashboard</small></div>
+  <nav class="nav" id="sideNav"></nav>
+  <div class="side-foot"><button class="btn" onclick="adminLogout()">Logout</button></div>
+</aside>
+<main class="main">
   <div class="top">
     <h1>📊 Dashboard</h1>
     <div style="display:flex;gap:8px;align-items:center;"><button class="themebtn" id="themeBtn" onclick="toggleTheme()" title="Dark / White mode">🌙</button><button class="btn" onclick="load()">↻ Refresh</button><button class="btn" id="logoutBtn" onclick="adminLogout()" style="display:none;">Logout</button></div>
@@ -93,6 +132,8 @@
   </div>
 
   <div id="view"><div class="loading">Loading…</div></div>
+</div>
+</main>
 </div>
 <div class="wrap" id="loginWrap" style="display:none;">
   <div class="loginbox">
@@ -138,7 +179,7 @@ async function adminLogin(){
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { err.textContent = data.error || 'Login nahi hua'; return; }
     document.getElementById('loginWrap').style.display = 'none';
-    document.getElementById('appWrap').style.display = 'block';
+    document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     load();
   } catch (e) { err.textContent = 'Network error — dobara try karo'; }
@@ -175,7 +216,7 @@ async function load(){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     D = data;
-    document.getElementById('appWrap').style.display = 'block';
+    document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     try { const rj = await res2.json(); R = res2.ok ? (rj.reports || []) : []; } catch (e) { R = []; }
     try { const hj = await res3.json(); H = res3.ok ? (hj.tickets || []) : []; } catch (e) { H = []; }
@@ -692,6 +733,7 @@ async function toggleSuspend(id){
   } catch (e) { alert(e.message); }
 }
 
+document.getElementById('sideNav').append(...document.querySelectorAll('.tabs .tab'));
 load();
 </script>
 </body>
