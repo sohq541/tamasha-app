@@ -122,6 +122,7 @@
   overflow: hidden;
   position: relative;
   margin-bottom: 20px;
+  flex-shrink: 0;
 }
 .card-header-row {
   position: absolute;
@@ -830,7 +831,7 @@
 </div>
 
 <!-- ===== OTHER USER'S PROFILE (separate from own Profile tab) ===== -->
-<div class="chat-full-overlay" id="hashtagFeedOverlay">
+<div class="chat-full-overlay" id="hashtagFeedOverlay" style="z-index:122;">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeHashtagFeed()">←</button>
     <span class="chat-header-name" id="hashtagFeedTitle"></span>
@@ -845,6 +846,16 @@
     <button class="chat-input-icon-btn" style="font-size:20px;" onclick="openProfileSafetyMenu()">⋮</button>
   </div>
   <div class="profile-wrap" id="otherProfileContent" style="overflow-y:auto;flex:1;"></div>
+</div>
+
+<div class="chat-full-overlay" id="profilePhotoFeedOverlay" style="z-index:124;">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeProfilePhotoFeed()">←</button>
+    <span class="chat-header-name" id="profilePhotoFeedTitle">Photos</span>
+  </div>
+  <div style="overflow-y:auto;flex:1;width:100%;">
+    <div class="grid" id="profilePhotoFeedList"></div>
+  </div>
 </div>
 
 <!-- ===== MESSAGES: INBOX ===== -->
@@ -1265,7 +1276,7 @@ function closeAllOverlays(){
     otherProfileOverlay: closeOtherProfile,
     reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker,
     profileSafetyOverlay: closeProfileSafetyMenu, postSafetyOverlay: closePostSafetyMenu, reportOverlay: closeReportSheet,
-    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet
+    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet, profilePhotoFeedOverlay: closeProfilePhotoFeed
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -1430,7 +1441,7 @@ async function renderOtherProfile(userId, usernameHint){
       ${pinSort(theirVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
-      ${photoListHtml(pinSort(theirPhotos, pub.pinnedFilmIds), pub.pinnedFilmIds) || '<p class="comment-empty">No photos yet.</p>'}
+      ${pinSort(theirPhotos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `openProfilePhotoFeed('${userId}','${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos yet.</p>'}
     </div>
   `;
   loadUserHighlights(userId, 'otherHighlightsBar', false);
@@ -1522,6 +1533,8 @@ async function deleteFeedPost(id){
     showToast('Deleted');
     const card = document.getElementById('feed-card-' + id);
     if (card) card.remove();
+    const pcard = document.getElementById('pfeed-card-' + id);
+    if (pcard) pcard.remove();
     const item = document.querySelector('.short-item[data-id="' + id + '"]');
     if (item) item.remove();
     allFilms = allFilms.filter(f => f.id !== id);
@@ -1675,7 +1688,7 @@ async function renderProfile(){
       ${pinSort(myVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${photoListHtml(pinSort(myPhotos, mine.pinnedFilmIds), mine.pinnedFilmIds) || '<p class="comment-empty">No photos uploaded yet.</p>'}
+      ${pinSort(myPhotos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `openProfilePhotoFeed('${currentUser.id}','${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridSaved">
       <p class="comment-empty">Loading...</p>
@@ -2411,7 +2424,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
   `).join('');
 
   const filmHtml = matches.map(f => `
-    <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+    <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : (f.type === 'photo' ? `openProfilePhotoFeed('${f.ownerId}','${f.id}')` : `playFilm('${f.id}')`)}">
       <img class="search-result-thumb" src="${f.posterUrl || ''}">
       <div class="search-result-info">
         <span class="search-result-title">${escapeHtml(f.title)}</span>
@@ -2461,7 +2474,7 @@ function renderHome(films) {
             ${isLiked ? '❤️' : '♡'} <span class="like-num">${f.likes || 0}</span>
           </button>
           <button class="feed-act-btn" onclick="openSheet('${f.id}')">
-            💬 <span>${(f.comments || []).length}</span>
+            💬 <span class="feed-comment-num">${(f.comments || []).length}</span>
           </button>
           <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
             ↗️
@@ -2821,9 +2834,11 @@ document.getElementById('editShortForm').addEventListener('submit', async (e) =>
         if (h3) h3.textContent = film.title;
         if (p) p.textContent = film.description || '';
       }
-      const cap = document.querySelector('#feed-card-' + currentShortId + ' .card-caption-area');
-      if (cap) cap.innerHTML = '<div><b>@' + escapeHtml(film.ownerUsername || 'user') + '</b> ' + escapeHtml(film.title) + '</div>' +
-        (film.description ? '<div style="color:var(--cream-dim);margin-top:2px;">' + linkifyRich(film.description, film.mentions) + '</div>' : '');
+      ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+        const cap = document.querySelector(prefix + currentShortId + ' .card-caption-area');
+        if (cap) cap.innerHTML = '<div><b>@' + escapeHtml(film.ownerUsername || 'user') + '</b> ' + escapeHtml(film.title) + '</div>' +
+          (film.description ? '<div style="color:var(--cream-dim);margin-top:2px;">' + linkifyRich(film.description, film.mentions) + '</div>' : '');
+      });
     }
     if (posterInput.files[0]) { try { loadFilms(); } catch (e) {} }
     statusEl.style.color = '#8fd19e'; statusEl.textContent = 'Saved!';
@@ -2881,7 +2896,16 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
     const comment = await res.json();
     if (!res.ok) throw new Error(comment.error || 'Comment failed to post');
     const film = allFilms.find(f => f.id === currentShortId);
-    if (film) { if (!film.comments) film.comments = []; film.comments.push(comment); document.getElementById('short-comment-' + currentShortId).textContent = film.comments.length; }
+    if (film) {
+      if (!film.comments) film.comments = [];
+      film.comments.push(comment);
+      const scEl = document.getElementById('short-comment-' + currentShortId);
+      if (scEl) scEl.textContent = film.comments.length;
+      ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+        const cSpan = document.querySelector(prefix + currentShortId + ' .feed-comment-num');
+        if (cSpan) cSpan.textContent = film.comments.length;
+      });
+    }
     renderCommentListInto('sheetCommentList', film ? film.comments : [comment], currentShortId);
     textInput.value = '';
   } catch (err) {
@@ -3191,6 +3215,99 @@ function pinSort(list, pins){
   const pinned = order.map(id => list.find(f => f.id === id)).filter(Boolean);
   return pinned.concat(list.filter(f => !order.includes(f.id)));
 }
+async function openProfilePhotoFeed(userId, startFilmId){
+  const listEl = document.getElementById('profilePhotoFeedList');
+  const titleEl = document.getElementById('profilePhotoFeedTitle');
+  const overlayEl = document.getElementById('profilePhotoFeedOverlay');
+  overlayEl.classList.add('open');
+  let pinnedIds = [];
+  let username = '';
+  if (currentUser && userId === currentUser.id) {
+    pinnedIds = window.myPinned || [];
+    username = currentUser.username || '';
+  } else {
+    try {
+      const res = await fetch('/api/users/' + userId + '/public');
+      if (res.ok) {
+        const pub = await res.json();
+        pinnedIds = pub.pinnedFilmIds || [];
+        username = pub.username || '';
+      }
+    } catch (e) {}
+  }
+  const userPhotos = pinSort(allFilms.filter(f => isMyPost(f, userId) && f.type === 'photo'), pinnedIds);
+  if (!username && userPhotos.length) username = userPhotos[0].ownerUsername || '';
+  titleEl.textContent = username ? ('@' + username + ' · Photos') : 'Photos';
+
+  listEl.innerHTML = userPhotos.map(f => {
+    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isPinned = pinnedIds.includes(f.id);
+    return `
+      <div class="card" id="pfeed-card-${f.id}">
+        <div class="card-header-row">
+          <div class="card-avatar" onclick="closeProfilePhotoFeed();viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">
+            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
+          </div>
+          <div>
+            <div class="card-username" onclick="closeProfilePhotoFeed();goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}</div>
+            ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${isPinned ? `<span style="color:rgba(255,255,255,0.85);font-size:12px;margin-left:6px;">📌 Pinned</span>` : ''}
+          </div>
+          ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
+          <button class="feed-act-btn" style="margin-left:auto;font-size:18px;" onclick="event.stopPropagation();openPostSafetyMenu('${f.id}')">⋮</button>
+        </div>
+
+        <div class="card-media-box" data-id="${f.id}" data-short="0" data-kind="photo">
+          ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`}
+        </div>
+
+        <div class="card-actions-bar">
+          <button class="feed-act-btn ${isLiked ? 'liked' : ''}" onclick="likeFeedPost('${f.id}', this)">
+            ${isLiked ? '❤️' : '♡'} <span class="like-num">${f.likes || 0}</span>
+          </button>
+          <button class="feed-act-btn" onclick="openSheet('${f.id}')">
+            💬 <span class="feed-comment-num">${(f.comments || []).length}</span>
+          </button>
+          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
+            ↗️
+          </button>
+          <button class="feed-act-btn" id="pfeed-save-${f.id}" style="margin-left:auto;" onclick="toggleSaveFeedPost('${f.id}', this)">
+            ${f.savedBy && currentUser && f.savedBy.includes(currentUser.id) ? '🔖' : '📑'}
+          </button>
+        </div>
+
+        <div class="card-caption-area">
+          <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
+          ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('') || '<p class="comment-empty">No photos yet.</p>';
+
+  overlayEl.classList.add('open');
+
+  listEl.querySelectorAll('.card-media-box[data-id]').forEach(box => {
+    const id = box.dataset.id;
+    const card = document.getElementById('pfeed-card-' + id);
+    const likeBtn = card ? card.querySelector('.feed-act-btn') : null;
+    setupDoubleTapLike(
+      box,
+      () => {},
+      () => !!(likeBtn && likeBtn.classList.contains('liked')),
+      () => { if (likeBtn) likeFeedPost(id, likeBtn); }
+    );
+  });
+
+  if (startFilmId) {
+    setTimeout(() => {
+      const targetCard = document.getElementById('pfeed-card-' + startFilmId);
+      if (targetCard) targetCard.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }, 30);
+  }
+}
+function closeProfilePhotoFeed(){
+  document.getElementById('profilePhotoFeedOverlay').classList.remove('open');
+}
+
 function gridItemHtml(f, onclickJs, pinned){
   const n = (f.slideUrls && f.slideUrls.length) || (f.slides && f.slides.length) || 0;
   return `<div class="profile-mygrid-item" onclick="${onclickJs}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}</div>`;
@@ -5284,7 +5401,7 @@ window.UploadMgr = (function(){
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
     'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay',
-    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay'
+    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay','profilePhotoFeedOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -5313,7 +5430,8 @@ window.UploadMgr = (function(){
     postSafetyOverlay: () => closePostSafetyMenu(),
     reportOverlay: () => closeReportSheet(),
     hashtagFeedOverlay: () => closeHashtagFeed(),
-    collabOverlay: () => closeCollabSheet()
+    collabOverlay: () => closeCollabSheet(),
+    profilePhotoFeedOverlay: () => closeProfilePhotoFeed()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
@@ -5368,8 +5486,20 @@ async function likeFeedPost(id, btn) {
     const res = await fetch('/api/films/' + id + '/like', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) return;
-    btn.classList.toggle('liked', data.liked);
-    btn.innerHTML = `${data.liked ? '❤️' : '♡'} <span class="like-num">${data.likes}</span>`;
+    const film = allFilms.find(f => f.id === id);
+    if (film) {
+      film.likes = data.likes;
+      if (!film.likedBy) film.likedBy = [];
+      if (data.liked) { if (!film.likedBy.includes(currentUser.id)) film.likedBy.push(currentUser.id); }
+      else film.likedBy = film.likedBy.filter(uid => uid !== currentUser.id);
+    }
+    ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+      const b = document.querySelector(prefix + id + ' .card-actions-bar .feed-act-btn');
+      if (b) {
+        b.classList.toggle('liked', data.liked);
+        b.innerHTML = `${data.liked ? '❤️' : '♡'} <span class="like-num">${data.likes}</span>`;
+      }
+    });
   } catch (err) {}
 }
 
@@ -5379,7 +5509,16 @@ async function toggleSaveFeedPost(id, btn) {
     const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) return;
-    btn.textContent = data.saved ? '🔖' : '📑';
+    const film = allFilms.find(f => f.id === id);
+    if (film) {
+      if (!film.savedBy) film.savedBy = [];
+      if (data.saved) { if (!film.savedBy.includes(currentUser.id)) film.savedBy.push(currentUser.id); }
+      else film.savedBy = film.savedBy.filter(uid => uid !== currentUser.id);
+    }
+    ['feed-save-', 'pfeed-save-'].forEach(prefix => {
+      const b = document.getElementById(prefix + id);
+      if (b) b.textContent = data.saved ? '🔖' : '📑';
+    });
   } catch (err) {}
 }
 
