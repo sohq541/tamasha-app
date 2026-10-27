@@ -620,6 +620,13 @@
 #overlay .modal-close{position:static;}
 .up-ph{width:118px;height:196px;border-radius:12px;background:#1a1733;display:flex;align-items:center;justify-content:center;color:var(--cream-dim);font-size:26px;}
 .up-ph-wide{width:168px;height:95px;border-radius:10px;background:#1a1733;display:flex;align-items:center;justify-content:center;color:var(--cream-dim);font-size:20px;}
+
+/* Profile photos: one after another, like the feed */
+.ph-card{margin:0 0 18px;}
+.ph-head{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--cream);margin:0 0 6px;}
+.ph-when{color:var(--cream-dim);white-space:nowrap;}
+.ph-media img{width:100%;display:block;border-radius:12px;object-fit:cover;background:#111;}
+.ph-media .carousel{border-radius:12px;overflow:hidden;}
 </style>
 </head>
 <body>
@@ -1423,7 +1430,7 @@ async function renderOtherProfile(userId, usernameHint){
       ${pinSort(theirVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
-      ${pinSort(theirPhotos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos yet.</p>'}
+      ${photoListHtml(pinSort(theirPhotos, pub.pinnedFilmIds), pub.pinnedFilmIds) || '<p class="comment-empty">No photos yet.</p>'}
     </div>
   `;
   loadUserHighlights(userId, 'otherHighlightsBar', false);
@@ -1668,7 +1675,7 @@ async function renderProfile(){
       ${pinSort(myVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
-      ${pinSort(myPhotos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
+      ${photoListHtml(pinSort(myPhotos, mine.pinnedFilmIds), mine.pinnedFilmIds) || '<p class="comment-empty">No photos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridSaved">
       <p class="comment-empty">Loading...</p>
@@ -2484,7 +2491,7 @@ function setupHomeDoubleTapLike(){
     const likeBtn = card ? card.querySelector('.feed-act-btn') : null;
     setupDoubleTapLike(
       box,
-      () => { isShort ? openShortAt(id) : playFilm(id); },
+      () => { if (box.dataset.kind === 'photo') return; isShort ? openShortAt(id) : playFilm(id); },
       () => !!(likeBtn && likeBtn.classList.contains('liked')),
       () => { if (likeBtn) likeFeedPost(id, likeBtn); }
     );
@@ -3145,6 +3152,40 @@ function carouselScroll(track){
 }
 
 // ---- Pin posts to profile (max 3) ----
+function photoListHtml(list, pinnedIds){
+  const pins = pinnedIds || [];
+  return (list || []).map(f => {
+    const media = f.slideUrls ? carouselHtml(f) : (f.posterUrl ? `<img src="${f.posterUrl}" alt="${escapeHtml(f.title || '')}" loading="lazy">` : '');
+    return `<div class="ph-card" data-id="${f.id}">
+      <div class="ph-head"><span>${pins.includes(f.id) ? '📌 ' : ''}${escapeHtml(f.title || '')}</span><span class="ph-when">${storyTimeAgo(f.uploadedAt)}</span></div>
+      <div class="ph-media">${media}</div>
+    </div>`;
+  }).join('');
+}
+let phTap = { el: null, t: 0 };
+document.addEventListener('click', function(e){
+  const media = e.target.closest && e.target.closest('.ph-card .ph-media');
+  if (!media) return;
+  const now = Date.now();
+  if (phTap.el === media && now - phTap.t < 350) {
+    phTap = { el: null, t: 0 };
+    const card = media.closest('.ph-card');
+    if (card && card.dataset.id) likeProfilePhoto(card.dataset.id, card);
+  } else {
+    phTap = { el: media, t: now };
+  }
+});
+async function likeProfilePhoto(id, card){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (card.dataset.liked === '1') { showHeartBurst(card); return; }
+  try {
+    const res = await fetch('/api/films/' + id + '/like', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    card.dataset.liked = data.liked ? '1' : '0';
+    showHeartBurst(card);
+  } catch (err) {}
+}
 function pinSort(list, pins){
   const order = pins || [];
   const pinned = order.map(id => list.find(f => f.id === id)).filter(Boolean);
