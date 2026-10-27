@@ -5,6 +5,32 @@ const fs = require('fs');
 const os = require('os');
 const { Readable } = require('stream');
 const zlib = require('zlib');
+const { S3Client, ListObjectsV2Command, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+// ---- Cloudflare R2: new videos, posters and photos are stored here; keys look like "r2:videos/abc.mp4" ----
+const R2_KEY_RE = /^r2:(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
+const isR2Key = k => typeof k === 'string' && k.startsWith('r2:');
+const r2Strip = k => k.slice(3);
+const r2On = () => !!(process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME && (process.env.R2_ACCOUNT_ID || process.env.R2_ENDPOINT) && process.env.R2_PUBLIC_URL);
+const r2PublicUrl = k => `${(process.env.R2_PUBLIC_URL || '').replace(/\/$/, '')}/${k}`;
+const r2Bucket = () => process.env.R2_BUCKET_NAME;
+async function r2Put(k, buf, ct) { await getR2().send(new PutObjectCommand({ Bucket: r2Bucket(), Key: k, Body: buf, ContentType: ct || 'application/octet-stream' })); }
+async function r2ListParts(key, uploadId) {
+  const parts = []; let marker;
+  for (let i = 0; i < 20; i++) {
+    const out = await getR2().send(new ListPartsCommand({ Bucket: r2Bucket(), Key: r2Strip(key), UploadId: uploadId, PartNumberMarker: marker }));
+    (out.Parts || []).forEach(p => parts.push({ PartNumber: p.PartNumber, ETag: p.ETag }));
+    if (!out.IsTruncated) break;
+    marker = out.NextPartNumberMarker;
+  }
+  return parts.sort((a, b) => a.PartNumber - b.PartNumber);
+}
+async function gdDownloadId(id) {
+  const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
+  if (!r.ok) throw new Error('Drive download failed (' + r.status + ')');
+  return Buffer.from(await r.arrayBuffer());
+}
 const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(require('ffmpeg-static'));
@@ -172,6 +198,16 @@ function storeNeedsDrive() {
 }
 async function storePutBuffer(buffer, key, contentType) { storeNeedsDrive(); await gdPutByKey(key, buffer, contentType); }
 async function storeCopy(sourceKey, destKey) {
+  if (r2On()) {                                   // story from a film: copy into R2 and return the new key
+    const dest = 'r2:' + destKey;
+    if (isR2Key(sourceKey)) {
+      await getR2().send(new CopyObjectCommand({ Bucket: r2Bucket(), CopySource: r2Bucket() + '/' + r2Strip(sourceKey), Key: r2Strip(dest) }));
+    } else {
+      const buf = typeof sourceKey === 'string' && sourceKey.startsWith('gd:') ? await gdDownloadId(sourceKey.slice(3)) : await gdGetByKey(sourceKey);
+      await r2Put(r2Strip(dest), buf, 'application/octet-stream');
+    }
+    return dest;
+  }
   storeNeedsDrive();
   const srcId = typeof sourceKey === 'string' && sourceKey.startsWith('gd:') ? sourceKey.slice(3) : await gdResolve(sourceKey);
   if (!srcId) { const e = new Error('Original file not found on Drive'); e.status = 404; throw e; }
@@ -187,16 +223,19 @@ async function storeCopy(sourceKey, destKey) {
   gdIdxShared.set(destKey, true);
 }
 async function storeDelete(key) {
+  if (isR2Key(key)) { await getR2().send(new DeleteObjectCommand({ Bucket: r2Bucket(), Key: r2Strip(key) })).catch(() => {}); return; }
   if (typeof key === 'string' && key.startsWith('gd:')) { await gdDelete(key.slice(3)); return; }
   try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {}
 }
-async function storeUrl(key) {                                   // a link the browser can open (direct Google link or our /media route)
+async function storeUrl(key) {                                   // a link the browser can open (R2 public link, Google direct link or our /media route)
+  if (isR2Key(key)) return r2PublicUrl(r2Strip(key));
   storeNeedsDrive();
   const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key);
   if (!id) throw new Error('File not found');
   return gdMediaUrl(id);
 }
 async function storeStream(key, req, res) {                      // serve a stored file through this server (used by old-style routes)
+  if (isR2Key(key)) return res.redirect(302, r2PublicUrl(r2Strip(key)));
   const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key).catch(() => null);
   if (!id) return res.status(404).send('Not found');
   return gdServe(id, req, res);
@@ -1412,7 +1451,7 @@ app.get('/media/gd/:id', (req, res) => gdServe(req.params.id, req, res));
 // ---------------- Resumable uploads (Google Drive) ----------------
 // The browser cuts a file into 8 MB parts and sends them here. Drive keeps the upload session, so after a refresh the
 // browser asks which parts arrived and continues. Finished files are named "gd:<fileId>".
-const keyOk = k => typeof k === 'string' && GD_KEY_RE.test(k);
+const keyOk = k => typeof k === 'string' && (GD_KEY_RE.test(k) || R2_KEY_RE.test(k));
 function mpAuth(req, res) {
   const currentUser = getUserFromReq(req);
   if (!currentUser && !isAdminBasicAuth(req)) { res.status(401).json({ error: 'Please log in' }); return null; }
@@ -1424,8 +1463,15 @@ app.post('/api/upload/mp/create', async (req, res) => {
     if (!mpAuth(req, res)) return;
     const { fileName, contentType, folder, size: sizeRaw } = req.body || {};
     if (!fileName || !folder) return res.status(400).json({ error: 'A file name and folder are required' });
-    storeNeedsDrive();
     const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
+    if (r2On()) {
+      const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const rext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
+      const rkey = `r2:${safeFolder}/${rid}${rext}`;
+      const up = await getR2().send(new CreateMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(rkey), ContentType: contentType || 'application/octet-stream' }));
+      return res.json({ key: rkey, uploadId: up.UploadId });
+    }
+    storeNeedsDrive();
     const size = Number(sizeRaw);
     if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
     usageRoll();
@@ -1434,6 +1480,17 @@ app.post('/api/upload/mp/create', async (req, res) => {
     const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
     res.json({ key: 'gd:pending', uploadId: session, provider: 'gdrive' });
   } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+app.get('/api/upload/mp/r2-part-url', async (req, res) => {
+  try {
+    if (!mpAuth(req, res)) return;
+    const { key, uploadId } = req.query;
+    const n = parseInt(req.query.n, 10);
+    if (!isR2Key(key) || !R2_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad request' });
+    const url = await getSignedUrl(getR2(), new UploadPartCommand({ Bucket: r2Bucket(), Key: r2Strip(key), UploadId: uploadId, PartNumber: n }), { expiresIn: 3600 });
+    res.json({ url });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }), async (req, res) => {
@@ -1459,6 +1516,10 @@ app.get('/api/upload/mp/parts', async (req, res) => {
     if (!mpAuth(req, res)) return;
     const { uploadId } = req.query;
     const size = Number(req.query.size);
+    if (isR2Key(req.query.key)) {
+      const rparts = await r2ListParts(req.query.key, uploadId);
+      return res.json({ parts: rparts.map(p => ({ n: p.PartNumber })) });
+    }
     if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
     const st = await gdSessionStatus(uploadId, size);
     if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
@@ -1473,6 +1534,13 @@ app.post('/api/upload/mp/complete', async (req, res) => {
     if (!mpAuth(req, res)) return;
     const { uploadId } = req.body || {};
     const size = Number((req.body || {}).size);
+    if (isR2Key((req.body || {}).key)) {
+      const body = req.body || {};
+      const rparts = await r2ListParts(body.key, uploadId);
+      if (!rparts.length || (body.total && rparts.length !== Number(body.total))) return res.status(409).json({ error: 'Some parts are still missing', have: rparts.length });
+      await getR2().send(new CompleteMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(body.key), UploadId: uploadId, MultipartUpload: { Parts: rparts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) } }));
+      return res.json({ ok: true, key: body.key });
+    }
     if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
     const st = await gdSessionStatus(uploadId, size);
     if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
@@ -1486,6 +1554,7 @@ app.post('/api/upload/mp/abort', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
     const { uploadId } = req.body || {};
+    if (isR2Key((req.body || {}).key)) { await getR2().send(new AbortMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(req.body.key), UploadId: uploadId })).catch(() => {}); return res.json({ ok: true }); }
     if (isGdSession(uploadId)) fetch(uploadId, { method: 'DELETE' }).catch(() => {});
     res.json({ ok: true });
   } catch (err) { res.json({ ok: true }); }
@@ -1990,8 +2059,8 @@ app.post('/api/stories/from-film', async (req, res) => {
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = path.extname(sourceKey) || (isVideo ? '.mp4' : '.jpg');
-    const mediaKey = `stories/${id}${ext}`;
-    await storeCopy(sourceKey, mediaKey);
+    let mediaKey = `stories/${id}${ext}`;
+    mediaKey = (await storeCopy(sourceKey, mediaKey)) || mediaKey;
 
     let stories = await readStories();
     stories = stories.filter(isStoryArchivable);
@@ -4020,6 +4089,45 @@ setInterval(async () => {
 
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
+// ---------------- Cloudflare R2 usage (dashboard card) ----------------
+// Set in Render: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME (optional R2_LIMIT_GB, default 10).
+const R2_LIMIT_BYTES = (parseFloat(process.env.R2_LIMIT_GB) || 10) * 1024 * 1024 * 1024;
+const r2Configured = () => !!(process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME && (process.env.R2_ACCOUNT_ID || process.env.R2_ENDPOINT));
+let r2Client = null;
+function getR2() {
+  if (!r2Client) r2Client = new S3Client({
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY }
+  });
+  return r2Client;
+}
+let r2UsageCache = { at: 0, data: null };
+async function r2Usage() {
+  if (!r2Configured()) return { configured: false };
+  if (r2UsageCache.data && Date.now() - r2UsageCache.at < 10 * 60 * 1000) return r2UsageCache.data;
+  try {
+    let token, total = 0, objects = 0; const by = {};
+    do {
+      const out = await getR2().send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, ContinuationToken: token }));
+      for (const o of (out.Contents || [])) {
+        const size = o.Size || 0; total += size; objects++;
+        const folder = o.Key.includes('/') ? o.Key.split('/')[0] : 'data (json)';
+        by[folder] = (by[folder] || 0) + size;
+      }
+      token = out.IsTruncated ? out.NextContinuationToken : undefined;
+    } while (token);
+    r2UsageCache = { at: Date.now(), data: { configured: true, ok: true, usedBytes: total, limitBytes: R2_LIMIT_BYTES, objects, byFolder: by } };
+  } catch (e) {
+    r2UsageCache = { at: Date.now(), data: { configured: true, ok: false, error: e.message, limitBytes: R2_LIMIT_BYTES } };
+  }
+  return r2UsageCache.data;
+}
+app.get('/api/admin/r2-usage', requireAdmin, async (req, res) => {
+  res.json(await r2Usage());
+});
+
 app.post('/api/admin/login', (req, res) => {
   const ip = req.ip || 'ip';
   const now = Date.now();
