@@ -610,6 +610,16 @@
 @media (max-width:520px){ .up-thumb{flex-basis:140px;} .up-thumb img{width:140px;height:79px;} }
 #upNext:empty{display:none;}
 #overlay:not(.open) #upNext{display:none;}
+
+/* Full video page = full screen like YouTube. Only this page scrolls; nothing behind it shows or scrolls. */
+#overlay{padding:0 !important;align-items:stretch !important;justify-content:stretch !important;background:var(--ink) !important;overflow:hidden !important;}
+#overlay .modal{width:100% !important;max-width:none !important;height:100vh;height:100dvh;max-height:none !important;margin:0 !important;border:none !important;border-radius:0 !important;background:var(--ink) !important;overflow-y:auto !important;overscroll-behavior:contain;padding:0 !important;}
+#overlay #playerMediaWrap{border-radius:0 !important;}
+#overlay #player,#overlay #playerImg{border-radius:0 !important;}
+#overlay .modal-body{padding:14px 16px 40px;}
+#overlay .modal-close{position:static;}
+.up-ph{width:118px;height:196px;border-radius:12px;background:#1a1733;display:flex;align-items:center;justify-content:center;color:var(--cream-dim);font-size:26px;}
+.up-ph-wide{width:168px;height:95px;border-radius:10px;background:#1a1733;display:flex;align-items:center;justify-content:center;color:var(--cream-dim);font-size:20px;}
 </style>
 </head>
 <body>
@@ -3028,9 +3038,9 @@ function renderUpNext(cur){
   const reels = pool.filter(x => x.type === 'short').slice(0, 12);
   const films = pool.filter(x => x.type !== 'short' && x.type !== 'photo').slice(0, 20);
   const reelsHtml = reels.length ? '<h3 class="up-h">Suggested reels</h3><div class="up-reels">' +
-    reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')"><img src="${r.posterUrl || ''}" alt="" loading="lazy"><div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
+    reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')">${r.posterUrl ? `<img src="${r.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph">▶</div>'}<div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
   const filmsHtml = films.length ? '<h3 class="up-h">Up next</h3>' +
-    films.map(f => `<div class="up-row" onclick="playFilm('${f.id}')"><div class="up-thumb"><img src="${f.posterUrl || ''}" alt="" loading="lazy"></div><div class="up-info"><div class="up-title">${escapeHtml(f.title)}</div><div class="up-meta">@${escapeHtml(f.ownerUsername || '')} · ${f.views || 0} views</div></div></div>`).join('') : '';
+    films.map(f => `<div class="up-row" onclick="playFilm('${f.id}')"><div class="up-thumb">${f.posterUrl ? `<img src="${f.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph-wide">▶</div>'}</div><div class="up-info"><div class="up-title">${escapeHtml(f.title)}</div><div class="up-meta">@${escapeHtml(f.ownerUsername || '')} · ${f.views || 0} views</div></div></div>`).join('') : '';
   box.innerHTML = reelsHtml + filmsHtml;
 }
 
@@ -3090,6 +3100,7 @@ async function playFilm(id){
 
   renderCommentListInto('commentList', f.comments, f.id);
   document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   if (markViewed(f.id)) {
     fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; }).catch(() => {});
   }
@@ -3238,6 +3249,7 @@ function closeModal(){
   const un = document.getElementById('upNext'); if (un) un.innerHTML = '';
   const ce = document.getElementById('playerCarousel'); if (ce) { ce.innerHTML = ''; ce.style.display = 'none'; }
   document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
   document.getElementById('player').pause();
   document.getElementById('player').src = '';
   document.getElementById('playerImg').src = '';
