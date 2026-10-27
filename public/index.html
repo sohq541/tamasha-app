@@ -14,7 +14,7 @@
   <meta property="og:url" content="https://www.tamasha.qd.je/">
   <meta name="twitter:card" content="summary">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0B0A1F">
+<meta name="theme-color" content="#FFFFFF">
 <script>
 // Media fallback: if a Google Drive link (googleapis.com) fails to load in this browser, switch that one
 // image/video to our own /media/gd/<id> route. Works for photos, posters, avatars and videos.
@@ -33,20 +33,20 @@
   }, true);
 })();
 </script>
-<script>try{if(localStorage.getItem('appTheme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{if(localStorage.getItem('appTheme')!=='dark'){document.documentElement.setAttribute('data-theme','light');document.querySelector('meta[name="theme-color"]').setAttribute('content','#FFFFFF');}}catch(e){}</script>
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Mukta:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#0B0A1F; --panel:#16122E; --marigold:#7C5CFF; --marigold-deep:#5B3FE0;
-    --vermilion:#4361EE; --cream:#EDEBFF; --cream-dim:#A9A3C9; --gold-line: rgba(124,92,255,0.35);
-    --field:rgba(255,255,255,0.05); --chip:rgba(124,92,255,0.18);
+    --ink:#000000; --panel:#121212; --marigold:#7C5CFF; --marigold-deep:#5B3FE0;
+    --vermilion:#3EA6FF; --cream:#FFFFFF; --cream-dim:#AAAAAA; --gold-line: rgba(255,255,255,0.14);
+    --field:rgba(255,255,255,0.08); --chip:rgba(124,92,255,0.18);
   }
   /* White theme: same layout, light surfaces. Chosen in Profile → Settings → Theme. */
   html[data-theme="light"]{
-    --ink:#FFFFFF; --panel:#F4F3FA; --marigold:#5B3FE0; --marigold-deep:#4A2FD0;
-    --vermilion:#3550D8; --cream:#15132B; --cream-dim:#5E5878; --gold-line: rgba(91,63,224,0.28);
+    --ink:#FFFFFF; --panel:#F2F2F2; --marigold:#5B3FE0; --marigold-deep:#4A2FD0;
+    --vermilion:#065FD4; --cream:#000000; --cream-dim:#606060; --gold-line: rgba(0,0,0,0.12);
     --field:#FFFFFF; --chip:rgba(91,63,224,0.12);
   }
   html[data-theme="light"] body{background:#FFFFFF;}
@@ -1890,7 +1890,7 @@ function toggleAppTheme(){
   const light = document.documentElement.getAttribute('data-theme') !== 'light';
   if (light) document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.removeAttribute('data-theme');
   try { localStorage.setItem('appTheme', light ? 'light' : 'dark'); } catch (e) {}
-  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', light ? '#FFFFFF' : '#0B0A1F');
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', light ? '#FFFFFF' : '#000000');
   renderSettingsPrivacyMenu();
 }
 function renderSettingsPrivacyMenu(){
