@@ -121,6 +121,7 @@
   <div class="tabs">
     <button class="tab active" data-t="overview" onclick="setTab('overview')">Overview</button>
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
+    <button class="tab" data-t="datahub" onclick="setTab('datahub')">🛰️ Data Hub</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
@@ -245,6 +246,7 @@ function render(){
   if (tab === 'overview') renderOverview();
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
+  else if (tab === 'datahub') renderDataHub();
   else if (tab === 'bluetick') renderBluetickAdmin();
   else if (tab === 'moderation') renderModeration();
   else if (tab === 'searches') renderSearches();
@@ -258,7 +260,7 @@ function renderOverview(){
   const o = D.overview;
   const stat = (n, label, cls, go) => `<div class="stat ${cls || ''}" ${go ? `onclick="setTab('${go}')" style="cursor:pointer;"` : ''}><b>${n}</b><span>${label}</span></div>`;
   const spamUsers = D.users.filter(u => u.reports > 0 && !u.suspended).sort((a, b) => b.reports - a.reports).slice(0, 5);
-  document.getElementById('view').innerHTML = usageCards() +
+  document.getElementById('view').innerHTML =
     '<div class="grid" style="margin-top:12px;">' +
       stat(o.onlineNow, '🟢 Abhi online') +
       stat(o.activeToday, 'Aaj active (24h)') +
@@ -335,6 +337,11 @@ function usageCards(){
     ${r2Card()}
     ${googleCard()}
   `;
+}
+
+function renderDataHub(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="meta" style="margin-bottom:12px;">Storage aur bandwidth ek jagah. Overview me ye nahi dikhte.</div>' + usageCards();
 }
 
 function userCard(u){
