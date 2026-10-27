@@ -587,6 +587,29 @@
 .collab-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(124,92,255,0.2);border:1px solid var(--marigold);border-radius:20px;padding:6px 10px 6px 12px;font-size:14px;color:var(--cream);font-weight:600;margin-top:4px;}
 .collab-chip.hidden{display:none;}
 .collab-chip button{background:transparent;border:none;color:var(--cream);font-size:15px;cursor:pointer;padding:0 2px;}
+
+.short-timer{position:absolute;left:12px;bottom:14px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:600;padding:4px 10px;border-radius:12px;pointer-events:none;z-index:4;letter-spacing:.3px;}
+/* Full video player: YouTube-like 16:9 frame */
+#player{width:100%;aspect-ratio:16/9;height:auto;background:#000;border-radius:12px;display:block;}
+#playerImg{aspect-ratio:16/9;object-fit:contain;}
+
+/* Full video page: suggestions under the comments (reels row like Instagram, list like YouTube) */
+#overlay .modal{overflow-y:auto;max-height:100vh;}
+.up-h{font-size:15px;font-weight:700;margin:22px 0 10px;color:var(--cream);}
+.up-reels{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;}
+.up-reels::-webkit-scrollbar{display:none;}
+.up-reel{flex:0 0 118px;cursor:pointer;}
+.up-reel img{width:118px;height:196px;object-fit:cover;border-radius:12px;background:#111;display:block;}
+.up-reel-t{font-size:12px;margin-top:4px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.up-row{display:flex;gap:10px;margin-bottom:14px;cursor:pointer;}
+.up-thumb{flex:0 0 168px;}
+.up-thumb img{width:168px;height:95px;object-fit:cover;border-radius:10px;background:#111;display:block;}
+.up-info{flex:1;min-width:0;}
+.up-title{font-size:14px;font-weight:600;color:var(--cream);line-height:1.3;max-height:2.6em;overflow:hidden;}
+.up-meta{font-size:12px;color:var(--cream-dim);margin-top:4px;}
+@media (max-width:520px){ .up-thumb{flex-basis:140px;} .up-thumb img{width:140px;height:79px;} }
+#upNext:empty{display:none;}
+#overlay:not(.open) #upNext{display:none;}
 </style>
 </head>
 <body>
@@ -646,7 +669,7 @@
 
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
-    <div id="playerMediaWrap" style="position:relative;">
+    <div id="playerMediaWrap" style="position:sticky;top:0;z-index:6;background:#000;">
       <video id="player" controls preload="auto" playsinline></video>
       <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
       <div id="playerCarousel" style="display:none;"></div>
@@ -678,6 +701,7 @@
         </form>
         <div class="comment-list" id="commentList"></div>
       </div>
+      <div id="upNext"></div>
     </div>
   </div>
 </div>
@@ -2521,6 +2545,7 @@ function renderShorts(shorts){
       <video data-src="${f.videoUrl}" preload="none" playsinline data-id="${f.id}"></video>
       <div class="short-center-icon" style="display:none;">▶</div>
       <div class="short-speed-badge">⏩ 2x</div>
+      <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
@@ -2995,12 +3020,27 @@ async function toggleHideComment(filmId, commentId){
     showToast(err.message);
   }
 }
+function renderUpNext(cur){
+  const box = document.getElementById('upNext');
+  if (!box) return;
+  if (!cur || cur.type === 'short' || cur.type === 'photo') { box.innerHTML = ''; return; }
+  const pool = (allFilms || []).filter(x => x.id !== cur.id && !x.pendingReview);
+  const reels = pool.filter(x => x.type === 'short').slice(0, 12);
+  const films = pool.filter(x => x.type !== 'short' && x.type !== 'photo').slice(0, 20);
+  const reelsHtml = reels.length ? '<h3 class="up-h">Suggested reels</h3><div class="up-reels">' +
+    reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')"><img src="${r.posterUrl || ''}" alt="" loading="lazy"><div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
+  const filmsHtml = films.length ? '<h3 class="up-h">Up next</h3>' +
+    films.map(f => `<div class="up-row" onclick="playFilm('${f.id}')"><div class="up-thumb"><img src="${f.posterUrl || ''}" alt="" loading="lazy"></div><div class="up-info"><div class="up-title">${escapeHtml(f.title)}</div><div class="up-meta">@${escapeHtml(f.ownerUsername || '')} · ${f.views || 0} views</div></div></div>`).join('') : '';
+  box.innerHTML = reelsHtml + filmsHtml;
+}
+
 async function playFilm(id){
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
   if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
   currentFilm = f;
+  renderUpNext(f);
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
   const carEl = document.getElementById('playerCarousel');
@@ -3195,6 +3235,7 @@ async function prependAnnouncements(listEl){
 
 function closeModal(){
   if (currentFilm) watchTimeFlush(currentFilm.id);
+  const un = document.getElementById('upNext'); if (un) un.innerHTML = '';
   const ce = document.getElementById('playerCarousel'); if (ce) { ce.innerHTML = ''; ce.style.display = 'none'; }
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('player').pause();
@@ -5287,6 +5328,25 @@ function shareCurrentFilmById(id, title) {
   if (!currentUser) { window.location.href = '/login.html'; return; }
   openSendTo(id);
 }
+
+// Shorts timer: when a short is paused, show "0:12 / 0:45" on it; hide it while it plays
+(function(){
+  function fmt(t){ if (!isFinite(t)) return '0:00'; const m = Math.floor(t / 60), sec = Math.floor(t % 60); return m + ':' + String(sec).padStart(2, '0'); }
+  function timerFor(v){
+    const item = v.closest && v.closest('#shortsContainer .short-item');
+    return item ? item.querySelector('.short-timer') : null;
+  }
+  function update(v){
+    const el = timerFor(v); if (!el) return;
+    if (v.paused && v.currentTime > 0) { el.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration); el.style.display = 'block'; }
+    else if (v.paused) { el.textContent = '0:00 / ' + fmt(v.duration); el.style.display = 'block'; }
+    else el.style.display = 'none';
+  }
+  ['pause','play','playing','loadedmetadata','seeked','ended'].forEach(function(ev){
+    document.addEventListener(ev, function(e){ if (e.target && e.target.tagName === 'VIDEO') update(e.target); }, true);
+  });
+  document.addEventListener('timeupdate', function(e){ const v = e.target; if (v && v.tagName === 'VIDEO' && v.paused) update(v); }, true);
+})();
 </script>
 <footer class="seo-footer" style="padding:18px 16px 90px;text-align:center;font-size:12.5px;line-height:1.6;color:#A9A3C9;">
   <h2 style="font-size:14px;margin:0 0 6px;color:#EDEBFF;">YouSeries – Video & Shorts Streaming</h2>
