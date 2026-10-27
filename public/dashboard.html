@@ -211,11 +211,12 @@ function ago(iso){
 async function load(){
   document.getElementById('updated').textContent = 'Loading…';
   try {
-    const [res, res2, res3] = await Promise.all([fetch('/api/admin/dashboard', { headers: { 'x-no-prompt': '1' } }), fetch('/api/admin/reports', { headers: { 'x-no-prompt': '1' } }), fetch('/api/admin/helpdesk', { headers: { 'x-no-prompt': '1' } })]);
+    const [res, res2, res3, res4] = await Promise.all([fetch('/api/admin/dashboard', { headers: { 'x-no-prompt': '1' } }), fetch('/api/admin/reports', { headers: { 'x-no-prompt': '1' } }), fetch('/api/admin/helpdesk', { headers: { 'x-no-prompt': '1' } }), fetch('/api/admin/r2-usage', { headers: { 'x-no-prompt': '1' } })]);
     if (res.status === 401) { showLogin(); return; }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     D = data;
+    try { D.r2 = await res4.json(); } catch (e) { D.r2 = null; }
     document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     try { const rj = await res2.json(); R = res2.ok ? (rj.reports || []) : []; } catch (e) { R = []; }
@@ -288,6 +289,21 @@ function driveCard(){
     </div>`;
 }
 
+function r2Card(){
+  const r = D.r2;
+  if (!r || !r.configured) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">R2 abhi connect nahi hai. Render me R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME set karo.</div></div>`;
+  if (!r.ok) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">❌ R2 se read nahi hua: ${esc(r.error || 'unknown')}</div></div>`;
+  const p = r.limitBytes ? Math.min(100, r.usedBytes / r.limitBytes * 100) : 0;
+  const folders = Object.entries(r.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
+  return `<div class="card">
+      <div class="row1"><b>☁️ Cloudflare R2 storage</b><span class="meta push" style="margin:0;">${r.objects || 0} files</span></div>
+      <div class="big">${fb(r.usedBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(r.limitBytes)}</span></div>
+      <div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>
+      <div class="meta">${p.toFixed(1)}% use hua · 10 GB free limit (R2_LIMIT_GB se badal sakte ho)</div>
+      <div style="margin-top:6px;">${folders}</div>
+    </div>`;
+}
+
 function googleCard(){
   const g = D.google || {};
   if (!g.limitBytes) return '';
@@ -316,6 +332,7 @@ function usageCards(){
       <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
       <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
     </div>
+    ${r2Card()}
     ${googleCard()}
   `;
 }
