@@ -854,7 +854,7 @@ app.get('/api/films', async (req, res) => {
     const nowMs = Date.now();
     const out = await Promise.all(films
       .filter(f => !(f.pendingReview && !(currentUser && f.ownerId === currentUser.id)))
-      .filter(f => !(f.publishAt && new Date(f.publishAt).getTime() > nowMs && !(currentUser && f.ownerId === currentUser.id)))
+      .filter(f => !(f.publishAt && new Date(f.publishAt).getTime() > nowMs))
       .filter(f => !(hideSensitive && f.isSensitive))
       .filter(f => !myBlocked.includes(f.ownerId))
       .filter(f => {
@@ -1546,7 +1546,7 @@ app.post('/api/films/finalize', async (req, res) => {
     if (when && !isNaN(when) && when.getTime() > Date.now()) newFilm.publishAt = when.toISOString();
     // optional review queue: new uploads wait for the owner's approval in the dashboard
     const modSet = (await storeTryReadJSON('moderation-settings.json')) || {};
-    if (modSet.reviewUploads && !(req.currentUser && req.currentUser.role === 'admin') && !isAdminBasicAuth(req)) newFilm.pendingReview = true;
+    if (modSet.reviewUploads) newFilm.pendingReview = true;
     if (newFilm.type === 'photo' && slides.length >= 2) {
       newFilm.slides = slides;
       newFilm.posterFile = posterKey || (slides[0].mediaType === 'photo' ? slides[0].key : null);
