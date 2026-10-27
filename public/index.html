@@ -122,6 +122,7 @@
   overflow: hidden;
   position: relative;
   margin-bottom: 20px;
+  flex-shrink: 0;
 }
 .card-header-row {
   position: absolute;
@@ -835,7 +836,9 @@
     <button class="chat-header-back" onclick="closeProfilePhotoFeed()">←</button>
     <span class="chat-header-name" id="profilePhotoFeedTitle">Photos</span>
   </div>
-  <div class="grid" id="profilePhotoFeedList" style="overflow-y:auto;flex:1;width:100%;box-sizing:border-box;"></div>
+  <div style="overflow-y:auto;flex:1;width:100%;">
+    <div class="grid" id="profilePhotoFeedList"></div>
+  </div>
 </div>
 
 <div class="chat-full-overlay" id="hashtagFeedOverlay">
