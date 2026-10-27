@@ -831,17 +831,7 @@
 </div>
 
 <!-- ===== OTHER USER'S PROFILE (separate from own Profile tab) ===== -->
-<div class="chat-full-overlay" id="profilePhotoFeedOverlay">
-  <div class="chat-header">
-    <button class="chat-header-back" onclick="closeProfilePhotoFeed()">←</button>
-    <span class="chat-header-name" id="profilePhotoFeedTitle">Photos</span>
-  </div>
-  <div style="overflow-y:auto;flex:1;width:100%;">
-    <div class="grid" id="profilePhotoFeedList"></div>
-  </div>
-</div>
-
-<div class="chat-full-overlay" id="hashtagFeedOverlay">
+<div class="chat-full-overlay" id="hashtagFeedOverlay" style="z-index:122;">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeHashtagFeed()">←</button>
     <span class="chat-header-name" id="hashtagFeedTitle"></span>
@@ -856,6 +846,16 @@
     <button class="chat-input-icon-btn" style="font-size:20px;" onclick="openProfileSafetyMenu()">⋮</button>
   </div>
   <div class="profile-wrap" id="otherProfileContent" style="overflow-y:auto;flex:1;"></div>
+</div>
+
+<div class="chat-full-overlay" id="profilePhotoFeedOverlay" style="z-index:124;">
+  <div class="chat-header">
+    <button class="chat-header-back" onclick="closeProfilePhotoFeed()">←</button>
+    <span class="chat-header-name" id="profilePhotoFeedTitle">Photos</span>
+  </div>
+  <div style="overflow-y:auto;flex:1;width:100%;">
+    <div class="grid" id="profilePhotoFeedList"></div>
+  </div>
 </div>
 
 <!-- ===== MESSAGES: INBOX ===== -->
@@ -2424,7 +2424,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
   `).join('');
 
   const filmHtml = matches.map(f => `
-    <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`}">
+    <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : (f.type === 'photo' ? `openProfilePhotoFeed('${f.ownerId}','${f.id}')` : `playFilm('${f.id}')`)}">
       <img class="search-result-thumb" src="${f.posterUrl || ''}">
       <div class="search-result-info">
         <span class="search-result-title">${escapeHtml(f.title)}</span>
@@ -3219,6 +3219,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
   const listEl = document.getElementById('profilePhotoFeedList');
   const titleEl = document.getElementById('profilePhotoFeedTitle');
   const overlayEl = document.getElementById('profilePhotoFeedOverlay');
+  overlayEl.classList.add('open');
   let pinnedIds = [];
   let username = '';
   if (currentUser && userId === currentUser.id) {
