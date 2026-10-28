@@ -642,6 +642,13 @@
 .ai-quick button{background:var(--panel);border:1px solid var(--gold-line);color:var(--cream);border-radius:18px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
 .chat-link{color:#7C5CFF;text-decoration:underline;word-break:break-all;}
 .ai-card .chat-link{color:#5B8CFF;}
+
+.action-btn.liked,html[data-theme="light"] .action-btn.liked{background:#E0245E !important;border-color:#E0245E !important;color:#fff !important;}
+#playerFsBtn{position:absolute;top:8px;right:8px;z-index:7;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:16px;cursor:pointer;}
+.tdots{display:inline-flex;gap:4px;vertical-align:middle;}
+.tdots span{width:6px;height:6px;border-radius:50%;background:currentColor;animation:aiDot 1.2s infinite ease-in-out;}
+.tdots span:nth-child(2){animation-delay:.15s;}
+.tdots span:nth-child(3){animation-delay:.3s;}
 </style>
 </head>
 <body>
@@ -702,7 +709,8 @@
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <div id="playerMediaWrap" style="position:sticky;top:0;z-index:6;background:#000;">
-      <video id="player" controls preload="auto" playsinline></video>
+      <video id="player" controls preload="auto"></video>
+      <button type="button" id="playerFsBtn" onclick="fullscreenPlayer()" aria-label="Fullscreen">⛶</button>
       <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
       <div id="playerCarousel" style="display:none;"></div>
     </div>
@@ -892,7 +900,7 @@
     </div>
     <div style="flex:1;min-width:0;cursor:pointer;" onclick="chatOpenOtherProfile()">
       <div class="chat-header-name" id="chatConvoHeaderName" style="flex:none;"></div>
-      <div class="chat-typing-text hidden" id="chatConvoTypingText">typing...</div>
+      <div class="chat-typing-text hidden" id="chatConvoTypingText"><span class="tdots"><span></span><span></span><span></span></span></div>
     </div>
   </div>
   <div class="chat-messages" id="chatMessagesArea"></div>
@@ -3416,6 +3424,14 @@ async function prependAnnouncements(listEl){
   } catch (e) {}
 }
 
+function fullscreenPlayer(){
+  const v = document.getElementById('player');
+  if (!v) return;
+  try {
+    if (v.requestFullscreen) v.requestFullscreen();
+    else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+  } catch (e) { showToast('Fullscreen is browser me nahi chal raha'); }
+}
 function closeModal(){
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const un = document.getElementById('upNext'); if (un) un.innerHTML = '';
