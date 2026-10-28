@@ -628,6 +628,20 @@
 .ph-when{color:var(--cream-dim);white-space:nowrap;}
 .ph-media img{width:100%;display:block;border-radius:12px;object-fit:cover;background:#111;}
 .ph-media .carousel{border-radius:12px;overflow:hidden;}
+
+/* Ask AI: replies as cards, typing dots, quick questions */
+.ai-card{background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:12px 14px;max-width:86%;font-size:14px;line-height:1.55;color:var(--cream);word-break:break-word;}
+.ai-card b{font-weight:700;}
+.ai-li{padding-left:2px;margin:2px 0;}
+.ai-think{display:inline-flex;gap:6px;padding:12px 16px;background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;}
+.ai-think span{width:7px;height:7px;border-radius:50%;background:var(--cream-dim);animation:aiDot 1.2s infinite ease-in-out;}
+.ai-think span:nth-child(2){animation-delay:.15s;}
+.ai-think span:nth-child(3){animation-delay:.3s;}
+@keyframes aiDot{0%,80%,100%{opacity:.25;transform:translateY(0);}40%{opacity:1;transform:translateY(-4px);}}
+.ai-quick{display:flex;flex-wrap:wrap;gap:8px;padding:10px 4px;}
+.ai-quick button{background:var(--panel);border:1px solid var(--gold-line);color:var(--cream);border-radius:18px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
+.chat-link{color:#7C5CFF;text-decoration:underline;word-break:break-all;}
+.ai-card .chat-link{color:#5B8CFF;}
 </style>
 </head>
 <body>
@@ -4410,8 +4424,17 @@ function renderChatMessages(){
     const mine = m.senderId === currentUser.id;
     html += renderChatBubble(m, mine, mine && i === lastMineIdx);
   });
+  const last = chatMessagesCache[chatMessagesCache.length - 1];
+  if (last && last.senderId === 'ai-assistant') aiThinkingSince = 0;
+  if (aiThinkingSince && Date.now() - aiThinkingSince < 90000) {
+    html += '<div class="chat-msg-row theirs"><div class="ai-think"><span></span><span></span><span></span></div></div>';
+  }
+  if (chatOtherUser && chatOtherUser.id === 'ai-assistant' && chatMessagesCache.length <= 1) {
+    html += '<div class="ai-quick">' + AI_QUICK.map(q => `<button type="button" onclick="sendAiQuick('${q}')">${q}</button>`).join('') + '</div>';
+  }
   el.innerHTML = html;
 }
+let aiThinkingSince = 0;
 
 function renderReactionPills(reactions){
   if (!reactions || !Object.keys(reactions).length) return '';
@@ -4460,6 +4483,32 @@ async function sendReaction(emoji){
   } catch (e) {}
 }
 
+// escape first, then turn web links into real, tappable links (safe: only http/https)
+function linkifyText(text){
+  const esc = escapeHtml(String(text || ''));
+  return esc.replace(/(https?:\/\/[^\s<]+[^\s<.,;!?)'"])/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>');
+}
+function aiFormat(text){
+  let h = linkifyText(String(text || ''));
+  h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  h = h.split('\n').map(line => {
+    const t = line.trim();
+    if (/^[-•]\s+/.test(t)) return '<div class="ai-li">• ' + t.replace(/^[-•]\s+/, '') + '</div>';
+    if (/^\d+[.)]\s+/.test(t)) return '<div class="ai-li">' + t + '</div>';
+    return t ? '<div>' + t + '</div>' : '<div style="height:6px"></div>';
+  }).join('');
+  return h;
+}
+
+// Quick questions for Ask AI (shown until the user writes something)
+const AI_QUICK = ['Upload kaise karein?', 'Blue tick kaise milega?', 'Notification band kaise karein?', 'Dark mode kaise lagayein?', 'Video nahi chal rahi, kya karun?', 'Post schedule kaise karein?'];
+function sendAiQuick(q){
+  const input = document.getElementById('chatTextInput');
+  if (!input) return;
+  input.value = q;
+  sendChatMessage();
+}
+
 function renderChatBubble(m, mine, showStatus){
   const rowCls = 'chat-msg-row ' + (mine ? 'mine' : 'theirs') + (m.unsent ? ' chat-msg-unsent' : '');
   const menuBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 6px;" onclick='openChatMsgMenu(${JSON.stringify(m.id)})'>⋮</button>`;
@@ -4470,8 +4519,10 @@ function renderChatBubble(m, mine, showStatus){
     return `<div class="${rowCls}"><div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${bubbleInner}</div></div>`;
   }
 
-  if (m.type === 'text') {
-    bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
+  if (m.type === 'text' && m.senderId === 'ai-assistant') {
+    bubbleInner = `<div class="ai-card">${aiFormat(m.text || '')}</div>`;
+  } else if (m.type === 'text') {
+    bubbleInner = `<div class="chat-bubble">${linkifyText(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
     bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')"></div>`;
   } else if (m.type === 'video') {
@@ -4568,6 +4619,7 @@ async function sendChatMessage(){
     if (!res.ok) throw new Error(data.error || 'Could not send');
     chatMessagesCache.push(data);
     chatLastFetchAt = new Date().toISOString();
+    if (chatOtherUser && chatOtherUser.id === 'ai-assistant') aiThinkingSince = Date.now();
     renderChatMessages();
     scrollChatToBottom();
     textEl.value = '';
