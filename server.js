@@ -33,6 +33,7 @@ async function gdDownloadId(id) {
 }
 const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
+const { execFile } = require('child_process');
 ffmpeg.setFfmpegPath(require('ffmpeg-static'));
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -2506,11 +2507,46 @@ const AI_ASSISTANT_USER = { id: AI_ASSISTANT_ID, username: AI_ASSISTANT_USERNAME
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 
-const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — TAMASHA (YouSeries) streaming app ke andar built-in ek general-purpose AI assistant.
-Agar tumhe [Live Web Context] diya jaye, to usi ko real-time/current info ka source maano aur usी ke basis par jawab do.
-Agar [Live Web Context] NAHI diya gaya (ya usme kaam ka kuch na mile), aur sawaal aisi cheez ke baare me hai jo waqt ke saath badalti hai (jaise aaj ki tareekh/score/news/price), to saaf bol do ke ye abhi pata nahi — bana ke mat batao.
-Baaki sab general knowledge, advice, explanations ke sawaalon ka apni knowledge se best-effort jawab do, aur TAMASHA app (upload, DM, follow, stories, settings) se judi problems me bhi madad karo.
-Hinglish me chhota, to-the-point jawab do — chat bubble me padhna hai, essay nahi.`;
+const AI_SYSTEM_PROMPT = `Tum "Ask AI" ho — YouSeries (TAMASHA) app ka built-in assistant. Hinglish me jawab do.
+
+JAWAB KA FORMAT (bahut zaroori):
+- Chhota aur seedha. Chat card me dikhega, essay mat likho.
+- Mukhya baat ko **bold** me likho. Steps ho to 1. 2. 3. me likho. Points ke liye "- " lagao.
+- Koi external link, image URL ya website ka address mat banao. Sirf app ke andar ka rasta batao (jaise "Profile → ⋮ → Settings and Privacy → Notifications").
+- Kabhi bhi cheez ko "dekh" ya "open" karne ka vaada mat karo jo tum nahi kar sakte.
+
+PHOTO / VIDEO KE BAARE ME:
+- Jab user KHUD photo ya video bheje, to use dekh kar samjhao (Hindi me). Ye user ki apni choice hai.
+- Chehre se kisi asli insaan ko pehchan kar naam mat batao. Sirf scene, cheezein, kya ho raha hai, aur video ka matlab batao.
+- App ke doosre users ki posts ki andar ki cheez tum nahi dekhte. Unke liye sirf [Site Context] me di gayi details (title, type, creator, date, views, likes, hashtags) se jawab do.
+- Private cheezein (DM, password, email, private profile) kabhi nahi batana.
+
+APP KE FEATURES (ye sab jaante ho):
+- **Feed (Home):** full videos 16:9 me, shorts/reels 9:16 me, photos ek ke baad ek. Photo par double-tap = like. Single tap par photo nahi khulti.
+- **Full video page:** video upar sticky, neeche comments, "Suggested reels" (Instagram jaisi row) aur "Up next" (YouTube jaisi list). Video band karne par suggestions chhup jaate hain.
+- **Shorts:** vertical scroll, pause par timer (0:12 / 0:45), khatam hone par agla short apne aap chalta hai. Speed 0.5x–2x. Hold karke 2x.
+- **Upload:** "+ Upload" button se video, short, photo ya carousel (2-10 photo/video). Upload refresh ya band hone par bhi resume hota hai. Pehle se review ON ho to post admin approval ke baad dikhegi. "Kab publish karna hai" se scheduled post bhi kar sakte ho.
+- **Profile:** Videos, Photos, Saved tabs. Photo par tap karke photo-feed khulti hai (sirf us user ki photos). Post ke ⋮ me Pin (profile par 3 tak). Note (24 ghante).
+- **Profile edit:** Edit Profile se naam, bio, avatar.
+- **Stories:** Add Story se 24 ghante ki story. Highlights bhi.
+- **Messages (DM):** message par hold karke reaction. Typing, online dot, Sent/Seen status. Ask AI ek chat hai.
+- **Notifications:** bell se list. Settings → 🔔 Notifications me likes, comments, follows, mentions, messages, collab, stories ke on/off.
+- **Settings and Privacy (⋮ profile se):** ☀️ White mode / 🌙 Dark mode, Notifications, ✔ Blue tick, 🆘 Help Desk.
+- **Blue tick:** 10 followers aur 150 total views poore karo to free permanent blue tick. Ya UPI se monthly (approve hone par 30 din). Payment ke baad 12-digit UTR daalna hota hai, admin check karke approve karta hai.
+- **Search:** upar search me username, #hashtag, films aur shorts. Kisi user ka naam dhoondho, profile khulegi.
+- **Hashtags:** caption ya comment me #tag likho, wo clickable hoga.
+- **Report / Block / Restrict:** post ke ⋮ me. Report ka review admin karta hai.
+- **Help Desk:** Settings → Help Desk. Message bhejo, admin ka jawab app me aur email par aata hai.
+
+COMMON PROBLEMS (inke solution do):
+- Video nahi chal rahi: page refresh karo, browser cache clear karo (Chrome → Site settings → Clear & reset). Agar chalne ke baad bhi black ho to Help Desk par likho.
+- Upload atak gaya: card par Retry / Resume dabao. Net ho to wapas aate hi resume hota hai.
+- Notification nahi aa rahi: Settings → Notifications me us type ka toggle on hai ya nahi check karo.
+- Page dheere khul raha hai: naya network ya thodi der wait karo, pehli baar server soya ho sakta hai.
+- Blue tick nahi mil raha: criteria (10 followers, 150 views) check karo, ya UPI request bhejo.
+- Login nahi ho raha: password bhool gaye to Forgot Password use karo.
+
+Agar sawaal app se bahar ka ho (general knowledge, advice), to chhota sa best jawab do. Live news/score ke liye [Live Web Context] use karo, warna bolo ki pata nahi.`;
 
 // Only spend a Tavily search credit when the question actually looks time-sensitive.
 const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|kal|aaj|abhi|latest|mausam|taaza|score|kitna hai|kya hai)\b/i;
@@ -2580,9 +2616,82 @@ async function callGroqChat(model, messages) {
   return { ok: res.ok, data };
 }
 
+async function aiSiteContext(query) {
+  try {
+    const q = String(query || '').toLowerCase().replace(/^#/, '').trim();
+    if (q.length < 3) return null;
+    const words = q.split(/\s+/).filter(w => w.length >= 3 && !/^(kya|kaise|kaha|hai|hain|ka|ki|ke|video|photo|post|dikha|dikhao|batao|mein|me|ye|wo)$/.test(w));
+    if (!words.length) return null;
+    const films = await readFilms();
+    const hits = films.filter(f => !f.pendingReview && !(f.publishAt && new Date(f.publishAt).getTime() > Date.now())).filter(f => {
+      const hay = [f.title, f.description, f.ownerUsername, ...(f.hashtags || [])].join(' ').toLowerCase();
+      return words.some(w => hay.includes(w));
+    }).slice(0, 8);
+    if (!hits.length) return null;
+    return hits.map(f => `- ${f.type === 'short' ? 'Short' : f.type === 'photo' ? 'Photo' : 'Video'}: "${f.title}" | creator: @${f.ownerUsername} | ${f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString('en-IN') : ''} | views: ${f.views || 0} | likes: ${f.likes || 0}${(f.hashtags || []).length ? ' | tags: ' + f.hashtags.join(', ') : ''}`).join('\n');
+  } catch (e) { return null; }
+}
+
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+function runFfmpegBin(args) {
+  return new Promise((resolve, reject) => execFile(require('ffmpeg-static'), args, { timeout: 60000 }, err => err ? reject(err) : resolve()));
+}
+// The user sent a photo or a video in the Ask AI chat: look at it and explain it (Hindi by default)
+async function answerWithMedia(msg) {
+  const userText = String(msg.text || '').trim();
+  const question = userText || 'Ye media kya hai? Hindi me samjhaiye.';
+  const parts = [];
+  let note = '';
+  const tmp = path.join(os.tmpdir(), 'askai-' + String(msg.id).replace(/[^A-Za-z0-9]/g, ''));
+  const cleanup = [];
+  try {
+    const buf = await gdGetByKey(msg.mediaKey);
+    if (buf.length > 40 * 1024 * 1024) return 'Ye file bahut badi hai (40 MB se kam bhejo).';
+    if (msg.mediaType === 'photo') {
+      parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + buf.toString('base64') } });
+    } else {
+      const vin = tmp + '.mp4'; cleanup.push(vin);
+      fs.writeFileSync(vin, buf);
+      try { await runFfmpegBin(['-y', '-i', vin, '-vf', 'fps=1/4,scale=480:-2', '-frames:v', '3', tmp + '-f%d.jpg']); } catch (e) {}
+      for (let i = 1; i <= 3; i++) {
+        const f = tmp + '-f' + i + '.jpg'; cleanup.push(f);
+        if (fs.existsSync(f)) parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + fs.readFileSync(f).toString('base64') } });
+      }
+      const mp3 = tmp + '.mp3'; cleanup.push(mp3);
+      try {
+        await runFfmpegBin(['-y', '-i', vin, '-vn', '-ac', '1', '-ar', '16000', '-t', '90', '-b:a', '32k', mp3]);
+        const fd = new FormData();
+        fd.append('file', new Blob([fs.readFileSync(mp3)], { type: 'audio/mpeg' }), 'audio.mp3');
+        fd.append('model', 'whisper-large-v3');
+        fd.append('response_format', 'json');
+        const tr = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd });
+        const tj = await tr.json().catch(() => ({}));
+        if (tj.text) note = 'Video ke bolne ka transcript (ho sakta hai English me ho): "' + String(tj.text).slice(0, 2000) + '"';
+      } catch (e) { /* no audio or transcription failed: frames are still used */ }
+    }
+  } catch (e) {
+    cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
+    return 'Ye media abhi khol nahi paya. Chhota size me dobara bhejo.';
+  }
+  cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
+  if (!parts.length && !note) return 'Ye media abhi samajh nahi aaya. Dobara bhejo.';
+  const text = question + '\n\n' + (note ? note + '\n\n' : '') +
+    'Jawab Hindi me do, simple shabdon me, chhote points me (**bold** headings ke saath). Agar koi insaan dikhe to uska naam ya pehchaan mat batana.';
+  const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
+  const r = await callGroqChat(GROQ_VISION_MODEL, messages);
+  if (!r.ok) return 'Media samajhne me problem aayi: ' + ((r.data && r.data.error && r.data.error.message) || 'unknown');
+  return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'Mujhe samajh nahi aaya.';
+}
+
 async function callAiAssistant(recentMessages, currentUserId) {
   if (!GROQ_API_KEY) {
     return "Groq API Key set nahi hai, please GROQ_API_KEY add karein.";
+  }
+
+  // a photo or video sent by the user is looked at directly
+  const rawLast = recentMessages.filter(m => !m.unsent).slice(-1)[0];
+  if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && (rawLast.mediaType === 'photo' || rawLast.mediaType === 'video') && rawLast.mediaKey) {
+    return await answerWithMedia(rawLast);
   }
 
   const history = recentMessages
@@ -2599,8 +2708,12 @@ async function callAiAssistant(recentMessages, currentUserId) {
 
   const latestUserText = history[history.length - 1].content;
   const webData = await getLiveWebContext(latestUserText);
+  const siteData = await aiSiteContext(latestUserText);
 
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
+  if (siteData) {
+    messages.push({ role: 'system', content: `[Site Context] (app ke public posts ki details, media ki andar ki cheez nahi):\n${siteData}` });
+  }
   if (webData) {
     messages.push({
       role: 'system',
