@@ -3424,6 +3424,18 @@ async function prependAnnouncements(listEl){
   } catch (e) {}
 }
 
+// Like YouTube: in fullscreen the phone turns sideways, so the video fills the whole screen
+function lockLandscapeForFullscreen(on){
+  try {
+    if (!screen.orientation) return;
+    if (on) screen.orientation.lock('landscape').catch(() => {});
+    else screen.orientation.unlock();
+  } catch (e) {}
+}
+document.addEventListener('fullscreenchange', function(){
+  const v = document.getElementById('player');
+  lockLandscapeForFullscreen(!!v && document.fullscreenElement === v);
+});
 function fullscreenPlayer(){
   const v = document.getElementById('player');
   if (!v) return;
@@ -4565,7 +4577,7 @@ function renderChatBubble(m, mine, showStatus){
     <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}" onpointerdown='startBubbleHold(event,${JSON.stringify(m.id)})' onpointerup="endBubbleHold(event)" onpointerleave="endBubbleHold(event)" onpointercancel="endBubbleHold(event)" oncontextmenu="event.preventDefault();return false;">${menuBtn}${bubbleInner}</div>
     ${renderReactionPills(m.reactions) ? `<div style="display:flex;${mine ? 'justify-content:flex-end;' : ''}">${renderReactionPills(m.reactions)}</div>` : ''}
     <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}</div>
-    ${showStatus ? `<div class="chat-msg-status">${(m.readBy && m.readBy.length) ? 'Seen ✓✓' : 'Sent ✓'}</div>` : ''}
+    ${showStatus ? `<div class="chat-msg-status">${(m.readBy || []).some(id => id !== currentUser.id) ? 'Seen ✓✓' : 'Sent ✓'}</div>` : ''}
   </div>`;
 }
 
