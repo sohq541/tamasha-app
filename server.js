@@ -63,6 +63,20 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 app.use(cookieParser());
+
+// Logged-out visitors see nothing from the site: no films, photos, videos, profiles or hashtags.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && !req.path.startsWith('/api/hashtags')) return next();
+  const isProtected = req.path.startsWith('/media/')
+    || /^\/api\/films(\/|$)/.test(req.path)
+    || req.path.startsWith('/api/hashtags')
+    || req.path === '/api/users/search'
+    || /^\/api\/users\/[^/]+\/public$/.test(req.path);
+  if (!isProtected) return next();
+  if (getUserFromReq(req) || isAdminBasicAuth(req)) return next();
+  if (req.path === '/api/films') return res.json([]);
+  return res.status(401).json({ error: 'Login required' });
+});
 app.use(express.json());
 // Render's free plan includes only 5 GB of outbound traffic a month, so JSON responses are gzip-compressed.
 app.use((req, res, next) => {
