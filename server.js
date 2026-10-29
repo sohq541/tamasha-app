@@ -4265,7 +4265,10 @@ app.post('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => {
   if (!migrateState.running) runDriveToR2Migration();
   res.json(migrateState);
 });
-app.get('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => res.json(migrateState));
+app.get('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => {
+  if (req.query.start === '1' && !migrateState.running) runDriveToR2Migration();
+  res.json(migrateState);
+});
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
 // ---------------- Cloudflare R2 usage (dashboard card) ----------------
