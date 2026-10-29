@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const { Readable } = require('stream');
 const zlib = require('zlib');
-const { S3Client, ListObjectsV2Command, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, ListObjectsV2Command, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 // ---- Cloudflare R2: new videos, posters and photos are stored here; keys look like "r2:videos/abc.mp4" ----
@@ -291,8 +291,11 @@ async function storeReadJSON(key) {
   return JSON.parse(raw);
 }
 
+// A missing file means "not created yet" (null). Any other failure (Drive login, network) is thrown,
+// so the app never treats a failed read as empty data and never overwrites real data with it.
 async function storeTryReadJSON(key) {
-  try { return await storeReadJSON(key); } catch (e) { return null; }
+  try { return await storeReadJSON(key); }
+  catch (e) { if (e && e.name === 'NoSuchKey') return null; throw e; }
 }
 
 async function storeWriteJSON(key, data) {
@@ -4214,6 +4217,55 @@ setInterval(async () => {
   } catch (e) { /* try again next hour */ }
 }, 60 * 60 * 1000);
 
+
+// ---------------- One-time migration: Google Drive -> Cloudflare R2 (admin only) ----------------
+// Copies every Drive file to the R2 bucket under the same name, and saves the JSON database to R2 with old keys fixed.
+// Start: GET/POST /api/admin/migrate-drive-to-r2 (dashboard login needed). Progress: same URL with GET.
+let migrateState = { running: false, started: null, finished: null, total: 0, copied: 0, skipped: 0, json: 0, errors: [] };
+const MIGRATE_MIME = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.json': 'application/json' };
+async function r2ObjectExists(k) {
+  try { await getR2().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: k })); return true; } catch (e) { return false; }
+}
+async function runDriveToR2Migration() {
+  migrateState = { running: true, started: new Date().toISOString(), finished: null, total: 0, copied: 0, skipped: 0, json: 0, errors: [] };
+  try {
+    storeNeedsDrive();
+    await gdIndexRefresh(true);                       // Drive: name -> file id
+    const entries = [...gdIdx.entries()];
+    const idToName = new Map(entries.map(([name, id]) => [id, name]));
+    migrateState.total = entries.length;
+    // 1) media: same name in R2, bytes copied from Drive (existing R2 objects are skipped)
+    for (const [name, id] of entries) {
+      if (/\.json$/i.test(name)) continue;
+      try {
+        if (await r2ObjectExists(name)) { migrateState.skipped++; continue; }
+        const buf = await gdDownloadId(id);
+        const ext = (path.extname(name) || '').toLowerCase();
+        await r2Put(name, buf, MIGRATE_MIME[ext] || 'application/octet-stream');
+        migrateState.copied++;
+      } catch (e) { migrateState.errors.push(name + ': ' + e.message); }
+    }
+    // 2) JSON database: old keys (gd:<drive id>, r2:) become plain bucket names, then the file is saved to R2
+    for (const [name] of entries) {
+      if (!/\.json$/i.test(name)) continue;
+      try {
+        let raw = (await gdGetByKey(name)).toString('utf-8');
+        raw = raw.replace(/"gd:([A-Za-z0-9_-]+)"/g, (m, id) => idToName.has(id) ? '"' + idToName.get(id) + '"' : m);
+        raw = raw.replace(/"r2:/g, '"');
+        JSON.parse(raw);                              // never save a broken file
+        await r2Put(name, Buffer.from(raw), 'application/json');
+        migrateState.json++;
+      } catch (e) { migrateState.errors.push(name + ': ' + e.message); }
+    }
+  } catch (e) { migrateState.errors.push('stopped: ' + e.message); }
+  migrateState.running = false;
+  migrateState.finished = new Date().toISOString();
+}
+app.post('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => {
+  if (!migrateState.running) runDriveToR2Migration();
+  res.json(migrateState);
+});
+app.get('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => res.json(migrateState));
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
 // ---------------- Cloudflare R2 usage (dashboard card) ----------------
