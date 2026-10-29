@@ -5383,7 +5383,7 @@ window.UploadMgr = (function(){
       if (have.has(n)) { doneBytes += len; setProgress(job, offset + doneBytes, 0); continue; }
       // Google Drive session (https://...) = the browser uploads straight to Google: no bytes through Render.
       // If that fails with a network error (e.g. a blocked connection), this part goes through our server instead.
-      const isR2 = typeof a.key === 'string' && a.key.indexOf('r2:') === 0;   // new files: straight to Cloudflare R2
+      const isR2 = true;   // every upload goes straight to Cloudflare R2
       const direct = !isR2 && /^https:\/\//.test(a.uploadId) && !(job.forceProxy);
       const url = direct ? a.uploadId : '/api/upload/mp/part?key=' + encodeURIComponent(a.key) + '&uploadId=' + encodeURIComponent(a.uploadId) + '&n=' + n + '&size=' + size + '&offset=' + start;
       const range = direct ? `bytes ${start}-${end - 1}/${size}` : null;
