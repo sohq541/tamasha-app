@@ -278,18 +278,6 @@ function renderOverview(){
     (spamUsers.length ? '<h3 class="sec">Jin par reports hain</h3>' + spamUsers.map(userCard).join('') : '');
 }
 
-function driveCard(){
-  const dr = D.drive || {}, eg = D.egress || {};
-  if (!dr.enabled || dr.driveOnly) return '';
-  if (dr.error) return `<div class="card"><b>☁️ Google Drive</b><div class="meta">❌ ${esc(dr.error)}</div></div>`;
-  const p = dr.limitBytes ? Math.min(100, dr.usedBytes / dr.limitBytes * 100) : 0;
-  return `<div class="card">
-      <div class="row1"><b>☁️ Google Drive (videos/photos)</b></div>
-      <div class="big">${fb(dr.usedBytes)} ${dr.limitBytes ? `<span style="font-size:14px;color:var(--cream-dim);">/ ${fb(dr.limitBytes)}</span>` : ''}</div>
-      ${dr.limitBytes ? `<div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>` : ''}
-      <div class="meta">Is mahine server se stream hua: <b>${fb(eg.proxyBytes)}</b> (Render bandwidth me ginti hota hai)</div>
-    </div>`;
-}
 
 function r2Card(){
   const r = D.r2;
@@ -306,20 +294,6 @@ function r2Card(){
     </div>`;
 }
 
-function googleCard(){
-  const g = D.google || {};
-  if (!g.limitBytes) return '';
-  const p = Math.min(100, g.usedBytes / g.limitBytes * 100);
-  const pa = g.parts || {};
-  return `<div class="card">
-      <div class="row1"><b>☁️ Google bandwidth (is mahine, estimate)</b></div>
-      <div class="big">${fb(g.usedBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(g.limitBytes)} limit</span></div>
-      <div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>
-      <div class="meta">${p.toFixed(1)}% use hua. Limit Render me GOOGLE_MONTHLY_LIMIT_GB se badal sakte ho (max 1 TB).</div>
-      <div class="nums"><span>Server se Google: <b>${fb(pa.server)}</b></span><span>Playback (estimate): <b>${fb(pa.direct)}</b></span><span>Database: <b>${fb(pa.json)}</b></span></div>
-      <div class="meta" style="margin-top:6px;">Google ki asli monthly limit ye dashboard nahi batata. Ye sirf hamara andaza hai. Playback direct Google se hota hai, isliye wo estimate hai.</div>
-    </div>`;
-}
 
 function usageCards(){
   const st = D.storage || {}, eg = D.egress || {};
@@ -335,7 +309,6 @@ function usageCards(){
       <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
     </div>
     ${r2Card()}
-    ${googleCard()}
   `;
 }
 
