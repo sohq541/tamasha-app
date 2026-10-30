@@ -5,13 +5,13 @@ const fs = require('fs');
 const os = require('os');
 const { Readable } = require('stream');
 const zlib = require('zlib');
-const { S3Client, ListObjectsV2Command, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, ListObjectsV2Command, GetObjectCommand, HeadObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-// ---- Cloudflare R2: new videos, posters and photos are stored here; keys look like "r2:videos/abc.mp4" ----
-const R2_KEY_RE = /^r2:(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
-const isR2Key = k => typeof k === 'string' && k.startsWith('r2:');
-const r2Strip = k => k.slice(3);
+// ---- Storage: Cloudflare R2 only. A key is the object name in the bucket, e.g. "videos/abc.mp4" or "films.json" ----
+const R2_KEY_RE = /^(videos|posters|photos)\/[A-Za-z0-9._-]+$/;
+const isR2Key = k => typeof k === 'string' && k.length > 0;
+const r2Strip = k => k;
 const r2On = () => !!(process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME && (process.env.R2_ACCOUNT_ID || process.env.R2_ENDPOINT) && process.env.R2_PUBLIC_URL);
 const r2PublicUrl = k => `${(process.env.R2_PUBLIC_URL || '').replace(/\/$/, '')}/${k}`;
 const r2Bucket = () => process.env.R2_BUCKET_NAME;
@@ -25,11 +25,6 @@ async function r2ListParts(key, uploadId) {
     marker = out.NextPartNumberMarker;
   }
   return parts.sort((a, b) => a.PartNumber - b.PartNumber);
-}
-async function gdDownloadId(id) {
-  const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
-  if (!r.ok) throw new Error('Drive download failed (' + r.status + ')');
-  return Buffer.from(await r.arrayBuffer());
 }
 const crypto = require('crypto');
 const ffmpeg = require('fluent-ffmpeg');
@@ -207,53 +202,28 @@ async function notifyCollabInvite(newFilm, currentUser) {
 // ---------------- File storage: Google Drive only ----------------
 // Every file (videos, photos, avatars, stories, chat media) and the JSON "database" files live in one Google Drive folder.
 // Each Drive file is named by its key (e.g. "videos/abc.mp4", "films.json"). See the Google Drive section below.
-const gdReady = () => gdEnabled();
 function storeNeedsDrive() {
-  if (!gdReady()) { const e = new Error('Google Drive is not configured (GDRIVE_CLIENT_ID / GDRIVE_CLIENT_SECRET / GDRIVE_REFRESH_TOKEN)'); e.status = 503; throw e; }
+  if (!r2On()) { const e = new Error('Cloudflare R2 set nahi hai (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL)'); e.status = 503; throw e; }
 }
 async function storePutBuffer(buffer, key, contentType) { storeNeedsDrive(); await gdPutByKey(key, buffer, contentType); }
 async function storeCopy(sourceKey, destKey) {
-  if (r2On()) {                                   // story from a film: copy into R2 and return the new key
-    const dest = 'r2:' + destKey;
-    if (isR2Key(sourceKey)) {
-      await getR2().send(new CopyObjectCommand({ Bucket: r2Bucket(), CopySource: r2Bucket() + '/' + r2Strip(sourceKey), Key: r2Strip(dest) }));
-    } else {
-      const buf = typeof sourceKey === 'string' && sourceKey.startsWith('gd:') ? await gdDownloadId(sourceKey.slice(3)) : await gdGetByKey(sourceKey);
-      await r2Put(r2Strip(dest), buf, 'application/octet-stream');
-    }
-    return dest;
-  }
   storeNeedsDrive();
-  const srcId = typeof sourceKey === 'string' && sourceKey.startsWith('gd:') ? sourceKey.slice(3) : await gdResolve(sourceKey);
-  if (!srcId) { const e = new Error('Original file not found on Drive'); e.status = 404; throw e; }
-  // Drive copies the file on its own side: no bytes pass through this server, so no Render bandwidth is used
-  const r = await fetch(`${GD.apiBase}/files/${srcId}/copy?fields=id`, {
-    method: 'POST', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: destKey, parents: [await gdFolderId()] })
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.id) throw new Error('Drive copy failed (' + r.status + ')');
-  gdIdx.set(destKey, j.id);
-  await gdMakePublic(j.id);
-  gdIdxShared.set(destKey, true);
+  await getR2().send(new CopyObjectCommand({ Bucket: r2Bucket(), CopySource: r2Bucket() + '/' + sourceKey, Key: destKey }));
+  gdIdx.set(destKey, true);
+  return destKey;
 }
 async function storeDelete(key) {
-  if (isR2Key(key)) { await getR2().send(new DeleteObjectCommand({ Bucket: r2Bucket(), Key: r2Strip(key) })).catch(() => {}); return; }
-  if (typeof key === 'string' && key.startsWith('gd:')) { await gdDelete(key.slice(3)); return; }
-  try { const id = await gdResolve(key); if (id) { await gdDelete(id); gdIdx.delete(key); } } catch (e) {}
+  if (!key) return;
+  await gdDelete(key);
 }
-async function storeUrl(key) {                                   // a link the browser can open (R2 public link, Google direct link or our /media route)
-  if (isR2Key(key)) return r2PublicUrl(r2Strip(key));
+async function storeUrl(key) {
+  if (!key) return null;
   storeNeedsDrive();
-  const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key);
-  if (!id) throw new Error('File not found');
-  return gdMediaUrl(id);
+  return r2PublicUrl(key);
 }
-async function storeStream(key, req, res) {                      // serve a stored file through this server (used by old-style routes)
-  if (isR2Key(key)) return res.redirect(302, r2PublicUrl(r2Strip(key)));
-  const id = typeof key === 'string' && key.startsWith('gd:') ? key.slice(3) : await gdResolve(key).catch(() => null);
-  if (!id) return res.status(404).send('Not found');
-  return gdServe(id, req, res);
+async function storeStream(key, req, res) {
+  if (!key) return res.status(404).send('Not found');
+  return res.redirect(302, r2PublicUrl(key));
 }
 // one place that turns a stored key into a URL for the browser; never throws
 function makeDirectUrlCache() {
@@ -282,7 +252,7 @@ const jsonCache = new Map();
 async function storeReadJSON(key) {
   const hit = jsonCache.get(key);
   if (hit && Date.now() - hit.at < JSON_CACHE_MS) return JSON.parse(hit.raw);
-  const pend = gdPending.get(key);                               // a write that has not reached Drive yet is the newest truth
+  const pend = gdPending.get(key);                               // a write that has not reached R2 yet is the newest truth
   if (pend) return JSON.parse(pend.raw);
   const buf = await gdGetByKey(key);
   usageAdd('jsonBytes', buf.length);
@@ -1204,167 +1174,42 @@ app.post('/api/upload/presign-url', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---------------- Google Drive (the only storage) ----------------
-// Videos / photos of posts are stored in the owner's Google Drive (e.g. a Google One plan) and streamed through this server
-// at /media/gd/<fileId>. Only the "drive.file" scope is needed, so the app can see just the files it created.
-// Needs GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET and GDRIVE_REFRESH_TOKEN.
-const GD = {
-  clientId: process.env.GDRIVE_CLIENT_ID, clientSecret: process.env.GDRIVE_CLIENT_SECRET, refreshToken: process.env.GDRIVE_REFRESH_TOKEN,
-  apiKey: process.env.GDRIVE_API_KEY || null,   // optional: files become public-by-link and the browser loads them straight from Google (no Render bandwidth)
-  folderId: process.env.GDRIVE_FOLDER_ID || null, folderName: process.env.GDRIVE_FOLDER_NAME || 'YouSeries Media',
-  tokenUrl: process.env.GDRIVE_TOKEN_URL || 'https://oauth2.googleapis.com/token',
-  apiBase: process.env.GDRIVE_API_BASE || 'https://www.googleapis.com/drive/v3',
-  uploadBase: process.env.GDRIVE_UPLOAD_BASE || 'https://www.googleapis.com/upload/drive/v3'
-};
-// Optional server-side cap (only if GD_MONTHLY_CAP_GB is set). Off by default: uploads and playback are not stopped by it.
-const GD_MONTH_CAP = (parseFloat(process.env.GD_MONTHLY_CAP_GB) || 0) > 0 ? parseFloat(process.env.GD_MONTHLY_CAP_GB) * 1024 * 1024 * 1024 : Infinity;
-const GD_PART = 8 * 1024 * 1024;               // must match the browser's PART_SIZE (and be a multiple of 256 KiB)
-const gdMediaUrl = id => GD.apiKey ? `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${GD.apiKey}` : '/media/gd/' + id;
-async function gdMakePublic(id) {
-  if (!GD.apiKey) return;
-  try {
-    await fetch(`${GD.apiBase}/files/${id}/permissions`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    });
-  } catch (e) { /* best effort */ }
-}
-const gdEnabled = () => !!(GD.clientId && GD.clientSecret && GD.refreshToken);
-const isGdSession = s => typeof s === 'string' && s.startsWith(GD.uploadBase + '/files');
-const GD_KEY_RE = /^gd:[A-Za-z0-9_-]{8,100}$/;
-let gdToken = { value: null, exp: 0 };
-async function gdAccessToken() {
-  if (gdToken.value && Date.now() < gdToken.exp - 60000) return gdToken.value;
-  const res = await fetch(GD.tokenUrl, {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: GD.clientId, client_secret: GD.clientSecret, refresh_token: GD.refreshToken, grant_type: 'refresh_token' })
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok || !j.access_token) throw new Error('Google login failed: ' + (j.error_description || j.error || res.status));
-  gdToken = { value: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
-  return gdToken.value;
-}
-async function gdFolderId() {
-  if (GD.folderId) return GD.folderId;
-  const token = await gdAccessToken();
-  const q = encodeURIComponent(`name='${GD.folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-  const found = await (await fetch(`${GD.apiBase}/files?q=${q}&fields=files(id)&spaces=drive`, { headers: { Authorization: 'Bearer ' + token } })).json();
-  if (found.files && found.files[0]) { GD.folderId = found.files[0].id; return GD.folderId; }
-  const made = await (await fetch(`${GD.apiBase}/files?fields=id`, {
-    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: GD.folderName, mimeType: 'application/vnd.google-apps.folder' })
-  })).json();
-  if (!made.id) throw new Error('Could not create the Drive folder');
-  GD.folderId = made.id;
-  return GD.folderId;
-}
-async function gdCreateSession(name, mime, size) {
-  const token = await gdAccessToken();
-  const folder = await gdFolderId();
-  const res = await fetch(`${GD.uploadBase}/files?uploadType=resumable&fields=id`, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mime || 'application/octet-stream', 'X-Upload-Content-Length': String(size) },
-    body: JSON.stringify({ name, parents: [folder] })
-  });
-  const loc = res.headers.get('location');
-  if (!res.ok || !loc) throw new Error('Drive refused the upload (' + res.status + ')');
-  return loc;
-}
-async function gdSessionStatus(session, size) {
-  const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes */${size}` } });
-  if (r.status === 200 || r.status === 201) { const j = await r.json().catch(() => ({})); return { done: true, id: j.id }; }
-  if (r.status === 308) { const m = /bytes=0-(\d+)/.exec(r.headers.get('range') || ''); return { done: false, received: m ? Number(m[1]) + 1 : 0 }; }
-  if (r.status === 404 || r.status === 410) return { expired: true };
-  throw new Error('Drive status check failed (' + r.status + ')');
-}
-async function gdPutPart(session, buf, offset, size) {
-  const st = await gdSessionStatus(session, size);
-  if (st.expired) { const e = new Error('Upload session expired'); e.expired = true; throw e; }
-  if (st.done) return { done: true, id: st.id };
-  let data = buf, start = offset;
-  if (st.received > offset) {                    // part was partly received before a refresh: send only the missing tail
-    const skip = st.received - offset;
-    if (skip >= buf.length) return { done: false };
-    data = buf.subarray(skip); start = offset + skip;
-  } else if (st.received < offset) { const e = new Error('Part out of order'); e.status = 409; throw e; }
-  usageAdd('proxyBytes', data.length);
-  const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes ${start}-${start + data.length - 1}/${size}` }, body: data });
-  if (r.status === 200 || r.status === 201) { const j = await r.json().catch(() => ({})); return { done: true, id: j.id }; }
-  if (r.status === 308) return { done: false };
-  if (r.status === 404 || r.status === 410) { const e = new Error('Upload session expired'); e.expired = true; throw e; }
-  throw new Error('Drive upload failed (' + r.status + ')');
-}
-async function gdDelete(id) {
-  try {
-    if (!gdEnabled() || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) return;
-    await fetch(`${GD.apiBase}/files/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
-  } catch (e) { /* best effort */ }
-}
-let gdAboutCache = { at: 0, data: null };
-async function gdAbout() {
-  if (!gdEnabled()) return { enabled: false };
-  if (gdAboutCache.data && Date.now() - gdAboutCache.at < 10 * 60 * 1000) return gdAboutCache.data;
-  try {
-    const r = await fetch(`${GD.apiBase}/about?fields=storageQuota`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
-    const j = await r.json();
-    if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
-    const q = j.storageQuota || {};
-    gdAboutCache = { at: Date.now(), data: { enabled: true, usedBytes: Number(q.usage) || 0, limitBytes: Number(q.limit) || null } };
-  } catch (e) { gdAboutCache = { at: Date.now(), data: { enabled: true, error: e.message } }; }
-  return gdAboutCache.data;
-}
-
-// Small files (thumbnails, avatars) are kept in memory so feeds do not hit Drive for every card.
-const gdSmall = new Map(); let gdSmallBytes = 0;
-const GD_SMALL_MAX_FILE = 1024 * 1024, GD_SMALL_CAP = 64 * 1024 * 1024;
-function gdSmallPut(id, buf, type) {
-  if (buf.length > GD_SMALL_MAX_FILE || gdSmall.has(id)) return;
-  gdSmall.set(id, { buf, type }); gdSmallBytes += buf.length;
-  for (const [k, v] of gdSmall) { if (gdSmallBytes <= GD_SMALL_CAP) break; gdSmall.delete(k); gdSmallBytes -= v.buf.length; }
-}
-
-// ---- Key based object store on Drive: a Drive file is named exactly like its storage key (e.g. videos/abc.mp4) ----
-const gdIdx = new Map();                // key (file name) -> Drive file id
+// ---------------- Storage engine (Cloudflare R2) ----------------
+// Same helper names as before, but every read, write, copy and delete goes to the R2 bucket.
+const GD_MONTH_CAP = Infinity;                  // no server-side media cap (bandwidth is R2's, and R2 egress is free)
+const GD_PART = 8 * 1024 * 1024;                // the browser sends 8 MB parts
+const gdEnabled = () => r2On();
+const gdMediaUrl = id => r2PublicUrl(id);
+async function gdMakePublic() {}                // R2 public bucket: nothing to set per file
+async function gdEnsurePublic() {}
+const isGdSession = () => false;
+async function gdAbout() { return { enabled: false }; }
+const gdIdx = new Map();                        // object key -> true, for every object in the bucket
 let gdIdxAt = 0, gdIdxSizes = new Map(), gdIdxShared = new Map();
 async function gdIndexRefresh(force) {
   if (!force && Date.now() - gdIdxAt < 20000) return;
+  storeNeedsDrive();
   gdIdxAt = Date.now();
-  const token = await gdAccessToken();
-  const folder = await gdFolderId();
-  let pageToken = '';
   const seen = new Map(), sizes = new Map();
-  gdIdxShared = new Map();
+  let token;
   do {
-    const q = encodeURIComponent(`'${folder}' in parents and trashed=false`);
-    const r = await fetch(`${GD.apiBase}/files?q=${q}&pageSize=1000&fields=nextPageToken,files(id,name,size,shared)${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`, { headers: { Authorization: 'Bearer ' + token } });
-    const j = await r.json();
-    if (!r.ok) throw new Error('Drive listing failed: ' + ((j.error && j.error.message) || r.status));
-    (j.files || []).forEach(f => { if (!seen.has(f.name)) { seen.set(f.name, f.id); sizes.set(f.name, Number(f.size) || 0); gdIdxShared.set(f.name, !!f.shared); } });
-    pageToken = j.nextPageToken || '';
-  } while (pageToken);
-  seen.forEach((id, name) => gdIdx.set(name, id));
+    const out = await getR2().send(new ListObjectsV2Command({ Bucket: r2Bucket(), ContinuationToken: token }));
+    (out.Contents || []).forEach(o => { seen.set(o.Key, true); sizes.set(o.Key, o.Size || 0); });
+    token = out.IsTruncated ? out.NextContinuationToken : undefined;
+  } while (token);
+  gdIdx.clear();
+  seen.forEach((v, k) => gdIdx.set(k, true));
   gdIdxSizes = sizes;
 }
 let gdLastMissRefresh = 0;
 async function gdResolve(key) {
-  if (gdIdx.has(key)) return gdIdx.get(key);
-  // a key we do not know yet: look at Drive again, but at most once every 2 seconds
+  if (!key) return null;
+  if (gdIdx.has(key)) return key;
   if (Date.now() - gdLastMissRefresh > 2000) { gdLastMissRefresh = Date.now(); try { await gdIndexRefresh(true); } catch (e) {} }
-  return gdIdx.get(key) || null;
+  return gdIdx.has(key) ? key : null;
 }
 const gdKeyLocks = new Map();
-async function gdEnsurePublic() {                       // files uploaded before GDRIVE_API_KEY was set
-  if (!GD.apiKey) return;
-  let n = 0;
-  for (const [name, id] of gdIdx) {
-    if (/\.json$/i.test(name) || gdIdxShared.get(name) === true) continue;
-    await gdMakePublic(id); gdIdxShared.set(name, true);
-    if (++n >= 300) break;
-    await new Promise(r => setTimeout(r, 120));
-  }
-  if (n) console.log(`Drive: made ${n} existing media files viewable by link`);
-}
-function gdWithLock(key, fn) {                      // one write at a time per key, so a key never gets two Drive files
+function gdWithLock(key, fn) {                  // one write at a time per key
   const prev = gdKeyLocks.get(key) || Promise.resolve();
   const next = prev.catch(() => {}).then(fn);
   gdKeyLocks.set(key, next);
@@ -1373,36 +1218,30 @@ function gdWithLock(key, fn) {                      // one write at a time per k
 }
 function gdPutByKey(key, buf, contentType) {
   return gdWithLock(key, async () => {
-    const ct = contentType || 'application/octet-stream';
-    let id = await gdResolve(key);
-    if (id) {
-      const r = await fetch(`${GD.uploadBase}/files/${id}?uploadType=media`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + await gdAccessToken(), 'Content-Type': ct }, body: buf });
-      if (r.ok) return id;
-      if (r.status !== 404) throw new Error('Drive update failed (' + r.status + ')');
-      gdIdx.delete(key);                              // file was removed behind our back: create it again
-    }
-    if (!buf.length) { const e = new Error('Empty file'); throw e; }
-    const session = await gdCreateSession(key, ct, buf.length);
-    usageAdd('proxyBytes', buf.length);
-    const r = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}` }, body: buf });
-    if (r.status !== 200 && r.status !== 201) throw new Error('Drive upload failed (' + r.status + ')');
-    const j = await r.json();
-    gdIdx.set(key, j.id);
+    storeNeedsDrive();
+    await getR2().send(new PutObjectCommand({ Bucket: r2Bucket(), Key: key, Body: buf, ContentType: contentType || 'application/octet-stream' }));
+    gdIdx.set(key, true);
     gdIdxSizes.set(key, buf.length);
-    if (!/\.json$/i.test(key)) { await gdMakePublic(j.id); gdIdxShared.set(key, true); }
-    return j.id;
+    return key;
   });
 }
 async function gdGetByKey(key) {
-  const id = await gdResolve(key);
-  const miss = () => { const e = new Error('NoSuchKey'); e.name = 'NoSuchKey'; return e; };
-  if (!id) throw miss();
-  const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
-  if (r.status === 404) { gdIdx.delete(key); throw miss(); }
-  if (!r.ok) throw new Error('Drive download failed (' + r.status + ')');
-  return Buffer.from(await r.arrayBuffer());
+  try {
+    const out = await getR2().send(new GetObjectCommand({ Bucket: r2Bucket(), Key: key }));
+    const chunks = [];
+    for await (const c of out.Body) chunks.push(c);
+    return Buffer.concat(chunks);
+  } catch (e) {
+    if (e && (e.name === 'NoSuchKey' || (e.$metadata && e.$metadata.httpStatusCode === 404))) { const m = new Error('NoSuchKey'); m.name = 'NoSuchKey'; throw m; }
+    throw e;
+  }
 }
-// JSON "database" writes are batched: memory is updated immediately, Drive gets the newest copy of each file every few seconds.
+async function gdDelete(key) {
+  if (!key) return;
+  await getR2().send(new DeleteObjectCommand({ Bucket: r2Bucket(), Key: key })).catch(() => {});
+  gdIdx.delete(key);
+}
+// JSON "database" writes are batched: memory is updated at once, R2 gets the newest copy within a few seconds.
 const gdPending = new Map();
 let gdFlushTimer = null;
 function gdQueueJSON(key, raw) {
@@ -1416,87 +1255,40 @@ async function gdFlushAll() {
       await gdPutByKey(key, Buffer.from(v.raw), 'application/json');
       if (gdPending.get(key) === v) gdPending.delete(key);
     } catch (e) {
-      console.error(`Drive save of ${key} failed (will retry):`, e.message);
+      console.error(`R2 save of ${key} failed (will retry):`, e.message);
       if (!gdFlushTimer) gdFlushTimer = setTimeout(() => { gdFlushTimer = null; gdFlushAll().catch(() => {}); }, 15000);
     }
   }));
 }
-
-async function gdServe(id, req, res) {
-  if (!gdEnabled() || !/^[A-Za-z0-9_-]{8,100}$/.test(id)) return res.status(404).end();
-  const range = req.headers.range;
-  // Render's free plan only includes 5 GB of outbound traffic a month (more is billed at $0.15/GB), so media streaming
-  // stops at GD_MONTHLY_CAP_GB (default 4) instead of letting the whole site run into overage.
-  usageRoll();
-  if (usage.proxyBytes >= GD_MONTH_CAP && !gdSmall.has(id)) {
-    res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '86400');
-    return res.status(503).end('Is mahine ki bandwidth limit poori ho gayi — media agle mahine se chalega');
-  }
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Content-Disposition', 'inline');
-  try {
-    const hit = !range && gdSmall.get(id);
-    if (hit) { res.setHeader('Content-Type', hit.type); res.setHeader('Content-Length', hit.buf.length); usageAdd('proxyBytes', hit.buf.length); return res.end(hit.buf); }
-    const ctrl = new AbortController();
-    res.on('close', () => ctrl.abort());
-    const r = await fetch(`${GD.apiBase}/files/${id}?alt=media`, { headers: { Authorization: 'Bearer ' + await gdAccessToken(), ...(range ? { Range: range } : {}) }, signal: ctrl.signal });
-    if (r.status === 404) return res.status(404).end();
-    if (r.status === 403 || r.status === 429) { res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '3600'); return res.status(503).end('Drive ki download limit — thodi der baad try karo'); }
-    if (!r.ok && r.status !== 206) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).end(); }
-    ['content-type', 'content-length', 'content-range', 'etag', 'last-modified'].forEach(h => { const v = r.headers.get(h); if (v) res.setHeader(h, v); });
-    res.status(r.status);
-    const len = parseInt(r.headers.get('content-length') || '0', 10);
-    if (!range && len && len <= GD_SMALL_MAX_FILE) {
-      const buf = Buffer.from(await r.arrayBuffer());
-      gdSmallPut(id, buf, r.headers.get('content-type') || 'application/octet-stream');
-      usageAdd('proxyBytes', buf.length);
-      return res.end(buf);
-    }
-    const stream = Readable.fromWeb(r.body);
-    let sent = 0;
-    stream.on('data', c => { sent += c.length; });
-    stream.on('close', () => usageAdd('proxyBytes', sent));
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    if (!res.headersSent) { res.setHeader('Cache-Control', 'no-store'); res.status(502).end(); } else res.destroy();
-  }
+async function gdServe(key, req, res) {
+  if (!key) return res.status(404).end();
+  return res.redirect(302, r2PublicUrl(key));
 }
-app.get('/media/gd/:id', (req, res) => gdServe(req.params.id, req, res));
 
-// ---------------- Resumable uploads (Google Drive) ----------------
-// The browser cuts a file into 8 MB parts and sends them here. Drive keeps the upload session, so after a refresh the
-// browser asks which parts arrived and continues. Finished files are named "gd:<fileId>".
-const keyOk = k => typeof k === 'string' && (GD_KEY_RE.test(k) || R2_KEY_RE.test(k));
+// ---------------- Resumable uploads (Cloudflare R2) ----------------
+// The browser cuts a file into 8 MB parts and sends each one straight to R2 with a presigned link.
+// The server only creates the upload, signs each part link, lists the parts that arrived and completes the file.
 function mpAuth(req, res) {
   const currentUser = getUserFromReq(req);
   if (!currentUser && !isAdminBasicAuth(req)) { res.status(401).json({ error: 'Please log in' }); return null; }
   return currentUser || { id: 'admin' };
 }
+const keyOk = k => typeof k === 'string' && R2_KEY_RE.test(k);
 
 app.post('/api/upload/mp/create', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
     const { fileName, contentType, folder, size: sizeRaw } = req.body || {};
     if (!fileName || !folder) return res.status(400).json({ error: 'A file name and folder are required' });
-    const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
-    if (r2On()) {
-      const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      const rext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
-      const rkey = `r2:${safeFolder}/${rid}${rext}`;
-      const up = await getR2().send(new CreateMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(rkey), ContentType: contentType || 'application/octet-stream' }));
-      return res.json({ key: rkey, uploadId: up.UploadId });
-    }
     storeNeedsDrive();
+    const safeFolder = ['videos', 'posters', 'photos'].includes(folder) ? folder : 'videos';
     const size = Number(sizeRaw);
     if (!(size > 0)) return res.status(400).json({ error: 'File size is required' });
-    usageRoll();
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const ext = (path.extname(String(fileName)) || '').replace(/[^A-Za-z0-9.]/g, '').slice(0, 8);
-    const session = await gdCreateSession(`${safeFolder}/${id}${ext}`, contentType, size);
-    res.json({ key: 'gd:pending', uploadId: session, provider: 'gdrive' });
+    const key = `${safeFolder}/${id}${ext}`;
+    const up = await getR2().send(new CreateMultipartUploadCommand({ Bucket: r2Bucket(), Key: key, ContentType: contentType || 'application/octet-stream' }));
+    res.json({ key, uploadId: up.UploadId });
   } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
 
@@ -1505,75 +1297,46 @@ app.get('/api/upload/mp/r2-part-url', async (req, res) => {
     if (!mpAuth(req, res)) return;
     const { key, uploadId } = req.query;
     const n = parseInt(req.query.n, 10);
-    if (!isR2Key(key) || !R2_KEY_RE.test(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad request' });
-    const url = await getSignedUrl(getR2(), new UploadPartCommand({ Bucket: r2Bucket(), Key: r2Strip(key), UploadId: uploadId, PartNumber: n }), { expiresIn: 3600 });
+    if (!keyOk(key) || !uploadId || !(n >= 1 && n <= 10000)) return res.status(400).json({ error: 'Bad request' });
+    const url = await getSignedUrl(getR2(), new UploadPartCommand({ Bucket: r2Bucket(), Key: key, UploadId: uploadId, PartNumber: n }), { expiresIn: 3600 });
     res.json({ url });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.put('/api/upload/mp/part', express.raw({ type: () => true, limit: '16mb' }), async (req, res) => {
-  try {
-    if (!mpAuth(req, res)) return;
-    const { uploadId } = req.query;
-    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty part' });
-    if (!isGdSession(uploadId)) return res.status(400).json({ error: 'Bad part request' });
-    const size = Number(req.query.size), offset = Number(req.query.offset);
-    if (!(size > 0) || !(offset >= 0) || offset % 262144 !== 0 || offset + req.body.length > size) return res.status(400).json({ error: 'Bad part request' });
-    usageRoll();
-    const out = await gdPutPart(uploadId, req.body, offset, size);
-    if (out.done && out.id) await gdMakePublic(out.id);
-    res.json({ ok: true, done: !!out.done, key: out.done && out.id ? 'gd:' + out.id : undefined });
-  } catch (err) {
-    if (err.expired) return res.status(404).json({ error: err.message, expired: true });
-    res.status(err.status || 500).json({ error: err.message });
-  }
 });
 
 app.get('/api/upload/mp/parts', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { uploadId } = req.query;
-    const size = Number(req.query.size);
-    if (isR2Key(req.query.key)) {
-      const rparts = await r2ListParts(req.query.key, uploadId);
-      return res.json({ parts: rparts.map(p => ({ n: p.PartNumber })) });
-    }
-    if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
-    const st = await gdSessionStatus(uploadId, size);
-    if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
-    const total = Math.max(1, Math.ceil(size / GD_PART));
-    const have = st.done ? total : Math.floor(st.received / GD_PART);
-    res.json({ parts: Array.from({ length: have }, (_, i) => ({ n: i + 1 })) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const { key, uploadId } = req.query;
+    if (!keyOk(key) || !uploadId) return res.status(400).json({ error: 'Bad request' });
+    const parts = await r2ListParts(key, uploadId);
+    res.json({ parts: parts.map(p => ({ n: p.PartNumber })) });
+  } catch (err) {
+    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/upload/mp/complete', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { uploadId } = req.body || {};
-    const size = Number((req.body || {}).size);
-    if (isR2Key((req.body || {}).key)) {
-      const body = req.body || {};
-      const rparts = await r2ListParts(body.key, uploadId);
-      if (!rparts.length || (body.total && rparts.length !== Number(body.total))) return res.status(409).json({ error: 'Some parts are still missing', have: rparts.length });
-      await getR2().send(new CompleteMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(body.key), UploadId: uploadId, MultipartUpload: { Parts: rparts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) } }));
-      return res.json({ ok: true, key: body.key });
-    }
-    if (!isGdSession(uploadId) || !(size > 0)) return res.status(400).json({ error: 'Bad request' });
-    const st = await gdSessionStatus(uploadId, size);
-    if (st.expired) return res.status(404).json({ error: 'Upload session expired', expired: true });
-    if (!st.done || !st.id) return res.status(409).json({ error: 'Some parts are still missing' });
-    await gdMakePublic(st.id);
-    res.json({ ok: true, key: 'gd:' + st.id });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const body = req.body || {};
+    if (!keyOk(body.key) || !body.uploadId) return res.status(400).json({ error: 'Bad request' });
+    const parts = await r2ListParts(body.key, body.uploadId);
+    if (!parts.length || (body.total && parts.length !== Number(body.total))) return res.status(409).json({ error: 'Some parts are still missing', have: parts.length });
+    await getR2().send(new CompleteMultipartUploadCommand({ Bucket: r2Bucket(), Key: body.key, UploadId: body.uploadId, MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) } }));
+    gdIdx.set(body.key, true);
+    res.json({ ok: true, key: body.key });
+  } catch (err) {
+    if (err.name === 'NoSuchUpload') return res.status(404).json({ error: 'Upload session expired', expired: true });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/upload/mp/abort', async (req, res) => {
   try {
     if (!mpAuth(req, res)) return;
-    const { uploadId } = req.body || {};
-    if (isR2Key((req.body || {}).key)) { await getR2().send(new AbortMultipartUploadCommand({ Bucket: r2Bucket(), Key: r2Strip(req.body.key), UploadId: uploadId })).catch(() => {}); return res.json({ ok: true }); }
-    if (isGdSession(uploadId)) fetch(uploadId, { method: 'DELETE' }).catch(() => {});
+    const body = req.body || {};
+    if (keyOk(body.key) && body.uploadId) await getR2().send(new AbortMultipartUploadCommand({ Bucket: r2Bucket(), Key: body.key, UploadId: body.uploadId })).catch(() => {});
     res.json({ ok: true });
   } catch (err) { res.json({ ok: true }); }
 });
@@ -3682,12 +3445,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
       trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
       storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
       egress: { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views },
-      google: {
-        limitBytes: Math.min(1024, Math.max(1, parseFloat(process.env.GOOGLE_MONTHLY_LIMIT_GB) || 750)) * 1024 * 1024 * 1024,
-        usedBytes: usage.jsonBytes + usage.proxyBytes + usage.mediaBytes,
-        parts: { json: usage.jsonBytes, server: usage.proxyBytes, direct: usage.mediaBytes }
-      },
-      drive: Object.assign({ direct: !!GD.apiKey }, await gdAbout()),
+      drive: { enabled: false },
       users: rows,
       activity: events
     });
@@ -4053,33 +3811,6 @@ app.get('/api/admin/users.csv', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---------------- Admin diagnostic: what Google says about a playable file (no secrets are shown) ----------------
-app.get('/api/admin/drive-test', requireAdmin, async (req, res) => {
-  const out = { apiKeySet: !!GD.apiKey, steps: [] };
-  try {
-    let id = String(req.query.id || '').replace(/[^A-Za-z0-9_-]/g, '');
-    if (!id) {
-      const media = [...gdIdx.entries()].filter(([name]) => !/\.json$/i.test(name) && /^(videos|posters|photos|stories)\//.test(name));
-      if (!media.length) return res.json({ ...out, error: 'Drive me koi media file nahi mili' });
-      id = media[media.length - 1][1];
-    }
-    out.fileId = id;
-    // 1) does the owner's Drive say the file is shared "anyone with link"?
-    const meta = await fetch(`${GD.apiBase}/files/${id}?fields=id,name,mimeType,size,shared,permissions(type,role)`, { headers: { Authorization: 'Bearer ' + await gdAccessToken() } });
-    const mj = await meta.json().catch(() => ({}));
-    out.steps.push({ step: 'owner check (OAuth)', status: meta.status, name: mj.name, size: mj.size, shared: mj.shared, permissions: mj.permissions, error: mj.error && mj.error.message });
-    // 2) can the browser's way (API key, no login) read it?
-    if (GD.apiKey) {
-      const r = await fetch(`${GD.apiBase}/files/${id}?alt=media&key=${GD.apiKey}`, { headers: { Range: 'bytes=0-15' } });
-      const body = await r.text().catch(() => '');
-      out.steps.push({ step: 'public playback check (API key)', status: r.status, contentType: r.headers.get('content-type'), error: r.ok ? null : body.slice(0, 400) });
-    } else {
-      out.steps.push({ step: 'public playback check (API key)', skipped: 'GDRIVE_API_KEY is not set' });
-    }
-    res.json(out);
-  } catch (e) { res.status(500).json({ ...out, error: e.message }); }
-});
-
 // ---------------- Blue tick (verified badge), paid by UPI, approved by the owner ----------------
 const BT_MIN_FOLLOWERS = 10, BT_MIN_VIEWS = 150, BT_DAYS = 30;
 const BT_KEY_QR = 'bluetick/qr.png';
@@ -4217,58 +3948,6 @@ setInterval(async () => {
   } catch (e) { /* try again next hour */ }
 }, 60 * 60 * 1000);
 
-
-// ---------------- One-time migration: Google Drive -> Cloudflare R2 (admin only) ----------------
-// Copies every Drive file to the R2 bucket under the same name, and saves the JSON database to R2 with old keys fixed.
-// Start: GET/POST /api/admin/migrate-drive-to-r2 (dashboard login needed). Progress: same URL with GET.
-let migrateState = { running: false, started: null, finished: null, total: 0, copied: 0, skipped: 0, json: 0, errors: [] };
-const MIGRATE_MIME = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.json': 'application/json' };
-async function r2ObjectExists(k) {
-  try { await getR2().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: k })); return true; } catch (e) { return false; }
-}
-async function runDriveToR2Migration() {
-  migrateState = { running: true, started: new Date().toISOString(), finished: null, total: 0, copied: 0, skipped: 0, json: 0, errors: [] };
-  try {
-    storeNeedsDrive();
-    await gdIndexRefresh(true);                       // Drive: name -> file id
-    const entries = [...gdIdx.entries()];
-    const idToName = new Map(entries.map(([name, id]) => [id, name]));
-    migrateState.total = entries.length;
-    // 1) media: same name in R2, bytes copied from Drive (existing R2 objects are skipped)
-    for (const [name, id] of entries) {
-      if (/\.json$/i.test(name)) continue;
-      try {
-        if (await r2ObjectExists(name)) { migrateState.skipped++; continue; }
-        const buf = await gdDownloadId(id);
-        const ext = (path.extname(name) || '').toLowerCase();
-        await r2Put(name, buf, MIGRATE_MIME[ext] || 'application/octet-stream');
-        migrateState.copied++;
-      } catch (e) { migrateState.errors.push(name + ': ' + e.message); }
-    }
-    // 2) JSON database: old keys (gd:<drive id>, r2:) become plain bucket names, then the file is saved to R2
-    for (const [name] of entries) {
-      if (!/\.json$/i.test(name)) continue;
-      try {
-        let raw = (await gdGetByKey(name)).toString('utf-8');
-        raw = raw.replace(/"gd:([A-Za-z0-9_-]+)"/g, (m, id) => idToName.has(id) ? '"' + idToName.get(id) + '"' : m);
-        raw = raw.replace(/"r2:/g, '"');
-        JSON.parse(raw);                              // never save a broken file
-        await r2Put(name, Buffer.from(raw), 'application/json');
-        migrateState.json++;
-      } catch (e) { migrateState.errors.push(name + ': ' + e.message); }
-    }
-  } catch (e) { migrateState.errors.push('stopped: ' + e.message); }
-  migrateState.running = false;
-  migrateState.finished = new Date().toISOString();
-}
-app.post('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => {
-  if (!migrateState.running) runDriveToR2Migration();
-  res.json(migrateState);
-});
-app.get('/api/admin/migrate-drive-to-r2', requireAdmin, (req, res) => {
-  if (req.query.start === '1' && !migrateState.running) runDriveToR2Migration();
-  res.json(migrateState);
-});
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
 // ---------------- Cloudflare R2 usage (dashboard card) ----------------
