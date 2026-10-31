@@ -2470,6 +2470,15 @@ async function callAiAssistant(recentMessages, currentUserId) {
 
   // a photo or video sent by the user is looked at directly
   const rawLast = recentMessages.filter(m => !m.unsent).slice(-1)[0];
+  // a reel or photo post shared in the chat: look at the post's own file
+  if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && rawLast.type === 'short' && rawLast.shortId) {
+    const post = (await readFilms()).find(f => f.id === rawLast.shortId);
+    if (post) {
+      const isPhoto = post.type === 'photo';
+      const key = isPhoto ? post.posterFile : post.videoFile;
+      if (key) return await answerWithMedia({ id: rawLast.id, text: rawLast.text || post.title, mediaKey: key, mediaType: isPhoto ? 'photo' : 'video' });
+    }
+  }
   if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && (rawLast.mediaType === 'photo' || rawLast.mediaType === 'video') && rawLast.mediaKey) {
     return await answerWithMedia(rawLast);
   }
@@ -4027,4 +4036,4 @@ setTimeout(() => { usageLoad(); refreshStorageStats(true); }, 5000);
 setInterval(() => refreshStorageStats(true), 30 * 60 * 1000);
 setInterval(usageFlush, 5 * 60 * 1000);
 ['SIGTERM', 'SIGINT'].forEach(sig => process.on(sig, () => { usageFlush().then(() => gdFlushAll()).catch(() => {}).finally(() => process.exit(0)); }));
-if (gdEnabled()) { setTimeout(() => gdIndexRefresh(true).then(() => gdEnsurePublic()).catch(e => console.error('Drive index failed:', e.message)), 1500); console.log('Storage: Google Drive'); }
+if (gdEnabled()) { setTimeout(() => gdIndexRefresh(true).then(() => gdEnsurePublic()).catch(e => console.error('Drive index failed:', e.message)), 1500); console.log('Storage: Cloudflare R2'); }
