@@ -4681,7 +4681,7 @@ function renderChatBubble(m, mine, showStatus){
         <div class="chat-short-bubble-title">${escapeHtml(m.shortTitle || 'Short')}</div>
         <div class="chat-short-bubble-tag">▶ ${m.shortOwnerUsername ? '@' + escapeHtml(m.shortOwnerUsername) : 'Short'}</div>
       </div>
-    </div>`;
+    </div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}`;
   } else {
     bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
   }
