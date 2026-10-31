@@ -1341,6 +1341,16 @@ app.post('/api/upload/mp/abort', async (req, res) => {
   } catch (err) { res.json({ ok: true }); }
 });
 
+// A song attached by a user: { url, title, start, duration }. Duration rules: photo story/upload 8s, note 15s, video = its own length.
+async function pickSong(body, kind) {
+  const id = body && body.songId;
+  if (!id) return null;
+  const x = (await readSongs()).find(y => y.id === String(id));
+  if (!x) return null;
+  const start = Math.max(0, Math.min(3600, Number(body.songStart) || 0));
+  const want = kind === 'note' ? 15 : kind === 'photo' ? 8 : Math.max(1, Math.min(600, Number(body.songDuration) || 8));
+  return { url: r2PublicUrl(x.key), title: x.title, artist: x.artist || '', start, duration: want };
+}
 app.post('/api/films/finalize', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -1395,6 +1405,9 @@ app.post('/api/films/finalize', async (req, res) => {
     const when = req.body.publishAt ? new Date(req.body.publishAt) : null;
     if (when && !isNaN(when) && when.getTime() > Date.now()) newFilm.publishAt = when.toISOString();
     // optional review queue: new uploads wait for the owner's approval in the dashboard
+    const songKind = (req.body.type === 'photo' || req.body.type === 'carousel') ? 'photo' : 'video';
+    const attachedSong = await pickSong(req.body, songKind);
+    if (attachedSong) newFilm.song = attachedSong;
     const modSet = (await storeTryReadJSON('moderation-settings.json')) || {};
     if (modSet.reviewUploads) newFilm.pendingReview = true;
     if (newFilm.type === 'photo' && slides.length >= 2) {
@@ -1819,6 +1832,8 @@ app.post('/api/stories', (req, res, next) => {
       views: [],
       comments: []
     };
+    const storySong = await pickSong(req.body, isVideo ? 'video' : 'photo');
+    if (storySong) newStory.song = storySong;
     stories.unshift(newStory);
     await writeStories(stories);
     res.status(201).json(newStory);
@@ -3594,7 +3609,8 @@ app.post('/api/me/note', async (req, res) => {
     const users = await readUsers();
     const me = users.find(u => u.id === currentUser.id);
     if (!me) return res.status(404).json({ error: 'User not found' });
-    if (text) me.note = { text, createdAt: new Date().toISOString() }; else delete me.note;
+    const noteSong = await pickSong(req.body, 'note');
+    if (text) me.note = { text, createdAt: new Date().toISOString(), ...(noteSong ? { song: noteSong } : {}) }; else delete me.note;
     await writeUsers(users);
     res.json({ note: activeNote(me) });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3956,6 +3972,47 @@ setInterval(async () => {
     if (changed) await writeUsers(users);
   } catch (e) { /* try again next hour */ }
 }, 60 * 60 * 1000);
+
+// ---------------- Songs library (admin uploads; users pick a song for stories, notes and uploads) ----------------
+async function readSongs() { return (await storeTryReadJSON('songs.json')) || []; }
+async function writeSongs(list) { await storeWriteJSON('songs.json', list); }
+app.get('/api/songs', async (req, res) => {
+  if (!getUserFromReq(req) && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login required' });
+  const list = await readSongs();
+  res.json(list.map(x => ({ id: x.id, title: x.title, artist: x.artist || '', trending: !!x.trending, url: r2PublicUrl(x.key) })));
+});
+app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Song file chuno' });
+    const title = String((req.body && req.body.title) || '').trim().slice(0, 80);
+    if (!title) return res.status(400).json({ error: 'Song ka title likho' });
+    storeNeedsDrive();
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const ext = (path.extname(req.file.originalname) || '.mp3').replace(/[^A-Za-z0-9.]/g, '').slice(0, 6);
+    const key = `songs/${id}${ext}`;
+    await storePutBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype || 'audio/mpeg');
+    const list = await readSongs();
+    list.push({ id, key, title, artist: String((req.body && req.body.artist) || '').trim().slice(0, 80), trending: false, createdAt: new Date().toISOString() });
+    await writeSongs(list);
+    res.json({ success: true, id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/songs/:id/trend', requireAdmin, async (req, res) => {
+  const list = await readSongs();
+  const x = list.find(y => y.id === req.params.id);
+  if (!x) return res.status(404).json({ error: 'Song nahi mila' });
+  x.trending = !!(req.body && req.body.on);
+  await writeSongs(list);
+  res.json({ success: true });
+});
+app.post('/api/admin/songs/:id/delete', requireAdmin, async (req, res) => {
+  const list = await readSongs();
+  const x = list.find(y => y.id === req.params.id);
+  if (!x) return res.status(404).json({ error: 'Song nahi mila' });
+  await storeDelete(x.key);
+  await writeSongs(list.filter(y => y.id !== x.id));
+  res.json({ success: true });
+});
 
 // ---------------- Admin login form (dashboard) ----------------
 const adminLoginTries = new Map();
