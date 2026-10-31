@@ -2344,7 +2344,7 @@ COMMON PROBLEMS (inke solution do):
 Agar sawaal app se bahar ka ho (general knowledge, advice), to chhota sa best jawab do. Live news/score ke liye [Live Web Context] use karo, warna bolo ki pata nahi.`;
 
 // Only spend a Tavily search credit when the question actually looks time-sensitive.
-const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|kal|aaj|abhi|latest|mausam|taaza|score|kitna hai|kya hai)\b/i;
+const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|trend|trending|viral|movie|film|release|box office|web series|webseries|ott|song|songs|hit|match|cricket|ipl|election|result|kal|aaj|abhi|mausam|taaza|khabar|samachar|naya|nayi|kitna hai|kya hai|2025|2026)\b/i;
 
 async function getLiveWebContext(query) {
   if (!TAVILY_API_KEY || !REALTIME_HINT.test(query)) return null;
@@ -2471,7 +2471,7 @@ async function answerWithMedia(msg) {
   cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
   if (!parts.length && !note) return 'Ye media abhi samajh nahi aaya. Dobara bhejo.';
   const text = question + '\n\n' + (note ? note + '\n\n' : '') +
-    'Jawab Hindi me do, simple shabdon me, chhote points me (**bold** headings ke saath). Agar koi insaan dikhe to uska naam ya pehchaan mat batana.';
+    'Jawab usi bhasha me do jisme user ne likha hai (default Hindi). Simple shabdon me, chhote points me (**bold** headings ke saath). Agar koi insaan dikhe to uska naam ya pehchaan mat batana.';
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
   const r = await callGroqChat(GROQ_VISION_MODEL, messages);
   if (!r.ok) return 'Media samajhne me problem aayi: ' + ((r.data && r.data.error && r.data.error.message) || 'unknown');
