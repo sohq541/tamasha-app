@@ -122,6 +122,7 @@
     <button class="tab active" data-t="overview" onclick="setTab('overview')">Overview</button>
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
     <button class="tab" data-t="datahub" onclick="setTab('datahub')">🛰️ Data Hub</button>
+    <button class="tab" data-t="songs" onclick="setTab('songs')">🎵 Songs</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
@@ -247,6 +248,7 @@ function render(){
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
   else if (tab === 'datahub') renderDataHub();
+  else if (tab === 'songs') renderSongs();
   else if (tab === 'bluetick') renderBluetickAdmin();
   else if (tab === 'moderation') renderModeration();
   else if (tab === 'searches') renderSearches();
@@ -301,15 +303,59 @@ function usageCards(){
   const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
   const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
   return `
-    <div class="card">
-      <div class="row1"><b>💾 Storage</b><span class="meta push" style="margin:0;">${st.objects || 0} files</span></div>
-      ${st.ok ? `<div class="big">${fb(st.usedBytes)} <span style="font-size:14px;color:var(--cream-dim);">/ ${fb(st.limitBytes)}</span></div>
-      <div class="meter"><i class="${meterCls(sp)}" style="width:${sp.toFixed(1)}%"></i></div>
-      <div class="meta">${sp.toFixed(1)}% use hua · ${fb(Math.max(0, st.limitBytes - st.usedBytes))} bacha</div>
-      <div style="margin-top:6px;">${folders}</div>` : `<div class="meta">❌ Storage ginti nahi ho payi: ${esc(st.error || 'unknown error')}</div>`}
-    </div>
     ${r2Card()}
   `;
+}
+
+async function renderSongs(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res = await fetch('/api/songs', { headers: { 'x-no-prompt': '1' } });
+    const list = await res.json();
+    if (!res.ok) throw new Error(list.error || 'Failed');
+    v.innerHTML = `
+      <div class="card">
+        <b>🎵 Songs library</b>
+        <div class="meta">Yahan se users apni story, note aur upload me song laga sakenge. Sirf royalty-free ya apne songs upload karo.</div>
+        <input id="snTitle" type="text" placeholder="Song ka naam" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        <input id="snArtist" type="text" placeholder="Artist (optional)" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        <input id="snFile" type="file" accept="audio/*" style="margin-top:10px;">
+        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="uploadSong()">Song upload karo</button></div>
+      </div>
+      <h3 class="sec">Songs (${list.length})</h3>
+      ${list.map(x => `<div class="card">
+        <div class="row1"><span class="name">${esc(x.title)}</span>${x.trending ? '<span class="pill g">trending</span>' : ''}</div>
+        <div class="meta">${esc(x.artist || '')}</div>
+        <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
+        <div class="row1" style="margin-top:8px;">
+          <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Trending se hatao' : '🔥 Trending me daalo'}</button>
+          <button class="btn btn-danger" onclick="deleteSong('${x.id}')">Delete</button>
+        </div>
+      </div>`).join('') || '<div class="empty">Abhi koi song nahi.</div>'}`;
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+async function uploadSong(){
+  const file = document.getElementById('snFile').files[0];
+  const title = document.getElementById('snTitle').value.trim();
+  if (!file || !title) { alert('Song file aur title dono do'); return; }
+  const fd = new FormData();
+  fd.append('song', file); fd.append('title', title); fd.append('artist', document.getElementById('snArtist').value.trim());
+  try {
+    const res = await fetch('/api/admin/songs', { method: 'POST', body: fd, headers: { 'x-no-prompt': '1' } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    renderSongs();
+  } catch (e) { alert(e.message); }
+}
+async function trendSong(id, on){
+  await fetch('/api/admin/songs/' + id + '/trend', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ on }) });
+  renderSongs();
+}
+async function deleteSong(id){
+  if (!confirm('Ye song delete karna hai?')) return;
+  await fetch('/api/admin/songs/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+  renderSongs();
 }
 
 function renderDataHub(){

@@ -1497,7 +1497,7 @@ async function renderOtherProfile(userId, usernameHint){
       </div>
     </div>
     <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}</div>
-    ${pub.note ? `<div><span class="note-pill" style="cursor:default;">📝 ${escapeHtml(pub.note.text)}</span></div>` : ''}
+    ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${JSON.stringify(pub.note).replace(/"/g, '&quot;')})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
     ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
     ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
     <div class="profile-btn-row">
@@ -3208,6 +3208,10 @@ async function playFilm(id){
   if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
   currentFilm = f;
   renderUpNext(f);
+  if (f.song && f.type !== 'photo' && f.type !== 'short') {
+    const pv = document.getElementById('player'); if (pv) pv.muted = true;
+    playSong(f.song);
+  }
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
   const carEl = document.getElementById('playerCarousel');
@@ -3430,7 +3434,13 @@ async function openProfilePhotoFeed(userId, startFilmId){
     }, 30);
   }
 }
+function playNoteSong(note){
+  const song = note && note.song;
+  if (!song) return;
+  playSong(song);
+}
 function closeProfilePhotoFeed(){
+  stopSong();
   document.getElementById('profilePhotoFeedOverlay').classList.remove('open');
 }
 
@@ -3469,8 +3479,14 @@ function openNoteEditor(){
 }
 async function saveNote(clear){
   const text = clear ? '' : (document.getElementById('noteInput').value || '');
+  let songPart = {};
+  if (!clear && text) {
+    const pick = await openSongPicker('note');
+    if (pick === 'cancel') return;
+    if (pick) songPart = { songId: pick.songId, songStart: pick.songStart };
+  }
   try {
-    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...songPart }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     window.myNote = data.note;
@@ -3549,6 +3565,7 @@ function fullscreenPlayer(){
   } catch (e) { showToast('Fullscreen is browser me nahi chal raha'); }
 }
 function closeModal(){
+  stopSong();
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const un = document.getElementById('upNext'); if (un) un.innerHTML = '';
   const ce = document.getElementById('playerCarousel'); if (ce) { ce.innerHTML = ''; ce.style.display = 'none'; }
@@ -3698,6 +3715,80 @@ let storyIsPaused = false;
 let storyDurationMs = 5000;
 let storyElapsedMs = 0;
 let storySegStartTime = 0;
+// ---- Songs: picker (choose a song and where it starts) and playback ----
+function mediaDurationOf(file){
+  return new Promise(resolve => {
+    const v = document.createElement('video'); const url = URL.createObjectURL(file);
+    v.preload = 'metadata'; v.src = url;
+    v.onloadedmetadata = () => { const d = v.duration; URL.revokeObjectURL(url); resolve(isFinite(d) ? d : 8); };
+    v.onerror = () => { URL.revokeObjectURL(url); resolve(8); };
+  });
+}
+// resolves: { songId, songStart, songDuration } | null (no song) | 'cancel' (user closed the picker)
+function openSongPicker(kind, mediaSec){
+  return new Promise(async resolve => {
+    let list = [];
+    try { const r = await fetch('/api/songs'); list = await r.json(); if (!Array.isArray(list)) list = []; } catch (e) {}
+    const want = kind === 'note' ? 15 : kind === 'photo' ? 8 : Math.max(1, Math.min(600, Math.round(mediaSec || 8)));
+    const ov = document.createElement('div');
+    ov.id = 'songPicker';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:980;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:16px;width:100%;max-width:380px;max-height:86vh;overflow:auto;">
+      <div style="font-weight:700;margin-bottom:4px;color:var(--cream);">🎵 Song chuno</div>
+      <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Ye ${want} second tak chalega.</div>
+      <div id="spList">${list.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px;border:1px solid var(--gold-line);border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);"><b>${escapeHtml(x.title)}</b>${x.trending ? ' 🔥' : ''}<div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || '')}</div></div>`).join('') || '<div style="color:var(--cream-dim);">Abhi koi song nahi hai.</div>'}</div>
+      <div id="spStart" style="display:none;margin-top:10px;color:var(--cream);font-size:13px;">Kahan se shuru karein: <span id="spSecs">0s</span><input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;"><button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid #888;background:none;color:var(--cream);">Band karo</button><button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;opacity:.5;">Ye lagao</button></div>
+      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);">Bina song ke aage badho</button></div>`;
+    document.body.appendChild(ov);
+    let chosen = null, audio = null, stopT = null;
+    const stopPreview = () => { clearTimeout(stopT); if (audio) { audio.pause(); audio = null; } };
+    const finish = val => { stopPreview(); ov.remove(); resolve(val); };
+    ov.querySelector('#spCancel').onclick = () => finish('cancel');
+    ov.querySelector('#spNone').onclick = () => finish(null);
+    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
+    ov.querySelectorAll('.sp-item').forEach(el => el.onclick = () => {
+      chosen = list.find(x => x.id === el.dataset.id);
+      ov.querySelectorAll('.sp-item').forEach(e => e.style.borderColor = e === el ? 'var(--marigold)' : 'var(--gold-line)');
+      stopPreview();
+      audio = new Audio(chosen.url);
+      const sl = ov.querySelector('#spSlider');
+      audio.onloadedmetadata = () => { sl.max = Math.max(0, Math.floor(audio.duration - want)); sl.value = 0; ov.querySelector('#spSecs').textContent = '0s'; };
+      sl.oninput = () => { ov.querySelector('#spSecs').textContent = sl.value + 's'; if (audio) audio.currentTime = Number(sl.value); };
+      ov.querySelector('#spStart').style.display = 'block';
+      ov.querySelector('#spOk').disabled = false; ov.querySelector('#spOk').style.opacity = '1';
+      audio.currentTime = 0; audio.play().catch(() => {});
+      stopT = setTimeout(() => { if (audio) { audio.pause(); audio.currentTime = Number(sl.value) || 0; } }, want * 1000);
+    });
+  });
+}
+// Plays a song from its chosen start point for its chosen length
+function playSong(song){
+  stopSong();
+  if (!song || !song.url) return;
+  songAudio = new Audio(song.url);
+  songAudio.currentTime = song.start || 0;
+  songAudio.play().catch(() => {});
+  songStopTimer = setTimeout(stopSong, (song.duration || 8) * 1000);
+}
+// Story/post song playback: starts at the chosen point and stops after the chosen length
+let songAudio = null, songStopTimer = null;
+function stopSong(){
+  clearTimeout(songStopTimer); songStopTimer = null;
+  if (songAudio) { songAudio.pause(); songAudio = null; }
+  const v = document.getElementById('storyViewVideo'); if (v) v.muted = false;
+}
+function playStorySong(){
+  stopSong();
+  const g = storyGroups[currentStoryGroupIndex];
+  const st = g && g.stories ? g.stories[currentStoryIndex] : null;
+  if (!st || !st.song || !st.song.url) return;
+  songAudio = new Audio(st.song.url);
+  songAudio.currentTime = st.song.start || 0;
+  songAudio.play().catch(() => {});
+  songStopTimer = setTimeout(stopSong, (st.song.duration || 8) * 1000);
+  if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
+}
 let storyPickedFile = null;
 let storyPickedType = null;
 
@@ -3806,10 +3897,14 @@ async function onStoryFilePicked(e){
 async function postStory(){
   if (!storyPickedFile) return;
   const statusEl = document.getElementById('storyUploadStatus');
+  const isVid = storyPickedFile.type.startsWith('video');
+  const pick = await openSongPicker(isVid ? 'video' : 'photo', isVid ? await mediaDurationOf(storyPickedFile) : 8);
+  if (pick === 'cancel') return;
   statusEl.textContent = 'Uploading...';
   const fd = new FormData();
   fd.append('media', storyPickedFile);
   fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
+  if (pick) { fd.append('songId', pick.songId); fd.append('songStart', pick.songStart); fd.append('songDuration', pick.songDuration); }
   try {
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
     const data = await res.json();
@@ -3914,6 +4009,7 @@ function resumeStoryProgress(){
 })();
 
 function startStoryPlayback(){
+  playStorySong();
   const group = currentStoryUserQueue[currentStoryGroupIndex];
   if (!group) { closeStoryViewer(); return; }
   const story = group.stories[currentStoryIndex];
@@ -4014,6 +4110,7 @@ function openStoryViewer(ownerId){
 }
 
 function closeStoryViewer(){
+  stopSong();
   clearStoryTimer();
   const vidEl = document.getElementById('storyViewVideo');
   vidEl.onended = null; vidEl.onloadedmetadata = null;
@@ -5240,7 +5337,7 @@ function closeUploadModal(){
   document.getElementById('uploadModalOverlay').classList.remove('open');
 }
 
-document.getElementById('quickUploadForm').addEventListener('submit', function(e){
+document.getElementById('quickUploadForm').addEventListener('submit', async function(e){
   e.preventDefault();
   const type = document.querySelector('input[name="qType"]:checked').value;
   const publishRaw = (document.getElementById('qPublishAt') || {}).value || '';
@@ -5273,6 +5370,10 @@ document.getElementById('quickUploadForm').addEventListener('submit', function(e
   }
 
   closeUploadModal();
+  const isVidMain = !!(mainFile && mainFile.type && mainFile.type.startsWith('video'));
+  const pickU = await openSongPicker(isVidMain ? 'video' : 'photo', isVidMain ? await mediaDurationOf(mainFile) : 8);
+  if (pickU === 'cancel') return;
+  if (pickU) Object.assign(meta, { songId: pickU.songId, songStart: pickU.songStart, songDuration: pickU.songDuration });
   UploadMgr.add(meta, mainFile, posterFile, extraFiles);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -5759,5 +5860,30 @@ function shareCurrentFilmById(id, title) {
   <p style="margin:0 0 8px;">YouSeries par short videos, full videos aur photos dekho aur share karo. Apne pasandida creators ko follow karo, comments karo, aur apna content upload karo.</p>
   <p style="margin:0;"><a href="/login.html" style="color:#7C5CFF;">Login</a> · <a href="/signup.html" style="color:#7C5CFF;">Sign up</a> · <a href="/privacy-policy.html" style="color:#7C5CFF;">Privacy Policy</a> · <a href="/terms-of-service.html" style="color:#7C5CFF;">Terms of Service</a></p>
 </footer>
+<script>
+(function(){
+  const pv = document.getElementById('player');
+  if (!pv) return;
+  pv.addEventListener('pause', () => { if (songAudio) songAudio.pause(); });
+  pv.addEventListener('play', () => { if (songAudio) songAudio.play().catch(() => {}); });
+})();
+</script>
+<script>
+(function(){
+  const list = document.getElementById('profilePhotoFeedList');
+  if (!list || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting || !en.intersectionRatio || en.intersectionRatio < 0.6) return;
+      const id = en.target.getAttribute('data-id');
+      const f = (allFilms || []).find(x => x.id === id);
+      if (f && f.song) playSong(f.song); else stopSong();
+    });
+  }, { threshold: [0.6] });
+  const watch = () => list.querySelectorAll('[data-id]').forEach(el => io.observe(el));
+  new MutationObserver(watch).observe(list, { childList: true, subtree: true });
+  watch();
+})();
+</script>
 </body>
 </html>
