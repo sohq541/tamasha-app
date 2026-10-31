@@ -650,6 +650,8 @@
 .tdots span:nth-child(2){animation-delay:.15s;}
 .tdots span:nth-child(3){animation-delay:.3s;}
 .sendto-grid-item.selected{outline:2px solid var(--marigold);border-radius:12px;}
+.song-title-line{font-size:12px;color:var(--cream-dim);font-weight:500;margin-top:2px;}
+.story-song-chip{font-size:12px;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:10px;display:inline-block;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -794,6 +796,8 @@
       <input type="text" id="storyTextOverlay" class="story-upload-text-input" placeholder="Write something (optional)" maxlength="200">
     </div>
     <button id="storyPostBtn" class="hidden" onclick="postStory()" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;">Share to Story</button>
+    <button type="button" id="storySongBtn" onclick="pickStorySong()" style="width:100%;margin-top:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Song add karo (optional)</button>
+    <div id="storySongLabel" class="meta" style="margin-top:6px;"></div>
     <div id="storyUploadStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
   </div>
 </div>
@@ -828,7 +832,7 @@
   <div class="story-progress-row" id="storyProgressRow"></div>
   <div class="story-viewer-header">
     <img class="story-viewer-avatar" id="storyViewerAvatar" src="">
-    <span class="story-viewer-username" id="storyViewerUsername"></span>
+    <span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-chip" style="display:none;"></span>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
     <button class="story-viewer-close hidden" id="storyHighlightDeleteBtn" onclick="deleteHighlight(currentStoryUserQueue[currentStoryGroupIndex] && currentStoryUserQueue[currentStoryGroupIndex].highlightId)" style="font-size:13px;" title="Delete highlight">⭐🗑️</button>
@@ -1072,6 +1076,8 @@
         <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won't show in the feed of people who've turned this off)</span>
       </label>
 
+      <button type="button" id="qSongBtn" onclick="pickUploadSong()" style="width:100%;margin-bottom:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Song add karo (optional)</button>
+      <div id="qSongLabel" class="meta" style="margin-bottom:8px;"></div>
       <button type="submit">Start Upload</button>
     </form>
   </div>
@@ -2580,7 +2586,7 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line">🎵 ${escapeHtml(f.song.title)}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -3778,10 +3784,17 @@ function stopSong(){
   if (songAudio) { songAudio.pause(); songAudio = null; }
   const v = document.getElementById('storyViewVideo'); if (v) v.muted = false;
 }
+// #hashtags in a story are tappable: they open that hashtag's feed
+function linkifyStoryTags(text){
+  return escapeHtml(String(text || '')).replace(/#([A-Za-z0-9_\u0900-\u097F]{1,60})/g, (m, tag) =>
+    `<span class="story-tag" onclick="event.stopPropagation();closeStoryViewer();openHashtagFeed('${tag}')" style="color:#fff;font-weight:700;text-decoration:underline;cursor:pointer;">#${tag}</span>`);
+}
 function playStorySong(){
   stopSong();
   const g = storyGroups[currentStoryGroupIndex];
   const st = g && g.stories ? g.stories[currentStoryIndex] : null;
+  const chip = document.getElementById('storyViewerSong');
+  if (chip) { chip.textContent = st && st.song ? '🎵 ' + st.song.title : ''; chip.style.display = st && st.song ? 'inline-block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
   songAudio = new Audio(st.song.url);
   songAudio.currentTime = st.song.start || 0;
@@ -3790,6 +3803,16 @@ function playStorySong(){
   if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
 }
 let storyPickedFile = null;
+let storyChosenSong = null;
+async function pickStorySong(){
+  if (!storyPickedFile) { showToast('Pehle photo ya video chuno'); return; }
+  const isVid = storyPickedFile.type.startsWith('video');
+  const pick = await openSongPicker(isVid ? 'video' : 'photo', isVid ? await mediaDurationOf(storyPickedFile) : 8);
+  if (pick === 'cancel') return;
+  storyChosenSong = pick;
+  const lbl = document.getElementById('storySongLabel');
+  if (lbl) lbl.textContent = pick ? '🎵 Song chuna gaya' : '';
+}
 let storyPickedType = null;
 
 function storyTimeAgo(iso){
@@ -3866,6 +3889,8 @@ function openStoryUploadModal(){
   document.getElementById('storyTextOverlay').value = '';
   document.getElementById('storyUploadStatus').textContent = '';
   storyPickedFile = null;
+  storyChosenSong = null;
+  const sl = document.getElementById('storySongLabel'); if (sl) sl.textContent = '';
   document.getElementById('storyUploadOverlay').classList.add('open');
 }
 function closeStoryUploadModal(){ document.getElementById('storyUploadOverlay').classList.remove('open'); }
@@ -3894,17 +3919,25 @@ async function onStoryFilePicked(e){
   document.getElementById('storyPostBtn').classList.remove('hidden');
 }
 
+let uploadSongChoice = null;
+async function pickUploadSong(){
+  const f = document.querySelector('#quickUploadForm input[type=file]');
+  const file = f && f.files && f.files[0];
+  const isVid = !!(file && file.type && file.type.startsWith('video'));
+  const pick = await openSongPicker(isVid ? 'video' : 'photo', (file && isVid) ? await mediaDurationOf(file) : 8);
+  if (pick === 'cancel') return;
+  uploadSongChoice = pick || null;
+  const lbl = document.getElementById('qSongLabel');
+  if (lbl) lbl.textContent = uploadSongChoice ? '🎵 Song chuna gaya' : '';
+}
 async function postStory(){
   if (!storyPickedFile) return;
   const statusEl = document.getElementById('storyUploadStatus');
-  const isVid = storyPickedFile.type.startsWith('video');
-  const pick = await openSongPicker(isVid ? 'video' : 'photo', isVid ? await mediaDurationOf(storyPickedFile) : 8);
-  if (pick === 'cancel') return;
   statusEl.textContent = 'Uploading...';
   const fd = new FormData();
   fd.append('media', storyPickedFile);
   fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
-  if (pick) { fd.append('songId', pick.songId); fd.append('songStart', pick.songStart); fd.append('songDuration', pick.songDuration); }
+  if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
   try {
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
     const data = await res.json();
@@ -3913,6 +3946,7 @@ async function postStory(){
     closeStoryUploadModal();
     showToast('Story lag gayi!');
     loadStories();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) { statusEl.textContent = 'Upload failed'; }
 }
 
@@ -4018,7 +4052,8 @@ function startStoryPlayback(){
   document.getElementById('storyViewerAvatar').src = group.ownerProfileImage || '';
   document.getElementById('storyViewerUsername').textContent = '@' + group.ownerUsername;
   document.getElementById('storyViewerTime').textContent = storyTimeAgo(story.createdAt);
-  document.getElementById('storyViewTextOverlay').textContent = story.textOverlay || '';
+  const ovEl = document.getElementById('storyViewTextOverlay');
+  ovEl.innerHTML = linkifyStoryTags(story.textOverlay || '');
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
   document.getElementById('storyOwnerViewsBtn').classList.toggle('hidden', !isOwner);
@@ -5144,15 +5179,17 @@ async function sendSelectedTo(){
 async function sendToAddToStory(){
   const id = sendToShortId;
   if (!id) return;
+  const f = (allFilms || []).find(x => x.id === id);
   closeSendTo();
+  if (!f) { showToast('Post nahi mili'); return; }
+  openStoryUploadModal();
   try {
-    const res = await fetch('/api/stories/from-film', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filmId: id })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Story me add nahi ho saka');
-    showToast('Story me add ho gaya!');
-    loadStories().catch(() => {});
+    const url = f.type === 'photo' ? (f.posterUrl || '') : (f.videoUrl || '');
+    if (!url) throw new Error('Media nahi mila');
+    const blob = await (await fetch(url)).blob();
+    const ext = f.type === 'photo' ? 'jpg' : 'mp4';
+    const file = new File([blob], 'story.' + ext, { type: blob.type || (f.type === 'photo' ? 'image/jpeg' : 'video/mp4') });
+    await onStoryFilePicked({ target: { files: [file] } });
   } catch (err) { showToast(err.message); }
 }
 
@@ -5370,11 +5407,9 @@ document.getElementById('quickUploadForm').addEventListener('submit', async func
   }
 
   closeUploadModal();
-  const isVidMain = !!(mainFile && mainFile.type && mainFile.type.startsWith('video'));
-  const pickU = await openSongPicker(isVidMain ? 'video' : 'photo', isVidMain ? await mediaDurationOf(mainFile) : 8);
-  if (pickU === 'cancel') return;
-  if (pickU) Object.assign(meta, { songId: pickU.songId, songStart: pickU.songStart, songDuration: pickU.songDuration });
+  if (uploadSongChoice) Object.assign(meta, { songId: uploadSongChoice.songId, songStart: uploadSongChoice.songStart, songDuration: uploadSongChoice.songDuration });
   UploadMgr.add(meta, mainFile, posterFile, extraFiles);
+  uploadSongChoice = null; const ql = document.getElementById('qSongLabel'); if (ql) ql.textContent = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   document.getElementById('quickUploadForm').reset();
