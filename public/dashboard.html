@@ -321,7 +321,15 @@ async function renderSongs(){
         <input id="snTitle" type="text" placeholder="Song ka naam" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
         <input id="snArtist" type="text" placeholder="Artist (optional)" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
         <input id="snFile" type="file" accept="audio/*" style="margin-top:10px;">
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="uploadSong()">Song upload karo</button></div>
+        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" id="snBtn" onclick="uploadSong()">Song upload karo</button></div>
+        <div id="snFileInfo" class="meta" style="margin-top:8px;"></div>
+        <div id="snProgress" style="display:none;margin-top:12px;border:1px solid var(--gold-line);border-radius:12px;padding:12px;">
+          <div id="snStatusText" style="font-weight:600;color:var(--cream);"></div>
+          <div style="height:10px;border-radius:6px;background:var(--field);overflow:hidden;margin-top:8px;">
+            <div id="snBar" style="height:100%;width:0%;background:var(--marigold);transition:width .2s;"></div>
+          </div>
+          <div id="snNums" class="meta" style="margin-top:6px;"></div>
+        </div>
       </div>
       <h3 class="sec">Songs (${list.length})</h3>
       ${list.map(x => `<div class="card">
@@ -335,18 +343,56 @@ async function renderSongs(){
       </div>`).join('') || '<div class="empty">Abhi koi song nahi.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
+function fmtMB(b){ return (b / 1048576).toFixed(2) + ' MB'; }
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'snFile') {
+    const f = e.target.files[0];
+    const info = document.getElementById('snFileInfo');
+    if (info) info.textContent = f ? 'File: ' + f.name + ' · Size: ' + fmtMB(f.size) : '';
+  }
+});
 async function uploadSong(){
   const file = document.getElementById('snFile').files[0];
   const title = document.getElementById('snTitle').value.trim();
   if (!file || !title) { alert('Song file aur title dono do'); return; }
+  const box = document.getElementById('snProgress');
+  const txt = document.getElementById('snStatusText');
+  const bar = document.getElementById('snBar');
+  const nums = document.getElementById('snNums');
+  const btn = document.getElementById('snBtn');
+  box.style.display = 'block';
+  bar.style.width = '0%';
+  bar.style.background = 'var(--marigold)';
+  txt.textContent = 'Upload ho raha hai: ' + file.name;
+  nums.textContent = '0 MB / ' + fmtMB(file.size) + ' (0%)';
+  btn.disabled = true;
   const fd = new FormData();
   fd.append('song', file); fd.append('title', title); fd.append('artist', document.getElementById('snArtist').value.trim());
-  try {
-    const res = await fetch('/api/admin/songs', { method: 'POST', body: fd, headers: { 'x-no-prompt': '1' } });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
-    renderSongs();
-  } catch (e) { alert(e.message); }
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/admin/songs');
+  xhr.setRequestHeader('x-no-prompt', '1');
+  xhr.upload.onprogress = e => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round(e.loaded / e.total * 100);
+    bar.style.width = pct + '%';
+    nums.textContent = fmtMB(e.loaded) + ' / ' + fmtMB(e.total) + ' (' + pct + '%)';
+  };
+  xhr.onload = () => {
+    btn.disabled = false;
+    let data = {};
+    try { data = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
+    if (xhr.status >= 200 && xhr.status < 300) {
+      bar.style.width = '100%';
+      txt.textContent = '✔ Upload ho gaya: ' + title;
+      nums.textContent = fmtMB(file.size) + ' upload hua';
+      setTimeout(() => renderSongs(), 800);
+    } else {
+      bar.style.background = 'var(--bad)';
+      txt.textContent = '❌ Upload nahi hua: ' + (data.error || 'server error (' + xhr.status + ')');
+    }
+  };
+  xhr.onerror = () => { btn.disabled = false; bar.style.background = 'var(--bad)'; txt.textContent = '❌ Network error, dobara try karo'; };
+  xhr.send(fd);
 }
 async function trendSong(id, on){
   await fetch('/api/admin/songs/' + id + '/trend', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ on }) });
