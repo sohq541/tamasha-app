@@ -649,6 +649,7 @@
 .tdots span{width:6px;height:6px;border-radius:50%;background:currentColor;animation:aiDot 1.2s infinite ease-in-out;}
 .tdots span:nth-child(2){animation-delay:.15s;}
 .tdots span:nth-child(3){animation-delay:.3s;}
+.sendto-grid-item.selected{outline:2px solid var(--marigold);border-radius:12px;}
 </style>
 </head>
 <body>
@@ -923,6 +924,10 @@
     <div class="sheet-header"><h3>Send To</h3><button class="sheet-close" onclick="closeSendTo()">✕</button></div>
     <input type="text" class="sendto-search" id="sendToSearch" placeholder="Search" oninput="filterSendToGrid(this.value)">
     <div class="sendto-grid" id="sendToList"></div>
+    <div style="display:flex;gap:8px;margin:10px 0;">
+      <input type="text" id="sendToText" placeholder="Message likho (optional)" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
+      <button id="sendToGo" onclick="sendSelectedTo()" style="background:var(--marigold);color:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:600;cursor:pointer;">Select karo</button>
+    </div>
     <div class="sendto-actions">
       <button class="sendto-action-btn" onclick="sendToAddToStory()"><span class="sendto-action-icon">📖</span>Add to Story</button>
       <button class="sendto-action-btn" onclick="sendToExternalShare()"><span class="sendto-action-icon">↗</span>Share</button>
@@ -2261,10 +2266,63 @@ async function finalDeleteAccount(){
   } catch (err) { showToast(err.message); }
 }
 
+// Adjust a picture before it is used: drag to move, slider to zoom. Returns a new File, or null if cancelled.
+function openCropper(file, aspect, outW, title){
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const boxW = Math.min(window.innerWidth - 32, 340), boxH = Math.round(boxW / aspect);
+    const ov = document.createElement('div');
+    ov.id = 'cropOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML = `<div style="color:#fff;font-weight:700;margin-bottom:12px;">${title}</div>
+      <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:12px;touch-action:none;cursor:move;">
+        <img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;user-select:none;pointer-events:none;">
+      </div>
+      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" style="width:${boxW}px;margin-top:14px;">
+      <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
+        <button id="cropCancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #888;background:none;color:#fff;font-weight:600;">Cancel</button>
+        <button id="cropOk" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--marigold);color:#fff;font-weight:600;">Use</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const box = ov.querySelector('#cropBox'), img = ov.querySelector('#cropImg'), zoom = ov.querySelector('#cropZoom');
+    let base = 1, scale = 1, x = 0, y = 0, drag = null;
+    const clamp = () => {
+      const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+      x = Math.min(0, Math.max(boxW - w, x)); y = Math.min(0, Math.max(boxH - h, y));
+    };
+    const apply = () => { clamp(); img.style.width = img.naturalWidth * scale + 'px'; img.style.height = img.naturalHeight * scale + 'px'; img.style.left = x + 'px'; img.style.top = y + 'px'; };
+    img.onload = () => {
+      base = Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight);
+      scale = base; x = (boxW - img.naturalWidth * scale) / 2; y = (boxH - img.naturalHeight * scale) / 2; apply();
+    };
+    zoom.oninput = () => {
+      const cx = (boxW / 2 - x) / scale, cy = (boxH / 2 - y) / scale;   // keep the centre of the box in place
+      scale = base * parseFloat(zoom.value);
+      x = boxW / 2 - cx * scale; y = boxH / 2 - cy * scale; apply();
+    };
+    box.onpointerdown = e => { drag = { sx: e.clientX, sy: e.clientY, ox: x, oy: y }; box.setPointerCapture(e.pointerId); };
+    box.onpointermove = e => { if (!drag) return; x = drag.ox + (e.clientX - drag.sx); y = drag.oy + (e.clientY - drag.sy); apply(); };
+    box.onpointerup = box.onpointercancel = () => { drag = null; };
+    const close = val => { URL.revokeObjectURL(url); ov.remove(); resolve(val); };
+    ov.querySelector('#cropCancel').onclick = () => close(null);
+    ov.querySelector('#cropOk').onclick = () => {
+      const outH = Math.round(outW / aspect);
+      const canvas = document.createElement('canvas');
+      canvas.width = outW; canvas.height = outH;
+      const sx = -x / scale, sy = -y / scale, sw = boxW / scale, sh = boxH / scale;
+      canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+      canvas.toBlob(blob => close(blob ? new File([blob], 'adjusted.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.92);
+    };
+  });
+}
+
 async function uploadAvatar(input){
   if (!input.files[0]) return;
+  const cropped = await openCropper(input.files[0], 1, 512, 'Profile photo adjust karo');
+  input.value = '';
+  if (!cropped) return;
   const formData = new FormData();
-  formData.append('avatar', input.files[0]);
+  formData.append('avatar', cropped);
   try {
     const res = await fetch('/api/me/avatar', { method: 'POST', body: formData });
     const data = await res.json();
@@ -3721,9 +3779,13 @@ function openStoryUploadModal(){
 }
 function closeStoryUploadModal(){ document.getElementById('storyUploadOverlay').classList.remove('open'); }
 
-function onStoryFilePicked(e){
-  const file = e.target.files[0];
+async function onStoryFilePicked(e){
+  let file = e.target.files[0];
   if (!file) return;
+  if (file.type.startsWith('image/')) {
+    file = await openCropper(file, 9 / 16, 1080, 'Story adjust karo');
+    if (!file) { e.target.value = ''; return; }
+  }
   storyPickedFile = file;
   storyPickedType = file.type.startsWith('video') ? 'video' : 'photo';
   const url = URL.createObjectURL(file);
@@ -4291,7 +4353,12 @@ function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conve
   if (type === 'report_alert') { window.location.href = '/dashboard.html'; return; }
   if (type === 'helpdesk_reply') { openProfileMenu(); setTimeout(() => { renderSettingsPrivacyMenu(); setTimeout(renderHelpDesk, 60); }, 60); return; }
   if (type === 'message') { openChatConvo(fromUserId, fromUsername); return; }
-  if (filmId) { playFilm(filmId); return; }
+  if (filmId) {
+    const f = (allFilms || []).find(x => x.id === filmId);
+    if (f && f.type === 'photo') { openProfilePhotoFeed(f.ownerId, f.id); return; }
+    if (f && f.type === 'short') { openShortAt(f.id); return; }
+    playFilm(filmId); return;
+  }
   if (storyId) {
     const stories = (window.activeStoriesByUser || {})[fromUserId];
     if (stories && stories.length) { openStoryViewer(fromUserId); return; }
@@ -4707,9 +4774,10 @@ async function sendChatMessage(){
   }
 }
 
-async function sendShortMessage(conversationId, shortId){
+async function sendShortMessage(conversationId, shortId, text){
   const fd = new FormData();
   fd.append('shortId', shortId);
+  if (text) fd.append('text', text);
   const res = await fetch('/api/conversations/' + conversationId + '/messages', { method: 'POST', body: fd });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Could not send');
@@ -4940,26 +5008,40 @@ function filterSendToGrid(query){
   renderSendToGrid(q ? sendToPeople.filter(u => u.username.toLowerCase().includes(q)) : sendToPeople);
 }
 
-function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; }
+function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; sendToSelected = new Set(); const t = document.getElementById('sendToText'); if (t) t.value = ''; }
 
-async function doSendShortTo(userId){
+let sendToSelected = new Set();
+// Tap a person to select (tick). Nothing is sent until "Send" is pressed.
+function doSendShortTo(userId){
   if (!sendToShortId) return;
+  if (sendToSelected.has(userId)) sendToSelected.delete(userId); else sendToSelected.add(userId);
   const item = document.getElementById('sendToItem-' + userId);
-  if (!item || item.classList.contains('sent')) return;
-  item.classList.add('sent');
-  item.querySelector('.sendto-grid-name').insertAdjacentHTML('afterend', '<span class="sendto-grid-check">Sent ✓</span>');
-  try {
-    const convRes = await fetch('/api/conversations/with/' + userId);
-    const convData = await convRes.json();
-    if (!convRes.ok) throw new Error(convData.error || 'Could not send');
-    await sendShortMessage(convData.id, sendToShortId);
-    fetch('/api/films/' + sendToShortId + '/share', { method: 'POST' }).catch(() => {});
-    loadChatInbox().catch(() => {});
-  } catch (err) {
-    item.classList.remove('sent');
-    const chk = item.querySelector('.sendto-grid-check'); if (chk) chk.remove();
-    showToast(err.message);
+  if (item) item.classList.toggle('selected', sendToSelected.has(userId));
+  updateSendToBar();
+}
+function updateSendToBar(){
+  const btn = document.getElementById('sendToGo');
+  if (btn) btn.textContent = sendToSelected.size ? 'Send (' + sendToSelected.size + ')' : 'Select karo';
+}
+async function sendSelectedTo(){
+  if (!sendToShortId || !sendToSelected.size) { showToast('Pehle kisi ko select karo'); return; }
+  const text = (document.getElementById('sendToText') || {}).value || '';
+  const ids = [...sendToSelected];
+  const btn = document.getElementById('sendToGo');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  let ok = 0;
+  for (const userId of ids) {
+    try {
+      const convRes = await fetch('/api/conversations/with/' + userId);
+      const convData = await convRes.json();
+      if (!convRes.ok) throw new Error(convData.error || 'Could not send');
+      await sendShortMessage(convData.id, sendToShortId, text.trim());
+      ok++;
+    } catch (err) { showToast(err.message); }
   }
+  if (ok) { fetch('/api/films/' + sendToShortId + '/share', { method: 'POST' }).catch(() => {}); loadChatInbox().catch(() => {}); showToast('Sent to ' + ok); }
+  btn.disabled = false;
+  closeSendTo();
 }
 
 async function sendToAddToStory(){
