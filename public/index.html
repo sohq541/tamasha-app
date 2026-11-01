@@ -652,6 +652,26 @@
 .sendto-grid-item.selected{outline:2px solid var(--marigold);border-radius:12px;}
 .song-title-line{font-size:12px;color:var(--cream-dim);font-weight:500;margin-top:2px;}
 .story-song-chip{font-size:12px;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:10px;display:inline-block;margin-top:4px;}
+
+/* ===== Story editor (full screen, like Instagram) ===== */
+#storyUploadOverlay{position:fixed;inset:0;background:#000;z-index:960;display:none;flex-direction:column;color:#fff;}
+#storyUploadOverlay.open{display:flex;}
+#storyUploadOverlay .se-top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 0;}
+#storyUploadOverlay .se-round{width:44px;height:44px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#storyUploadOverlay .se-tools{display:flex;flex-direction:column;gap:12px;}
+#storyUploadOverlay .se-pick{margin:auto;padding:40px 16px;text-align:center;color:#ccc;border:2px dashed #555;border-radius:14px;cursor:pointer;}
+#storyUploadOverlay .se-media-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;min-height:0;}
+#storyUploadOverlay .story-upload-preview{width:100%;max-width:420px;max-height:100%;display:flex;align-items:center;justify-content:center;}
+#storyUploadOverlay #storyPreviewImg,#storyUploadOverlay #storyPreviewVideo{width:100%;max-height:68vh;object-fit:contain;border-radius:16px;background:#111;}
+#storyUploadOverlay .se-song{text-align:center;font-size:13px;color:#fff;padding:0 16px 6px;min-height:18px;}
+#storyUploadOverlay .se-bottom{padding:10px 14px 16px;display:flex;flex-direction:column;gap:10px;}
+#storyUploadOverlay .se-caption{width:100%;box-sizing:border-box;background:rgba(255,255,255,.12);border:none;border-radius:20px;padding:12px 16px;color:#fff;font-size:15px;outline:none;}
+#storyUploadOverlay .se-caption::placeholder{color:#bbb;}
+#storyUploadOverlay .se-share{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+#storyUploadOverlay .se-target{flex:1;background:rgba(255,255,255,.14);border-radius:22px;padding:12px 16px;font-size:14px;color:#fff;}
+#storyUploadOverlay .se-go{width:50px;height:50px;border-radius:50%;border:none;background:#4f6bff;color:#fff;font-size:22px;font-weight:700;cursor:pointer;}
+#storyUploadOverlay .se-status{font-size:13px;color:#ddd;min-height:16px;text-align:center;}
+#storyUploadOverlay .hidden{display:none !important;}
 </style>
 </head>
 <body>
@@ -783,22 +803,31 @@
 <div class="toast" id="toast"></div>
 
 <!-- ===== STORY UPLOAD MODAL ===== -->
-<div class="sheet-overlay" id="storyUploadOverlay" onclick="if(event.target===this) closeStoryUploadModal()">
-  <div class="sheet" style="max-height:88vh;overflow-y:auto;">
-    <div class="sheet-header"><h3>Add to Story</h3><button class="sheet-close" onclick="closeStoryUploadModal()">✕</button></div>
-    <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;" onchange="onStoryFilePicked(event)">
-    <div id="storyPickArea" onclick="document.getElementById('storyFileInput').click()" style="border:2px dashed var(--gold-line);border-radius:12px;padding:40px 16px;text-align:center;cursor:pointer;color:var(--cream-dim);">
-      📷 Photo ya video chuno
+<div id="storyUploadOverlay" class="story-editor" aria-label="Story editor">
+  <div class="se-top">
+    <button type="button" class="se-round" onclick="closeStoryUploadModal()" aria-label="Back">←</button>
+    <div class="se-tools">
+      <button type="button" class="se-round" onclick="document.getElementById('storyTextOverlay').focus()" aria-label="Text">Aa</button>
+      <button type="button" class="se-round" onclick="pickStorySong()" aria-label="Song">🎵</button>
+      <button type="button" class="se-round" onclick="document.getElementById('storyFileInput').click()" aria-label="Media">🖼️</button>
     </div>
+  </div>
+  <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;" onchange="onStoryFilePicked(event)">
+  <div id="storyPickArea" class="se-pick" onclick="document.getElementById('storyFileInput').click()">📷 Photo ya video chuno</div>
+  <div class="se-media-wrap">
     <div class="story-upload-preview hidden" id="storyPreviewArea">
-      <img id="storyPreviewImg" class="hidden">
+      <img id="storyPreviewImg" class="hidden" alt="">
       <video id="storyPreviewVideo" class="hidden" muted playsinline controls></video>
-      <input type="text" id="storyTextOverlay" class="story-upload-text-input" placeholder="Write something (optional)" maxlength="200">
     </div>
-    <button id="storyPostBtn" class="hidden" onclick="postStory()" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;">Share to Story</button>
-    <button type="button" id="storySongBtn" onclick="pickStorySong()" style="width:100%;margin-top:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Song add karo (optional)</button>
-    <div id="storySongLabel" class="meta" style="margin-top:6px;"></div>
-    <div id="storyUploadStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
+  </div>
+  <div id="storySongLabel" class="se-song"></div>
+  <div class="se-bottom">
+    <input type="text" id="storyTextOverlay" class="se-caption" placeholder="Add a caption..." maxlength="200">
+    <div class="se-share">
+      <span class="se-target">Your story</span>
+      <button type="button" id="storyPostBtn" class="se-go hidden" onclick="postStory()" aria-label="Share">➜</button>
+    </div>
+    <div id="storyUploadStatus" class="se-status"></div>
   </div>
 </div>
 
