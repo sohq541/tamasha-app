@@ -2323,8 +2323,8 @@ function openCropper(file, aspect, outW, title, videoMode){
       </div>`;
     document.body.appendChild(ov);
     const box = ov.querySelector('#cropBox'), img = ov.querySelector('#cropImg');
-    const dimW = () => dimW() || img.videoWidth || 1;
-    const dimH = () => dimH() || img.videoHeight || 1;
+    const dimW = () => img.naturalWidth || img.videoWidth || 1;
+    const dimH = () => img.naturalHeight || img.videoHeight || 1;
     let base = 1, scale = 1, x = 0, y = 0, drag = null, pinch = null;
     const pointers = new Map();
     const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
