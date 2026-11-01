@@ -2303,17 +2303,18 @@ async function finalDeleteAccount(){
 
 // Adjust a picture before it is used (Instagram-like): starts with the whole picture visible,
 // pinch with two fingers (or wheel on a computer) to zoom, drag to move. Returns a File, or null if cancelled.
-function openCropper(file, aspect, outW, title){
+function openCropper(file, aspect, outW, title, videoMode){
   return new Promise(resolve => {
     const url = URL.createObjectURL(file);
+    const isVid = !!videoMode;
     const boxW = Math.min(window.innerWidth - 24, 380), boxH = Math.round(boxW / aspect);
     const ov = document.createElement('div');
     ov.id = 'cropOverlay';
     ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;color:#fff;';
     ov.innerHTML = `<div style="font-weight:700;margin-bottom:10px;">${title}</div>
       <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:16px;touch-action:none;user-select:none;">
-        <img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;">
-        <img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;">
+        ${isVid ? '' : `<img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;">`}
+        ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;">`}
       </div>
       <div style="font-size:12px;color:#aaa;margin-top:8px;">Do ungliyon se zoom karo, ek ungli se khisko</div>
       <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
@@ -2322,19 +2323,21 @@ function openCropper(file, aspect, outW, title){
       </div>`;
     document.body.appendChild(ov);
     const box = ov.querySelector('#cropBox'), img = ov.querySelector('#cropImg');
+    const dimW = () => dimW() || img.videoWidth || 1;
+    const dimH = () => dimH() || img.videoHeight || 1;
     let base = 1, scale = 1, x = 0, y = 0, drag = null, pinch = null;
     const pointers = new Map();
     const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
     const pos = e => { const r = box.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const clamp = () => {
-      const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+      const w = dimW() * scale, h = dimH() * scale;
       x = w <= boxW ? (boxW - w) / 2 : Math.min(0, Math.max(boxW - w, x));
       y = h <= boxH ? (boxH - h) / 2 : Math.min(0, Math.max(boxH - h, y));
     };
     const apply = () => {
       clamp();
-      img.style.width = img.naturalWidth * scale + 'px';
-      img.style.height = img.naturalHeight * scale + 'px';
+      img.style.width = dimW() * scale + 'px';
+      img.style.height = dimH() * scale + 'px';
       img.style.left = x + 'px'; img.style.top = y + 'px';
     };
     const zoomAt = (ns, cx, cy) => {
@@ -2343,10 +2346,11 @@ function openCropper(file, aspect, outW, title){
       x = cx - ix * scale; y = cy - iy * scale;
       apply();
     };
-    img.onload = () => {
-      base = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);   // whole picture visible first
+    const onReady = () => {
+      base = Math.min(boxW / dimW(), boxH / dimH());   // whole picture visible first
       scale = base; apply();
     };
+    if (isVid) img.addEventListener('loadedmetadata', onReady); else img.onload = onReady;
     box.onpointerdown = e => {
       box.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, pos(e));
@@ -2376,16 +2380,17 @@ function openCropper(file, aspect, outW, title){
     const close = val => { URL.revokeObjectURL(url); ov.remove(); resolve(val); };
     ov.querySelector('#cropCancel').onclick = () => close(null);
     ov.querySelector('#cropOk').onclick = () => {
+      if (isVid) { close({ adjust: { s: scale / base, x: x / boxW, y: y / boxH } }); return; }
       const outH = Math.round(outW / aspect), f = outW / boxW;
       const c = document.createElement('canvas');
       c.width = outW; c.height = outH;
       const g = c.getContext('2d');
       g.fillStyle = '#000'; g.fillRect(0, 0, outW, outH);
-      const cs = Math.max(outW / img.naturalWidth, outH / img.naturalHeight);
+      const cs = Math.max(outW / dimW(), outH / dimH());
       try { g.filter = 'blur(' + Math.round(18 * f) + 'px) brightness(0.55)'; } catch (e) {}
-      g.drawImage(img, (outW - img.naturalWidth * cs) / 2, (outH - img.naturalHeight * cs) / 2, img.naturalWidth * cs, img.naturalHeight * cs);
+      g.drawImage(img, (outW - dimW() * cs) / 2, (outH - dimH() * cs) / 2, dimW() * cs, dimH() * cs);
       try { g.filter = 'none'; } catch (e) {}
-      g.drawImage(img, x * f, y * f, img.naturalWidth * scale * f, img.naturalHeight * scale * f);
+      g.drawImage(img, x * f, y * f, dimW() * scale * f, dimH() * scale * f);
       c.toBlob(blob => close(blob ? new File([blob], 'adjusted.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.92);
     };
   });
@@ -3858,10 +3863,20 @@ function linkifyStoryTags(text){
   return escapeHtml(String(text || '')).replace(/#([A-Za-z0-9_\u0900-\u097F]{1,60})/g, (m, tag) =>
     `<span class="story-tag" onclick="event.stopPropagation();closeStoryViewer();openHashtagFeed('${tag}')" style="color:#fff;font-weight:700;text-decoration:underline;cursor:pointer;">#${tag}</span>`);
 }
+// Story zoom/position (saved from the adjust screen): applied to the photo or video in the viewer
+function applyStoryAdjust(st){
+  ['storyViewImg','storyViewVideo'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    const a = st && st.adjust;
+    el.style.objectFit = 'cover';
+    el.style.transform = a ? `translate(${(a.x * 50).toFixed(2)}%, ${(a.y * 50).toFixed(2)}%) scale(${a.s})` : '';
+  });
+}
 function playStorySong(){
   stopSong();
   const g = storyGroups[currentStoryGroupIndex];
   const st = g && g.stories ? g.stories[currentStoryIndex] : null;
+  applyStoryAdjust(st);
   const chip = document.getElementById('storyViewerSong');
   if (chip) { chip.textContent = st && st.song ? '🎵 ' + st.song.title : ''; chip.style.display = st && st.song ? 'inline-block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
@@ -3872,6 +3887,7 @@ function playStorySong(){
   if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
 }
 let storyPickedFile = null;
+let storyAdjust = null;
 let storyChosenSong = null;
 async function pickStorySong(){
   if (!storyPickedFile) { showToast('Pehle photo ya video chuno'); return; }
@@ -3959,6 +3975,7 @@ function openStoryUploadModal(){
   document.getElementById('storyUploadStatus').textContent = '';
   storyPickedFile = null;
   storyChosenSong = null;
+  storyAdjust = null;
   const sl = document.getElementById('storySongLabel'); if (sl) sl.textContent = '';
   document.getElementById('storyUploadOverlay').classList.add('open');
 }
@@ -3967,9 +3984,14 @@ function closeStoryUploadModal(){ document.getElementById('storyUploadOverlay').
 async function onStoryFilePicked(e){
   let file = e.target.files[0];
   if (!file) return;
+  storyAdjust = null;
   if (file.type.startsWith('image/')) {
     file = await openCropper(file, 9 / 16, 1080, 'Story adjust karo');
     if (!file) { e.target.value = ''; return; }
+  } else if (file.type.startsWith('video/')) {
+    const r = await openCropper(file, 9 / 16, 0, 'Video adjust karo (zoom aur position)', true);
+    if (!r) { e.target.value = ''; return; }
+    storyAdjust = r.adjust;
   }
   storyPickedFile = file;
   storyPickedType = file.type.startsWith('video') ? 'video' : 'photo';
@@ -4006,6 +4028,7 @@ async function postStory(){
   const fd = new FormData();
   fd.append('media', storyPickedFile);
   fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
+  if (storyAdjust) fd.append('adjust', JSON.stringify(storyAdjust));
   if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
   try {
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
