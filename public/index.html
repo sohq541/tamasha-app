@@ -2301,52 +2301,92 @@ async function finalDeleteAccount(){
   } catch (err) { showToast(err.message); }
 }
 
-// Adjust a picture before it is used: drag to move, slider to zoom. Returns a new File, or null if cancelled.
+// Adjust a picture before it is used (Instagram-like): starts with the whole picture visible,
+// pinch with two fingers (or wheel on a computer) to zoom, drag to move. Returns a File, or null if cancelled.
 function openCropper(file, aspect, outW, title){
   return new Promise(resolve => {
     const url = URL.createObjectURL(file);
-    const boxW = Math.min(window.innerWidth - 32, 340), boxH = Math.round(boxW / aspect);
+    const boxW = Math.min(window.innerWidth - 24, 380), boxH = Math.round(boxW / aspect);
     const ov = document.createElement('div');
     ov.id = 'cropOverlay';
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
-    ov.innerHTML = `<div style="color:#fff;font-weight:700;margin-bottom:12px;">${title}</div>
-      <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:12px;touch-action:none;cursor:move;">
-        <img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;user-select:none;pointer-events:none;">
+    ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;color:#fff;';
+    ov.innerHTML = `<div style="font-weight:700;margin-bottom:10px;">${title}</div>
+      <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:16px;touch-action:none;user-select:none;">
+        <img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;">
+        <img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;">
       </div>
-      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" style="width:${boxW}px;margin-top:14px;">
+      <div style="font-size:12px;color:#aaa;margin-top:8px;">Do ungliyon se zoom karo, ek ungli se khisko</div>
       <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
-        <button id="cropCancel" style="flex:1;padding:12px;border-radius:10px;border:1px solid #888;background:none;color:#fff;font-weight:600;">Cancel</button>
-        <button id="cropOk" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--marigold);color:#fff;font-weight:600;">Use</button>
+        <button id="cropCancel" style="flex:1;padding:12px;border-radius:12px;border:1px solid #666;background:none;color:#fff;font-weight:600;">Cancel</button>
+        <button id="cropOk" style="flex:1;padding:12px;border-radius:12px;border:none;background:#7C5CFF;color:#fff;font-weight:600;">Use</button>
       </div>`;
     document.body.appendChild(ov);
-    const box = ov.querySelector('#cropBox'), img = ov.querySelector('#cropImg'), zoom = ov.querySelector('#cropZoom');
-    let base = 1, scale = 1, x = 0, y = 0, drag = null;
+    const box = ov.querySelector('#cropBox'), img = ov.querySelector('#cropImg');
+    let base = 1, scale = 1, x = 0, y = 0, drag = null, pinch = null;
+    const pointers = new Map();
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const pos = e => { const r = box.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const clamp = () => {
       const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
-      x = Math.min(0, Math.max(boxW - w, x)); y = Math.min(0, Math.max(boxH - h, y));
+      x = w <= boxW ? (boxW - w) / 2 : Math.min(0, Math.max(boxW - w, x));
+      y = h <= boxH ? (boxH - h) / 2 : Math.min(0, Math.max(boxH - h, y));
     };
-    const apply = () => { clamp(); img.style.width = img.naturalWidth * scale + 'px'; img.style.height = img.naturalHeight * scale + 'px'; img.style.left = x + 'px'; img.style.top = y + 'px'; };
+    const apply = () => {
+      clamp();
+      img.style.width = img.naturalWidth * scale + 'px';
+      img.style.height = img.naturalHeight * scale + 'px';
+      img.style.left = x + 'px'; img.style.top = y + 'px';
+    };
+    const zoomAt = (ns, cx, cy) => {
+      const ix = (cx - x) / scale, iy = (cy - y) / scale;
+      scale = Math.min(base * 4, Math.max(base, ns));
+      x = cx - ix * scale; y = cy - iy * scale;
+      apply();
+    };
     img.onload = () => {
-      base = Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight);
-      scale = base; x = (boxW - img.naturalWidth * scale) / 2; y = (boxH - img.naturalHeight * scale) / 2; apply();
+      base = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);   // whole picture visible first
+      scale = base; apply();
     };
-    zoom.oninput = () => {
-      const cx = (boxW / 2 - x) / scale, cy = (boxH / 2 - y) / scale;   // keep the centre of the box in place
-      scale = base * parseFloat(zoom.value);
-      x = boxW / 2 - cx * scale; y = boxH / 2 - cy * scale; apply();
+    box.onpointerdown = e => {
+      box.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, pos(e));
+      if (pointers.size === 1) { const p = pos(e); drag = { sx: p.x, sy: p.y, ox: x, oy: y }; pinch = null; }
+      else if (pointers.size === 2) { const v = [...pointers.values()]; pinch = { d: dist(v[0], v[1]), s: scale }; drag = null; }
     };
-    box.onpointerdown = e => { drag = { sx: e.clientX, sy: e.clientY, ox: x, oy: y }; box.setPointerCapture(e.pointerId); };
-    box.onpointermove = e => { if (!drag) return; x = drag.ox + (e.clientX - drag.sx); y = drag.oy + (e.clientY - drag.sy); apply(); };
-    box.onpointerup = box.onpointercancel = () => { drag = null; };
+    box.onpointermove = e => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, pos(e));
+      if (pointers.size === 2 && pinch) {
+        const v = [...pointers.values()];
+        const mid = { x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2 };
+        zoomAt(pinch.s * (dist(v[0], v[1]) / pinch.d), mid.x, mid.y);
+      } else if (drag && pointers.size === 1) {
+        const p = pos(e);
+        x = drag.ox + (p.x - drag.sx); y = drag.oy + (p.y - drag.sy); apply();
+      }
+    };
+    const up = e => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (pointers.size === 1) { const p = [...pointers.values()][0]; drag = { sx: p.x, sy: p.y, ox: x, oy: y }; }
+      else if (pointers.size === 0) drag = null;
+    };
+    box.onpointerup = up; box.onpointercancel = up;
+    box.onwheel = e => { e.preventDefault(); const p = pos(e); zoomAt(scale * (e.deltaY < 0 ? 1.1 : 0.9), p.x, p.y); };
     const close = val => { URL.revokeObjectURL(url); ov.remove(); resolve(val); };
     ov.querySelector('#cropCancel').onclick = () => close(null);
     ov.querySelector('#cropOk').onclick = () => {
-      const outH = Math.round(outW / aspect);
-      const canvas = document.createElement('canvas');
-      canvas.width = outW; canvas.height = outH;
-      const sx = -x / scale, sy = -y / scale, sw = boxW / scale, sh = boxH / scale;
-      canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
-      canvas.toBlob(blob => close(blob ? new File([blob], 'adjusted.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.92);
+      const outH = Math.round(outW / aspect), f = outW / boxW;
+      const c = document.createElement('canvas');
+      c.width = outW; c.height = outH;
+      const g = c.getContext('2d');
+      g.fillStyle = '#000'; g.fillRect(0, 0, outW, outH);
+      const cs = Math.max(outW / img.naturalWidth, outH / img.naturalHeight);
+      try { g.filter = 'blur(' + Math.round(18 * f) + 'px) brightness(0.55)'; } catch (e) {}
+      g.drawImage(img, (outW - img.naturalWidth * cs) / 2, (outH - img.naturalHeight * cs) / 2, img.naturalWidth * cs, img.naturalHeight * cs);
+      try { g.filter = 'none'; } catch (e) {}
+      g.drawImage(img, x * f, y * f, img.naturalWidth * scale * f, img.naturalHeight * scale * f);
+      c.toBlob(blob => close(blob ? new File([blob], 'adjusted.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.92);
     };
   });
 }
