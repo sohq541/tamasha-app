@@ -1428,6 +1428,12 @@ app.post('/api/films/:id/view', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
+    const viewer = getUserFromReq(req);
+    if (viewer) {
+      if (!f.viewedBy) f.viewedBy = [];
+      if (f.viewedBy.includes(viewer.id)) return res.json({ views: f.views || 0, counted: false });
+      f.viewedBy.push(viewer.id);
+    }
     f.views = (f.views || 0) + 1;
     await writeFilms(films);
     try {
@@ -1464,6 +1470,9 @@ app.post('/api/films/:id/like', async (req, res) => {
     if (idx === -1) {
       f.likedBy.push(currentUser.id);
       f.likedAt[currentUser.id] = new Date().toISOString();
+      // liking a post means it was seen: count this person's view once
+      if (!f.viewedBy) f.viewedBy = [];
+      if (!f.viewedBy.includes(currentUser.id)) { f.viewedBy.push(currentUser.id); f.views = (f.views || 0) + 1; }
       liked = true;
     } else {
       f.likedBy.splice(idx, 1);
