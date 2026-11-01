@@ -1895,7 +1895,7 @@ app.get('/api/stories', async (req, res) => {
       const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
       const userStories = await Promise.all(byUser[ownerId].slice().reverse().map(async s => ({
         id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-        mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+        mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
         mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
         viewCount: (s.views || []).length,
         commentCount: (s.comments || []).length,
@@ -2080,7 +2080,7 @@ app.get('/api/me/stories', async (req, res) => {
     const stories = (await readStories()).filter(s => s.ownerId === currentUser.id);
     const directUrl = makeDirectUrlCache();
     const out = await Promise.all(stories.slice().reverse().map(async s => ({
-      id: s.id, mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+      id: s.id, mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
       mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
       active: isStoryActive(s), highlightId: s.highlightId || null
     })));
@@ -2182,7 +2182,7 @@ app.get('/api/highlights/:id', async (req, res) => {
       if (!s) return null;
       return {
         id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-        mediaType: s.mediaType, textOverlay: s.textOverlay, createdAt: s.createdAt,
+        mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
         mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
         viewCount: (s.views || []).length, commentCount: (s.comments || []).length
       };
