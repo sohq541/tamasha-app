@@ -672,6 +672,10 @@
 #storyUploadOverlay .se-go{width:50px;height:50px;border-radius:50%;border:none;background:#4f6bff;color:#fff;font-size:22px;font-weight:700;cursor:pointer;}
 #storyUploadOverlay .se-status{font-size:13px;color:#ddd;min-height:16px;text-align:center;}
 #storyUploadOverlay .hidden{display:none !important;}
+
+.story-viewer-who{display:flex;flex-direction:column;min-width:0;flex:1;}
+.story-song-line{color:#fff;font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-top:2px;}
+.song-title-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 </style>
 </head>
 <body>
@@ -861,7 +865,7 @@
   <div class="story-progress-row" id="storyProgressRow"></div>
   <div class="story-viewer-header">
     <img class="story-viewer-avatar" id="storyViewerAvatar" src="">
-    <span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-chip" style="display:none;"></span>
+    <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
     <button class="story-viewer-close hidden" id="storyHighlightDeleteBtn" onclick="deleteHighlight(currentStoryUserQueue[currentStoryGroupIndex] && currentStoryUserQueue[currentStoryGroupIndex].highlightId)" style="font-size:13px;" title="Delete highlight">⭐🗑️</button>
@@ -2660,7 +2664,7 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line">🎵 ${escapeHtml(f.song.title)}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -3878,7 +3882,7 @@ function playStorySong(){
   const st = g && g.stories ? g.stories[currentStoryIndex] : null;
   applyStoryAdjust(st);
   const chip = document.getElementById('storyViewerSong');
-  if (chip) { chip.textContent = st && st.song ? '🎵 ' + st.song.title : ''; chip.style.display = st && st.song ? 'inline-block' : 'none'; }
+  if (chip) { chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : ''; chip.style.display = st && st.song ? 'block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
   songAudio = new Audio(st.song.url);
   songAudio.currentTime = st.song.start || 0;
