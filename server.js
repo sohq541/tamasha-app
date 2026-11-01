@@ -1832,6 +1832,12 @@ app.post('/api/stories', (req, res, next) => {
       views: [],
       comments: []
     };
+    let storyAdjust = null;
+    try {
+      const a = JSON.parse(req.body.adjust || 'null');
+      if (a && isFinite(a.s) && isFinite(a.x) && isFinite(a.y)) storyAdjust = { s: Math.min(4, Math.max(1, a.s)), x: Math.min(1, Math.max(-1, a.x)), y: Math.min(1, Math.max(-1, a.y)) };
+    } catch (e) {}
+    if (storyAdjust) newStory.adjust = storyAdjust;
     const storySong = await pickSong(req.body, isVideo ? 'video' : 'photo');
     if (storySong) newStory.song = storySong;
     stories.unshift(newStory);
