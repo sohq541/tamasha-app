@@ -3874,7 +3874,7 @@ function applyStoryAdjust(st){
 }
 function playStorySong(){
   stopSong();
-  const g = storyGroups[currentStoryGroupIndex];
+  const g = currentStoryUserQueue[currentStoryGroupIndex];
   const st = g && g.stories ? g.stories[currentStoryIndex] : null;
   applyStoryAdjust(st);
   const chip = document.getElementById('storyViewerSong');
