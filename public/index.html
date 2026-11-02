@@ -736,9 +736,9 @@
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <div id="playerMediaWrap" style="position:sticky;top:0;z-index:6;background:#000;">
-      <video id="player" controls preload="auto"></video>
+      <video id="player" controls preload="metadata"></video>
       <button type="button" id="playerFsBtn" onclick="fullscreenPlayer()" aria-label="Fullscreen">⛶</button>
-      <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;">
+      <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;" loading="lazy" decoding="async">
       <div id="playerCarousel" style="display:none;"></div>
     </div>
     <div class="modal-body">
@@ -820,7 +820,7 @@
   <div id="storyPickArea" class="se-pick" onclick="document.getElementById('storyFileInput').click()">📷 Photo ya video chuno</div>
   <div class="se-media-wrap">
     <div class="story-upload-preview hidden" id="storyPreviewArea">
-      <img id="storyPreviewImg" class="hidden" alt="">
+      <img id="storyPreviewImg" class="hidden" alt="" loading="lazy" decoding="async">
       <video id="storyPreviewVideo" class="hidden" muted playsinline controls></video>
     </div>
   </div>
@@ -864,7 +864,7 @@
 <div class="story-viewer-overlay" id="storyViewerOverlay">
   <div class="story-progress-row" id="storyProgressRow"></div>
   <div class="story-viewer-header">
-    <img class="story-viewer-avatar" id="storyViewerAvatar" src="">
+    <img class="story-viewer-avatar" id="storyViewerAvatar" src="" loading="lazy" decoding="async">
     <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
@@ -872,7 +872,7 @@
     <button class="story-viewer-close" onclick="closeStoryViewer()">✕</button>
   </div>
   <div class="story-media-area" id="storyMediaArea">
-    <img id="storyViewImg" class="hidden">
+    <img id="storyViewImg" class="hidden" loading="lazy" decoding="async">
     <video id="storyViewVideo" class="hidden" playsinline></video>
     <div class="story-text-overlay" id="storyViewTextOverlay"></div>
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
@@ -1057,7 +1057,7 @@
 <!-- ===== CHAT MEDIA LIGHTBOX (view photo/video sent in DM) ===== -->
 <div class="chat-media-lightbox" id="chatMediaLightbox" onclick="if(event.target===this) closeChatMediaLightbox()">
   <button class="chat-lightbox-close" onclick="closeChatMediaLightbox()">✕</button>
-  <img id="chatLightboxImg" class="hidden">
+  <img id="chatLightboxImg" class="hidden" loading="lazy" decoding="async">
   <video id="chatLightboxVideo" class="hidden" controls playsinline autoplay></video>
 </div>
 
@@ -1174,7 +1174,7 @@ function collabSearchInput(inputEl, popupId, mode){
       const users = (data.users || []).filter(u => !currentUser || u.id !== currentUser.id);
       popup.innerHTML = users.length ? users.map(u => `
         <div class="collab-popup-item" data-uid="${escapeAttr(u.id)}" data-uname="${escapeAttr(u.username)}" onclick="pickCollabUser(this, '${mode}', '${popupId}')">
-          <div class="collab-popup-avatar">${u.profileImage ? `<img src="${escapeAttr(u.profileImage)}">` : escapeHtml((u.username[0] || '?').toUpperCase())}</div>
+          <div class="collab-popup-avatar">${u.profileImage ? `<img src="${escapeAttr(u.profileImage)}" loading="lazy" decoding="async">` : escapeHtml((u.username[0] || '?').toUpperCase())}</div>
           <span class="collab-popup-name">@${escapeHtml(u.username)}</span>
         </div>`).join('') : '<div class="collab-popup-empty">Koi user nahi mila</div>';
       popup.classList.remove('hidden');
@@ -1279,7 +1279,7 @@ async function openHashtagFeed(tag){
     contentEl.innerHTML = `
       <p style="color:var(--cream-dim);font-size:13px;margin:0 0 12px;">${films.length} post${films.length === 1 ? '' : 's'}</p>
       <div class="profile-mygrid">
-        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('')}
+        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('')}
       </div>
     `;
   } catch (e) {
@@ -1442,7 +1442,7 @@ async function loadProfile(){
         <a href="#" onclick="openUploadModal();return false;">+ Upload</a>
       `;
       document.getElementById('tabProfile').innerHTML = avatarUrl
-        ? `<img class="mini-avatar" src="${avatarUrl}">`
+        ? `<img class="mini-avatar" src="${avatarUrl}" loading="lazy" decoding="async">`
         : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>`;
       pollNotificationCount();
       pollMessagesCount();
@@ -1515,7 +1515,7 @@ async function renderOtherProfile(userId, usernameHint){
   if (pub.blocked) {
     el.innerHTML = `
       <div class="profile-top-row">
-        <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
+        <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}" loading="lazy" decoding="async">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
       </div>
       <div class="profile-username">@${escapeHtml(pub.username)}</div>
       <p class="comment-empty" style="padding:20px;">Tumne is user ko block kiya hai. Inki posts, comments ya messages nahi dikhenge.</p>
@@ -1528,7 +1528,7 @@ async function renderOtherProfile(userId, usernameHint){
 
   el.innerHTML = `
     <div class="profile-top-row">
-      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}">` : escapeHtml((pub.username[0] || '?').toUpperCase())}<div class="online-dot ${pub.online ? 'on' : ''}" style="width:16px;height:16px;bottom:2px;right:2px;"></div></div>
+      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}" loading="lazy" decoding="async">` : escapeHtml((pub.username[0] || '?').toUpperCase())}<div class="online-dot ${pub.online ? 'on' : ''}" style="width:16px;height:16px;bottom:2px;right:2px;"></div></div>
       <div class="profile-stats">
         <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
         <div onclick="openUserList('${userId}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
@@ -1728,7 +1728,7 @@ async function renderProfile(){
     <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
       <div class="profile-avatar" id="ownProfileAvatarWrap" style="${(window.activeStoriesByUser||{})[currentUser.id] ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
-        ${mine.profileImage ? `<img src="${mine.profileImage}">` : escapeHtml(currentUser.username[0].toUpperCase())}
+        ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
         ${(window.activeStoriesByUser||{})[currentUser.id] ? `<div class="story-add-badge" style="background:#7C5CFF;top:-2px;right:-2px;bottom:auto;" onclick="event.stopPropagation();openStoryViewer('${currentUser.id}')">▶</div>` : ''}
       </div>
       <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
@@ -1755,7 +1755,7 @@ async function renderProfile(){
       <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Profile photo</h3>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
         <div class="profile-avatar" style="width:56px;height:56px;font-size:22px;cursor:default;">
-          ${mine.profileImage ? `<img src="${mine.profileImage}">` : escapeHtml(currentUser.username[0].toUpperCase())}
+          ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
         </div>
         <button type="button" class="settings-save-btn" style="width:auto;margin:0;" onclick="document.getElementById('avatarFileInput').click()">Change photo</button>
       </div>
@@ -1825,7 +1825,7 @@ async function loadSavedGrid(){
     const res = await fetch('/api/me/saved');
     const data = await res.json();
     const saved = data.saved || [];
-    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}</div>`).join('') || '<p class="comment-empty">Koi saved post nahi hai abhi.</p>';
+    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('') || '<p class="comment-empty">Koi saved post nahi hai abhi.</p>';
   } catch (e) {
     el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
   }
@@ -1993,7 +1993,7 @@ async function renderBlueTick(){
       html += `<div style="margin-top:14px;font-weight:600;color:var(--cream);">Monthly: ₹${d.price} / mahine</div>`;
       html += '<div style="margin-top:4px;font-size:12.5px;">Criteria ka wait nahi karna? Ye amount UPI se pay karo. Har 30 din baad dobara pay karna hoga.</div>';
       if (!d.qrUrl && !d.upi) html += '<div style="margin-top:12px;color:#ffcf5c;">Payment details abhi set nahi hue. Thodi der baad dobara kholo.</div>';
-      if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;">`;
+      if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;" loading="lazy" decoding="async">`;
       if (d.upi) html += `<div style="text-align:center;color:var(--cream);font-weight:600;">${escapeHtml(d.upi)}</div>`;
       if (d.upi) html += `<a href="upi://pay?pa=${encodeURIComponent(d.upi)}&pn=${encodeURIComponent('YouSeries')}&am=${encodeURIComponent(d.price)}&cu=INR&tn=${encodeURIComponent('YouSeries Blue tick')}" style="display:block;margin-top:12px;text-align:center;background:var(--marigold);color:#fff;padding:12px;border-radius:8px;font-weight:600;text-decoration:none;">₹${d.price} UPI app se pay karo</a>
         <div style="text-align:center;font-size:11.5px;margin-top:4px;">Button se UPI app khulegi (GPay, PhonePe, Paytm). Payment ke baad UTR yahan daalo.</div>`;
@@ -2232,7 +2232,7 @@ function renderActivityMenu(){
 
 function historyRow(posterUrl, title, timeLabel, onclickStr){
   return `<div onclick="${onclickStr}" style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;">
-    <img src="${posterUrl || ''}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;">
+    <img src="${posterUrl || ''}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;" loading="lazy" decoding="async">
     <div style="flex:1;min-width:0;">
       <div style="font-size:14px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title)}</div>
       ${timeLabel ? `<div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${timeLabel}</div>` : ''}
@@ -2277,7 +2277,7 @@ async function renderCommentsHistory(){
     if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t commented on anything yet.</p>'; return; }
     bodyEl.innerHTML = items.map(c => `
       <div onclick="closeProfileMenu();playFilm('${c.filmId}')" style="display:flex;gap:10px;padding:12px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;">
-        <img src="${c.posterUrl || ''}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;">
+        <img src="${c.posterUrl || ''}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.06);flex-shrink:0;" loading="lazy" decoding="async">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;color:var(--cream-dim);">on <span style="color:var(--marigold);">${escapeHtml(c.filmTitle)}</span></div>
           <div style="font-size:13.5px;color:var(--cream);margin-top:2px;">${escapeHtml(c.text)}</div>
@@ -2317,8 +2317,8 @@ function openCropper(file, aspect, outW, title, videoMode){
     ov.style.cssText = 'position:fixed;inset:0;background:#000;z-index:990;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;color:#fff;';
     ov.innerHTML = `<div style="font-weight:700;margin-bottom:10px;">${title}</div>
       <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:16px;touch-action:none;user-select:none;">
-        ${isVid ? '' : `<img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;">`}
-        ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;">`}
+        ${isVid ? '' : `<img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;" loading="lazy" decoding="async">`}
+        ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;" loading="lazy" decoding="async">`}
       </div>
       <div style="font-size:12px;color:#aaa;margin-top:8px;">Do ungliyon se zoom karo, ek ungli se khisko</div>
       <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
@@ -2516,7 +2516,7 @@ function renderShortsGrid(shorts){
   if (!grid) return;
   grid.innerHTML = shorts.map(f => `
     <div class="shorts-grid-item" onclick="openShortAt('${f.id}')">
-      ${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}
+      ${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}
       <div class="shorts-grid-play">▶</div>
       <div class="shorts-grid-views">▶ ${f.views || 0}</div>
     </div>
@@ -2624,7 +2624,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
   const userHtml = userMatches.map(u => `
     <div class="search-result-item" onclick="goToProfileDirect('${u.id}','${escapeHtml(u.username)}')">
       ${u.profileImage
-        ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;">`
+        ? `<img class="search-result-thumb" src="${u.profileImage}" style="border-radius:50%;aspect-ratio:1/1;" loading="lazy" decoding="async">`
         : `<div class="search-result-thumb" style="border-radius:50%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;">${escapeHtml(u.username[0].toUpperCase())}</div>`}
       <div class="search-result-info">
         <span class="search-result-title">@${escapeHtml(u.username)}${vb(u.verified)}</span>
@@ -2635,7 +2635,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
 
   const filmHtml = matches.map(f => `
     <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : (f.type === 'photo' ? `openProfilePhotoFeed('${f.ownerId}','${f.id}')` : `playFilm('${f.id}')`)}">
-      <img class="search-result-thumb" src="${f.posterUrl || ''}">
+      <img class="search-result-thumb" src="${f.posterUrl || ''}" loading="lazy" decoding="async">
       <div class="search-result-info">
         <span class="search-result-title">${escapeHtml(f.title)}</span>
         <span class="search-result-tag">${f.type === 'short' ? 'Short' : f.type === 'photo' ? 'Photo' : 'Film'}</span>
@@ -2661,7 +2661,7 @@ function renderHome(films) {
       <div class="card" id="feed-card-${f.id}">
         <div class="card-header-row">
           <div class="card-avatar" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">
-            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
+            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
             <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
@@ -2674,7 +2674,7 @@ function renderHome(films) {
         <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}" data-kind="${isPhoto ? 'photo' : (isShort ? 'short' : 'film')}">
           ${
             isPhoto
-              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`)
+              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" / loading="lazy" decoding="async">`)
               : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
           }
         </div>
@@ -2788,7 +2788,7 @@ function renderShorts(shorts){
       <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;" loading="lazy" decoding="async">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${linkifyRich(f.description || '', f.mentions)}</p>
       </div>
@@ -3156,7 +3156,7 @@ function saveMyCommentToken(commentId, editToken){
       <div class="comment-item" id="comment-${c.id}">
         <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
           <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="openCommentProfile('${c.userId}','${escapeHtml(c.name)}')">
-            ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
+            ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : ''}
             <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>${vb(c.verified)}
             ${isCommentAuthor ? `<span style="background:var(--marigold);color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:0.3px;">Author</span>` : ''}
             ${c.pinned ? `<span style="background:rgba(255,255,255,0.14);color:var(--cream);font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">📌 Pinned</span>` : ''}
@@ -3317,7 +3317,7 @@ async function playFilm(id){
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;" loading="lazy" decoding="async">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
@@ -3460,7 +3460,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
       <div class="card" id="pfeed-card-${f.id}">
         <div class="card-header-row">
           <div class="card-avatar" onclick="closeProfilePhotoFeed();viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">
-            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
+            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
             <div class="card-username" onclick="closeProfilePhotoFeed();goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}</div>
@@ -3471,7 +3471,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
         </div>
 
         <div class="card-media-box" data-id="${f.id}" data-short="0" data-kind="photo">
-          ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" />`}
+          ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" / loading="lazy" decoding="async">`}
         </div>
 
         <div class="card-actions-bar">
@@ -3530,7 +3530,7 @@ function closeProfilePhotoFeed(){
 
 function gridItemHtml(f, onclickJs, pinned){
   const n = (f.slideUrls && f.slideUrls.length) || (f.slides && f.slides.length) || 0;
-  return `<div class="profile-mygrid-item" onclick="${onclickJs}">${f.posterUrl ? `<img src="${f.posterUrl}">` : ''}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}</div>`;
+  return `<div class="profile-mygrid-item" onclick="${onclickJs}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}</div>`;
 }
 async function togglePinProfile(id){
   try {
@@ -3589,7 +3589,7 @@ async function loadNotesStrip(){
     const notes = data.notes || [];
     const mine = notes.find(n => n.mine);
     window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt } : null;
-    const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
+    const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}" loading="lazy" decoding="async">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
     const first = `<div class="note-item" onclick="openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) : '＋ Note'}</div>${av({ profileImage: null, username: currentUser.username })}<div class="note-name">Tumhara note</div></div>`;
     const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')"><div class="note-bubble">${escapeHtml(n.text)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
     el.innerHTML = first + others;
@@ -3851,16 +3851,44 @@ function playSong(song){
   stopSong();
   if (!song || !song.url) return;
   songAudio = new Audio(song.url);
+  songAudio.muted = songMutedPref;
   songAudio.currentTime = song.start || 0;
   songAudio.play().catch(() => {});
   songStopTimer = setTimeout(stopSong, (song.duration || 8) * 1000);
+  refreshSongBtn();
 }
 // Story/post song playback: starts at the chosen point and stops after the chosen length
 let songAudio = null, songStopTimer = null;
+// ---- Song mute / unmute (one button, works for stories, photos and video posts) ----
+let songMutedPref = (() => { try { return localStorage.getItem('songMuted') === '1'; } catch (e) { return false; } })();
+function ensureSongBtn(){
+  let b = document.getElementById('songMuteBtn');
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'songMuteBtn'; b.type = 'button';
+    b.setAttribute('aria-label', 'Song mute ya unmute');
+    b.onclick = toggleSongMute;
+    b.style.cssText = 'position:fixed;right:16px;bottom:110px;z-index:1100;width:46px;height:46px;border-radius:50%;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;';
+    document.body.appendChild(b);
+  }
+  return b;
+}
+function refreshSongBtn(){
+  const b = ensureSongBtn();
+  if (songAudio) { b.style.display = 'flex'; b.textContent = songAudio.muted ? '🔇' : '🔊'; }
+  else b.style.display = 'none';
+}
+function toggleSongMute(){
+  songMutedPref = !songMutedPref;
+  try { localStorage.setItem('songMuted', songMutedPref ? '1' : '0'); } catch (e) {}
+  if (songAudio) songAudio.muted = songMutedPref;
+  refreshSongBtn();
+}
 function stopSong(){
   clearTimeout(songStopTimer); songStopTimer = null;
   if (songAudio) { songAudio.pause(); songAudio = null; }
   const v = document.getElementById('storyViewVideo'); if (v) v.muted = false;
+  refreshSongBtn();
 }
 // #hashtags in a story are tappable: they open that hashtag's feed
 function linkifyStoryTags(text){
@@ -3885,9 +3913,11 @@ function playStorySong(){
   if (chip) { chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : ''; chip.style.display = st && st.song ? 'block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
   songAudio = new Audio(st.song.url);
+  songAudio.muted = songMutedPref;
   songAudio.currentTime = st.song.start || 0;
   songAudio.play().catch(() => {});
   songStopTimer = setTimeout(stopSong, (st.song.duration || 8) * 1000);
+  refreshSongBtn();
   if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
 }
 let storyPickedFile = null;
@@ -3937,7 +3967,7 @@ function renderStoriesBar(){
   const others = storyGroups.filter(g => g.ownerId !== myId);
 
   const myAvatarInner = currentUser && currentUser.profileImage
-    ? `<img src="${currentUser.profileImage}">`
+    ? `<img src="${currentUser.profileImage}" loading="lazy" decoding="async">`
     : `<span>${currentUser ? escapeHtml(currentUser.username[0].toUpperCase()) : 'Y'}</span>`;
 
   let html = currentUser ? `
@@ -3952,7 +3982,7 @@ function renderStoriesBar(){
 
   others.forEach(g => {
     const avatarInner = g.ownerProfileImage
-      ? `<img src="${g.ownerProfileImage}">`
+      ? `<img src="${g.ownerProfileImage}" loading="lazy" decoding="async">`
       : `<span>${escapeHtml(g.ownerUsername[0].toUpperCase())}</span>`;
     html += `
       <div class="story-avatar-wrap" onclick="openStoryViewer('${g.ownerId}')">
@@ -4278,7 +4308,7 @@ async function loadUserHighlights(userId, elId, isOwn){
     html += `
       <div class="story-avatar-wrap" onclick="openHighlightViewer('${h.id}')" ${isOwn ? `onpointerdown='startHighlightHold(event,${JSON.stringify(h.id)})' onpointerup="endHighlightHold()" onpointerleave="endHighlightHold()" onpointercancel="endHighlightHold()" oncontextmenu="event.preventDefault();return false;"` : ''}>
         <div class="story-ring seen">
-          <div class="story-avatar-inner">${h.coverUrl ? `<img src="${h.coverUrl}">` : '<span>★</span>'}</div>
+          <div class="story-avatar-inner">${h.coverUrl ? `<img src="${h.coverUrl}" loading="lazy" decoding="async">` : '<span>★</span>'}</div>
         </div>
         <div class="highlight-title">${escapeHtml(h.title)}</div>
       </div>
@@ -4313,7 +4343,7 @@ async function openHighlightPicker(){
     list.innerHTML = stories.map(s => `
       <label class="highlight-picker-item">
         <input type="checkbox" onchange="toggleHighlightStoryPick('${s.id}', this.checked)">
-        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}">` : `<img src="${s.mediaUrl}" style="background:#000;">`}
+        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}" loading="lazy" decoding="async">` : `<img src="${s.mediaUrl}" style="background:#000;" loading="lazy" decoding="async">`}
         <span style="font-size:13px;color:var(--cream-dim);">${storyTimeAgo(s.createdAt)}${s.highlightId ? ' · already in a highlight' : ''}</span>
       </label>
     `).join('');
@@ -4398,7 +4428,7 @@ async function openStoryViewsSheet(){
   previewWrap.innerHTML = story
     ? (story.mediaType === 'video'
         ? `<video src="${story.mediaUrl}" muted autoplay loop playsinline></video>`
-        : `<img src="${story.mediaUrl}">`)
+        : `<img src="${story.mediaUrl}" loading="lazy" decoding="async">`)
     : '';
   try {
     const res = await fetch('/api/stories/' + currentStoryId + '/views');
@@ -4410,7 +4440,7 @@ async function openStoryViewsSheet(){
     } else {
       listEl.innerHTML = data.viewers.map(v => `
         <div class="story-viewer-row">
-          ${v.profileImage ? `<img src="${v.profileImage}">` : `<div class="story-viewer-row-fallback">${escapeHtml(v.username[0].toUpperCase())}</div>`}
+          ${v.profileImage ? `<img src="${v.profileImage}" loading="lazy" decoding="async">` : `<div class="story-viewer-row-fallback">${escapeHtml(v.username[0].toUpperCase())}</div>`}
           <div class="story-viewer-row-name">@${escapeHtml(v.username)}</div>
         </div>
       `).join('');
@@ -4445,7 +4475,7 @@ function renderStoryCommentList(comments, storyId){
       <div class="comment-item">
         <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
           <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="goToProfileDirect('${c.userId}','${escapeHtml(c.name)}')">
-            ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">` : ''}
+            ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : ''}
             <span style="font-weight:600;">@${escapeHtml(c.name)}</span>
           </div>
           <button type="button" onclick="toggleStoryCommentLike('${storyId}','${c.id}',this)" style="background:transparent;border:none;color:${liked ? 'var(--marigold)' : 'var(--cream-dim)'};font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px;">
@@ -4631,7 +4661,7 @@ function avatarOrFallback(url, username, cls, fallbackCls){
   if (username === 'Ask AI') return `<div class="${fallbackCls}" style="background:linear-gradient(150deg,#3A2E7A,#4361EE);">🤖</div>`;
   const letter = escapeHtml((username || '?')[0].toUpperCase());
   return url
-    ? `<img class="${cls}" src="${url}">`
+    ? `<img class="${cls}" src="${url}" loading="lazy" decoding="async">`
     : `<div class="${fallbackCls}">${letter}</div>`;
 }
 
@@ -4722,7 +4752,7 @@ async function openChatConvo(userId, usernameHint){
     markChatRead();
     document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherUser.online);
     if (chatPollHandle) clearInterval(chatPollHandle);
-    chatPollHandle = setInterval(pollChatMessages, 3500);
+    chatPollHandle = setInterval(pollChatMessages, 5000);
     pingAiPresence();
   } catch (err) {
     document.getElementById('chatMessagesArea').innerHTML = `<div class="chat-empty">${escapeHtml(err.message)}</div>`;
@@ -4893,7 +4923,7 @@ function renderChatBubble(m, mine, showStatus){
   } else if (m.type === 'text') {
     bubbleInner = `<div class="chat-bubble">${linkifyText(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')"></div>`;
+    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>`;
   } else if (m.type === 'video') {
     bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>`;
   } else if (m.type === 'voice') {
@@ -4904,7 +4934,7 @@ function renderChatBubble(m, mine, showStatus){
     </div>`;
   } else if (m.type === 'short') {
     bubbleInner = `<div class="chat-bubble chat-short-bubble" onclick="openSharedShort('${m.shortId}')">
-      <img src="${m.shortThumb}" onerror="this.style.display='none'">
+      <img src="${m.shortThumb}" onerror="this.style.display='none'" loading="lazy" decoding="async">
       <div class="chat-short-bubble-info">
         <div class="chat-short-bubble-title">${escapeHtml(m.shortTitle || 'Short')}</div>
         <div class="chat-short-bubble-tag">▶ ${m.shortOwnerUsername ? '@' + escapeHtml(m.shortOwnerUsername) : 'Short'}</div>
@@ -4960,7 +4990,7 @@ function onChatMediaPicked(event){
   const preview = document.getElementById('chatAttachPreview');
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video');
-  preview.innerHTML = `${isVideo ? `<video src="${url}" muted></video>` : `<img src="${url}">`}<span style="font-size:12.5px;color:var(--cream-dim);">${escapeHtml(file.name)}</span><button class="chat-attach-cancel" onclick="clearChatAttachPreview()">✕</button>`;
+  preview.innerHTML = `${isVideo ? `<video src="${url}" muted></video>` : `<img src="${url}" loading="lazy" decoding="async">`}<span style="font-size:12.5px;color:var(--cream-dim);">${escapeHtml(file.name)}</span><button class="chat-attach-cancel" onclick="clearChatAttachPreview()">✕</button>`;
   preview.classList.remove('hidden');
 }
 function clearChatAttachPreview(){
@@ -5435,7 +5465,7 @@ function pingAiPresence(){
     if (!sent) fetch('/api/ai/viewing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
   }
 }
-setInterval(pingAiPresence, 4000);
+setInterval(pingAiPresence, 15000);
 document.addEventListener('visibilitychange', pingAiPresence);
 window.addEventListener('pagehide', pingAiPresence);
 
@@ -5593,7 +5623,7 @@ window.UploadMgr = (function(){
     let thumb = '🎬';
     try {
       const f = !isVideoFile(job.main.file) ? job.main.file : (job.poster ? job.poster.file : null);
-      if (f) { const u = URL.createObjectURL(f); urls.set(job.id, u); thumb = '<img src="' + u + '" alt="">'; }
+      if (f) { const u = URL.createObjectURL(f); urls.set(job.id, u); thumb = '<img src="' + u + '" alt="" loading="lazy" decoding="async">'; }
     } catch (e) {}
     const el = document.createElement('div');
     el.className = 'upload-card'; el.id = 'upc-' + job.id;
@@ -5790,7 +5820,7 @@ window.UploadMgr = (function(){
     jobs.set(job.id, job); ensureCard(job); updateCard(job);
     if (!job.poster && isVideoFile(mainFile)) {
       const p = await makePosterFromVideo(mainFile).catch(() => null);
-      if (p) { job.poster = { file: p, key: null, uploadId: null, done: false }; const th = document.getElementById('upc-thumb-' + job.id); if (th) { const u = URL.createObjectURL(p); urls.set(job.id, u); th.innerHTML = '<img src="' + u + '" alt="">'; } }
+      if (p) { job.poster = { file: p, key: null, uploadId: null, done: false }; const th = document.getElementById('upc-thumb-' + job.id); if (th) { const u = URL.createObjectURL(p); urls.set(job.id, u); th.innerHTML = '<img src="' + u + '" alt="" loading="lazy" decoding="async">'; } }
     }
     const saved = await saveNew(job);
     if (!saved && !warnedNoIdb) { warnedNoIdb = true; if (typeof showToast === 'function') showToast('Is browser me refresh ke baad upload resume nahi ho payega'); }
