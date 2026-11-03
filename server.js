@@ -652,6 +652,51 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
 app.get('/api/me', (req, res) => { res.json(getUserFromReq(req)); });
 
+// ---------------- Multiple accounts on this site ----------------
+// Other accounts are kept in a "saved_accounts" cookie (their login tokens). Switching swaps the active token.
+function savedTokens(req) {
+  try { const a = JSON.parse(req.cookies.saved_accounts || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string') : []; } catch (e) { return []; }
+}
+function writeSaved(res, list) {
+  res.cookie('saved_accounts', JSON.stringify(list.slice(0, 5)), { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+}
+function payloadOf(tok) { try { return jwt.verify(tok, JWT_SECRET); } catch (e) { return null; } }
+app.get('/api/accounts', (req, res) => {
+  const cur = getUserFromReq(req);
+  const out = [];
+  if (cur) out.push({ id: cur.id, username: cur.username, current: true });
+  const seen = new Set(cur ? [cur.id] : []);
+  for (const t of savedTokens(req)) {
+    const p = payloadOf(t);
+    if (!p || !p.id || seen.has(p.id) || suspendedIds.has(p.id)) continue;
+    seen.add(p.id);
+    out.push({ id: p.id, username: p.username, current: false });
+  }
+  res.json({ accounts: out });
+});
+// Puts the current login aside (so another account can log in) and clears the active login
+app.post('/api/accounts/stash', (req, res) => {
+  const cur = getUserFromReq(req);
+  let list = savedTokens(req);
+  if (cur && req.cookies.token) list = [req.cookies.token, ...list.filter(t => payloadOf(t) && payloadOf(t).id !== cur.id)];
+  writeSaved(res, list);
+  res.clearCookie('token');
+  res.json({ success: true });
+});
+// Makes a saved account the active one, and puts the current one aside
+app.post('/api/accounts/switch', (req, res) => {
+  const want = String((req.body && req.body.id) || '');
+  const list = savedTokens(req);
+  const target = list.find(t => { const p = payloadOf(t); return p && p.id === want && !suspendedIds.has(p.id); });
+  if (!target) return res.status(404).json({ error: 'Ye account saved nahi hai, dobara login karo' });
+  const cur = getUserFromReq(req);
+  let rest = list.filter(t => t !== target);
+  if (cur && req.cookies.token) rest = [req.cookies.token, ...rest.filter(t => payloadOf(t) && payloadOf(t).id !== cur.id)];
+  writeSaved(res, rest);
+  res.cookie('token', target, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  res.json({ success: true });
+});
+
 app.get('/api/users/by-username/:username', async (req, res) => {
   try {
     const uname = String(req.params.username || '').toLowerCase();
