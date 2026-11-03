@@ -2070,10 +2070,50 @@ function toggleAppTheme(){
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', light ? '#FFFFFF' : '#000000');
   renderSettingsPrivacyMenu();
 }
+// ---- Devices: where the account is logged in, and log out from one or all other devices ----
+async function renderDevicesMenu(){
+  setMenuTitle('Devices', true, 'renderSettingsPrivacyMenu()');
+  const body = document.getElementById('profileMenuBody');
+  body.innerHTML = '<div style="padding:14px 4px;color:var(--cream-dim);">Loading…</div>';
+  let data;
+  try {
+    const r = await fetch('/api/me/sessions');
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Devices load nahi hue');
+  } catch (e) { body.innerHTML = '<div class="empty">❌ ' + escapeHtml(e.message) + '</div>'; return; }
+  const list = data.sessions || [];
+  const others = list.filter(x => !x.current);
+  body.innerHTML = `
+    <div style="font-size:13px;color:var(--cream-dim);padding:8px 4px 10px;">Ye wo devices hain jinpar aapka account login hai. Kisi device ko log out kar sakte ho.</div>
+    ${list.map(x => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
+      <div style="min-width:0;">
+        <div style="font-weight:600;">${escapeHtml(x.device || 'Device')}</div>
+        <div class="meta" style="font-size:12px;">${x.current ? 'Ye device (abhi use ho raha hai)' : 'Login: ' + escapeHtml(new Date(x.createdAt).toLocaleString())}</div>
+      </div>
+      ${x.current ? '<span style="font-size:12px;color:#7C5CFF;font-weight:700;">Current</span>'
+        : `<button type="button" onclick="logoutDevice('${x.sid}')" style="background:none;border:1px solid #E0245E;color:#E0245E;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:600;">Log out</button>`}
+    </div>`).join('') || '<div class="empty">Koi device nahi mila.</div>'}
+    ${others.length ? `<button type="button" onclick="logoutOtherDevices()" style="margin-top:18px;width:100%;padding:12px;border-radius:10px;border:none;background:#E0245E;color:#fff;font-weight:700;cursor:pointer;">Doosre sab devices se log out karo (${others.length})</button>` : ''}`;
+}
+async function logoutDevice(sid){
+  if (!confirm('Ye device se log out karna hai?')) return;
+  try { await fetch('/api/me/sessions/' + encodeURIComponent(sid) + '/logout', { method: 'POST' }); } catch (e) {}
+  renderDevicesMenu();
+}
+async function logoutOtherDevices(){
+  if (!confirm('Is device ke alawa sab devices se log out karna hai?')) return;
+  try { await fetch('/api/me/sessions/logout-others', { method: 'POST' }); } catch (e) {}
+  renderDevicesMenu();
+}
+
 function renderSettingsPrivacyMenu(){
   setMenuTitle('Settings and Privacy', true, 'renderProfileMenuMain()');
   const pushEnabled = localStorage.getItem('pushEnabled') === '1';
   document.getElementById('profileMenuBody').innerHTML = `
+    <div onclick="renderDevicesMenu()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
+      <span style="font-size:14.5px;font-weight:600;">📱 Devices</span>
+      <span style="color:var(--cream-dim);font-size:18px;">›</span>
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
       <div style="max-width:78%;">
         <div style="font-size:14.5px;font-weight:600;">Push notifications</div>
