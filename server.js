@@ -59,6 +59,27 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 app.use(cookieParser());
 
+// Logins made before device tracking get a device session on their next visit (once per device)
+const legacyMigrating = new Set();
+app.use(async (req, res, next) => {
+  const tok = req.cookies && req.cookies.token;
+  if (!tok || legacyMigrating.has(tok)) return next();
+  let p = null;
+  try { p = jwt.verify(tok, JWT_SECRET); } catch (e) { return next(); }
+  if (!p || !p.id || p.sid) return next();
+  legacyMigrating.add(tok);
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === p.id);
+    if (u && !u.suspended) {
+      const sid = await startSession(req, u);
+      res.cookie('token', signToken(u, sid), { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    }
+  } catch (e) { /* keep the old login; try again next time */ }
+  finally { legacyMigrating.delete(tok); }
+  next();
+});
+
 // Logged-out visitors see nothing from the site: no films, photos, videos, profiles or hashtags.
 app.use((req, res, next) => {
   if (req.method !== 'GET' && !req.path.startsWith('/api/hashtags')) return next();
@@ -97,6 +118,9 @@ async function refreshSuspendedIds() {
     const users = await readUsers();
     suspendedIds.clear();
     users.forEach(u => { if (u && u.suspended) suspendedIds.add(u.id); });
+    sessionIndex.clear();
+    users.forEach(u => (u && u.sessions || []).forEach(x => sessionIndex.set(x.sid, u.id)));
+    sessionsReady = true;
   } catch (e) { /* storage hiccup: keep the previous list */ }
 }
 
@@ -106,6 +130,7 @@ function getUserFromReq(req) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload && suspendedIds.has(payload.id)) return null;
+    if (payload && payload.sid && sessionsReady && !sessionIndex.has(payload.sid)) return null;
     return payload;
   } catch (e) { return null; }
 }
@@ -129,8 +154,52 @@ function isAdminBasicAuth(req) {
   return false;
 }
 
-function signToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+function signToken(user, sid) {
+  return jwt.sign({ id: user.id, email: user.email, username: user.username, sid }, JWT_SECRET, { expiresIn: '30d' });
+}
+
+// ---------------- Devices (login sessions) ----------------
+// Every login makes a session (one per device) stored on the user. A session can be removed to log that device out.
+const sessionIndex = new Map();   // session id -> user id, kept in step with users.json
+let sessionsReady = false;
+function deviceName(ua) {
+  ua = String(ua || '');
+  let os = 'Device';
+  if (/iPad/i.test(ua)) os = 'iPad';
+  else if (/iPhone/i.test(ua)) os = 'iPhone';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Macintosh|Mac OS/i.test(ua)) os = 'Mac';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  let br = 'Browser';
+  if (/Edg\//.test(ua)) br = 'Edge';
+  else if (/OPR\//.test(ua)) br = 'Opera';
+  else if (/SamsungBrowser/i.test(ua)) br = 'Samsung Internet';
+  else if (/Chrome\//.test(ua)) br = 'Chrome';
+  else if (/Firefox\//.test(ua)) br = 'Firefox';
+  else if (/Safari\//.test(ua)) br = 'Safari';
+  return `${os} · ${br}`;
+}
+async function startSession(req, user) {
+  const sid = crypto.randomUUID();
+  const users = await readUsers();
+  const u = users.find(x => x.id === user.id);
+  if (u) {
+    u.sessions = [...(u.sessions || []), { sid, device: deviceName(req.get('user-agent')), createdAt: new Date().toISOString() }].slice(-20);
+    await writeUsers(users);
+  }
+  sessionIndex.set(sid, user.id);
+  return sid;
+}
+// keep(sid) === true means that session stays; everything else is logged out
+async function dropSessions(userId, keep) {
+  const users = await readUsers();
+  const u = users.find(x => x.id === userId);
+  if (!u) return;
+  const all = u.sessions || [];
+  all.filter(x => !keep(x.sid)).forEach(x => sessionIndex.delete(x.sid));
+  u.sessions = all.filter(x => keep(x.sid));
+  await writeUsers(users);
 }
 
 function toBool(v) { return v === true || v === 'true'; }
@@ -457,7 +526,7 @@ app.post('/api/signup', async (req, res) => {
     users.push(newUser);
     await writeUsers(users);
 
-    const token = signToken(newUser);
+    const token = signToken(newUser, await startSession(req, newUser));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: newUser.id, email: newUser.email, username: newUser.username });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -473,13 +542,41 @@ app.post('/api/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password' });
     if (user.suspended) return res.status(403).json({ error: 'Ye account suspend kar diya gaya hai community guidelines violate karne ki wajah se.' });
-    const token = signToken(user);
+    const token = signToken(user, await startSession(req, user));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: user.id, email: user.email, username: user.username });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/logout', (req, res) => { res.clearCookie('token'); res.json({ success: true }); });
+app.post('/api/logout', async (req, res) => {
+  const p = getUserFromReq(req);
+  if (p && p.sid) await dropSessions(p.id, x => x !== p.sid);
+  res.clearCookie('token'); res.json({ success: true });
+});
+
+// Devices list and logout (Settings and Privacy → Devices)
+app.get('/api/me/sessions', async (req, res) => {
+  const p = getUserFromReq(req);
+  if (!p) return res.status(401).json({ error: 'Login karo' });
+  const users = await readUsers();
+  const u = users.find(x => x.id === p.id);
+  const list = ((u && u.sessions) || []).map(x => ({ sid: x.sid, device: x.device, createdAt: x.createdAt, current: x.sid === p.sid }))
+    .sort((a, b) => (b.current - a.current) || String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.json({ sessions: list });
+});
+app.post('/api/me/sessions/:sid/logout', async (req, res) => {
+  const p = getUserFromReq(req);
+  if (!p) return res.status(401).json({ error: 'Login karo' });
+  await dropSessions(p.id, x => x !== req.params.sid);
+  if (req.params.sid === p.sid) res.clearCookie('token');
+  res.json({ success: true, current: req.params.sid === p.sid });
+});
+app.post('/api/me/sessions/logout-others', async (req, res) => {
+  const p = getUserFromReq(req);
+  if (!p) return res.status(401).json({ error: 'Login karo' });
+  await dropSessions(p.id, x => x === p.sid);
+  res.json({ success: true });
+});
 
 // ---------------- Google OAuth ----------------
 function googleRedirectUri(req) {
@@ -544,7 +641,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
     if (user.suspended) { res.redirect('/login.html?error=suspended'); return; }
 
-    const token = signToken(user);
+    const token = signToken(user, await startSession(req, user));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.redirect('/');
   } catch (err) {
@@ -656,7 +753,7 @@ app.put('/api/me/username', async (req, res) => {
     films.forEach(f => { if (f.ownerId === user.id) { f.ownerUsername = newUsername; updated = true; } });
     if (updated) await writeFilms(films);
 
-    const token = signToken(user);
+    const token = signToken(user, await startSession(req, user));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ username: user.username, changesLeft: 3 - changesThisYear.length - 1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
