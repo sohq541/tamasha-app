@@ -360,7 +360,11 @@ async function readFilms() {
   return films;
 }
 
+let feedVer = 0;
+const feedCache = new Map();
+const FEED_CACHE_MS = 30000;
 async function writeFilms(films) {
+  feedVer++;
   await storeWriteJSON('films.json', films);
   filmsCache = { data: films, expiresAt: Date.now() + FILMS_CACHE_MS };
 }
@@ -370,6 +374,7 @@ async function readUsers() {
   return await storeTryReadJSON('users.json') || [];
 }
 async function writeUsers(users) {
+  feedVer++;
   await storeWriteJSON('users.json', users);
 }
 
@@ -870,9 +875,13 @@ app.post('/api/claim-existing-films', async (req, res) => {
 
 app.get('/api/films', async (req, res) => {
   try {
+    const currentUser = getUserFromReq(req);
+    const ckey = (currentUser ? currentUser.id : 'anon') + '|' + feedVer;
+    const hit = feedCache.get(ckey);
+    if (hit && Date.now() - hit.at < FEED_CACHE_MS) return res.json(hit.out);
     const films = await readFilms();
     const users = await readUsers();
-    const currentUser = getUserFromReq(req);
+    const userById = new Map(users.map(u => [u.id, u]));
     const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
     const hideSensitive = me ? !!me.hideSensitiveContent : false;
     const myBlocked = (me && me.blockedUsers) || [];
@@ -885,11 +894,11 @@ app.get('/api/films', async (req, res) => {
       .filter(f => !(hideSensitive && f.isSensitive))
       .filter(f => !myBlocked.includes(f.ownerId))
       .filter(f => {
-        const owner = users.find(u => u.id === f.ownerId);
+        const owner = userById.get(f.ownerId);
         return !(owner && owner.blockedUsers && me && owner.blockedUsers.includes(me.id));
       })
       .map(async f => {
-        const owner = users.find(u => u.id === f.ownerId);
+        const owner = userById.get(f.ownerId);
         const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
         const ownerRestricted = (owner && owner.restrictedUsers) || [];
         const isThisFilmOwner = isFilmOwnerOrCollab(f, me && me.id);
@@ -914,6 +923,8 @@ app.get('/api/films', async (req, res) => {
           isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
         };
       }));
+    feedCache.set(ckey, { at: Date.now(), out });
+    if (feedCache.size > 300) feedCache.delete(feedCache.keys().next().value);
     res.json(out);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
