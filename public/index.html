@@ -1500,9 +1500,25 @@ async function openAccountsSheet(){
         </div>
       </div>
       <div onclick="closeAccountsSheet();goToMyProfile()" style="margin-top:12px;text-align:center;color:#0a84ff;padding:10px;cursor:pointer;">Apni profile kholo</div>
-      <button type="button" onclick="closeAccountsSheet();openProfileMenu()" style="width:100%;margin-top:6px;padding:13px;border-radius:14px;border:1px solid #3a3a3c;background:none;color:#fff;font-size:15px;cursor:pointer;">Go to Accounts Center</button>
-      <div style="text-align:center;margin-top:18px;font-size:15px;font-weight:700;color:#fff;">Tamasha</div>
-      <div style="text-align:center;margin-top:6px;font-size:12px;color:#8e8e93;"><a href="/privacy-policy.html" style="color:#8e8e93;">Privacy Policy</a> · <a href="/terms-of-service.html" style="color:#8e8e93;">Terms &amp; Conditions</a></div>
+      <button type="button" onclick="openRestrictionMenu()" style="width:100%;margin-top:6px;padding:13px;border-radius:14px;border:1px solid #3a3a3c;background:none;color:#fff;font-size:15px;cursor:pointer;">YouSeries restriction</button>
+      <div style="text-align:center;margin-top:20px;font-size:22px;font-weight:800;letter-spacing:.5px;color:#fff;">Tamasha</div>
+    </div>`;
+}
+// "YouSeries restriction" → the policy pages live here
+function openRestrictionMenu(){
+  const ov = document.getElementById('accountsSheet');
+  if (!ov) return;
+  const item = (label, href) => `<a href="${href}" style="display:flex;justify-content:space-between;align-items:center;padding:15px 14px;color:#fff;text-decoration:none;font-size:15px;border-bottom:1px solid #3a3a3c;"><span>${label}</span><span style="color:#8e8e93;">›</span></a>`;
+  ov.innerHTML = `<div style="width:100%;max-width:520px;background:#1c1c1e;border-radius:22px 22px 0 0;padding:14px 14px 18px;color:#fff;">
+      <div style="width:40px;height:5px;border-radius:3px;background:#555;margin:0 auto 14px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <button type="button" onclick="openAccountsSheet()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">←</button>
+        <div style="font-weight:700;font-size:16px;">YouSeries restriction</div>
+      </div>
+      <div style="border:1px solid #3a3a3c;border-radius:16px;overflow:hidden;">
+        ${item('Privacy Policy', '/privacy-policy.html')}
+        ${item('Terms &amp; Conditions', '/terms-of-service.html')}
+      </div>
     </div>`;
 }
 function closeAccountsSheet(){ const ov = document.getElementById('accountsSheet'); if (ov) ov.remove(); }
