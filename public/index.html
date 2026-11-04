@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>YouSeries – Video & Shorts Streaming | Watch and share videos</title>
-  <meta name="description" content="YouSeries par short videos, full videos aur photos dekho aur share karo. Creators ko follow karo, comments karo aur apna content upload karo.">
+  <meta name="description" content="Watch and share short videos, full videos and photos on YouSeries. Follow creators, comment, and upload your own content.">
   <meta name="keywords" content="YouSeries, video streaming, shorts, short videos, watch videos, upload videos, creators">
   <link rel="canonical" href="https://www.tamasha.qd.je/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="YouSeries">
   <meta property="og:title" content="YouSeries – Video & Shorts Streaming">
-  <meta property="og:description" content="Short videos, full videos aur photos dekho aur share karo.">
+  <meta property="og:description" content="Watch and share short videos, full videos and photos.">
   <meta property="og:url" content="https://www.tamasha.qd.je/">
   <meta name="twitter:card" content="summary">
 <link rel="manifest" href="/manifest.json">
@@ -676,6 +676,12 @@
 .story-viewer-who{display:flex;flex-direction:column;min-width:0;flex:1;}
 .story-song-line{color:#fff;font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-top:2px;}
 .song-title-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+
+/* long press: no text selection or phone menu on the bottom bar, usernames, or media (inputs still work) */
+.tab-btn, .tab-btn *, .card-username, .profile-username, .card-username *, .profile-username *, #accountsSheet {
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.tab-btn img, #tabProfile img { pointer-events:none; }
 </style>
 </head>
 <body>
@@ -721,7 +727,7 @@
     <input type="text" id="searchInput" placeholder="Search films, shorts, people, #hashtags..." oninput="doSearch(this.value)">
   </div>
   <div class="search-results hidden" id="searchResults"></div>
-  <div class="search-placeholder" id="searchPlaceholder">Kuch bhi search karo — films, shorts, log ya #hashtag.</div>
+  <div class="search-placeholder" id="searchPlaceholder">Search for anything — films, shorts, people or #hashtags.</div>
 </div>
 
 <div id="shortsView">
@@ -817,7 +823,7 @@
     </div>
   </div>
   <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;" onchange="onStoryFilePicked(event)">
-  <div id="storyPickArea" class="se-pick" onclick="document.getElementById('storyFileInput').click()">📷 Photo ya video chuno</div>
+  <div id="storyPickArea" class="se-pick" onclick="document.getElementById('storyFileInput').click()">📷 Choose a photo or video</div>
   <div class="se-media-wrap">
     <div class="story-upload-preview hidden" id="storyPreviewArea">
       <img id="storyPreviewImg" class="hidden" alt="" loading="lazy" decoding="async">
@@ -963,7 +969,7 @@
     <div class="sendto-grid" id="sendToList"></div>
     <div style="display:flex;gap:8px;margin:10px 0;">
       <input type="text" id="sendToText" placeholder="Message likho (optional)" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
-      <button id="sendToGo" onclick="sendSelectedTo()" style="background:var(--marigold);color:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:600;cursor:pointer;">Select karo</button>
+      <button id="sendToGo" onclick="sendSelectedTo()" style="background:var(--marigold);color:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:600;cursor:pointer;">Select</button>
     </div>
     <div class="sendto-actions">
       <button class="sendto-action-btn" onclick="sendToAddToStory()"><span class="sendto-action-icon">📖</span>Add to Story</button>
@@ -1025,10 +1031,10 @@
   <div class="sheet">
     <div class="sheet-header"><h3>🤝 Collab</h3><button class="sheet-close" onclick="closeCollabSheet()">✕</button></div>
     <p id="collabStatusText" style="color:var(--cream-dim);font-size:13.5px;margin:0 0 10px;"></p>
-    <input type="text" id="collabUserInput" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'sheetCollabPopup', 'sheet')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;">
+    <input type="text" id="collabUserInput" placeholder="type a username — tap one from the list" oninput="collabSearchInput(this, 'sheetCollabPopup', 'sheet')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:8px;padding:10px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14.5px;">
     <div class="collab-popup hidden" id="sheetCollabPopup"></div>
-    <button onclick="sendCollabInvite()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Invite bhejo</button>
-    <button id="collabRemoveBtn" onclick="removeCollab()" style="margin-top:8px;width:100%;background:transparent;color:#e88a8a;border:1px solid #E63950;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;">Collab hatao</button>
+    <button onclick="sendCollabInvite()" style="margin-top:12px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;font-size:15px;cursor:pointer;">Send invite</button>
+    <button id="collabRemoveBtn" onclick="removeCollab()" style="margin-top:8px;width:100%;background:transparent;color:#e88a8a;border:1px solid #E63950;border-radius:8px;padding:11px;font-weight:600;font-size:14px;cursor:pointer;">Remove collab</button>
   </div>
 </div>
 
@@ -1068,7 +1074,7 @@
       <label>Title *</label>
       <input type="text" id="qTitle" required>
 
-      <label>Kab publish karna hai? (optional, khali = abhi)</label>
+      <label>When to publish? (optional, empty = now)</label>
       <input type="datetime-local" id="qPublishAt" style="width:100%;">
 
       <label>Content Type</label>
@@ -1099,17 +1105,17 @@
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
       <label>Description</label><textarea id="qDescription"></textarea>
-      <label>🤝 Collab (optional) — dusre user ke saath post share karo</label>
+      <label>🤝 Collab (optional) — share a post with another user</label>
       <div class="collab-chip hidden" id="qCollabChip"></div>
-      <input type="text" id="qCollab" placeholder="username likho — list me se tap karo" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
+      <input type="text" id="qCollab" placeholder="type a username — tap one from the list" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
       <div class="collab-popup hidden" id="qCollabPopup"></div>
 
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
-        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won't show in the feed of people who've turned this off)</span>
+        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won’t show in the feed of people who've turned this off)</span>
       </label>
 
-      <button type="button" id="qSongBtn" onclick="pickUploadSong()" style="width:100%;margin-bottom:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Song add karo (optional)</button>
+      <button type="button" id="qSongBtn" onclick="pickUploadSong()" style="width:100%;margin-bottom:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Add a song (optional)</button>
       <div id="qSongLabel" class="meta" style="margin-bottom:8px;"></div>
       <button type="submit">Start Upload</button>
     </form>
@@ -1176,7 +1182,7 @@ function collabSearchInput(inputEl, popupId, mode){
         <div class="collab-popup-item" data-uid="${escapeAttr(u.id)}" data-uname="${escapeAttr(u.username)}" onclick="pickCollabUser(this, '${mode}', '${popupId}')">
           <div class="collab-popup-avatar">${u.profileImage ? `<img src="${escapeAttr(u.profileImage)}" loading="lazy" decoding="async">` : escapeHtml((u.username[0] || '?').toUpperCase())}</div>
           <span class="collab-popup-name">@${escapeHtml(u.username)}</span>
-        </div>`).join('') : '<div class="collab-popup-empty">Koi user nahi mila</div>';
+        </div>`).join('') : '<div class="collab-popup-empty">No users found</div>';
       popup.classList.remove('hidden');
     } catch (e) {}
   }, 200);
@@ -1204,13 +1210,13 @@ function clearUploadCollab(){
 function openCollabSheet(filmId){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const film = (currentFilm && currentFilm.id === filmId ? currentFilm : null) || allFilms.find(f => f.id === filmId);
-  if (!film || film.ownerId !== currentUser.id) { showToast('Sirf post ka owner collab set kar sakta hai'); return; }
+  if (!film || film.ownerId !== currentUser.id) { showToast('Only the post owner can set the collab'); return; }
   collabTargetId = filmId;
-  let status = 'Abhi koi collab nahi hai. Jis user ko invite karoge, uske accept karne ke baad post dono profiles pe dikhegi.';
+  let status = 'No collabs yet. When you invite a user and they accept, the post will show on both profiles.';
   if (film.collaboratorUsername) {
     status = film.collabStatus === 'accepted'
       ? `Collab active: @${film.collaboratorUsername} ✓`
-      : `Invite pending: @${film.collaboratorUsername} ke accept karne ka wait hai`;
+      : `Invite pending: waiting for @${film.collaboratorUsername} to accept`;
   }
   document.getElementById('collabStatusText').textContent = status;
   document.getElementById('collabUserInput').value = '';
@@ -1228,18 +1234,18 @@ function applyCollabToLocal(filmId, patch){
 }
 async function sendCollabInvite(usernameOverride){
   const username = (typeof usernameOverride === 'string' ? usernameOverride : document.getElementById('collabUserInput').value).trim();
-  if (!username || !collabTargetId) { showToast('Username likho'); return; }
+  if (!username || !collabTargetId) { showToast('Type a username'); return; }
   const id = collabTargetId;
   try {
     const res = await fetch('/api/films/' + id + '/collab', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username })
     });
     const data = await res.json();
-    if (!res.ok) { showToast(data.error || 'Invite nahi gaya'); return; }
+    if (!res.ok) { showToast(data.error || 'Invite not sent'); return; }
     applyCollabToLocal(id, { collaboratorId: data.collaboratorId, collaboratorUsername: data.collaboratorUsername, collabStatus: 'pending' });
     closeCollabSheet();
     showToast('Invite bhej diya ✓');
-  } catch (e) { showToast('Invite nahi gaya'); }
+  } catch (e) { showToast('Invite not sent'); }
 }
 async function removeCollab(){
   if (!collabTargetId) return;
@@ -1252,7 +1258,7 @@ async function removeCollab(){
     applyCollabToLocal(id, {});
     closeCollabSheet();
     loadFilms();
-    showToast('Collab hata diya');
+    showToast('Collab removed');
   } catch (e) {}
 }
 
@@ -1273,7 +1279,7 @@ async function openHashtagFeed(tag){
     const data = await res.json();
     const films = data.films || [];
     if (!films.length) {
-      contentEl.innerHTML = `<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">#${escapeHtml(tag)} ke saath abhi koi post nahi hai.</p>`;
+      contentEl.innerHTML = `<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">#${escapeHtml(tag)} has no posts yet.</p>`;
       return;
     }
     contentEl.innerHTML = `
@@ -1283,7 +1289,7 @@ async function openHashtagFeed(tag){
       </div>
     `;
   } catch (e) {
-    contentEl.innerHTML = '<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">Load nahi hua — dubara try karo.</p>';
+    contentEl.innerHTML = '<p class="comment-empty" style="text-align:center;padding:40px 20px;font-size:15px;">Failed to load — try again.</p>';
   }
 }
 function closeHashtagFeed(){ document.getElementById('hashtagFeedOverlay').classList.remove('open'); }
@@ -1397,8 +1403,8 @@ function renderLoginWall(){
       <span style="font-weight:800;color:#4285F4;">G</span> Continue with Google</a>
     <a href="/forgot-password.html" style="margin-top:18px;color:#00376b;font-size:13px;text-decoration:none;">Forgot password?</a>
     <div style="margin-top:auto;padding-top:30px;text-align:center;width:100%;">
-      <div style="font-size:14px;color:#262626;margin-bottom:10px;">Account nahi hai?</div>
-      <a href="/signup.html" style="display:block;width:100%;max-width:340px;margin:0 auto;box-sizing:border-box;height:40px;line-height:40px;border:1px solid #0095f6;border-radius:8px;color:#0095f6;font-weight:600;text-decoration:none;font-size:14px;">Naya account banao</a>
+      <div style="font-size:14px;color:#262626;margin-bottom:10px;">Don’t have an account?</div>
+      <a href="/signup.html" style="display:block;width:100%;max-width:340px;margin:0 auto;box-sizing:border-box;height:40px;line-height:40px;border:1px solid #0095f6;border-radius:8px;color:#0095f6;font-weight:600;text-decoration:none;font-size:14px;">Create a new account</a>
       <div style="margin-top:22px;font-size:11px;color:#8e8e8e;">YouSeries · Video &amp; Shorts Streaming</div>
     </div>`;
   document.body.appendChild(w);
@@ -1409,12 +1415,12 @@ async function wallLogin(){
   const err = document.getElementById('wallErr');
   const email = document.getElementById('wallEmail').value.trim();
   const password = document.getElementById('wallPass').value;
-  if (!email || !password) { err.textContent = 'Username aur password dono daalo'; return; }
+  if (!email || !password) { err.textContent = 'Enter both username and password'; return; }
   btn.disabled = true; btn.textContent = 'Logging in...'; err.textContent = '';
   try {
     const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Login nahi hua');
+    if (!res.ok) throw new Error(data.error || 'Login failed');
     window.location.reload();
   } catch (e) {
     err.textContent = e.message;
@@ -1499,7 +1505,7 @@ async function openAccountsSheet(){
           <div style="font-size:15px;">Add account</div>
         </div>
       </div>
-      <div onclick="closeAccountsSheet();goToMyProfile()" style="margin-top:12px;text-align:center;color:#0a84ff;padding:10px;cursor:pointer;">Apni profile kholo</div>
+      <div onclick="closeAccountsSheet();goToMyProfile()" style="margin-top:12px;text-align:center;color:#0a84ff;padding:10px;cursor:pointer;">Open my profile</div>
       <button type="button" onclick="openRestrictionMenu()" style="width:100%;margin-top:6px;padding:13px;border-radius:14px;border:1px solid #3a3a3c;background:none;color:#fff;font-size:15px;cursor:pointer;">YouSeries restriction</button>
       <div style="text-align:center;margin-top:20px;font-size:22px;font-weight:800;letter-spacing:.5px;color:#fff;">Tamasha</div>
     </div>`;
@@ -1525,7 +1531,7 @@ function closeAccountsSheet(){ const ov = document.getElementById('accountsSheet
 async function switchAccount(id){
   try {
     const r = await fetch('/api/accounts/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Switch nahi hua'); }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Switch failed'); }
     window.location.href = '/';
   } catch (e) { alert(e.message); }
 }
@@ -1568,7 +1574,7 @@ async function renderOtherProfile(userId, usernameHint){
   const theirPhotos = theirFilms.filter(f => f.type === 'photo');
 
   if (pub.hasBlockedMe) {
-    el.innerHTML = `<p class="comment-empty" style="padding:40px 20px;">Ye profile available nahi hai.</p>`;
+    el.innerHTML = `<p class="comment-empty" style="padding:40px 20px;">This profile is not available.</p>`;
     return;
   }
   if (pub.blocked) {
@@ -1577,7 +1583,7 @@ async function renderOtherProfile(userId, usernameHint){
         <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}" loading="lazy" decoding="async">` : escapeHtml((pub.username[0] || '?').toUpperCase())}</div>
       </div>
       <div class="profile-username">@${escapeHtml(pub.username)}</div>
-      <p class="comment-empty" style="padding:20px;">Tumne is user ko block kiya hai. Inki posts, comments ya messages nahi dikhenge.</p>
+      <p class="comment-empty" style="padding:20px;">You have blocked this user. Their posts, comments or messages will be hidden.</p>
       <div class="profile-btn-row">
         <button class="profile-btn primary" onclick="toggleBlockFromMenu('${userId}')">Unblock</button>
       </div>
@@ -1643,11 +1649,11 @@ function closeProfileSafetyMenu(){ document.getElementById('profileSafetyOverlay
 async function toggleBlockFromMenu(userId){
   const willBlock = !(viewingProfile && viewingProfile.blocked);
   closeProfileSafetyMenu();
-  if (!confirm(willBlock ? 'Is user ko block karna hai? Inki posts, comments aur messages nahi dikhenge.' : 'Is user ko unblock karna hai?')) return;
+  if (!confirm(willBlock ? 'Block this user? Their posts, comments and messages will be hidden.' : 'Unblock this user?')) return;
   try {
     const res = await fetch('/api/users/' + userId + '/block', { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Kuch galat ho gaya'); return; }
+    if (!res.ok) { alert(data.error || 'Something went wrong'); return; }
     const uname = viewingProfile ? viewingProfile.username : '';
     renderOtherProfile(userId, uname);
     loadFilms();
@@ -1661,7 +1667,7 @@ async function toggleRestrictFromMenu(userId){
     const data = await res.json();
     if (!res.ok) return;
     if (viewingProfile) viewingProfile.restricted = data.restricted;
-    showToast(data.restricted ? 'Restrict kar diya' : 'Unrestrict kar diya');
+    showToast(data.restricted ? 'Restricted' : 'Unrestricted');
   } catch (e) {}
 }
 
@@ -1697,7 +1703,7 @@ function openEditFromFeed(id){
 }
 async function deleteFeedPost(id){
   const film = allFilms.find(f => f.id === id);
-  if (!confirm((film && film.type === 'photo' ? 'Ye photo' : 'Ye video') + ' permanently delete karni hai?')) return;
+  if (!confirm((film && film.type === 'photo' ? 'Ye photo' : 'Ye video') + ' permanently delete?')) return;
   try {
     const res = await fetch('/api/films/' + id, { method: 'DELETE' });
     if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
@@ -1712,10 +1718,10 @@ async function deleteFeedPost(id){
   } catch (err) { showToast(err.message); }
 }
 async function confirmBlockFromPost(userId){
-  if (!confirm('Is user ko block karna hai? Inki posts, comments aur messages nahi dikhenge.')) return;
+  if (!confirm('Block this user? Their posts, comments and messages will be hidden.')) return;
   try {
     const res = await fetch('/api/users/' + userId + '/block', { method: 'POST' });
-    if (res.ok) { showToast('Block kar diya'); loadFilms(); }
+    if (res.ok) { showToast('Blocked'); loadFilms(); }
   } catch (e) {}
 }
 
@@ -1748,7 +1754,7 @@ async function submitReport(reason){
       body: JSON.stringify({ type, targetId, reason })
     });
     if (res.ok) showToast('Report bhej diya. Dhanyavaad.');
-    else { const d = await res.json(); alert(d.error || 'Report nahi bhej paaye'); }
+    else { const d = await res.json(); alert(d.error || 'Could not send report'); }
   } catch (e) {}
 }
 
@@ -1783,10 +1789,10 @@ function openYourDashboard(){
     </div>
     <div style="font-weight:700;margin:18px 0 4px;">Insights</div>
     <div class="meta" style="margin-bottom:6px;">Pichle 30 din me aapki posts</div>
-    ${row('Views', st.views, 'Pichle 30 din me post ki gayi posts par')}
-    ${row('Likes', st.likes, 'Pichle 30 din me post ki gayi posts par')}
-    ${row('Content shared', st.shared, 'Pichle 30 din me upload ki gayi posts')}
-    ${row('Followers', st.followers, 'Kul followers (30 din ka alag count abhi track nahi hota)')}
+    ${row('Views', st.views, 'On posts published in the last 30 days')}
+    ${row('Likes', st.likes, 'On posts published in the last 30 days')}
+    ${row('Content shared', st.shared, 'Posts uploaded in the last 30 days')}
+    ${row('Followers', st.followers, 'Total followers (a separate 30-day count is not tracked yet)')}
     <div style="font-weight:700;margin:26px 0 4px;">Your tools</div>
     ${tool('Edit profile', "document.getElementById('yourDashOverlay').remove();toggleSettings()")}
     ${tool('Share profile', "copyProfileLink('" + currentUser.id + "')")}
@@ -1870,7 +1876,7 @@ async function renderProfile(){
       <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change username</h3>
-      <input type="text" id="newUsernameInput" placeholder="Naya username" value="${escapeHtml(currentUser.username)}">
+      <input type="text" id="newUsernameInput" placeholder="New username" value="${escapeHtml(currentUser.username)}">
       <button class="settings-save-btn" onclick="changeUsername()">Save username</button>
       <div id="usernameStatus" style="margin-top:8px;font-size:13px;"></div>
 
@@ -1884,10 +1890,10 @@ async function renderProfile(){
       <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 10px;">This will be used to recover your account if you forget your password.</p>
       <select id="secQuestionSelect">
         <option value="">-- Select a question --</option>
-        <option value="Aapke pehle pet ka naam?">Aapke pehle pet ka naam?</option>
-        <option value="Aapke school ka naam?">Aapke school ka naam?</option>
+        <option value="What is your first pet’s name?">What is your first pet’s name?</option>
+        <option value="What is your school’s name?">What is your school’s name?</option>
         <option value="Aapki favorite movie?">Aapki favorite movie?</option>
-        <option value="Aapke shehar ka naam jahan aap bade hue?">Aapke shehar ka naam jahan aap bade hue?</option>
+        <option value="What is the name of the city where you grew up?">What is the name of the city where you grew up?</option>
       </select>
       <input type="text" id="secAnswerInput" placeholder="Answer">
       <button class="settings-save-btn" onclick="setSecurityQuestion()">Save security question</button>
@@ -1928,7 +1934,7 @@ async function loadSavedGrid(){
     const res = await fetch('/api/me/saved');
     const data = await res.json();
     const saved = data.saved || [];
-    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('') || '<p class="comment-empty">Koi saved post nahi hai abhi.</p>';
+    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('') || '<p class="comment-empty">No saved posts yet.</p>';
   } catch (e) {
     el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
   }
@@ -2020,11 +2026,11 @@ function renderProfileMenuMain(){
 }
 
 function confirmLogoutFromMenu(){
-  if (confirm('Log out karna hai?')) logout();
+  if (confirm('Log out?')) logout();
 }
 
 // ---- Settings and Privacy ----
-const NOTIF_LABELS = { like: '❤️ Likes', comment: '💬 Comments', follow: '👤 Naye followers', mention: '@ Mentions', message: '✉️ Messages', collab: '🤝 Collab', story: '🔵 Stories' };
+const NOTIF_LABELS = { like: '❤️ Likes', comment: '💬 Comments', follow: '👤 New followers', mention: '@ Mentions', message: '✉️ Messages', collab: '🤝 Collab', story: '🔵 Stories' };
 async function openNotifPrefs(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   closeProfileMenu && closeProfileMenu();
@@ -2032,7 +2038,7 @@ async function openNotifPrefs(){
   const el = document.createElement('div');
   el.id = 'notifOverlay';
   el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:18px;';
-  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">🔔 Notifications</div><div id="notifBody" style="font-size:13.5px;color:var(--cream-dim);">Load ho raha hai…</div><button type="button" onclick="document.getElementById(\'notifOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Band karo</button></div>';
+  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">🔔 Notifications</div><div id="notifBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div><button type="button" onclick="document.getElementById(\'notifOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Close</button></div>';
   document.body.appendChild(el);
   try {
     const res = await fetch('/api/me/notif-prefs');
@@ -2042,13 +2048,13 @@ async function openNotifPrefs(){
       <label style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--gold-line);color:var(--cream);font-size:14px;">
         <span>${NOTIF_LABELS[k]}</span>
         <input type="checkbox" ${d[k] ? 'checked' : ''} onchange="saveNotifPref('${k}', this.checked)" style="width:20px;height:20px;">
-      </label>`).join('') + '<div style="margin-top:8px;font-size:12px;">Jo band karoge wo notification nahi aayega.</div>';
+      </label>`).join('') + '<div style="margin-top:8px;font-size:12px;">Turned-off items will not send notifications.</div>';
   } catch (e) { document.getElementById('notifBody').textContent = '❌ ' + e.message; }
 }
 async function saveNotifPref(key, on){
   try {
     const res = await fetch('/api/me/notif-prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: on }) });
-    if (!res.ok) throw new Error('Save nahi hua');
+    if (!res.ok) throw new Error('Not saved');
   } catch (e) { showToast(e.message); }
 }
 
@@ -2059,7 +2065,7 @@ async function openBlueTick(){
   const el = document.createElement('div');
   el.id = 'blueOverlay';
   el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;';
-  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:380px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">✔ Blue tick</div><div id="blueBody" style="font-size:13.5px;color:var(--cream-dim);">Load ho raha hai…</div><button type="button" onclick="document.getElementById(\'blueOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Band karo</button></div>';
+  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:380px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">✔ Blue tick</div><div id="blueBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div><button type="button" onclick="document.getElementById(\'blueOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Close</button></div>';
   document.body.appendChild(el);
   renderBlueTick();
 }
@@ -2077,33 +2083,33 @@ async function renderBlueTick(){
     if (!res.ok) throw new Error(d.error || 'Failed');
     let html = '';
     if (d.free) {
-      html += '<div style="color:var(--ok);font-weight:600;">✔ Criteria poore hue — tumhara blue tick permanent hai (free)</div>';
+      html += '<div style="color:var(--ok);font-weight:600;">✔ Requirements met — your blue tick is permanent (free)</div>';
     } else if (d.verified) {
       const until = d.verifiedUntil ? new Date(d.verifiedUntil).toLocaleDateString() : '';
-      html += `<div style="color:var(--ok);font-weight:600;">✔ Tumhara paid blue tick active hai${until ? ' (' + until + ' tak)' : ''}</div>`;
+      html += `<div style="color:var(--ok);font-weight:600;">✔ Your paid blue tick is active${until ? ' (' + until + ' until)' : ''}</div>`;
     }
     if (!d.verified) {
-      html += '<div style="margin-top:8px;font-size:12.5px;">Free: 10 followers aur 150 total views poore karo, to blue tick permanent mil jayega.</div>';
+      html += '<div style="margin-top:8px;font-size:12.5px;">Free: reach 10 followers and 150 total views to get a permanent blue tick.</div>';
       html += '<div style="margin-top:6px;">Criteria:</div>';
       html += blueBar('Followers', d.followers, d.minFollowers);
       html += blueBar('Total views', d.views, d.minViews);
     }
-    if (d.latest && d.latest.status === 'rejected') html += `<div style="margin-top:12px;color:var(--bad);">Pichhli request reject hui${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. Dobara try kar sakte ho.</div>`;
+    if (d.latest && d.latest.status === 'rejected') html += `<div style="margin-top:12px;color:var(--bad);">Your last request was rejected${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. You can try again.</div>`;
     if (d.pending) {
-      html += '<div style="margin-top:14px;color:#ffcf5c;">⏳ Tumhari request check ho rahi hai. Approve hone par notification aayega.</div>';
+      html += '<div style="margin-top:14px;color:#ffcf5c;">⏳ Your request is being reviewed. You will get a notification when it is approved.</div>';
     } else if (d.free) {
       /* permanent free tick: no payment needed */
     } else {
       html += `<div style="margin-top:14px;font-weight:600;color:var(--cream);">Monthly: ₹${d.price} / mahine</div>`;
-      html += '<div style="margin-top:4px;font-size:12.5px;">Criteria ka wait nahi karna? Ye amount UPI se pay karo. Har 30 din baad dobara pay karna hoga.</div>';
-      if (!d.qrUrl && !d.upi) html += '<div style="margin-top:12px;color:#ffcf5c;">Payment details abhi set nahi hue. Thodi der baad dobara kholo.</div>';
+      html += '<div style="margin-top:4px;font-size:12.5px;">Don’t want to wait for the requirements? Pay this amount via UPI. You will need to pay again every 30 days.</div>';
+      if (!d.qrUrl && !d.upi) html += '<div style="margin-top:12px;color:#ffcf5c;">Payment details are not set up yet. Please try again later.</div>';
       if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;" loading="lazy" decoding="async">`;
       if (d.upi) html += `<div style="text-align:center;color:var(--cream);font-weight:600;">${escapeHtml(d.upi)}</div>`;
       if (d.upi) html += `<a href="upi://pay?pa=${encodeURIComponent(d.upi)}&pn=${encodeURIComponent('YouSeries')}&am=${encodeURIComponent(d.price)}&cu=INR&tn=${encodeURIComponent('YouSeries Blue tick')}" style="display:block;margin-top:12px;text-align:center;background:var(--marigold);color:#fff;padding:12px;border-radius:8px;font-weight:600;text-decoration:none;">₹${d.price} UPI app se pay karo</a>
-        <div style="text-align:center;font-size:11.5px;margin-top:4px;">Button se UPI app khulegi (GPay, PhonePe, Paytm). Payment ke baad UTR yahan daalo.</div>`;
-      html += `<div style="margin-top:12px;">Payment ke baad 12-digit UPI transaction ID (UTR) yahan daalo:</div>
+        <div style="text-align:center;font-size:11.5px;margin-top:4px;">The button opens your UPI app (GPay, PhonePe, Paytm). After paying, enter the UTR here.</div>`;
+      html += `<div style="margin-top:12px;">After payment, enter your 12-digit UPI transaction ID (UTR) here:</div>
         <input id="blueUtr" type="text" inputmode="numeric" maxlength="16" placeholder="123456789012" style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-        <button type="button" onclick="submitBlueTick()" style="margin-top:10px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Request bhejo</button>
+        <button type="button" onclick="submitBlueTick()" style="margin-top:10px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send request</button>
         <div id="blueMsg" style="margin-top:8px;color:#e88a8a;"></div>`;
     }
     body.innerHTML = html;
@@ -2112,7 +2118,7 @@ async function renderBlueTick(){
 async function submitBlueTick(){
   const utr = (document.getElementById('blueUtr').value || '').replace(/\s/g, '');
   const msg = document.getElementById('blueMsg');
-  if (!/^\d{12}$/.test(utr)) { msg.textContent = 'UTR 12 digits ka hona chahiye'; return; }
+  if (!/^\d{12}$/.test(utr)) { msg.textContent = 'UTR must be 12 digits'; return; }
   try {
     const res = await fetch('/api/bluetick/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utr }) });
     const data = await res.json();
@@ -2138,29 +2144,29 @@ async function renderDevicesMenu(){
   try {
     const r = await fetch('/api/me/sessions');
     data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Devices load nahi hue');
+    if (!r.ok) throw new Error(data.error || 'Could not load devices');
   } catch (e) { body.innerHTML = '<div class="empty">❌ ' + escapeHtml(e.message) + '</div>'; return; }
   const list = data.sessions || [];
   const others = list.filter(x => !x.current);
   body.innerHTML = `
-    <div style="font-size:13px;color:var(--cream-dim);padding:8px 4px 10px;">Ye wo devices hain jinpar aapka account login hai. Kisi device ko log out kar sakte ho.</div>
+    <div style="font-size:13px;color:var(--cream-dim);padding:8px 4px 10px;">These are the devices where your account is logged in. You can log out of any device.</div>
     ${list.map(x => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
       <div style="min-width:0;">
         <div style="font-weight:600;">${escapeHtml(x.device || 'Device')}</div>
-        <div class="meta" style="font-size:12px;">${x.current ? 'Ye device (abhi use ho raha hai)' : 'Login: ' + escapeHtml(new Date(x.createdAt).toLocaleString())}</div>
+        <div class="meta" style="font-size:12px;">${x.current ? 'This device (in use now)' : 'Login: ' + escapeHtml(new Date(x.createdAt).toLocaleString())}</div>
       </div>
       ${x.current ? '<span style="font-size:12px;color:#7C5CFF;font-weight:700;">Current</span>'
         : `<button type="button" onclick="logoutDevice('${x.sid}')" style="background:none;border:1px solid #E0245E;color:#E0245E;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:600;">Log out</button>`}
-    </div>`).join('') || '<div class="empty">Koi device nahi mila.</div>'}
-    ${others.length ? `<button type="button" onclick="logoutOtherDevices()" style="margin-top:18px;width:100%;padding:12px;border-radius:10px;border:none;background:#E0245E;color:#fff;font-weight:700;cursor:pointer;">Doosre sab devices se log out karo (${others.length})</button>` : ''}`;
+    </div>`).join('') || '<div class="empty">No devices found.</div>'}
+    ${others.length ? `<button type="button" onclick="logoutOtherDevices()" style="margin-top:18px;width:100%;padding:12px;border-radius:10px;border:none;background:#E0245E;color:#fff;font-weight:700;cursor:pointer;">Log out of all other devices (${others.length})</button>` : ''}`;
 }
 async function logoutDevice(sid){
-  if (!confirm('Ye device se log out karna hai?')) return;
+  if (!confirm('Log out of this device?')) return;
   try { await fetch('/api/me/sessions/' + encodeURIComponent(sid) + '/logout', { method: 'POST' }); } catch (e) {}
   renderDevicesMenu();
 }
 async function logoutOtherDevices(){
-  if (!confirm('Is device ke alawa sab devices se log out karna hai?')) return;
+  if (!confirm('Log out of all devices except this one?')) return;
   try { await fetch('/api/me/sessions/logout-others', { method: 'POST' }); } catch (e) {}
   renderDevicesMenu();
 }
@@ -2278,17 +2284,17 @@ function renderHelpDesk(){
   setMenuTitle('Help Desk', true, 'renderSettingsPrivacyMenu()');
   const body = document.getElementById('profileMenuBody');
   body.innerHTML = `
-    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Apna sawal likho. Jawab yahin dikhega, aur email me bhi aayega (agar email diya ho).</p>
+    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Write your question. The reply will show here, and by email too (if you gave an email).</p>
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Tumhara naam</label>
     <input type="text" id="hdName" value="${currentUser ? escapeHtml(currentUser.username) : ''}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Email (jawab yahan bhi bhejenge)</label>
     <input type="email" id="hdEmail" value="${currentUser && currentUser.email ? escapeHtml(currentUser.email) : ''}" placeholder="you@example.com" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
-    <textarea id="hdProblem" placeholder="Apni problem detail me likho..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
+    <textarea id="hdProblem" placeholder="Describe your problem in detail..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
     <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send</button>
     <div id="hdStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
     <h3 style="font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 8px;">Tumhare messages</h3>
-    <div id="hdMine"><div class="comment-empty">Load ho raha hai…</div></div>
+    <div id="hdMine"><div class="comment-empty">Loading…</div></div>
   `;
   loadMyHelpTickets();
 }
@@ -2296,16 +2302,16 @@ function renderHelpDesk(){
 async function loadMyHelpTickets(){
   const box = document.getElementById('hdMine');
   if (!box) return;
-  if (!currentUser) { box.innerHTML = '<div class="comment-empty">Messages dekhne ke liye login karo.</div>'; return; }
+  if (!currentUser) { box.innerHTML = '<div class="comment-empty">Log in to see messages.</div>'; return; }
   try {
     const res = await fetch('/api/help-desk/mine');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     const list = data.tickets || [];
-    if (!list.length) { box.innerHTML = '<div class="comment-empty">Abhi koi message nahi.</div>'; return; }
+    if (!list.length) { box.innerHTML = '<div class="comment-empty">No messages yet.</div>'; return; }
     box.innerHTML = list.map(t => {
       const stBadge = t.status === 'answered' ? '<span style="color:var(--ok);font-size:12px;">✅ Jawab aaya</span>'
-        : t.status === 'closed' ? '<span style="color:var(--cream-dim);font-size:12px;">🔒 Band</span>'
+        : t.status === 'closed' ? '<span style="color:var(--cream-dim);font-size:12px;">🔒 Off</span>'
         : '<span style="color:#ffcf5c;font-size:12px;">⏳ Pending</span>';
       const thread = (t.replies || []).map(r => `
         <div style="margin-top:8px;padding:9px 12px;border-radius:12px;max-width:92%;word-break:break-word;font-size:13.5px;${r.from === 'admin' ? 'background:rgba(124,92,255,.18);margin-left:auto;' : 'background:rgba(255,255,255,.05);border:1px solid var(--gold-line);'}">
@@ -2317,7 +2323,7 @@ async function loadMyHelpTickets(){
         ${thread}
         ${t.status !== 'closed' ? `<div style="display:flex;gap:8px;margin-top:10px;">
           <input id="hdr-${t.id}" type="text" placeholder="Reply likho…" maxlength="1000" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);">
-          <button type="button" onclick="replyMyHelpTicket('${t.id}')" style="background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:0 14px;font-weight:600;cursor:pointer;">Bhejo</button>
+          <button type="button" onclick="replyMyHelpTicket('${t.id}')" style="background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:0 14px;font-weight:600;cursor:pointer;">Send</button>
         </div>` : ''}
       </div>`;
     }).join('');
@@ -2344,7 +2350,7 @@ async function submitHelpDesk(){
   const btn = document.getElementById('hdSubmitBtn');
   const statusEl = document.getElementById('hdStatus');
   if (!problem) { showToast('Please describe your problem'); return; }
-  btn.disabled = true; btn.textContent = 'Bhej rahe hain...'; statusEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Sending...'; statusEl.textContent = '';
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
@@ -2356,10 +2362,10 @@ async function submitHelpDesk(){
     clearTimeout(timer);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong while sending');
-    showToast('Sent! Jawab yahin dikhega.');
+    showToast('Sent! The reply will show here.');
     renderHelpDesk();
   } catch (err) {
-    statusEl.textContent = err.name === 'AbortError' ? 'Request timed out — dobara try karo' : err.message;
+    statusEl.textContent = err.name === 'AbortError' ? 'Request timed out — try again' : err.message;
     statusEl.style.color = '#e88a8a';
     btn.disabled = false; btn.textContent = 'Send';
   }
@@ -2464,7 +2470,7 @@ function openCropper(file, aspect, outW, title, videoMode){
         ${isVid ? '' : `<img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;" loading="lazy" decoding="async">`}
         ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;" loading="lazy" decoding="async">`}
       </div>
-      <div style="font-size:12px;color:#aaa;margin-top:8px;">Do ungliyon se zoom karo, ek ungli se khisko</div>
+      <div style="font-size:12px;color:#aaa;margin-top:8px;">Pinch to zoom, drag with one finger</div>
       <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
         <button id="cropCancel" style="flex:1;padding:12px;border-radius:12px;border:1px solid #666;background:none;color:#fff;font-weight:600;">Cancel</button>
         <button id="cropOk" style="flex:1;padding:12px;border-radius:12px;border:none;background:#7C5CFF;color:#fff;font-weight:600;">Use</button>
@@ -2546,7 +2552,7 @@ function openCropper(file, aspect, outW, title, videoMode){
 
 async function uploadAvatar(input){
   if (!input.files[0]) return;
-  const cropped = await openCropper(input.files[0], 1, 512, 'Profile photo adjust karo');
+  const cropped = await openCropper(input.files[0], 1, 512, 'Adjust profile photo');
   input.value = '';
   if (!cropped) return;
   const formData = new FormData();
@@ -2615,7 +2621,7 @@ async function setSecurityQuestion(){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     statusEl.style.color = '#8fd19e';
-    statusEl.textContent = 'Saved! Ab forgot password use kar sakte ho.';
+    statusEl.textContent = 'Saved! You can now use Forgot password.';
   } catch (err) {
     statusEl.style.color = '#e88a8a'; statusEl.textContent = err.message;
   }
@@ -2699,7 +2705,7 @@ function doSearchResults(query){
   const q = raw.replace(/^[#@]/, '');
   if (!q) {
     placeholderEl.classList.add('hidden'); resultsEl.classList.remove('hidden');
-    resultsEl.innerHTML = '<p class="comment-empty">' + (isTagQuery ? 'Hashtag likho, jaise #comedy' : 'Username likho') + '</p>';
+    resultsEl.innerHTML = '<p class="comment-empty">' + (isTagQuery ? 'Type a hashtag, e.g. #comedy' : 'Type a username') + '</p>';
     return;
   }
 
@@ -3048,7 +3054,7 @@ async function openInsights(filmId){
   try {
     const res = await fetch('/api/films/' + filmId + '/insights');
     const d = await res.json();
-    if (!res.ok) { body.innerHTML = `<p class="comment-empty">${escapeHtml(d.error || 'Insights load nahi hue')}</p>`; return; }
+    if (!res.ok) { body.innerHTML = `<p class="comment-empty">${escapeHtml(d.error || 'Insights failed to load')}</p>`; return; }
     const mins = Math.floor(d.avgWatchSeconds / 60), secs = d.avgWatchSeconds % 60;
     body.innerHTML = `
       <div class="insights-stat-row"><span class="insights-stat-label">Total Views</span><span class="insights-stat-value">${d.views}</span></div>
@@ -3203,7 +3209,7 @@ document.getElementById('editShortForm').addEventListener('submit', async (e) =>
 });
 
 async function deleteCurrentShort(){
-  if (!confirm('Ye video permanently delete karni hai?')) return;
+  if (!confirm('Permanently delete this video?')) return;
   try {
     const res = await fetch('/api/films/' + currentShortId, { method: 'DELETE' });
     if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
@@ -3372,7 +3378,7 @@ async function saveEditComment(filmId, commentId){
 }
 
 async function deleteComment(filmId, commentId){
-  if (!confirm('Ye comment delete karna hai?')) return;
+  if (!confirm('Delete this comment?')) return;
   try {
     const res = await fetch(`/api/films/${filmId}/comments/${commentId}/delete`, { method: 'POST' });
     const data = await res.json();
@@ -3397,7 +3403,7 @@ async function togglePinComment(filmId, commentId){
     if (currentFilm && currentFilm.id === filmId) renderCommentListInto('commentList', currentFilm.comments, filmId);
     const sheetFilm = allFilms.find(f => f.id === filmId);
     if (sheetFilm && document.getElementById('sheetCommentList')) renderCommentListInto('sheetCommentList', sheetFilm.comments, filmId);
-    showToast(data.pinned ? 'Comment pin ho gaya 📌' : 'Pin hata diya');
+    showToast(data.pinned ? 'Comment pinned 📌' : 'Unpinned');
   } catch (err) { showToast(err.message); }
 }
 async function toggleHideComment(filmId, commentId){
@@ -3410,7 +3416,7 @@ async function toggleHideComment(filmId, commentId){
       if (c) c.hidden = data.hidden;
     });
     if (currentFilm && currentFilm.id === filmId) renderCommentListInto('commentList', currentFilm.comments, filmId);
-    showToast(data.hidden ? 'Comment hide kar diya' : 'Comment wapas dikha diya');
+    showToast(data.hidden ? 'Comment hidden' : 'Comment shown again');
   } catch (err) {
     showToast(err.message);
   }
@@ -3433,7 +3439,7 @@ async function playFilm(id){
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
-  if (!res.ok) { showToast(f.error || 'Ye content ab available nahi hai'); return; }
+  if (!res.ok) { showToast(f.error || 'This content is no longer available'); return; }
   currentFilm = f;
   renderUpNext(f);
   if (f.song && f.type !== 'photo' && f.type !== 'short') {
@@ -3682,7 +3688,7 @@ async function togglePinProfile(id){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     window.myPinned = data.pinnedFilmIds;
-    showToast(data.pinned ? 'Profile pe pin ho gayi 📌' : 'Pin hata diya');
+    showToast(data.pinned ? 'Pinned to profile 📌' : 'Unpinned');
   } catch (e) { showToast(e.message); }
 }
 
@@ -3694,12 +3700,12 @@ function openNoteEditor(){
   el.id = 'noteOverlay';
   el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;';
   el.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;">
-    <div style="font-weight:700;margin-bottom:4px;">📝 Apna Note</div>
-    <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Max 60 akshar. 24 ghante baad apne aap hat jayega. Followers ko Messages me dikhega.</div>
-    <input id="noteInput" type="text" maxlength="60" value="${escapeAttr(cur)}" placeholder="Kya chal raha hai?" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,.06);color:var(--cream);font-size:14px;">
+    <div style="font-weight:700;margin-bottom:4px;">📝 My Note</div>
+    <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Max 60 characters. Removed automatically after 24 hours. Followers will see it in Messages.</div>
+    <input id="noteInput" type="text" maxlength="60" value="${escapeAttr(cur)}" placeholder="What’s on your mind?" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,.06);color:var(--cream);font-size:14px;">
     <div style="display:flex;gap:8px;margin-top:12px;">
       <button type="button" class="profile-btn primary" style="flex:1;" onclick="saveNote()">Save</button>
-      ${cur ? '<button type="button" class="profile-btn" style="flex:1;" onclick="saveNote(true)">Hatao</button>' : ''}
+      ${cur ? '<button type="button" class="profile-btn" style="flex:1;" onclick="saveNote(true)">Remove</button>' : ''}
       <button type="button" class="profile-btn" style="flex:1;" onclick="document.getElementById(\'noteOverlay\').remove()">Cancel</button>
     </div></div>`;
   document.body.appendChild(el);
@@ -3719,7 +3725,7 @@ async function saveNote(clear){
     if (!res.ok) throw new Error(data.error || 'Failed');
     window.myNote = data.note;
     const o = document.getElementById('noteOverlay'); if (o) o.remove();
-    showToast(data.note ? 'Note laga diya 📝' : 'Note hata diya');
+    showToast(data.note ? 'Note laga diya 📝' : 'Note removed');
     if (document.getElementById('chatInboxOverlay').classList.contains('open')) loadNotesStrip();
     try { renderProfile(); } catch (e) {}
   } catch (e) { showToast(e.message); }
@@ -3790,7 +3796,7 @@ function fullscreenPlayer(){
   try {
     if (v.requestFullscreen) v.requestFullscreen();
     else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
-  } catch (e) { showToast('Fullscreen is browser me nahi chal raha'); }
+  } catch (e) { showToast('Fullscreen does not work in this browser'); }
 }
 function closeModal(){
   stopSong();
@@ -3914,7 +3920,7 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
 
 async function deleteCurrentFilmModal(){
   if (!currentFilm) return;
-  if (!confirm('Ye permanently delete karni hai?')) return;
+  if (!confirm('Permanently delete this?')) return;
   try {
     const res = await fetch('/api/films/' + currentFilm.id, { method: 'DELETE' });
     if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || 'Delete failed'); }
@@ -3962,12 +3968,12 @@ function openSongPicker(kind, mediaSec){
     ov.id = 'songPicker';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:980;display:flex;align-items:center;justify-content:center;padding:16px;';
     ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:16px;width:100%;max-width:380px;max-height:86vh;overflow:auto;">
-      <div style="font-weight:700;margin-bottom:4px;color:var(--cream);">🎵 Song chuno</div>
+      <div style="font-weight:700;margin-bottom:4px;color:var(--cream);">🎵 Choose a song</div>
       <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Ye ${want} second tak chalega.</div>
-      <div id="spList">${list.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px;border:1px solid var(--gold-line);border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);"><b>${escapeHtml(x.title)}</b>${x.trending ? ' 🔥' : ''}<div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || '')}</div></div>`).join('') || '<div style="color:var(--cream-dim);">Abhi koi song nahi hai.</div>'}</div>
-      <div id="spStart" style="display:none;margin-top:10px;color:var(--cream);font-size:13px;">Kahan se shuru karein: <span id="spSecs">0s</span><input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;"><button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid #888;background:none;color:var(--cream);">Band karo</button><button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;opacity:.5;">Ye lagao</button></div>
-      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);">Bina song ke aage badho</button></div>`;
+      <div id="spList">${list.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px;border:1px solid var(--gold-line);border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);"><b>${escapeHtml(x.title)}</b>${x.trending ? ' 🔥' : ''}<div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || '')}</div></div>`).join('') || '<div style="color:var(--cream-dim);">No songs yet.</div>'}</div>
+      <div id="spStart" style="display:none;margin-top:10px;color:var(--cream);font-size:13px;">Start from: <span id="spSecs">0s</span><input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;"><button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid #888;background:none;color:var(--cream);">Close</button><button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;opacity:.5;">Use this song</button></div>
+      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);">Continue without a song</button></div>`;
     document.body.appendChild(ov);
     let chosen = null, audio = null, stopT = null;
     const stopPreview = () => { clearTimeout(stopT); if (audio) { audio.pause(); audio = null; } };
@@ -4068,13 +4074,13 @@ let storyPickedFile = null;
 let storyAdjust = null;
 let storyChosenSong = null;
 async function pickStorySong(){
-  if (!storyPickedFile) { showToast('Pehle photo ya video chuno'); return; }
+  if (!storyPickedFile) { showToast('Choose a photo or video first'); return; }
   const isVid = storyPickedFile.type.startsWith('video');
   const pick = await openSongPicker(isVid ? 'video' : 'photo', isVid ? await mediaDurationOf(storyPickedFile) : 8);
   if (pick === 'cancel') return;
   storyChosenSong = pick;
   const lbl = document.getElementById('storySongLabel');
-  if (lbl) lbl.textContent = pick ? '🎵 Song chuna gaya' : '';
+  if (lbl) lbl.textContent = pick ? '🎵 Song selected' : '';
 }
 let storyPickedType = null;
 
@@ -4164,10 +4170,10 @@ async function onStoryFilePicked(e){
   if (!file) return;
   storyAdjust = null;
   if (file.type.startsWith('image/')) {
-    file = await openCropper(file, 9 / 16, 1080, 'Story adjust karo');
+    file = await openCropper(file, 9 / 16, 1080, 'Adjust story');
     if (!file) { e.target.value = ''; return; }
   } else if (file.type.startsWith('video/')) {
-    const r = await openCropper(file, 9 / 16, 0, 'Video adjust karo (zoom aur position)', true);
+    const r = await openCropper(file, 9 / 16, 0, 'Adjust video (zoom and position)', true);
     if (!r) { e.target.value = ''; return; }
     storyAdjust = r.adjust;
   }
@@ -4197,7 +4203,7 @@ async function pickUploadSong(){
   if (pick === 'cancel') return;
   uploadSongChoice = pick || null;
   const lbl = document.getElementById('qSongLabel');
-  if (lbl) lbl.textContent = uploadSongChoice ? '🎵 Song chuna gaya' : '';
+  if (lbl) lbl.textContent = uploadSongChoice ? '🎵 Song selected' : '';
 }
 async function postStory(){
   if (!storyPickedFile) return;
@@ -4214,7 +4220,7 @@ async function postStory(){
     if (!res.ok) { statusEl.textContent = data.error || 'Something went wrong'; return; }
     statusEl.textContent = '';
     closeStoryUploadModal();
-    showToast('Story lag gayi!');
+    showToast('Story posted!');
     loadStories();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) { statusEl.textContent = 'Upload failed'; }
@@ -4483,7 +4489,7 @@ async function openHighlightPicker(){
     const res = await fetch('/api/me/stories');
     const data = await res.json();
     const stories = data.stories || [];
-    if (!stories.length) { list.innerHTML = '<p class="comment-empty">Koi story nahi mili. Pehle ek story post karo.</p>'; return; }
+    if (!stories.length) { list.innerHTML = '<p class="comment-empty">No stories found. Post a story first.</p>'; return; }
     list.innerHTML = stories.map(s => `
       <label class="highlight-picker-item">
         <input type="checkbox" onchange="toggleHighlightStoryPick('${s.id}', this.checked)">
@@ -4502,18 +4508,18 @@ function toggleHighlightStoryPick(storyId, checked){
 }
 async function submitHighlight(){
   const title = document.getElementById('highlightTitleInput').value.trim();
-  if (!title) { alert('Highlight ko title do'); return; }
-  if (!highlightPickedStoryIds.length) { alert('Kam se kam ek story chuno'); return; }
+  if (!title) { alert('Give the highlight a title'); return; }
+  if (!highlightPickedStoryIds.length) { alert('Choose at least one story'); return; }
   try {
     const res = await fetch('/api/highlights', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, storyIds: highlightPickedStoryIds })
     });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Highlight nahi ban paayi'); return; }
+    if (!res.ok) { alert(data.error || 'Could not create the highlight'); return; }
     closeHighlightPicker();
     loadMyHighlights();
-  } catch (e) { alert('Highlight nahi ban paayi'); }
+  } catch (e) { alert('Could not create the highlight'); }
 }
 
 async function openHighlightViewer(highlightId){
@@ -4537,7 +4543,7 @@ async function openHighlightViewer(highlightId){
 }
 
 async function deleteHighlight(highlightId){
-  if (!confirm('Ye poori highlight delete karni hai? Stories delete nahi hongi, sirf highlight se hatengi.')) return;
+  if (!confirm('Delete this entire highlight? The stories will not be deleted, they will only be removed from the highlight.')) return;
   try {
     await fetch('/api/highlights/' + highlightId + '/delete', { method: 'POST' });
     closeStoryViewer();
@@ -4548,12 +4554,12 @@ async function deleteHighlight(highlightId){
 async function deleteCurrentStory(){
   if (!currentStoryId) return;
   pauseStoryProgress();
-  if (!confirm('Ye story delete karni hai? Ye wapas nahi aa sakti.')) { resumeStoryProgress(); return; }
+  if (!confirm('Delete this story? It cannot be restored.')) { resumeStoryProgress(); return; }
   try {
     const res = await fetch('/api/stories/' + currentStoryId + '/delete', { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Delete nahi ho saka');
-    showToast('Story delete ho gayi');
+    if (!res.ok) throw new Error(data.error || 'Could not delete');
+    showToast('Story deleted');
     closeStoryViewer();
   } catch (err) { showToast(err.message); resumeStoryProgress(); }
 }
@@ -4744,8 +4750,8 @@ async function respondCollab(filmId, action, btn){
   try {
     const res = await fetch('/api/films/' + filmId + '/collab/' + action, { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { showToast(data.error || 'Kuch galat ho gaya'); return; }
-    btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:var(--cream-dim);">' + (action === 'accept' ? 'Collab accept ho gaya ✓' : 'Decline kar diya') + '</span>';
+    if (!res.ok) { showToast(data.error || 'Something went wrong'); return; }
+    btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:var(--cream-dim);">' + (action === 'accept' ? 'Collab accepted ✓' : 'Declined') + '</span>';
     loadFilms();
   } catch (e) {}
 }
@@ -4839,7 +4845,7 @@ async function loadChatInbox(){
     const data = await res.json();
     const list = data.conversations || [];
     if (!list.length) {
-      el.innerHTML = '<div class="chat-empty">Koi message nahi hai abhi.<br>Kisi ko follow karke unhe message bhejo.</div>';
+      el.innerHTML = '<div class="chat-empty">No messages yet.<br>Follow someone to send them a message.</div>';
       return;
     }
     el.innerHTML = list.map(c => `
@@ -5044,7 +5050,7 @@ function aiFormat(text){
 }
 
 // Quick questions for Ask AI (shown until the user writes something)
-const AI_QUICK = ['Upload kaise karein?', 'Blue tick kaise milega?', 'Notification band kaise karein?', 'Dark mode kaise lagayein?', 'Video nahi chal rahi, kya karun?', 'Post schedule kaise karein?'];
+const AI_QUICK = ['How do I upload?', 'How do I get a blue tick?', 'How do I turn off notifications?', 'How do I turn on dark mode?', 'Video won’t play, what should I do?', 'How do I schedule a post?'];
 function sendAiQuick(q){
   const input = document.getElementById('chatTextInput');
   if (!input) return;
@@ -5202,7 +5208,7 @@ function openShortFromProfile(filmId, userId, username){
 
 function openSharedShort(filmId){
   fetch('/api/films/' + filmId).then(r => r.json()).then(f => {
-    if (!f || f.error) { showToast((f && f.error) || 'Ye content ab available nahi hai'); return; }
+    if (!f || f.error) { showToast((f && f.error) || 'This content is no longer available'); return; }
     if (f.type === 'short') {
       shortsReturnTo = chatOtherUser ? { type: 'chat', userId: chatOtherUser.id, username: chatOtherUser.username } : null;
       closeChatConvo();
@@ -5210,7 +5216,7 @@ function openSharedShort(filmId){
     } else {
       playFilm(filmId);
     }
-  }).catch(() => showToast('Nahi khul saka'));
+  }).catch(() => showToast('Couldn’t open'));
 }
 
 // ---- Voice recording ----
@@ -5237,7 +5243,7 @@ async function toggleVoiceRecording(){
       document.getElementById('chatRecordingTime').textContent = mm + ':' + ss;
     }, 1000);
   } catch (err) {
-    showToast('Mic access nahi mila');
+    showToast('Microphone access denied');
   }
 }
 
@@ -5285,7 +5291,7 @@ function openChatMsgMenu(messageId){
   const mine = m.senderId === currentUser.id;
   let items = '';
   if (m.unsent) {
-    document.getElementById('chatMsgMenuItems').innerHTML = '<div style="padding:14px 4px;color:var(--cream-dim);">Ye message unsent ho chuka hai.</div>';
+    document.getElementById('chatMsgMenuItems').innerHTML = '<div style="padding:14px 4px;color:var(--cream-dim);">This message was unsent.</div>';
     document.getElementById('chatMsgMenuOverlay').classList.add('open');
     return;
   }
@@ -5328,7 +5334,7 @@ function closeChatMediaLightbox(){
 async function saveChatEdit(){
   if (!chatEditTarget || !chatConvoId) return;
   const text = document.getElementById('chatEditText').value.trim();
-  if (!text) { showToast('Message khali nahi ho sakta'); return; }
+  if (!text) { showToast('Message cannot be empty'); return; }
   try {
     const res = await fetch('/api/conversations/' + chatConvoId + '/messages/' + chatEditTarget, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
@@ -5385,7 +5391,7 @@ async function openSendTo(shortId){
     (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
 
     if (!sendToPeople.length) {
-      listEl.innerHTML = '<div class="chat-empty">Pehle kisi ko follow karo taaki unhe bhej sako.</div>';
+      listEl.innerHTML = '<div class="chat-empty">Follow someone first so you can message them.</div>';
       return;
     }
     renderSendToGrid(sendToPeople);
@@ -5423,10 +5429,10 @@ function doSendShortTo(userId){
 }
 function updateSendToBar(){
   const btn = document.getElementById('sendToGo');
-  if (btn) btn.textContent = sendToSelected.size ? 'Send (' + sendToSelected.size + ')' : 'Select karo';
+  if (btn) btn.textContent = sendToSelected.size ? 'Send (' + sendToSelected.size + ')' : 'Select';
 }
 async function sendSelectedTo(){
-  if (!sendToShortId || !sendToSelected.size) { showToast('Pehle kisi ko select karo'); return; }
+  if (!sendToShortId || !sendToSelected.size) { showToast('Select someone first'); return; }
   const text = (document.getElementById('sendToText') || {}).value || '';
   const ids = [...sendToSelected];
   const btn = document.getElementById('sendToGo');
@@ -5451,11 +5457,11 @@ async function sendToAddToStory(){
   if (!id) return;
   const f = (allFilms || []).find(x => x.id === id);
   closeSendTo();
-  if (!f) { showToast('Post nahi mili'); return; }
+  if (!f) { showToast('Post not found'); return; }
   openStoryUploadModal();
   try {
     const url = f.type === 'photo' ? (f.posterUrl || '') : (f.videoUrl || '');
-    if (!url) throw new Error('Media nahi mila');
+    if (!url) throw new Error('Media not found');
     const blob = await (await fetch(url)).blob();
     const ext = f.type === 'photo' ? 'jpg' : 'mp4';
     const file = new File([blob], 'story.' + ext, { type: blob.type || (f.type === 'photo' ? 'image/jpeg' : 'video/mp4') });
@@ -5498,7 +5504,7 @@ async function openUserList(userId, mode){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load');
     const list = data.users || [];
-    if (!list.length) { bodyEl.innerHTML = '<p class="comment-empty">Koi nahi hai yahan.</p>'; return; }
+    if (!list.length) { bodyEl.innerHTML = '<p class="comment-empty">No one here.</p>'; return; }
     bodyEl.innerHTML = list.map(u => `
       <div class="userlist-row" id="userListRow-${u.id}">
         <div onclick="closeUserList();goToProfileDirect('${u.id}','${escapeHtml(u.username)}')" style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;">
@@ -5632,7 +5638,7 @@ function onCarouselPicked(input){
   if (!files.length) { info.textContent = ''; return; }
   const vids = files.filter(f => f.type.startsWith('video')).length;
   info.style.color = (files.length < 2 || files.length > 10) ? '#e88a8a' : 'var(--cream-dim)';
-  info.textContent = files.length + ' chune (' + (files.length - vids) + ' photo, ' + vids + ' video)' + (files.length < 2 ? ' — kam se kam 2 chahiye' : files.length > 10 ? ' — maximum 10' : '');
+  info.textContent = files.length + ' chune (' + (files.length - vids) + ' photo, ' + vids + ' video)' + (files.length < 2 ? ' — at least 2 needed' : files.length > 10 ? ' — maximum 10' : '');
 }
 
 function openUploadModal(){
@@ -5663,8 +5669,8 @@ document.getElementById('quickUploadForm').addEventListener('submit', async func
   let mainFile, posterFile = null, extraFiles = [];
   if (type === 'carousel') {
     const files = Array.from(document.getElementById('qCarousel').files || []);
-    if (files.length < 2) { alert('Carousel ke liye kam se kam 2 photo/video chuno'); return; }
-    if (files.length > 10) { alert('Maximum 10 photo/video chun sakte ho'); return; }
+    if (files.length < 2) { alert('For a carousel, choose at least 2 photos/videos'); return; }
+    if (files.length > 10) { alert('You can choose up to 10 photos/videos'); return; }
     meta.type = 'photo';
     mainFile = files[0]; extraFiles = files.slice(1);
   } else if (type === 'photo') {
@@ -5744,7 +5750,7 @@ window.UploadMgr = (function(){
   // ---------- helpers ----------
   const esc = s => (typeof escapeHtml === 'function') ? escapeHtml(String(s == null ? '' : s)) : String(s || '');
   const fmt = b => (typeof formatBytes === 'function') ? formatBytes(b) : Math.round(b / 1024) + ' KB';
-  const authFail = () => { const e = new Error('Login expire ho gaya — dobara login karo, upload wahin se resume hoga'); e.auth = true; return e; };
+  const authFail = () => { const e = new Error('Your login expired — log in again, and the upload will resume from where it stopped'); e.auth = true; return e; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const isVideoFile = f => !!(f && f.type && f.type.startsWith('video'));
   function waitOnline(){ return new Promise(res => { if (navigator.onLine !== false) return res(); const h = () => { window.removeEventListener('online', h); res(); }; window.addEventListener('online', h); }); }
@@ -5796,16 +5802,16 @@ window.UploadMgr = (function(){
     fill.classList.toggle('upc-fill-done', job.status === 'done');
     fill.classList.toggle('upc-fill-err', job.status === 'error');
     let text = '', sub = '';
-    if (job.status === 'preparing') text = 'Taiyaar ho raha hai…';
-    else if (job.status === 'queued') text = 'Line me hai — pehla upload khatam hote hi shuru hoga';
+    if (job.status === 'preparing') text = 'Preparing…';
+    else if (job.status === 'queued') text = 'In queue — will start as soon as the first upload finishes';
     else if (job.status === 'uploading') {
       text = 'Uploading… ' + pct + '%';
       sub = fmt(loaded) + ' / ' + fmt(total) + (st.speed > 0 ? ' · ' + (st.speed / (1024 * 1024)).toFixed(1) + ' MB/s' : '');
-      if (job.waitingNet) text = '📡 Internet nahi hai — wapas aate hi resume hoga';
+      if (job.waitingNet) text = '📡 No internet — will resume when back online';
     }
-    else if (job.status === 'finalizing') text = 'Post publish ho rahi hai…';
+    else if (job.status === 'finalizing') text = 'Publishing post…';
     else if (job.status === 'done') text = '✅ Upload complete!';
-    else if (job.status === 'error') text = '❌ ' + (job.error || 'Upload ruk gaya') ;
+    else if (job.status === 'error') text = '❌ ' + (job.error || 'Upload paused') ;
     status.textContent = text; statsEl.textContent = sub;
     actions.innerHTML = job.status === 'error' ? '<button class="upc-retry" onclick="UploadMgr.retry(\'' + job.id + '\')">🔄 Retry / Resume</button>' : '';
   }
@@ -5967,7 +5973,7 @@ window.UploadMgr = (function(){
       if (p) { job.poster = { file: p, key: null, uploadId: null, done: false }; const th = document.getElementById('upc-thumb-' + job.id); if (th) { const u = URL.createObjectURL(p); urls.set(job.id, u); th.innerHTML = '<img src="' + u + '" alt="" loading="lazy" decoding="async">'; } }
     }
     const saved = await saveNew(job);
-    if (!saved && !warnedNoIdb) { warnedNoIdb = true; if (typeof showToast === 'function') showToast('Is browser me refresh ke baad upload resume nahi ho payega'); }
+    if (!saved && !warnedNoIdb) { warnedNoIdb = true; if (typeof showToast === 'function') showToast('In this browser, uploads cannot resume after a refresh'); }
     enqueue(job);
   }
 
@@ -5989,7 +5995,7 @@ window.UploadMgr = (function(){
   function retry(id){ const j = jobs.get(id); if (!j) return; j.cancelled = false; j.error = ''; enqueue(j); }
   async function cancel(id){
     const j = jobs.get(id); if (!j) return;
-    if (!confirm('Ye upload cancel karna hai?')) return;
+    if (!confirm('Cancel this upload?')) return;
     j.cancelled = true; const x = xhrs.get(id); if (x) { try { x.abort(); } catch (e) {} }
     const q = queue.indexOf(j); if (q >= 0) queue.splice(q, 1);
     removeCard(j); jobs.delete(id); stats.delete(id); dropStored(id);
@@ -6162,7 +6168,7 @@ function shareCurrentFilmById(id, title) {
 </script>
 <footer class="seo-footer" style="padding:18px 16px 90px;text-align:center;font-size:12.5px;line-height:1.6;color:#A9A3C9;">
   <h2 style="font-size:14px;margin:0 0 6px;color:#EDEBFF;">YouSeries – Video & Shorts Streaming</h2>
-  <p style="margin:0 0 8px;">YouSeries par short videos, full videos aur photos dekho aur share karo. Apne pasandida creators ko follow karo, comments karo, aur apna content upload karo.</p>
+  <p style="margin:0 0 8px;">Watch and share short videos, full videos and photos on YouSeries. Follow your favorite creators, comment, and upload your own content.</p>
   <p style="margin:0;"><a href="/login.html" style="color:#7C5CFF;">Login</a> · <a href="/signup.html" style="color:#7C5CFF;">Sign up</a> · <a href="/privacy-policy.html" style="color:#7C5CFF;">Privacy Policy</a> · <a href="/terms-of-service.html" style="color:#7C5CFF;">Terms of Service</a></p>
 </footer>
 <script>
@@ -6208,6 +6214,14 @@ function shareCurrentFilmById(id, title) {
     if (held) { held = false; e.preventDefault(); e.stopImmediatePropagation(); return; }
     goToMyProfile();
   });
+})();
+</script>
+<script>
+(function(){
+  // stop the phone's own long-press menu (Copy / Save / Share) on the bottom bar, names and media
+  const blocked = 'video,img,.tab-btn,#tabProfile,.card-username,.profile-username,#accountsSheet';
+  document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest(blocked)) e.preventDefault(); });
+  document.addEventListener('selectstart', e => { if (e.target.closest && e.target.closest('.tab-btn,.card-username,.profile-username,#accountsSheet')) e.preventDefault(); });
 })();
 </script>
 </body>

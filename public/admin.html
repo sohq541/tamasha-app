@@ -64,64 +64,8 @@
 
   <div id="uploadArea" class="hidden">
     <div class="card">
-      <h1>Upload a film</h1>
-      <p class="sub" id="welcomeText"></p>
-      <form id="form">
-        <label>Title *</label>
-        <input type="text" name="title" required placeholder="e.g. Sholay">
-
-        <label>Content Type</label>
-        <div class="row">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-            <input type="radio" name="type" value="film" checked style="width:auto;" onclick="toggleUploadType('film')"> Full Film
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-            <input type="radio" name="type" value="short" style="width:auto;" onclick="toggleUploadType('short')"> Short
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);margin:0;">
-            <input type="radio" name="type" value="photo" style="width:auto;" onclick="toggleUploadType('photo')"> Photo
-          </label>
-        </div>
-
-        <div class="row">
-          <div>
-            <label>Year</label>
-            <input type="text" name="year" placeholder="2024">
-          </div>
-          <div>
-            <label>Language</label>
-            <input type="text" name="language" placeholder="Hindi / Tamil / Bengali...">
-          </div>
-        </div>
-
-        <label>Genre</label>
-        <input type="text" name="genre" placeholder="Action / Drama / Romance">
-
-        <label>Description</label>
-        <textarea name="description" placeholder="Short synopsis..."></textarea>
-
-        <label>Collab with (@username, optional)</label>
-        <input type="text" name="collabUsername" placeholder="@ahmed">
-
-        <div id="videoFields">
-          <label>Poster image (optional — auto-generated from video if left empty)</label>
-          <input type="file" name="poster" accept="image/*">
-
-          <label>Video file *</label>
-          <input type="file" name="video" accept="video/*" id="videoInput" required>
-        </div>
-        <div id="photoFields" class="hidden">
-          <label>Photo *</label>
-          <input type="file" name="photo" accept="image/*" id="photoInput">
-        </div>
-
-        <button type="submit" id="submitBtn">Upload</button>
-        <div id="status"></div>
-      </form>
-    </div>
-
-    <div class="card">
       <h2>Manage my uploads</h2>
+      <p class="sub" style="margin-bottom:12px;">To upload a new video or photo, tap <b>+ Upload</b> + Upload on YouSeries. Here you can edit the title, description and poster of your uploads, or delete them.</p>
       <div id="filmList"><p class="empty-msg">Loading...</p></div>
     </div>
   </div>
@@ -158,11 +102,11 @@ async function init(){
   }
 
   document.getElementById('uploadArea').classList.remove('hidden');
-  document.getElementById('welcomeText').textContent = `Logged in as @${currentUser.username}. Upload a video.`;
+  const wt = document.getElementById('welcomeText'); if (wt) wt.textContent = `Logged in as @${currentUser.username}.`;
   loadFilmList();
 }
 
-document.getElementById('form').addEventListener('submit', async (e) => {
+document.getElementById('form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
   const status = document.getElementById('status');
@@ -309,7 +253,7 @@ async function saveEdit(id){
 }
 
 async function deleteFilm(id, title) {
-  if (!confirm(`"${title}" ko permanently delete karna hai?`)) return;
+  if (!confirm(`Permanently delete "${title}"?`)) return;
   const row = document.getElementById('row-' + id);
   row.style.opacity = '0.5';
   try {

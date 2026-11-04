@@ -140,7 +140,7 @@
 <div class="wrap" id="loginWrap" style="display:none;">
   <div class="loginbox">
     <div style="font-family:'Baloo 2',sans-serif;font-size:22px;color:var(--marigold);margin-bottom:4px;">🔐 Admin login</div>
-    <div style="font-size:13px;color:var(--cream-dim);margin-bottom:14px;">Dashboard dekhne ke liye admin username aur password daalo.</div>
+    <div style="font-size:13px;color:var(--cream-dim);margin-bottom:14px;">Enter the admin username and password to open the dashboard.</div>
     <input id="lgUser" type="text" autocomplete="username" placeholder="Username">
     <div class="pwwrap"><input id="lgPass" type="password" autocomplete="current-password" placeholder="Password"><button type="button" class="pwtoggle" onclick="togglePw('lgPass', this)">Show</button></div>
     <button class="go" onclick="adminLogin()">Login</button>
@@ -179,16 +179,16 @@ async function adminLogin(){
   try {
     const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { err.textContent = data.error || 'Login nahi hua'; return; }
+    if (!res.ok) { err.textContent = data.error || 'Login failed'; return; }
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     load();
-  } catch (e) { err.textContent = 'Network error — dobara try karo'; }
+  } catch (e) { err.textContent = 'Network error — try again'; }
 }
 async function adminLogout(){
   await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
-  showLogin('Logout ho gaya');
+  showLogin('Logged out');
 }
 function fb(b){
   b = Number(b) || 0;
@@ -201,12 +201,12 @@ const meterCls = p => p >= 90 ? 'bad' : p >= 70 ? 'warn' : '';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function ago(iso){
-  if (!iso) return 'kabhi nahi';
+  if (!iso) return 'never';
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'abhi abhi';
-  if (s < 3600) return Math.floor(s / 60) + ' min pehle';
-  if (s < 86400) return Math.floor(s / 3600) + ' ghante pehle';
-  if (s < 86400 * 30) return Math.floor(s / 86400) + ' din pehle';
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + ' hours ago';
+  if (s < 86400 * 30) return Math.floor(s / 86400) + ' days ago';
   return new Date(iso).toLocaleDateString();
 }
 
@@ -264,10 +264,10 @@ function renderOverview(){
   const spamUsers = D.users.filter(u => u.reports > 0 && !u.suspended).sort((a, b) => b.reports - a.reports).slice(0, 5);
   document.getElementById('view').innerHTML =
     '<div class="grid" style="margin-top:12px;">' +
-      stat(o.onlineNow, '🟢 Abhi online') +
+      stat(o.onlineNow, '🟢 Online now') +
       stat(o.activeToday, 'Aaj active (24h)') +
       stat(o.totalUsers, 'Total users') +
-      stat(o.newToday, 'Naye signup aaj') +
+      stat(o.newToday, 'New signups today') +
       stat(o.new7d, 'Naye signup (7 din)') +
       stat(o.suspended, 'Suspended') +
       stat(o.uploads24h, 'Uploads (24h)') +
@@ -277,14 +277,14 @@ function renderOverview(){
     '</div>' +
     '<h3 class="sec">Total content</h3>' +
     '<div class="grid">' + stat(o.posts.film, 'Full videos') + stat(o.posts.short, 'Shorts') + stat(o.posts.photo, 'Photos') + '</div>' +
-    (spamUsers.length ? '<h3 class="sec">Jin par reports hain</h3>' + spamUsers.map(userCard).join('') : '');
+    (spamUsers.length ? '<h3 class="sec">Users with reports</h3>' + spamUsers.map(userCard).join('') : '');
 }
 
 
 function r2Card(){
   const r = D.r2;
-  if (!r || !r.configured) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">R2 abhi connect nahi hai. Render me R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME set karo.</div></div>`;
-  if (!r.ok) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">❌ R2 se read nahi hua: ${esc(r.error || 'unknown')}</div></div>`;
+  if (!r || !r.configured) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">R2 is not connected yet. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME in Render.</div></div>`;
+  if (!r.ok) return `<div class="card"><b>☁️ Cloudflare R2 storage</b><div class="meta">❌ Could not read from R2: ${esc(r.error || 'unknown')}</div></div>`;
   const p = r.limitBytes ? Math.min(100, r.usedBytes / r.limitBytes * 100) : 0;
   const folders = Object.entries(r.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
   return `<div class="card">
@@ -317,11 +317,11 @@ async function renderSongs(){
     v.innerHTML = `
       <div class="card">
         <b>🎵 Songs library</b>
-        <div class="meta">Yahan se users apni story, note aur upload me song laga sakenge. Sirf royalty-free ya apne songs upload karo.</div>
-        <input id="snTitle" type="text" placeholder="Song ka naam" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        <div class="meta">Users can add songs to their stories, notes and uploads from here. Upload only royalty-free or your own songs.</div>
+        <input id="snTitle" type="text" placeholder="Song name" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
         <input id="snArtist" type="text" placeholder="Artist (optional)" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
         <input id="snFile" type="file" accept="audio/*" style="margin-top:10px;">
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" id="snBtn" onclick="uploadSong()">Song upload karo</button></div>
+        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" id="snBtn" onclick="uploadSong()">Upload song</button></div>
         <div id="snFileInfo" class="meta" style="margin-top:8px;"></div>
         <div id="snProgress" style="display:none;margin-top:12px;border:1px solid var(--gold-line);border-radius:12px;padding:12px;">
           <div id="snStatusText" style="font-weight:600;color:var(--cream);"></div>
@@ -337,10 +337,10 @@ async function renderSongs(){
         <div class="meta">${esc(x.artist || '')}</div>
         <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
         <div class="row1" style="margin-top:8px;">
-          <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Trending se hatao' : '🔥 Trending me daalo'}</button>
+          <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove from trending' : '🔥 Add to trending'}</button>
           <button class="btn btn-danger" onclick="deleteSong('${x.id}')">Delete</button>
         </div>
-      </div>`).join('') || '<div class="empty">Abhi koi song nahi.</div>'}`;
+      </div>`).join('') || '<div class="empty">No songs yet.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 function fmtMB(b){ return (b / 1048576).toFixed(2) + ' MB'; }
@@ -363,7 +363,7 @@ async function uploadSong(){
   box.style.display = 'block';
   bar.style.width = '0%';
   bar.style.background = 'var(--marigold)';
-  txt.textContent = 'Upload ho raha hai: ' + file.name;
+  txt.textContent = 'Uploading: ' + file.name;
   nums.textContent = '0 MB / ' + fmtMB(file.size) + ' (0%)';
   btn.disabled = true;
   const fd = new FormData();
@@ -383,15 +383,15 @@ async function uploadSong(){
     try { data = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
     if (xhr.status >= 200 && xhr.status < 300) {
       bar.style.width = '100%';
-      txt.textContent = '✔ Upload ho gaya: ' + title;
-      nums.textContent = fmtMB(file.size) + ' upload hua';
+      txt.textContent = '✔ Uploaded: ' + title;
+      nums.textContent = fmtMB(file.size) + ' uploaded';
       setTimeout(() => renderSongs(), 800);
     } else {
       bar.style.background = 'var(--bad)';
-      txt.textContent = '❌ Upload nahi hua: ' + (data.error || 'server error (' + xhr.status + ')');
+      txt.textContent = '❌ Upload failed: ' + (data.error || 'server error (' + xhr.status + ')');
     }
   };
-  xhr.onerror = () => { btn.disabled = false; bar.style.background = 'var(--bad)'; txt.textContent = '❌ Network error, dobara try karo'; };
+  xhr.onerror = () => { btn.disabled = false; bar.style.background = 'var(--bad)'; txt.textContent = '❌ Network error, try again'; };
   xhr.send(fd);
 }
 async function trendSong(id, on){
@@ -399,14 +399,14 @@ async function trendSong(id, on){
   renderSongs();
 }
 async function deleteSong(id){
-  if (!confirm('Ye song delete karna hai?')) return;
+  if (!confirm('Delete this song?')) return;
   await fetch('/api/admin/songs/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
   renderSongs();
 }
 
 function renderDataHub(){
   const v = document.getElementById('view');
-  v.innerHTML = '<div class="meta" style="margin-bottom:12px;">Storage aur bandwidth ek jagah. Overview me ye nahi dikhte.</div>' + usageCards();
+  v.innerHTML = '<div class="meta" style="margin-bottom:12px;">Storage and bandwidth in one place. These are not shown on the Overview.</div>' + usageCards();
 }
 
 function userCard(u){
@@ -421,10 +421,10 @@ function userCard(u){
         <button class="btn push ${u.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${u.id}')">${u.suspended ? 'Unsuspend' : 'Suspend'}</button>
       </div>
       <div class="meta">${esc(u.email || '')}</div>
-      <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 abhi online' : ago(u.lastActiveAt)}</div>
+      <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 online now' : ago(u.lastActiveAt)}</div>
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
-        <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Verified hatao' : '✔ Verify karo'}</button>
+        <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
       </div>
@@ -434,7 +434,7 @@ function userCard(u){
 const REASONS = { spam: 'Spam', nudity: 'Nudity or sexual content', harassment: 'Harassment or bullying', violence: 'Violence or dangerous content',
   hate_speech: 'Hate speech', misinformation: 'False information', other: 'Something else', 'auto-spam': 'Auto-flagged: repeated/link-heavy' };
 
-const AUTO_REASON = 'Ek hi comment baar-baar ya ek se zyada link wala comment: spam check ne ise rok ke report banaya. Dekho aur confirm karo.';
+const AUTO_REASON = 'Same comment repeated, or a comment with more than one link: the spam check blocked it and created a report. Review and confirm.';
 function reportCard(r){
   const target = D.users.find(u => u.id === r.targetOwnerId);
   const pending = r.status === 'pending';
@@ -450,7 +450,7 @@ function reportCard(r){
       ${r.reason === 'auto-spam' ? `<div class="meta" style="color:#ffcf5c;">ℹ️ ${esc(AUTO_REASON)}</div>` : ''}
       ${r.targetPreview ? `<div class="meta">"${esc(String(r.targetPreview).slice(0, 200))}"</div>` : ''}
       <div class="meta">Report kiya: @${esc(r.reporterUsername || 'unknown')}${r.note ? ' · ' + esc(r.note) : ''}</div>
-      ${target ? `<div class="meta">Jis par report hai: <b>@${esc(target.username)}</b>${target.suspended ? ' (suspended)' : ''}</div>` : ''}
+      ${target ? `<div class="meta">Reported user: <b>@${esc(target.username)}</b>${target.suspended ? ' (suspended)' : ''}</div>` : ''}
       ${pending ? `<div class="row1" style="margin-top:10px;">
         <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
         ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
@@ -461,7 +461,7 @@ function reportCard(r){
 function renderReports(){
   const pend = R.filter(r => r.status === 'pending'), old = R.filter(r => r.status !== 'pending').slice(0, 20);
   document.getElementById('view').innerHTML =
-    (pend.length ? pend.map(reportCard).join('') : '<div class="empty">✅ Koi pending report nahi hai.</div>') +
+    (pend.length ? pend.map(reportCard).join('') : '<div class="empty">✅ No pending reports.</div>') +
     (old.length ? '<h3 class="sec">Purani reports</h3>' + old.map(reportCard).join('') : '');
 }
 async function dismissReport(id){
@@ -473,7 +473,7 @@ async function dismissReport(id){
   } catch (e) { alert(e.message); }
 }
 async function removeReported(id){
-  if (!confirm('Ye content permanently delete karna hai?')) return;
+  if (!confirm('Permanently delete this content?')) return;
   try {
     const res = await fetch('/api/admin/reports/' + id + '/remove-content', { method: 'POST' });
     if (!res.ok) throw new Error('Failed');
@@ -484,7 +484,7 @@ async function removeReported(id){
 
 function renderHelpdesk(){
   const v = document.getElementById('view');
-  if (!H.length) { v.innerHTML = '<div class="empty">Abhi koi help desk message nahi aaya.</div>'; return; }
+  if (!H.length) { v.innerHTML = '<div class="empty">No help desk messages yet.</div>'; return; }
   v.innerHTML = H.map(t => {
     const thread = (t.replies || []).map(r => `<div class="bubble ${r.from === 'admin' ? 'admin' : 'user'}">${esc(r.text)}<small>${r.from === 'admin' ? 'Tum (admin)' : esc(t.name)} · ${ago(r.at)}</small></div>`).join('');
     const st = t.status === 'open' ? '<span class="hdtick" style="background:rgba(255,180,0,.2);color:#ffcf5c;">open</span>'
@@ -492,12 +492,12 @@ function renderHelpdesk(){
       : '<span class="hdtick" style="background:var(--field);color:var(--cream-dim);">closed</span>';
     return `<div class="card">
       <div class="row1"><span class="name">${esc(t.name)}</span>${st}<span class="meta push" style="margin:0;">${ago(t.createdAt)}</span></div>
-      <div class="meta">${esc(t.email || 'email nahi')} · ${t.username ? '@' + esc(t.username) : 'guest'}</div>
+      <div class="meta">${esc(t.email || 'no email')} · ${t.username ? '@' + esc(t.username) : 'guest'}</div>
       <div class="bubble user" style="margin-top:10px;">${esc(t.problem)}<small>${esc(t.name)} · ${ago(t.createdAt)}</small></div>
       ${thread}
       <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho… (user ko app me aur email pe dikhega)" style="margin-top:10px;min-height:70px;"></textarea>
       <div class="row1" style="margin-top:8px;">
-        <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Jawab bhejo</button>
+        <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Send reply</button>
         <button class="btn" onclick="setHelpStatus('${t.id}','${t.status === 'closed' ? 'open' : 'closed'}')">${t.status === 'closed' ? 'Reopen' : 'Close'}</button>
       </div>
     </div>`;
@@ -514,7 +514,7 @@ async function replyHelpdesk(id){
     const t = H.find(x => x.id === id);
     if (t) { t.replies = (t.replies || []).concat([{ from: 'admin', text: message, at: new Date().toISOString() }]); t.status = 'answered'; }
     render();
-    if (!data.emailed && t && t.email) alert('Jawab app me save ho gaya. Email nahi gaya (Resend ki setting check karo).');
+    if (!data.emailed && t && t.email) alert('Reply saved in the app. Email was not sent (check the Resend settings).');
   } catch (e) { alert(e.message); }
 }
 async function setHelpStatus(id, status){
@@ -537,15 +537,15 @@ async function renderModeration(){
     v.innerHTML = `
       <div class="card">
         <b>🛡️ Upload review</b>
-        <div class="meta">On karo to naye uploads users ko tab tak nahi dikhenge jab tak tum approve na karo.</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Review band karo' : 'Review on karo'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
+        <div class="meta">When on, new uploads will not be visible to users until you approve them.</div>
+        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
       </div>
       <h3 class="sec">Queue (${d.queue.length})</h3>
       ${d.queue.map(f => `<div class="card">
         <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
         <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
         <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button><button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button></div>
-      </div>`).join('') || '<div class="empty">Queue khali hai.</div>'}`;
+      </div>`).join('') || '<div class="empty">The queue is empty.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 async function toggleReview(on){
@@ -553,7 +553,7 @@ async function toggleReview(on){
   renderModeration();
 }
 async function modDecide(id, approve){
-  if (!approve && !confirm('Ye post permanently delete karni hai?')) return;
+  if (!approve && !confirm('Permanently delete this post?')) return;
   await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
   renderModeration();
 }
@@ -563,8 +563,8 @@ async function renderSearches(){
   try {
     const res = await fetch('/api/admin/search-terms', { headers: { 'x-no-prompt': '1' } });
     const d = await res.json();
-    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">Users kya dhoondh rahe hain. Content ke ideas ke liye.</div></div>` +
-      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">Abhi koi search nahi hua.</div>');
+    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">What users are searching for. Useful for content ideas.</div></div>` +
+      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">No searches yet.</div>');
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 async function showUserDetail(id){
@@ -581,18 +581,18 @@ async function showUserDetail(id){
         <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
         <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
         <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
-        <div class="meta">Blue tick: ${u.blueFree ? 'free (permanent)' : (u.blueUntil ? 'paid, ' + new Date(u.blueUntil).toLocaleDateString() + ' tak' : 'nahi')}</div>
+        <div class="meta">Blue tick: ${u.blueFree ? 'free (permanent)' : (u.blueUntil ? 'paid, ' + new Date(u.blueUntil).toLocaleDateString() + ' tak' : 'no')}</div>
         <div class="nums"><span><b>${d.followers}</b> followers</span><span><b>${d.following}</b> following</span><span><b>${d.totalViews}</b> total views</span><span><b>${d.commentsWritten}</b> comments</span></div>
       </div>
       <h3 class="sec">Posts (${d.posts.length})</h3>
       ${d.posts.map(p => `<div class="card"><div class="row1"><span class="name">${esc(p.title)}</span><span class="pill g">${esc(p.type)}</span>${p.pending ? '<span class="pill rep">review me</span>' : ''}${p.scheduledFor ? '<span class="pill rep">scheduled</span>' : ''}</div>
-        <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span><span>${ago(p.uploadedAt)}</span></div></div>`).join('') || '<div class="empty">Koi post nahi.</div>'}
+        <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span><span>${ago(p.uploadedAt)}</span></div></div>`).join('') || '<div class="empty">No posts.</div>'}
       <h3 class="sec">Reports against (${d.reportsAgainst.length})</h3>
-      ${d.reportsAgainst.map(r => `<div class="card"><div class="meta">${esc(r.reason || '')} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">Koi report nahi.</div>'}
+      ${d.reportsAgainst.map(r => `<div class="card"><div class="meta">${esc(r.reason || '')} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">No reports.</div>'}
       <h3 class="sec">Blue tick requests (${d.bluetickRequests.length})</h3>
-      ${d.bluetickRequests.map(r => `<div class="card"><div class="meta">₹${esc(r.amount)} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">Koi request nahi.</div>'}
+      ${d.bluetickRequests.map(r => `<div class="card"><div class="meta">₹${esc(r.amount)} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">No requests.</div>'}
       <h3 class="sec">Help desk (${d.helpTickets.length})</h3>
-      ${d.helpTickets.map(h => `<div class="card"><div class="meta">${esc(h.problem)} · ${esc(h.status)}</div></div>`).join('') || '<div class="empty">Koi message nahi.</div>'}`;
+      ${d.helpTickets.map(h => `<div class="card"><div class="meta">${esc(h.problem)} · ${esc(h.status)}</div></div>`).join('') || '<div class="empty">No messages.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 async function renderBluetickAdmin(){
@@ -619,7 +619,7 @@ async function renderBluetickAdmin(){
   v.innerHTML = `
     <div class="card">
       <b>💳 Payment settings</b>
-      <div class="meta">Users ko yahi UPI ID aur QR dikhega. Price ₹5 se ₹49 ke beech.</div>
+      <div class="meta">Users will see this UPI ID and QR. Price between ₹5 and ₹49.</div>
       <label class="meta" style="display:block;margin-top:10px;">Price (₹ / mahine)</label>
       <input id="btPrice" type="number" min="5" max="49" value="${esc(st.price || 49)}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
       <label class="meta" style="display:block;margin-top:10px;">UPI ID</label>
@@ -627,17 +627,17 @@ async function renderBluetickAdmin(){
       <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">Save</button></div>
       <label class="meta" style="display:block;margin-top:14px;">QR image (UPI QR screenshot)</label>
       <input id="btQr" type="file" accept="image/*">
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">QR upload karo</button>${st.qrUrl ? '<button class="btn btn-danger" onclick="deleteBluetickQr()">QR delete karo</button><span class="meta" style="margin:0 0 0 8px;">✅ QR set hai</span>' : ''}</div>
+      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">Upload QR</button>${st.qrUrl ? '<button class="btn btn-danger" onclick="deleteBluetickQr()">Delete QR</button><span class="meta" style="margin:0 0 0 8px;">✅ QR is set</span>' : ''}</div>
     </div>
     <h3 class="sec">Pending (${pending.length})</h3>
-    ${pending.map(rq).join('') || '<div class="empty">Koi pending request nahi.</div>'}
+    ${pending.map(rq).join('') || '<div class="empty">No pending requests.</div>'}
     <h3 class="sec">Purani requests</h3>
-    ${done.map(rq).join('') || '<div class="empty">Abhi kuch nahi.</div>'}`;
+    ${done.map(rq).join('') || '<div class="empty">Nothing yet.</div>'}`;
 }
 async function decideBluetick(id, approve){
   let reason = '';
-  if (!approve) { reason = prompt('Reject ka reason (user ko dikhega):', '') || ''; }
-  else if (!confirm('Approve karke 30 din ka blue tick dena hai?')) return;
+  if (!approve) { reason = prompt('Reject reason (shown to the user):', '') || ''; }
+  else if (!confirm('Approve and give a 30-day blue tick?')) return;
   try {
     const res = await fetch('/api/admin/bluetick/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ approve, reason }) });
     const data = await res.json();
@@ -655,7 +655,7 @@ async function saveBluetickSettings(){
   } catch (e) { alert(e.message); }
 }
 async function deleteBluetickQr(){
-  if (!confirm('QR delete karna hai? Users ko QR nahi dikhega.')) return;
+  if (!confirm('Delete the QR? Users will no longer see it.')) return;
   try {
     const res = await fetch('/api/admin/bluetick/qr/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
     const data = await res.json();
@@ -665,13 +665,13 @@ async function deleteBluetickQr(){
 }
 async function uploadBluetickQr(){
   const f = document.getElementById('btQr').files[0];
-  if (!f) { alert('QR image chuno'); return; }
+  if (!f) { alert('Choose a QR image'); return; }
   const fd = new FormData(); fd.append('qr', f);
   try {
     const res = await fetch('/api/admin/bluetick/qr', { method: 'POST', body: fd, headers: { 'x-no-prompt': '1' } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    alert('QR upload ho gaya ✔');
+    alert('QR uploaded ✔');
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
@@ -683,11 +683,11 @@ function renderTrending(){
     '<h3 class="sec" style="margin-top:0;">🔥 Top posts</h3>' +
     (t.posts.length ? t.posts.map((p, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">${typeIcon[p.type] || ''} ${esc(p.title)}</span></div>
       <div class="meta">@${esc(p.owner || 'user')}</div>
-      <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span></div></div>`).join('') : '<div class="empty">Abhi koi post nahi.</div>') +
+      <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span></div></div>`).join('') : '<div class="empty">No posts yet.</div>') +
     '<h3 class="sec">#️⃣ Trending hashtags (14 din)</h3>' +
-    (t.hashtags.length ? '<div class="card">' + t.hashtags.map(h => `<span class="chip">#${esc(h.tag)} · ${h.count}</span>`).join('') + '</div>' : '<div class="empty">Koi hashtag nahi.</div>') +
+    (t.hashtags.length ? '<div class="card">' + t.hashtags.map(h => `<span class="chip">#${esc(h.tag)} · ${h.count}</span>`).join('') + '</div>' : '<div class="empty">No hashtags.</div>') +
     '<h3 class="sec">⭐ Top creators</h3>' +
-    (t.creators.length ? t.creators.map((c, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">@${esc(c.username || 'user')}</span></div><div class="nums"><span><b>${c.posts}</b> posts</span><span><b>${c.score}</b> score</span></div></div>`).join('') : '<div class="empty">Koi creator nahi.</div>');
+    (t.creators.length ? t.creators.map((c, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">@${esc(c.username || 'user')}</span></div><div class="nums"><span><b>${c.posts}</b> posts</span><span><b>${c.score}</b> score</span></div></div>`).join('') : '<div class="empty">No creators.</div>');
 }
 
 let ANN = [], BANNED = [];
@@ -701,15 +701,15 @@ async function renderTools(){
   } catch (e) {}
   view.innerHTML = `
     <div class="card">
-      <b>📢 Announcement bhejo</b>
-      <div class="meta">Sab users ko app me banner + notification list me dikhega (aur push, agar unhone allow kiya ho).</div>
+      <b>📢 Send announcement</b>
+      <div class="meta">All users will see it as a banner and in the notification list (and as a push, if they allowed it).</div>
       <textarea class="t" id="annText" maxlength="300" placeholder="Jaise: Naya feature aa gaya — Carousel post try karo!"></textarea>
-      <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="sendAnnouncement()">📢 Bhejo</button></div>
-      ${ANN.length ? '<h3 class="sec">Purane announcements</h3>' + ANN.map(x => `<div class="ev" style="align-items:center;"><div class="txt" style="flex:1;">${esc(x.message)}<div class="when">${ago(x.createdAt)}</div></div><button class="btn btn-danger" onclick="deleteAnnouncement('${x.id}')">Delete</button></div>`).join('') : ''}
+      <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="sendAnnouncement()">📢 Send</button></div>
+      ${ANN.length ? '<h3 class="sec">Past announcements</h3>' + ANN.map(x => `<div class="ev" style="align-items:center;"><div class="txt" style="flex:1;">${esc(x.message)}<div class="when">${ago(x.createdAt)}</div></div><button class="btn btn-danger" onclick="deleteAnnouncement('${x.id}')">Delete</button></div>`).join('') : ''}
     </div>
     <div class="card">
       <b>🔇 Banned words</b>
-      <div class="meta">Inme se koi bhi shabd comment, post title/description ya note me aaya to wo post nahi hoga. Comma ya nayi line se alag karo.</div>
+      <div class="meta">If any of these words appear in a comment, post title/description or note, the post will not go out. Separate them with commas or new lines.</div>
       <textarea class="t" id="bannedText" placeholder="shabd1, shabd2">${esc(BANNED.join(', '))}</textarea>
       <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="saveBanned()">Save</button><span class="meta" id="bannedStatus" style="margin:0;"></span></div>
     </div>
@@ -720,13 +720,13 @@ async function renderTools(){
     </div>
     <div class="card">
       <b>🚨 Report alert</b>
-      <div class="meta">Naya report aate hi tumhare account (email: tumhara ALERT_EMAIL_TO) ko app me notification + push milta hai. Gmail pe mail chahiye to Render me <b>RESEND_API_KEY</b> daalo (free plan pe SMTP band hai, isliye Resend use hota hai).</div>
+      <div class="meta">When a new report comes in, your account (email: your ALERT_EMAIL_TO) gets an in-app notification and a push. To get it by Gmail too, set it in Render: <b>RESEND_API_KEY</b> (SMTP is off on the free plan, so Resend is used.)</div>
     </div>`;
 }
 async function sendAnnouncement(){
   const text = document.getElementById('annText').value.trim();
   if (!text) { alert('Message likho'); return; }
-  if (!confirm('Ye message sab users ko jayega. Bhejna hai?')) return;
+  if (!confirm('This message will go to all users. Send it?')) return;
   try {
     const res = await fetch('/api/admin/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
     const data = await res.json();
@@ -735,7 +735,7 @@ async function sendAnnouncement(){
   } catch (e) { alert(e.message); }
 }
 async function deleteAnnouncement(id){
-  if (!confirm('Ye announcement hata dein?')) return;
+  if (!confirm('Remove this announcement?')) return;
   try { await fetch('/api/admin/announcements/' + id + '/delete', { method: 'POST' }); renderTools(); } catch (e) { alert(e.message); }
 }
 async function saveBanned(){
@@ -771,10 +771,10 @@ async function toggleVerify(id){
 async function deleteUser(id){
   const u = D.users.find(x => x.id === id);
   if (!u) return;
-  if (!confirm('⚠️ @' + u.username + ' ka account, saari posts, comments, stories aur messages PERMANENTLY delete ho jayenge. Wapas nahi aa sakta.\n\nPakka delete karna hai?')) return;
-  const typed = prompt('Confirm karne ke liye username likho: ' + u.username);
+  if (!confirm('⚠️ @' + u.username + ' account, all posts, comments, stories and messages will be PERMANENTLY deleted. This cannot be undone.\n\nAre you sure you want to delete?')) return;
+  const typed = prompt('To confirm, type the username: ' + u.username);
   if (typed === null) return;
-  if (typed.trim().toLowerCase() !== (u.username || '').toLowerCase()) { alert('Username match nahi hua — delete nahi kiya.'); return; }
+  if (typed.trim().toLowerCase() !== (u.username || '').toLowerCase()) { alert('Username match no hua — delete no kiya.'); return; }
   try {
     const res = await fetch('/api/admin/users/' + id + '/delete', { method: 'POST' });
     const data = await res.json();
@@ -786,7 +786,7 @@ async function deleteUser(id){
 
 function renderUsers(){
   const view = document.getElementById('view');
-  view.innerHTML = '<input class="search" id="uq" placeholder="Username ya email se dhundho…" value="' + esc(q) + '"><div id="ulist"></div>';
+  view.innerHTML = '<input class="search" id="uq" placeholder="Search by username or email…" value="' + esc(q) + '"><div id="ulist"></div>';
   const input = document.getElementById('uq');
   input.addEventListener('input', () => { q = input.value; drawUsers(); });
   drawUsers();
@@ -794,7 +794,7 @@ function renderUsers(){
 function drawUsers(){
   const t = q.trim().toLowerCase();
   const rows = D.users.filter(u => !t || (u.username || '').toLowerCase().includes(t) || (u.email || '').toLowerCase().includes(t));
-  document.getElementById('ulist').innerHTML = rows.length ? rows.map(userCard).join('') : '<div class="empty">Koi user nahi mila.</div>';
+  document.getElementById('ulist').innerHTML = rows.length ? rows.map(userCard).join('') : '<div class="empty">No users found.</div>';
 }
 
 function renderActivity(){
@@ -805,13 +805,13 @@ function renderActivity(){
         <div class="ev"><div class="ic">${icon[e.type] || '•'}</div>
           <div><div class="txt"><b>@${esc(e.username || 'unknown')}</b> · ${label[e.type] || e.type}<br>${esc(e.text)}</div>
           <div class="when">${ago(e.at)}</div></div></div>`).join('') + '</div>'
-    : '<div class="empty">Abhi koi activity nahi.</div>';
+    : '<div class="empty">No activity yet.</div>';
 }
 
 async function toggleSuspend(id){
   const u = D.users.find(x => x.id === id);
   if (!u) return;
-  if (!confirm(u.suspended ? '@' + u.username + ' ko unsuspend karna hai?' : '@' + u.username + ' ko suspend karna hai? Wo login nahi kar paayega aur uska session bhi band ho jayega.')) return;
+  if (!confirm(u.suspended ? '@' + u.username + ' ko unsuspend karna hai?' : '@' + u.username + ' ko suspend karna hai? Wo login no kar paayega aur uska session bhi band ho jayega.')) return;
   try {
     const res = await fetch('/api/admin/users/' + id + '/suspend', { method: 'POST' });
     const data = await res.json();
