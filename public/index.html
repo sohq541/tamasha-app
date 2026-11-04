@@ -682,6 +682,16 @@
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
 }
 .tab-btn img, #tabProfile img { pointer-events:none; }
+
+/* ===== Feed filter bar & comment actions ===== */
+.feed-filters{display:flex;gap:8px;overflow-x:auto;padding:10px 14px 2px;max-width:520px;margin:0 auto;scrollbar-width:none;}
+.feed-filters::-webkit-scrollbar{display:none;}
+.feed-chip{flex-shrink:0;background:var(--panel);border:1px solid var(--gold-line);color:var(--cream-dim);padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Mukta',sans-serif;transition:all .15s;}
+.feed-chip.active{background:var(--marigold);border-color:var(--marigold);color:#fff;}
+.cmt-bar{display:flex;align-items:center;gap:14px;margin-top:5px;font-size:12px;color:var(--cream-dim);}
+.cmt-act{background:none;border:none;color:var(--cream-dim);font-size:12px;font-weight:600;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:4px;font-family:'Mukta',sans-serif;}
+.cmt-act.liked{color:#ff3366;}
+
 </style>
 </head>
 <body>
@@ -718,6 +728,13 @@
   <div id="announceBanner"></div>
   <div id="uploadCards"></div>
   <div id="homeMainContent">
+  <div class="feed-filters" id="feedFilters">
+    <button class="feed-chip active" data-f="all" onclick="setFeedFilter('all')">✨ All</button>
+    <button class="feed-chip" data-f="following" onclick="setFeedFilter('following')">👥 Following</button>
+    <button class="feed-chip" data-f="trending" onclick="setFeedFilter('trending')">🔥 Trending</button>
+    <button class="feed-chip" data-f="film" onclick="setFeedFilter('film')">🎬 Films</button>
+    <button class="feed-chip" data-f="photo" onclick="setFeedFilter('photo')">🖼️ Photos</button>
+  </div>
   <div id="grid" class="grid"></div>
   </div>
 </div>
@@ -946,6 +963,7 @@
       <div class="chat-header-name" id="chatConvoHeaderName" style="flex:none;"></div>
       <div class="chat-typing-text hidden" id="chatConvoTypingText"><span class="tdots"><span></span><span></span><span></span></span></div>
     </div>
+    <button class="chat-header-icon hidden" id="aiClearBtn" onclick="clearAiChat()" title="Clear Ask AI chat" style="font-size:13px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 10px;">🧹 Clear</button>
   </div>
   <div class="chat-messages" id="chatMessagesArea"></div>
   <div class="chat-attach-preview hidden" id="chatAttachPreview"></div>
@@ -1124,8 +1142,19 @@
 
 <script>
   window.onerror = function(msg, url, line, col) {
-  alert('JS ERROR: ' + msg + ' at line ' + line);
+  console.error('JS Error:', msg, 'at', url, 'line', line);
 };
+let activeFeedFilter = 'all';
+function setFeedFilter(f){
+  activeFeedFilter = f;
+  document.querySelectorAll('#feedFilters .feed-chip').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  let list = allFilms.slice();
+  if (f === 'following') list = list.filter(x => x.isFollowing || (currentUser && x.ownerId === currentUser.id));
+  else if (f === 'trending') list = list.sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3));
+  else if (f === 'film') list = list.filter(x => x.type === 'film');
+  else if (f === 'photo') list = list.filter(x => x.type === 'photo');
+  renderHome(list);
+}
 let currentFilm = null;
 let currentShortId = null;
 let allFilms = [];
@@ -1675,7 +1704,8 @@ function openPostSafetyMenu(filmId){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
-  let items = isOwner
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
+  items += isOwner
     ? `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`
     : `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
   if (!isOwner && film) {
@@ -3118,6 +3148,7 @@ function openMenu(id){
   const isOwner = currentUser && film && film.ownerId === currentUser.id;
   const isSaved = !!(currentUser && film && film.savedBy && film.savedBy.includes(currentUser.id));
   let itemsHtml = `
+    <div class="menu-item" onclick="closeMenu();askAiAboutPost('${id}')">🤖 Ask AI about this</div>
     <div class="menu-item" id="menuSaveItem" onclick="toggleSaveFromMenu('${id}')">${isSaved ? '🔖 Unsave' : '📑 Save'}</div>
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
     <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
@@ -3319,7 +3350,13 @@ function saveMyCommentToken(commentId, editToken){
         </div>
 
         <div class="comment-text" id="comment-text-${c.id}">${linkifyRich(c.text, c.mentions)}</div>
-        <div style="color:var(--cream-dim);font-size:11px;margin-top:3px;">${storyTimeAgo(c.createdAt)}</div>
+        <div class="cmt-bar">
+          <span>${storyTimeAgo(c.createdAt)}</span>
+          <button type="button" class="cmt-act ${(c.likes || []).includes(currentUser && currentUser.id) ? 'liked' : ''}" onclick="event.stopPropagation();toggleCommentLike('${filmId}','${c.id}',this)">
+            <span>${(c.likes || []).includes(currentUser && currentUser.id) ? '❤️' : '🤍'}</span> <span>${(c.likes || []).length || ''}</span>
+          </button>
+          <button type="button" class="cmt-act" onclick="event.stopPropagation();replyToComment('${escapeAttr(c.name)}')">↩ Reply</button>
+        </div>
 
         ${hasMenu ? `
           <div id="comment-actions-${c.id}" style="display:none;gap:12px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);flex-wrap:wrap;">
@@ -3334,6 +3371,56 @@ function saveMyCommentToken(commentId, editToken){
     `;
   }).join('');
   }
+
+async function toggleCommentLike(filmId, commentId, btn){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments/${commentId}/like`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    [allFilms.find(f => f.id === filmId), (currentFilm && currentFilm.id === filmId) ? currentFilm : null].forEach(f => {
+      const c = f && f.comments && f.comments.find(x => x.id === commentId);
+      if (c) c.likes = data.likes;
+    });
+    btn.classList.toggle('liked', data.liked);
+    btn.innerHTML = `<span>${data.liked ? '❤️' : '🤍'}</span> <span>${data.likesCount || ''}</span>`;
+  } catch (e) {}
+}
+function replyToComment(username){
+  const sheetOpen = document.getElementById('sheetOverlay').classList.contains('open');
+  const input = document.getElementById(sheetOpen ? 'sheetCommentText' : 'commentText');
+  if (!input) return;
+  const prefix = '@' + username + ' ';
+  if (!input.value.startsWith(prefix)) input.value = prefix + input.value;
+  input.focus();
+}
+async function askAiAboutPost(filmId){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  await openChatConvo('ai-assistant', 'Ask AI');
+  if (!chatConvoId) return;
+  try {
+    aiThinkingSince = Date.now();
+    renderChatMessages();
+    const msg = await sendShortMessage(chatConvoId, filmId, 'Is post ko dhyan se dekho aur explain karo ki isme kya hai aur kaun hai.');
+    chatMessagesCache.push(msg);
+    chatLastFetchAt = new Date().toISOString();
+    renderChatMessages();
+    scrollChatToBottom();
+  } catch (e) { showToast(e.message); }
+}
+async function clearAiChat(){
+  if (!chatConvoId || !chatOtherUser || chatOtherUser.id !== 'ai-assistant') return;
+  if (!confirm('Ask AI ki purani chat clear karein?')) return;
+  try {
+    const res = await fetch('/api/ai/clear', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not clear');
+    chatMessagesCache = data.messages || [];
+    aiThinkingSince = 0;
+    renderChatMessages();
+  } catch (e) { showToast(e.message); }
+}
+
 function openCommentProfile(userId, username) {
   if (!userId) return;
   closeModal();
@@ -3830,7 +3917,7 @@ function openPlayerMenu(){
   const canManage = !!isMyPost(f, currentUser.id);
   const saveBtn = document.getElementById('modalSaveBtn');
   const saved = !!(saveBtn && saveBtn.classList.contains('liked'));
-  let items = `<div class="menu-item" onclick="closePostSafetyMenu();toggleSaveCurrentFilm()">${saved ? '🔖 Unsave' : '📑 Save'}</div>`;
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();closeModal();askAiAboutPost('${f.id}')">🤖 Ask AI about this</div><div class="menu-item" onclick="closePostSafetyMenu();toggleSaveCurrentFilm()">${saved ? '🔖 Unsave' : '📑 Save'}</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();editCurrentFilmModal()">✏️ Edit</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${f.id}')">📌 Pin / Unpin on profile</div>`;
   if (isOwner) items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteCurrentFilmModal()">🗑️ Delete</div>`;
@@ -4894,6 +4981,8 @@ async function openChatConvo(userId, usernameHint){
     chatConvoId = data.id;
     chatOtherUser = data.otherUser;
     document.getElementById('chatConvoHeaderName').textContent = '@' + data.otherUser.username;
+    const clrBtn = document.getElementById('aiClearBtn');
+    if (clrBtn) clrBtn.classList.toggle('hidden', data.otherUser.id !== 'ai-assistant');
     document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(data.otherUser.profileImage, data.otherUser.username, 'chat-header-avatar', 'chat-header-avatar-fallback');
     chatMessagesCache = data.messages || [];
     chatLastFetchAt = new Date().toISOString();
@@ -5073,9 +5162,9 @@ function renderChatBubble(m, mine, showStatus){
   } else if (m.type === 'text') {
     bubbleInner = `<div class="chat-bubble">${linkifyText(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>`;
+    bubbleInner = `<div><div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else if (m.type === 'video') {
-    bubbleInner = `<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>`;
+    bubbleInner = `<div><div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else if (m.type === 'voice') {
     const dur = m.duration ? Math.round(m.duration) : 0;
     const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
@@ -5275,6 +5364,7 @@ function stopVoiceRecording(discard){
       if (!res.ok) throw new Error(data.error || 'Could not send voice message');
       chatMessagesCache.push(data);
       chatLastFetchAt = new Date().toISOString();
+      if (chatOtherUser && chatOtherUser.id === 'ai-assistant') aiThinkingSince = Date.now();
       renderChatMessages();
       scrollChatToBottom();
       loadChatInbox().catch(() => {});

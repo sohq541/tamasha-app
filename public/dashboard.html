@@ -21,7 +21,6 @@
   .bubble.admin{background:var(--chip);margin-left:auto;}
   .bubble.user{background:var(--field);border:1px solid var(--gold-line);}
   .bubble small{display:block;font-size:11px;color:var(--cream-dim);margin-top:3px;}
-  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--vermilion:#4361EE;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);--ok:#5ad19a;--bad:#e88a8a;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 70px;transition:background .2s,color .2s;}
   .wrap{max-width:760px;margin:0 auto;}
@@ -123,6 +122,7 @@
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
     <button class="tab" data-t="datahub" onclick="setTab('datahub')">🛰️ Data Hub</button>
     <button class="tab" data-t="songs" onclick="setTab('songs')">🎵 Songs</button>
+    <button class="tab" data-t="content" onclick="setTab('content')">🎬 Content</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
@@ -254,6 +254,7 @@ function render(){
   else if (tab === 'searches') renderSearches();
   else if (tab === 'trending') renderTrending();
   else if (tab === 'tools') renderTools();
+  else if (tab === 'content') renderContentManager();
   else if (tab === 'users') renderUsers();
   else renderActivity();
 }
@@ -297,14 +298,77 @@ function r2Card(){
 }
 
 
+function systemHealthCard(){
+  const s = D.systemStatus || {};
+  const pill = (ok, yes, no) => `<span class="pill ${ok ? 'g' : 'sus'}">${ok ? yes : no}</span>`;
+  return `<div class="card">
+    <div class="row1"><b>🤖 Ask AI & System Status</b></div>
+    <div class="nums" style="margin-top:10px;gap:10px;">
+      <span>Groq AI: ${pill(s.groqConfigured, 'Connected ✔', 'Missing GROQ_API_KEY')}</span>
+      <span>Vision Model: <span class="chip">${esc(s.visionModel || 'llama-4-scout')}</span></span>
+      <span>Tavily Live Search: ${pill(s.tavilyConfigured, 'Connected ✔', 'Off')}</span>
+      <span>Resend Email: ${pill(s.resendConfigured, 'Connected ✔', 'Off')}</span>
+      <span>Cloudflare R2: ${pill(s.r2Configured, 'Connected ✔', 'Missing R2 env')}</span>
+    </div>
+  </div>`;
+}
+
 function usageCards(){
-  const st = D.storage || {}, eg = D.egress || {};
-  const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
-  const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
-  const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
   return `
+    ${systemHealthCard()}
     ${r2Card()}
   `;
+}
+
+let CM_LIST = [], cmQuery = '', cmType = 'all';
+async function renderContentManager(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading content…</div>';
+  try {
+    const res = await fetch('/api/admin/content', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    CM_LIST = d.content || [];
+    v.innerHTML = `
+      <input class="search" id="cmSearch" placeholder="Search by title or @username…" value="${esc(cmQuery)}">
+      <div class="row1" style="margin-bottom:12px;gap:6px;">
+        ${['all','film','short','photo','carousel'].map(t => `<button class="btn ${cmType === t ? 'btn-ok' : ''}" onclick="cmType='${t}';drawContentList()">${t.toUpperCase()}</button>`).join('')}
+      </div>
+      <div id="cmRows"></div>
+    `;
+    document.getElementById('cmSearch').addEventListener('input', e => { cmQuery = e.target.value; drawContentList(); });
+    drawContentList();
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+function drawContentList(){
+  const box = document.getElementById('cmRows');
+  if (!box) return;
+  const q = cmQuery.trim().toLowerCase();
+  const rows = CM_LIST.filter(f => (cmType === 'all' || f.type === cmType) && (!q || (f.title || '').toLowerCase().includes(q) || (f.ownerUsername || '').toLowerCase().includes(q)));
+  box.innerHTML = rows.map(f => `
+    <div class="card" id="cm-${f.id}" style="display:flex;gap:12px;align-items:center;">
+      ${f.posterUrl ? `<img src="${f.posterUrl}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;" loading="lazy">` : `<div style="width:60px;height:60px;border-radius:8px;background:var(--field);display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎬</div>`}
+      <div style="flex:1;min-width:0;">
+        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span>${f.pendingReview ? '<span class="pill rep">pending</span>' : ''}${f.isSensitive ? '<span class="pill sus">18+/sensitive</span>' : ''}</div>
+        <div class="meta">@${esc(f.ownerUsername)} · ${ago(f.uploadedAt)}</div>
+        <div class="nums"><span><b>${f.views}</b> views</span><span><b>${f.likes}</b> likes</span><span><b>${f.comments}</b> comments</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${f.id}" target="_blank" style="text-align:center;text-decoration:none;">↗ Open</a>
+        <button class="btn btn-danger" onclick="adminDeletePost('${f.id}')">🗑️ Delete</button>
+      </div>
+    </div>
+  `).join('') || '<div class="empty">No matching posts found.</div>';
+}
+async function adminDeletePost(id){
+  if (!confirm('Permanently delete this post and its media from R2?')) return;
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Delete failed');
+    CM_LIST = CM_LIST.filter(x => x.id !== id);
+    drawContentList();
+  } catch (e) { alert(e.message); }
 }
 
 async function renderSongs(){
