@@ -527,7 +527,7 @@ app.post('/api/signup', async (req, res) => {
     await writeUsers(users);
 
     const token = signToken(newUser, await startSession(req, newUser));
-    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    activateAccountToken(req, res, newUser.id, token);
     res.json({ id: newUser.id, email: newUser.email, username: newUser.username });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -543,7 +543,7 @@ app.post('/api/login', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password' });
     if (user.suspended) return res.status(403).json({ error: 'This account has been suspended for violating the community guidelines.' });
     const token = signToken(user, await startSession(req, user));
-    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    activateAccountToken(req, res, user.id, token);
     res.json({ id: user.id, email: user.email, username: user.username });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -551,7 +551,19 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', async (req, res) => {
   const p = getUserFromReq(req);
   if (p && p.sid) await dropSessions(p.id, x => x !== p.sid);
-  res.clearCookie('token'); res.json({ success: true });
+  const rest = savedTokens(req).filter(t => {
+    const pl = payloadOf(t);
+    return pl && pl.id && (!p || pl.id !== p.id) && !suspendedIds.has(pl.id);
+  });
+  if (rest.length > 0) {
+    const nextTok = rest[0];
+    writeSaved(res, rest.slice(1));
+    res.cookie('token', nextTok, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  } else {
+    writeSaved(res, []);
+    res.clearCookie('token');
+  }
+  res.json({ success: true });
 });
 
 // Devices list and logout (Settings and Privacy → Devices)
@@ -642,7 +654,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     if (user.suspended) { res.redirect('/login.html?error=suspended'); return; }
 
     const token = signToken(user, await startSession(req, user));
-    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    activateAccountToken(req, res, user.id, token);
     res.redirect('/');
   } catch (err) {
     console.error('Google auth error:', err);
@@ -650,7 +662,21 @@ app.get('/api/auth/google/callback', async (req, res) => {
   }
 });
 
-app.get('/api/me', (req, res) => { res.json(getUserFromReq(req)); });
+app.get('/api/me', (req, res) => {
+  let u = getUserFromReq(req);
+  // If active token cookie was missing (e.g. returning from /login.html after stashing), restore the first valid saved account
+  if (!u) {
+    const validSaved = savedTokens(req).find(t => {
+      const p = payloadOf(t);
+      return p && p.id && !suspendedIds.has(p.id) && (!p.sid || !sessionsReady || sessionIndex.has(p.sid));
+    });
+    if (validSaved) {
+      res.cookie('token', validSaved, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+      u = payloadOf(validSaved);
+    }
+  }
+  res.json(u);
+});
 
 // ---------------- Multiple accounts on this site ----------------
 // Other accounts are kept in a "saved_accounts" cookie (their login tokens). Switching swaps the active token.
@@ -661,6 +687,18 @@ function writeSaved(res, list) {
   res.cookie('saved_accounts', JSON.stringify(list.slice(0, 5)), { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
 }
 function payloadOf(tok) { try { return jwt.verify(tok, JWT_SECRET); } catch (e) { return null; } }
+function activateAccountToken(req, res, newUserId, newToken) {
+  const cur = getUserFromReq(req);
+  let list = savedTokens(req).filter(t => {
+    const p = payloadOf(t);
+    return p && p.id && p.id !== newUserId && (!cur || p.id !== cur.id);
+  });
+  if (cur && req.cookies.token && cur.id !== newUserId) {
+    list = [req.cookies.token, ...list];
+  }
+  writeSaved(res, list);
+  res.cookie('token', newToken, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+}
 app.get('/api/accounts', (req, res) => {
   const cur = getUserFromReq(req);
   const out = [];
@@ -674,13 +712,13 @@ app.get('/api/accounts', (req, res) => {
   }
   res.json({ accounts: out });
 });
-// Puts the current login aside (so another account can log in) and clears the active login
+// Backs up the current login in saved_accounts WITHOUT clearing the active token cookie,
+// so pressing Back from /login.html never logs out the first account!
 app.post('/api/accounts/stash', (req, res) => {
   const cur = getUserFromReq(req);
   let list = savedTokens(req);
   if (cur && req.cookies.token) list = [req.cookies.token, ...list.filter(t => payloadOf(t) && payloadOf(t).id !== cur.id)];
   writeSaved(res, list);
-  res.clearCookie('token');
   res.json({ success: true });
 });
 // Makes a saved account the active one, and puts the current one aside
@@ -1062,6 +1100,7 @@ app.get('/api/films', async (req, res) => {
           slideUrls: await buildSlideUrls(f, directUrl),
           ownerVerified: !!(owner && owner.verified),
           ownerProfileImage: ownerAvatarUrl,
+          views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
           isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
         };
       }));
@@ -1224,8 +1263,11 @@ app.get('/media/poster/:id', async (req, res) => {
   try {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f || !f.posterFile) return res.status(404).send('Not found');
-    return storeStream(f.posterFile, req, res);
+    if (!f) return res.status(404).send('Not found');
+    const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+    const key = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+    if (!key) return res.status(404).send('Not found');
+    return storeStream(key, req, res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -1501,7 +1543,7 @@ async function pickSong(body, kind) {
   const x = (await readSongs()).find(y => y.id === String(id));
   if (!x) return null;
   const start = Math.max(0, Math.min(3600, Number(body.songStart) || 0));
-  const want = kind === 'note' ? 15 : kind === 'photo' ? 8 : Math.max(1, Math.min(600, Number(body.songDuration) || 8));
+  const want = (kind === 'story' || kind === 'note') ? 15 : kind === 'photo' ? 15 : Math.max(1, Math.min(600, Number(body.songDuration) || 15));
   return { url: r2PublicUrl(x.key), title: x.title, artist: x.artist || '', start, duration: want };
 }
 app.post('/api/films/finalize', async (req, res) => {
@@ -1583,14 +1625,16 @@ app.post('/api/films/:id/view', async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Film not found' });
     const viewer = getUserFromReq(req);
     let counted = false;
-    if (viewer) {
-      if (!f.viewedBy) f.viewedBy = [];
-      if (!f.viewedBy.includes(viewer.id)) {
-        f.viewedBy.push(viewer.id);
-        counted = true;
-      }
+    if (!Array.isArray(f.viewedBy)) f.viewedBy = [];
+    if (Array.isArray(f.likedBy)) {
+      f.likedBy.forEach(uid => { if (uid && !f.viewedBy.includes(uid)) f.viewedBy.push(uid); });
     }
-    if (counted) f.views = (f.views || 0) + 1;
+    if (viewer && !f.viewedBy.includes(viewer.id)) {
+      f.viewedBy.push(viewer.id);
+      counted = true;
+    }
+    const minViews = Math.max((f.viewedBy || []).length, f.likes || 0);
+    f.views = Math.max((f.views || 0) + (counted ? 1 : 0), minViews);
     await writeFilms(films);
     try {
       const sz = k => (k && storageStats.sizes.get(k)) || 0;
@@ -1621,24 +1665,28 @@ app.post('/api/films/:id/like', async (req, res) => {
 
     if (!f.likedBy) { f.likedBy = []; f.likesBaseline = f.likes || 0; }
     if (!f.likedAt) f.likedAt = {};
+    if (!Array.isArray(f.viewedBy)) f.viewedBy = [];
     const idx = f.likedBy.indexOf(currentUser.id);
     let liked;
     if (idx === -1) {
       f.likedBy.push(currentUser.id);
       f.likedAt[currentUser.id] = new Date().toISOString();
-      // liking a post means it was seen: count this person's view once
-      if (!f.viewedBy) f.viewedBy = [];
-      if (!f.viewedBy.includes(currentUser.id)) { f.viewedBy.push(currentUser.id); f.views = (f.views || 0) + 1; }
+      if (!f.viewedBy.includes(currentUser.id)) {
+        f.viewedBy.push(currentUser.id);
+        f.views = (f.views || 0) + 1;
+      }
       liked = true;
     } else {
       f.likedBy.splice(idx, 1);
       delete f.likedAt[currentUser.id];
       liked = false;
     }
+    f.likedBy.forEach(uid => { if (uid && !f.viewedBy.includes(uid)) f.viewedBy.push(uid); });
     f.likes = (f.likesBaseline || 0) + f.likedBy.length;
+    f.views = Math.max(f.views || 0, f.viewedBy.length, f.likes);
 
     await writeFilms(films);
-    res.json({ likes: f.likes, liked });
+    res.json({ likes: f.likes, views: f.views, liked });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1695,11 +1743,19 @@ app.get('/api/films/:id/insights', async (req, res) => {
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
     if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'You don\'t have permission' });
-    const views = f.views || 0;
+    if (!Array.isArray(f.viewedBy)) f.viewedBy = [];
+    if (Array.isArray(f.likedBy)) {
+      f.likedBy.forEach(uid => { if (uid && !f.viewedBy.includes(uid)) f.viewedBy.push(uid); });
+    }
     const likes = f.likes || 0;
+    const views = Math.max(f.views || 0, f.viewedBy.length, likes);
+    if ((f.views || 0) < views) {
+      f.views = views;
+      await writeFilms(films);
+    }
     const shares = f.shares || 0;
     const avgWatchSeconds = f.watchSamples ? Math.round((f.watchSeconds || 0) / f.watchSamples) : 0;
-    const likeRate = views ? Math.round((likes / views) * 1000) / 10 : 0;
+    const likeRate = views > 0 ? Math.min(100, Math.round((likes / views) * 1000) / 10) : 0;
     res.json({ views, likes, likeRate, shares, avgWatchSeconds, commentCount: (f.comments || []).length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2031,7 +2087,7 @@ app.post('/api/stories', (req, res, next) => {
       if (a && isFinite(a.s) && isFinite(a.x) && isFinite(a.y)) storyAdjust = { s: Math.min(4, Math.max(1, a.s)), x: Math.min(1, Math.max(-1, a.x)), y: Math.min(1, Math.max(-1, a.y)) };
     } catch (e) {}
     if (storyAdjust) newStory.adjust = storyAdjust;
-    const storySong = await pickSong(req.body, isVideo ? 'video' : 'photo');
+    const storySong = await pickSong(req.body, 'story');
     if (storySong) newStory.song = storySong;
     stories.unshift(newStory);
     await writeStories(stories);
@@ -2534,6 +2590,7 @@ async function enrichMessage(m, directUrl) {
     out.shortTitle = m.shortTitle || null;
     out.shortOwnerUsername = m.shortOwnerUsername || null;
     out.shortThumb = m.shortId ? `/media/poster/${m.shortId}` : null;
+    out.shortVideoUrl = m.shortId ? `/media/video/${m.shortId}` : null;
   }
   return out;
 }
