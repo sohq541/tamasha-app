@@ -1823,6 +1823,34 @@ app.post('/api/films/:filmId/comments/:commentId/pin', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/films/:filmId/comments/:commentId/like', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.filmId);
+    if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
+    const comment = f.comments.find(c => c.id === req.params.commentId);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    if (!Array.isArray(comment.likes)) comment.likes = [];
+    const idx = comment.likes.indexOf(currentUser.id);
+    const liked = idx === -1;
+    if (liked) {
+      comment.likes.push(currentUser.id);
+      if (comment.userId && comment.userId !== currentUser.id) {
+        notify(comment.userId, {
+          type: 'comment_like', fromUserId: currentUser.id, fromUsername: currentUser.username,
+          filmId: f.id, message: `@${currentUser.username} liked your comment on "${f.title}"`
+        }).catch(() => {});
+      }
+    } else {
+      comment.likes.splice(idx, 1);
+    }
+    await writeFilms(films);
+    res.json({ liked, likesCount: comment.likes.length, likes: comment.likes });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/films/:filmId/comments/:commentId/edit', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -2366,9 +2394,54 @@ app.get('/api/notifications', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const all = await storeTryReadJSON('notifications.json') || [];
-    const mine = all.filter(n => n.userId === currentUser.id).slice().reverse().slice(0, 50);
-    const unreadCount = mine.filter(n => !n.read).length;
+    const [all, films, stories, users] = await Promise.all([
+      storeTryReadJSON('notifications.json').then(x => x || []),
+      readFilms().catch(() => []),
+      readStories().catch(() => []),
+      readUsers().catch(() => [])
+    ]);
+    const directUrl = makeDirectUrlCache();
+    const filmMap = new Map(films.map(f => [f.id, f]));
+    const storyMap = new Map(stories.map(s => [s.id, s]));
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const mineRaw = all.filter(n => n.userId === currentUser.id).slice().reverse().slice(0, 50);
+    const unreadCount = mineRaw.filter(n => !n.read).length;
+
+    const mine = await Promise.all(mineRaw.map(async n => {
+      const out = { ...n, filmType: null, filmOwnerId: null, storyOwnerId: null, thumbUrl: null, mediaKind: null, fromAvatar: null };
+      const fromU = userMap.get(n.fromUserId);
+      if (fromU && fromU.profileImage) {
+        out.fromAvatar = await directUrl(fromU.profileImage, fromU.avatarStorageProvider);
+      }
+      if (n.filmId) {
+        const f = filmMap.get(n.filmId);
+        if (f) {
+          out.filmType = f.type || 'film';
+          out.filmOwnerId = f.ownerId || null;
+          const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+          const thumbKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+          if (thumbKey) {
+            out.thumbUrl = await directUrl(thumbKey, f.storageProvider);
+            out.mediaKind = 'image';
+          } else if (f.videoFile || (slide0 && slide0.key)) {
+            out.thumbUrl = await directUrl(f.videoFile || slide0.key, f.storageProvider);
+            out.mediaKind = 'video';
+          }
+        }
+      } else if (n.storyId) {
+        const s = storyMap.get(n.storyId);
+        if (s) {
+          out.storyOwnerId = s.ownerId || null;
+          if (s.mediaFile) {
+            out.thumbUrl = await directUrl(s.mediaFile, s.storageProvider);
+            out.mediaKind = s.mediaType === 'video' ? 'video' : 'image';
+          }
+        }
+      }
+      return out;
+    }));
+
     res.json({ notifications: mine, unreadCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2743,6 +2816,27 @@ async function callAiAssistant(recentMessages, currentUserId) {
   if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && (rawLast.mediaType === 'photo' || rawLast.mediaType === 'video') && rawLast.mediaKey) {
     return await answerWithMedia(rawLast);
   }
+  // 2b. Voice message sent to Ask AI: transcribe via Whisper and answer
+  if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && (rawLast.type === 'voice' || rawLast.mediaType === 'voice') && rawLast.mediaKey) {
+    try {
+      const vbuf = await gdGetByKey(rawLast.mediaKey);
+      const fd = new FormData();
+      fd.append('file', new Blob([vbuf], { type: 'audio/webm' }), 'voice.webm');
+      fd.append('model', 'whisper-large-v3');
+      fd.append('response_format', 'json');
+      const tr = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd
+      });
+      const tj = await tr.json().catch(() => ({}));
+      if (tj && tj.text && String(tj.text).trim()) {
+        rawLast.text = String(tj.text).trim();
+      } else {
+        return 'Aapki voice message saaf sunai nahi di. Kripya dobara bolein ya text me likhein.';
+      }
+    } catch (e) {
+      return 'Voice message samajhne me dikkat aayi. Kripya text me pucho.';
+    }
+  }
   // 3. Follow-up question about a recently sent photo, video, or shared post in the last few messages!
   if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && rawLast.type === 'text' && (rawLast.text || '').trim()) {
     const recentWindow = validMsgs.slice(-8, -1).reverse();
@@ -2891,6 +2985,36 @@ app.post('/api/ai/viewing', (req, res) => {
   if (req.body && req.body.active) aiViewing.set(currentUser.id, Date.now());
   else aiViewing.delete(currentUser.id);
   res.json({ ok: true });
+});
+
+app.post('/api/ai/clear', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convo = await ensureAiConversation(currentUser.id);
+    const oldMsgs = await readChatMessages(convo.id);
+    for (const m of oldMsgs) {
+      if (m.mediaKey) await storeDelete(m.mediaKey).catch(() => {});
+    }
+    const welcomeMsg = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      conversationId: convo.id, senderId: AI_ASSISTANT_ID,
+      type: 'text', text: "Hi! I’m Ask AI 🤖 — chat clear ho gayi hai. Koi bhi photo, video ya sawaal bhejo!",
+      mediaKey: null, mediaType: null, storageProvider: null, duration: null,
+      shortId: null, shortTitle: null, shortOwnerUsername: null,
+      createdAt: new Date().toISOString(), editedAt: null,
+      deletedFor: [], unsent: false, readBy: [AI_ASSISTANT_ID, currentUser.id]
+    };
+    await writeChatMessages(convo.id, [welcomeMsg]);
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === convo.id);
+    if (c) {
+      c.updatedAt = welcomeMsg.createdAt;
+      c.lastMessage = { senderId: AI_ASSISTANT_ID, preview: previewForMessage(welcomeMsg), createdAt: welcomeMsg.createdAt };
+      await writeConversations(convos);
+    }
+    res.json({ ok: true, messages: [welcomeMsg] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ===================== CHAT / DM ROUTES =====================
@@ -3740,6 +3864,13 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
       storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
       egress: { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views },
       drive: { enabled: false },
+      systemStatus: {
+        groqConfigured: !!GROQ_API_KEY,
+        visionModel: GROQ_VISION_MODEL,
+        tavilyConfigured: !!TAVILY_API_KEY,
+        resendConfigured: !!RESEND_API_KEY,
+        r2Configured: r2On()
+      },
       users: rows,
       activity: events
     });
@@ -3974,6 +4105,44 @@ app.get('/api/admin/search-terms', requireAdmin, async (req, res) => {
   const top = Object.entries(terms).map(([term, v]) => ({ term, count: v.count, last: v.last }))
     .sort((a, b) => b.count - a.count).slice(0, 30);
   res.json({ terms: top });
+});
+
+// ---------- 3b. admin content manager ----------
+app.get('/api/admin/content', requireAdmin, async (req, res) => {
+  try {
+    const films = await readFilms();
+    const directUrl = makeDirectUrlCache();
+    const list = await Promise.all(films.slice(0, 200).map(async f => ({
+      id: f.id,
+      title: f.title || 'Untitled',
+      description: (f.description || '').slice(0, 140),
+      type: f.type === 'photo' ? ((f.slides && f.slides.length > 1) ? 'carousel' : 'photo') : (f.type === 'short' ? 'short' : 'film'),
+      ownerId: f.ownerId,
+      ownerUsername: f.ownerUsername || 'user',
+      views: f.views || 0,
+      likes: f.likes || 0,
+      comments: (f.comments || []).length,
+      uploadedAt: f.uploadedAt,
+      pendingReview: !!f.pendingReview,
+      isSensitive: !!f.isSensitive,
+      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null
+    })));
+    res.json({ content: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/content/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    let films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Post not found' });
+    await storeDelete(f.videoFile);
+    await storeDelete(f.posterFile);
+    for (const sl of (f.slides || [])) await storeDelete(sl.key);
+    films = films.filter(x => x.id !== f.id);
+    await writeFilms(films);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---------- 4. moderation queue ----------
