@@ -1582,11 +1582,13 @@ app.post('/api/films/:id/view', async (req, res) => {
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
     const viewer = getUserFromReq(req);
-    let counted = true;
+    let counted = false;
     if (viewer) {
       if (!f.viewedBy) f.viewedBy = [];
-      if (f.viewedBy.includes(viewer.id)) counted = false;   // same person again: no new view, but history still updates
-      else f.viewedBy.push(viewer.id);
+      if (!f.viewedBy.includes(viewer.id)) {
+        f.viewedBy.push(viewer.id);
+        counted = true;
+      }
     }
     if (counted) f.views = (f.views || 0) + 1;
     await writeFilms(films);
@@ -2480,10 +2482,11 @@ JAWAB KA FORMAT (bahut zaroori):
 - Kabhi bhi cheez ko "dekh" ya "open" karne ka vaada mat karo jo tum nahi kar sakte.
 
 PHOTO / VIDEO KE BAARE ME:
-- Jab user KHUD photo ya video bheje, to use dekh kar samjhao (Hindi me). Ye user ki apni choice hai.
-- Chehre se kisi asli insaan ko pehchan kar naam mat batao. Sirf scene, cheezein, kya ho raha hai, aur video ka matlab batao.
-- App ke doosre users ki posts ki andar ki cheez tum nahi dekhte. Unke liye sirf [Site Context] me di gayi details (title, type, creator, date, views, likes, hashtags) se jawab do.
-- Private cheezein (DM, password, email, private profile) kabhi nahi batana.
+- Jab user KHUD photo ya video bheje (ya chat me post share kare), to use dhyan se dekh kar detail me Hinglish/Hindi me explain karo.
+- Agar photo/video me koi mashhoor insaan (celebrity, actor, cricketer, public figure), character, jagah, gaadi, product ya cheez dikhe, ya photo ka title/file name diya ho, to uska **naam aur pehchaan saaf-saaf batao**. Agar kisi aam (private) insaan ka chehra ho jise pehchana na ja sake, to batao ki ye private person lag rahe hain aur unka look/scene describe karo.
+- Photo me likha hua text (OCR), scene, kapde, background, objects, aur video me kya ho raha hai + audio transcript sab ache se samjhao.
+- App ke doosre users ki posts ke liye [Site Context] me di gayi details (title, type, creator, date, views, likes, hashtags) se bhi madad lo.
+- Private cheezein (kisi aur user ke DM, password, email) kabhi nahi batana.
 
 APP KE FEATURES (ye sab jaante ho):
 - **Feed (Home):** full videos 16:9 me, shorts/reels 9:16 me, photos ek ke baad ek. Photo par double-tap = like. Single tap par photo nahi khulti.
@@ -2557,7 +2560,11 @@ async function resolveGroqModel() {
     });
     const data = await res.json();
     const ids = (data.data || []).map(m => m.id);
-    const bad = /guard|whisper|tts|orpheus|prompt-guard|safeguard|embed/i;
+    if (ids.includes('llama-3.3-70b-versatile')) {
+      cachedGroqModel = { id: 'llama-3.3-70b-versatile', resolvedAt: Date.now() };
+      return 'llama-3.3-70b-versatile';
+    }
+    const bad = /guard|whisper|tts|orpheus|prompt-guard|safeguard|embed|vision|scout|maverick/i;
     const candidates = ids.filter(id => !bad.test(id));
     const pick = candidates.find(id => /70b|120b/i.test(id)) ||
                  candidates.find(id => /llama/i.test(id)) ||
@@ -2574,7 +2581,7 @@ async function callGroqChat(model, messages) {
       'Authorization': `Bearer ${GROQ_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ model, messages, max_tokens: 600 })
+    body: JSON.stringify({ model, messages, max_tokens: 800 })
   });
   const data = await res.json();
   return { ok: res.ok, data };
@@ -2597,74 +2604,163 @@ async function aiSiteContext(query) {
 }
 
 const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const GROQ_VISION_FALLBACK = 'meta-llama/llama-4-maverick-17b-128e-instruct';
 function runFfmpegBin(args) {
   return new Promise((resolve, reject) => execFile(require('ffmpeg-static'), args, { timeout: 60000 }, err => err ? reject(err) : resolve()));
 }
+
+function guessImageMime(buf, key) {
+  if (buf && buf.length >= 12) {
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+    if (buf[0] === 0xFF && buf[1] === 0xD8) return 'image/jpeg';
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+    if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP') return 'image/webp';
+  }
+  const ext = path.extname(String(key || '')).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.gif') return 'image/gif';
+  return 'image/jpeg';
+}
+
 // The user sent a photo or a video in the Ask AI chat: look at it and explain it (Hindi by default)
 async function answerWithMedia(msg) {
   const userText = String(msg.text || '').trim();
-  const question = userText || 'What is this media? Please explain it.';
+  const question = userText || 'Is photo/video ko dhyan se dekho aur detail me explain karo ki isme kya hai, kaun hai (agar mashhoor chehra/character/cheez hai to naam batao), aur kya ho raha hai.';
   const parts = [];
   let note = '';
-  const tmp = path.join(os.tmpdir(), 'askai-' + String(msg.id).replace(/[^A-Za-z0-9]/g, ''));
+  if (msg.metaInfo) note += msg.metaInfo + '\n';
+  if (msg.fileName) note += `Uploaded file name: "${msg.fileName}"\n`;
+  const tmp = path.join(os.tmpdir(), 'askai-' + String(msg.id || Date.now()).replace(/[^A-Za-z0-9]/g, '') + '-' + Math.random().toString(36).slice(2, 6));
   const cleanup = [];
   try {
     const buf = await gdGetByKey(msg.mediaKey);
-    if (buf.length > 40 * 1024 * 1024) return 'This file is too large (send under 40 MB).';
+    if (buf.length > 40 * 1024 * 1024) return 'Ye file bahut badi hai (40 MB se chhoti file bhejo).';
     if (msg.mediaType === 'photo') {
-      parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + buf.toString('base64') } });
+      // Groq base64 image limit is 4 MB (~3 MB raw). Resize/compress via ffmpeg if > 2.5 MB or non-standard format
+      let imgBuf = buf;
+      let mime = guessImageMime(buf, msg.mediaKey);
+      const ext = path.extname(String(msg.mediaKey || '')).toLowerCase();
+      if (buf.length > 2.5 * 1024 * 1024 || !['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+        const pin = tmp + (ext || '.img');
+        const pout = tmp + '-norm.jpg';
+        cleanup.push(pin, pout);
+        fs.writeFileSync(pin, buf);
+        try {
+          await runFfmpegBin(['-y', '-i', pin, '-vf', "scale='min(1280,iw)':-2", '-q:v', '4', '-frames:v', '1', pout]);
+          if (fs.existsSync(pout)) {
+            imgBuf = fs.readFileSync(pout);
+            mime = 'image/jpeg';
+          }
+        } catch (e) { /* fallback to original buffer */ }
+      }
+      parts.push({ type: 'image_url', image_url: { url: `data:${mime};base64,` + imgBuf.toString('base64') } });
     } else {
-      const vin = tmp + '.mp4'; cleanup.push(vin);
+      const vin = tmp + (path.extname(String(msg.mediaKey || '')) || '.mp4');
+      cleanup.push(vin);
       fs.writeFileSync(vin, buf);
-      try { await runFfmpegBin(['-y', '-i', vin, '-vf', 'fps=1/4,scale=480:-2', '-frames:v', '3', tmp + '-f%d.jpg']); } catch (e) {}
-      for (let i = 1; i <= 3; i++) {
+      // Extract up to 4 frames; fallback to single first frame for very short videos (< 4s)
+      try { await runFfmpegBin(['-y', '-i', vin, '-vf', "fps=1/3,scale='min(640,iw)':-2", '-frames:v', '4', tmp + '-f%d.jpg']); } catch (e) {}
+      for (let i = 1; i <= 4; i++) {
         const f = tmp + '-f' + i + '.jpg'; cleanup.push(f);
         if (fs.existsSync(f)) parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + fs.readFileSync(f).toString('base64') } });
+      }
+      if (!parts.length) {
+        const f0 = tmp + '-f0.jpg'; cleanup.push(f0);
+        try { await runFfmpegBin(['-y', '-i', vin, '-vf', "scale='min(640,iw)':-2", '-frames:v', '1', f0]); } catch (e) {}
+        if (fs.existsSync(f0)) parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + fs.readFileSync(f0).toString('base64') } });
       }
       const mp3 = tmp + '.mp3'; cleanup.push(mp3);
       try {
         await runFfmpegBin(['-y', '-i', vin, '-vn', '-ac', '1', '-ar', '16000', '-t', '90', '-b:a', '32k', mp3]);
-        const fd = new FormData();
-        fd.append('file', new Blob([fs.readFileSync(mp3)], { type: 'audio/mpeg' }), 'audio.mp3');
-        fd.append('model', 'whisper-large-v3');
-        fd.append('response_format', 'json');
-        const tr = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd });
-        const tj = await tr.json().catch(() => ({}));
-        if (tj.text) note = 'Speech transcript of the video (may be in English): "' + String(tj.text).slice(0, 2000) + '"';
+        if (fs.existsSync(mp3) && fs.statSync(mp3).size > 200) {
+          const fd = new FormData();
+          fd.append('file', new Blob([fs.readFileSync(mp3)], { type: 'audio/mpeg' }), 'audio.mp3');
+          fd.append('model', 'whisper-large-v3');
+          fd.append('response_format', 'json');
+          const tr = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd });
+          const tj = await tr.json().catch(() => ({}));
+          if (tj.text && String(tj.text).trim()) note += 'Video audio/speech transcript: "' + String(tj.text).trim().slice(0, 2000) + '"\n';
+        }
       } catch (e) { /* no audio or transcription failed: frames are still used */ }
     }
   } catch (e) {
     cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
-    return 'Could not open this media. Send a smaller file and try again.';
+    return 'Is photo/video ko open karne me dikkat aayi. Chhoti ya saaf file bhej kar dobara try karo.';
   }
   cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
-  if (!parts.length && !note) return 'Could not process this media. Please send it again.';
-  const text = question + '\n\n' + (note ? note + '\n\n' : '') +
-    'Jawab usi bhasha me do jisme user ne likha hai (default Hindi). Simple shabdon me, chhote points me (**bold** headings ke saath). Agar koi insaan dikhe to uska naam ya pehchaan mat batana.';
+  if (!parts.length && !note) return 'Is media ko process nahi kar paaye. Kripya dobara bhejein.';
+  const text = question + '\n\n' + (note ? note.trim() + '\n\n' : '') +
+    'Jawab usi bhasha me do jisme user ne pucha hai (default Hinglish/Hindi). Simple shabdon me, chhote points me (**bold** headings ke saath) samjhao. Agar photo/video me koi mashhoor insaan (celebrity, actor, cricketer, public figure), character, brand, jagah ya cheez dikhe ya file/post ka naam ho, to uska naam zaroor batao.';
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
-  const r = await callGroqChat(GROQ_VISION_MODEL, messages);
+  let r = await callGroqChat(GROQ_VISION_MODEL, messages);
+  if (!r.ok) {
+    // Fallback if model rejected system message or if primary vision model is unavailable
+    const userOnlyMessages = [{ role: 'user', content: [{ type: 'text', text: AI_SYSTEM_PROMPT + '\n\n' + text }, ...parts] }];
+    r = await callGroqChat(GROQ_VISION_MODEL, userOnlyMessages);
+    if (!r.ok) r = await callGroqChat(GROQ_VISION_FALLBACK, userOnlyMessages);
+  }
   if (!r.ok) return 'Media samajhne me problem aayi: ' + ((r.data && r.data.error && r.data.error.message) || 'unknown');
-  return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'I didn’t understand.';
+  return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'Samajh nahi aaya, dobara pucho.';
 }
+
+async function resolveSharedPostMedia(msg, overrideText) {
+  const post = (await readFilms()).find(f => f.id === msg.shortId);
+  if (!post) return null;
+  const slide0 = Array.isArray(post.slides) && post.slides[0] ? post.slides[0] : null;
+  const isPhoto = post.type === 'photo' ? (!slide0 || slide0.mediaType === 'photo') : false;
+  const key = isPhoto
+    ? (post.posterFile || (slide0 && slide0.key) || post.videoFile)
+    : (post.videoFile || (slide0 && slide0.key) || post.posterFile);
+  if (!key) return null;
+  const metaInfo = `Shared Post Details — Title/Name: "${post.title || 'Untitled'}" | Creator: @${post.ownerUsername || 'unknown'}${post.description ? ' | Description: "' + post.description + '"' : ''}${(post.hashtags || []).length ? ' | Hashtags: #' + post.hashtags.join(' #') : ''}`;
+  return {
+    id: msg.id,
+    text: overrideText !== undefined ? overrideText : (msg.text || ''),
+    mediaKey: key,
+    mediaType: isPhoto ? 'photo' : 'video',
+    fileName: post.title || null,
+    metaInfo
+  };
+}
+
+const MEDIA_FOLLOWUP_RE = /\b(photo|image|pic|picture|video|reel|short|clip|post|media|isko|iske|isme|ispe|is\s+photo|is\s+video|ye\s+kaun|yeh\s+kaun|kaun\s+hai|kya\s+hai|naam\s+kya|naam\s+batao|explain|samjhao|describe|identify|pebchano|pehchano|bheja|bheji|upar\s+wali|upar\s+wale|pichli|last)\b/i;
 
 async function callAiAssistant(recentMessages, currentUserId) {
   if (!GROQ_API_KEY) {
     return "Groq API key is not set. Please add GROQ_API_KEY.";
   }
 
-  // a photo or video sent by the user is looked at directly
-  const rawLast = recentMessages.filter(m => !m.unsent).slice(-1)[0];
-  // a reel or photo post shared in the chat: look at the post's own file
+  const validMsgs = recentMessages.filter(m => !m.unsent);
+  const rawLast = validMsgs.slice(-1)[0];
+
+  // 1. Direct shared post (short/film/photo)
   if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && rawLast.type === 'short' && rawLast.shortId) {
-    const post = (await readFilms()).find(f => f.id === rawLast.shortId);
-    if (post) {
-      const isPhoto = post.type === 'photo';
-      const key = isPhoto ? post.posterFile : post.videoFile;
-      if (key) return await answerWithMedia({ id: rawLast.id, text: rawLast.text || post.title, mediaKey: key, mediaType: isPhoto ? 'photo' : 'video' });
-    }
+    const mediaPayload = await resolveSharedPostMedia(rawLast);
+    if (mediaPayload) return await answerWithMedia(mediaPayload);
   }
+  // 2. Direct uploaded photo or video
   if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && (rawLast.mediaType === 'photo' || rawLast.mediaType === 'video') && rawLast.mediaKey) {
     return await answerWithMedia(rawLast);
+  }
+  // 3. Follow-up question about a recently sent photo, video, or shared post in the last few messages!
+  if (rawLast && rawLast.senderId !== AI_ASSISTANT_ID && rawLast.type === 'text' && (rawLast.text || '').trim()) {
+    const recentWindow = validMsgs.slice(-8, -1).reverse();
+    const prevMediaMsg = recentWindow.find(m =>
+      m.senderId !== AI_ASSISTANT_ID &&
+      (((m.mediaType === 'photo' || m.mediaType === 'video') && m.mediaKey) || (m.type === 'short' && m.shortId))
+    );
+    // If the user just sent media right before this text, or if their text references the media/asks "naam batao / ye kaun hai / explain karo"
+    const prevUserMsg = validMsgs.filter(m => m.senderId !== AI_ASSISTANT_ID).slice(-2, -1)[0];
+    const justSentMedia = prevUserMsg && prevMediaMsg && prevUserMsg.id === prevMediaMsg.id;
+    if (prevMediaMsg && (justSentMedia || MEDIA_FOLLOWUP_RE.test(rawLast.text))) {
+      if (prevMediaMsg.type === 'short' && prevMediaMsg.shortId) {
+        const mediaPayload = await resolveSharedPostMedia(prevMediaMsg, rawLast.text);
+        if (mediaPayload) return await answerWithMedia(mediaPayload);
+      } else {
+        return await answerWithMedia({ ...prevMediaMsg, text: rawLast.text });
+      }
+    }
   }
 
   const history = recentMessages
@@ -2742,6 +2838,7 @@ async function ensureAiConversation(userId){
 }
 
 async function triggerAiReply(conversationId, currentUserId){
+  return gdWithLock('ai:' + conversationId, async () => {
   try {
     const messages = await readChatMessages(conversationId);
     const replyText = await callAiAssistant(messages, currentUserId);
@@ -2774,6 +2871,7 @@ async function triggerAiReply(conversationId, currentUserId){
       });
     }
   } catch (err) { console.error('triggerAiReply failed:', err.message); }
+  });
 }
 
 // In-memory presence for the Ask AI chat (no storage reads/writes; resets on restart, which is fine).
@@ -2948,13 +3046,14 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     if (!text && !mediaFile && !shortId) return res.status(400).json({ error: 'Send something — a message, photo, video or short' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    let type = 'text', mediaKey = null, mediaType = null, duration = null;
+    let type = 'text', mediaKey = null, mediaType = null, duration = null, fileName = null;
     let shortTitle = null, shortOwnerUsername = null;
 
     if (mediaFile) {
       const isVideo = mediaFile.mimetype.startsWith('video');
       const isAudio = mediaFile.mimetype.startsWith('audio') || isVoice;
       type = isAudio ? 'voice' : (isVideo ? 'video' : 'photo');
+      fileName = path.basename(String(mediaFile.originalname || '')).slice(0, 120) || null;
       mediaKey = `chats/${convo.id}/${id}${path.extname(mediaFile.originalname) || (isAudio ? '.webm' : '')}`;
       await storePutBuffer(readFileAsBuffer(mediaFile.path), mediaKey, mediaFile.mimetype);
       mediaType = type;
@@ -2971,7 +3070,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const newMessage = {
       id, conversationId: convo.id, senderId: req.currentUser.id,
       type, text: text || null,
-      mediaKey, mediaType, storageProvider: 'gdrive', duration,
+      mediaKey, mediaType, fileName, storageProvider: 'gdrive', duration,
       shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
       createdAt: new Date().toISOString(), editedAt: null,
       deletedFor: [], unsent: false, readBy: [req.currentUser.id]
@@ -3245,6 +3344,7 @@ app.post('/api/me/delete', async (req, res) => {
     for (const f of myFilms) {
       await storeDelete(f.videoFile);
       await storeDelete(f.posterFile);
+      for (const sl of (f.slides || [])) await storeDelete(sl.key);
     }
     const remainingFilms = films.filter(f => f.ownerId !== currentUser.id);
     await writeFilms(remainingFilms);
@@ -3531,6 +3631,7 @@ app.post('/api/admin/reports/:id/remove-content', requireAdmin, async (req, res)
       if (f) {
         await storeDelete(f.videoFile);
         await storeDelete(f.posterFile);
+        for (const sl of (f.slides || [])) await storeDelete(sl.key);
         films = films.filter(x => x.id !== r.filmId);
         await writeFilms(films);
       }
@@ -3900,6 +4001,7 @@ app.post('/api/admin/moderation/:id/reject', requireAdmin, async (req, res) => {
   const f = films.find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: 'Post not found' });
   await storeDelete(f.videoFile); await storeDelete(f.posterFile);
+  for (const sl of (f.slides || [])) await storeDelete(sl.key);
   films = films.filter(x => x.id !== f.id);
   await writeFilms(films);
   res.json({ success: true });
