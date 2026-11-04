@@ -895,8 +895,9 @@
     <button class="story-viewer-close" onclick="closeStoryViewer()">✕</button>
   </div>
   <div class="story-media-area" id="storyMediaArea">
-    <img id="storyViewImg" class="hidden" loading="lazy" decoding="async">
-    <video id="storyViewVideo" class="hidden" playsinline></video>
+    <div id="storyLoadingSpinner" class="hidden" style="position:absolute;z-index:3;color:#fff;font-size:13px;background:rgba(0,0,0,0.5);padding:8px 14px;border-radius:999px;">Loading story…</div>
+    <img id="storyViewImg" class="hidden" decoding="async" fetchpriority="high">
+    <video id="storyViewVideo" class="hidden" playsinline preload="auto"></video>
     <div class="story-text-overlay" id="storyViewTextOverlay"></div>
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
     <div class="story-tap-zone story-tap-right" onclick="storyGoNext()"></div>
@@ -914,7 +915,7 @@
 </div>
 
 <!-- ===== OTHER USER'S PROFILE (separate from own Profile tab) ===== -->
-<div class="chat-full-overlay" id="hashtagFeedOverlay" style="z-index:122;">
+<div class="chat-full-overlay" id="hashtagFeedOverlay" style="z-index:127;">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeHashtagFeed()">←</button>
     <span class="chat-header-name" id="hashtagFeedTitle"></span>
@@ -931,7 +932,7 @@
   <div class="profile-wrap" id="otherProfileContent" style="overflow-y:auto;flex:1;"></div>
 </div>
 
-<div class="chat-full-overlay" id="profilePhotoFeedOverlay" style="z-index:124;">
+<div class="chat-full-overlay" id="profilePhotoFeedOverlay" style="z-index:128;">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeProfilePhotoFeed()">←</button>
     <span class="chat-header-name" id="profilePhotoFeedTitle">Photos</span>
@@ -1402,8 +1403,10 @@ function switchTab(tab){
 
   if (tab === 'shorts') {
     setupShortsObserver();
-    const firstVideo = document.querySelector('.short-item video');
-    if (firstVideo) { if (!firstVideo.src && firstVideo.dataset.src) firstVideo.src = firstVideo.dataset.src; firstVideo.play().catch(() => {}); }
+    if (!window._skipFirstShortAuto) {
+      const firstVideo = document.querySelector('.short-item video');
+      if (firstVideo) { if (!firstVideo.src && firstVideo.dataset.src) firstVideo.src = firstVideo.dataset.src; firstVideo.play().catch(() => {}); }
+    }
   } else {
     document.querySelectorAll('.short-item video').forEach(v => v.pause());
   }
@@ -2429,7 +2432,7 @@ async function renderWatchHistory(){
     const data = await res.json();
     const items = data.history || [];
     if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t watched any videos yet.</p>'; return; }
-    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, storyTimeAgo(h.viewedAt), `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
+    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, storyTimeAgo(h.viewedAt), `handleNotifClick('${h.filmId}','','','','history','','${h.type || ''}','','')`)).join('');
   } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
@@ -2442,7 +2445,7 @@ async function renderLikedHistory(){
     const data = await res.json();
     const items = data.liked || [];
     if (!items.length) { bodyEl.innerHTML = '<p class="comment-empty">You haven\'t liked anything yet.</p>'; return; }
-    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, h.likedAt ? storyTimeAgo(h.likedAt) : '', `closeProfileMenu();playFilm('${h.filmId}')`)).join('');
+    bodyEl.innerHTML = items.map(h => historyRow(h.posterUrl, h.title, h.likedAt ? storyTimeAgo(h.likedAt) : '', `handleNotifClick('${h.filmId}','','','','history','','${h.type || ''}','','')`)).join('');
   } catch (e) { bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>'; }
 }
 
@@ -2703,12 +2706,35 @@ function renderShortsGrid(shorts){
   `).join('');
 }
 
-function openShortAt(id){
+async function openShortAt(id, openCommentsAfter){
+  if (!document.querySelector('.short-item[data-id="' + id + '"]')) {
+    try {
+      const r = await fetch('/api/films/' + id);
+      if (r.ok) {
+        const f = await r.json();
+        if (f && f.id && !allFilms.some(x => x.id === f.id)) {
+          allFilms.unshift(f);
+          renderShorts(allFilms.filter(x => x.type === 'short'));
+        }
+      }
+    } catch (e) {}
+  }
+  window._skipFirstShortAuto = true;
   switchTab('shorts');
+  window._skipFirstShortAuto = false;
   setTimeout(() => {
+    document.querySelectorAll('.short-item video').forEach(v => v.pause());
     const item = document.querySelector('.short-item[data-id="' + id + '"]');
-    if (item) item.scrollIntoView({ behavior: 'instant', block: 'start' });
-  }, 50);
+    if (item) {
+      item.scrollIntoView({ behavior: 'instant', block: 'start' });
+      const vid = item.querySelector('video');
+      if (vid) {
+        if (!vid.src && vid.dataset.src) vid.src = vid.dataset.src;
+        vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+      }
+    }
+    if (openCommentsAfter) setTimeout(() => openSheet(id), 180);
+  }, 60);
 }
 
 let searchUserTimer = null;
@@ -2854,7 +2880,7 @@ function renderHome(films) {
         <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}" data-kind="${isPhoto ? 'photo' : (isShort ? 'short' : 'film')}">
           ${
             isPhoto
-              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" / loading="lazy" decoding="async">`)
+              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`)
               : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
           }
         </div>
@@ -2911,6 +2937,7 @@ function toggleCardMute(id, btnEl){
 }
 
 let homeVideoObserver = null;
+let homeCardViewObserver = null;
 function tryPlayHomeVideo(video){
   video.playsInline = true;
   const p = video.play();
@@ -2921,16 +2948,32 @@ function tryPlayHomeVideo(video){
     });
   }
 }
+function recordFeedCardView(id){
+  if (!id || !currentUser) return;
+  if (markViewed(id)) {
+    fetch('/api/films/' + id + '/view', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        const f = allFilms.find(x => x.id === id);
+        if (f && d && typeof d.views === 'number') f.views = d.views;
+      }).catch(() => {});
+  }
+}
 function setupHomeVideoObserver(){
   if (homeVideoObserver) homeVideoObserver.disconnect();
+  if (homeCardViewObserver) homeCardViewObserver.disconnect();
   const videos = document.querySelectorAll('#grid .card-media-box video');
   homeVideoObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       const video = entry.target;
+      const box = video.closest('.card-media-box');
+      const id = box ? box.dataset.id : null;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
         tryPlayHomeVideo(video);
+        if (id) { recordFeedCardView(id); watchTimeStart(id); }
       } else {
         video.pause();
+        if (id) watchTimeFlush(id);
       }
     });
   }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
@@ -2939,6 +2982,18 @@ function setupHomeVideoObserver(){
     v.playsInline = true;
     homeVideoObserver.observe(v);
   });
+
+  // Also count views for photo/carousel cards on the Home feed when >=60% visible
+  const mediaBoxes = document.querySelectorAll('#grid .card-media-box[data-id]');
+  homeCardViewObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        const id = entry.target.dataset.id;
+        if (id) recordFeedCardView(id);
+      }
+    });
+  }, { threshold: [0.6] });
+  mediaBoxes.forEach(b => homeCardViewObserver.observe(b));
 }
 
 // Auto next (Shorts only): when a short ends, scroll to the next one; on the last one, start again
@@ -3536,13 +3591,20 @@ async function playFilm(id){
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
   const carEl = document.getElementById('playerCarousel');
+  const fsBtn = document.getElementById('playerFsBtn');
   if (f.slideUrls && f.slideUrls.length > 1) {
     playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'none'; imgEl.src = '';
     carEl.style.display = 'block'; carEl.innerHTML = carouselHtml(f);
+    if (fsBtn) fsBtn.style.display = 'none';
   } else {
     carEl.style.display = 'none'; carEl.innerHTML = '';
-    if (f.type === 'photo') { playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || ''; }
-    else { imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
+    if (f.type === 'photo') {
+      playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || '';
+      if (fsBtn) fsBtn.style.display = 'none';
+    } else {
+      imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1;
+      if (fsBtn) fsBtn.style.display = 'block';
+    }
   }
   if (!playerEl.dataset.watchListeners) {
     playerEl.dataset.watchListeners = '1';
@@ -3686,7 +3748,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
       }
     } catch (e) {}
   }
-  const userPhotos = pinSort(allFilms.filter(f => isMyPost(f, userId) && f.type === 'photo'), pinnedIds);
+  const userPhotos = pinSort(allFilms.filter(f => (isMyPost(f, userId) || f.id === startFilmId) && f.type === 'photo'), pinnedIds);
   if (!username && userPhotos.length) username = userPhotos[0].ownerUsername || '';
   titleEl.textContent = username ? ('@' + username + ' · Photos') : 'Photos';
 
@@ -3708,7 +3770,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
         </div>
 
         <div class="card-media-box" data-id="${f.id}" data-short="0" data-kind="photo">
-          ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" / loading="lazy" decoding="async">`}
+          ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`}
         </div>
 
         <div class="card-actions-bar">
@@ -4050,7 +4112,7 @@ function openSongPicker(kind, mediaSec){
   return new Promise(async resolve => {
     let list = [];
     try { const r = await fetch('/api/songs'); list = await r.json(); if (!Array.isArray(list)) list = []; } catch (e) {}
-    const want = kind === 'note' ? 15 : kind === 'photo' ? 8 : Math.max(1, Math.min(600, Math.round(mediaSec || 8)));
+    const want = (kind === 'story' || kind === 'note' || kind === 'photo') ? 15 : Math.max(1, Math.min(600, Math.round(mediaSec || 15)));
     const ov = document.createElement('div');
     ov.id = 'songPicker';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:980;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -4162,8 +4224,7 @@ let storyAdjust = null;
 let storyChosenSong = null;
 async function pickStorySong(){
   if (!storyPickedFile) { showToast('Choose a photo or video first'); return; }
-  const isVid = storyPickedFile.type.startsWith('video');
-  const pick = await openSongPicker(isVid ? 'video' : 'photo', isVid ? await mediaDurationOf(storyPickedFile) : 8);
+  const pick = await openSongPicker('story', 15);
   if (pick === 'cancel') return;
   storyChosenSong = pick;
   const lbl = document.getElementById('storySongLabel');
@@ -4193,6 +4254,14 @@ async function loadStories(){
     window.activeStoriesByUser = {};
     storyGroups.forEach(g => { window.activeStoriesByUser[g.ownerId] = g.stories; });
     renderStoriesBar();
+    // Preload the first unviewed photo story of the top groups so tapping a story opens instantly
+    storyGroups.slice(0, 6).forEach(g => {
+      const first = (g.stories || []).find(s => !s.viewedByMe) || (g.stories || [])[0];
+      if (first && first.mediaUrl && first.mediaType === 'photo') {
+        const pre = new Image();
+        pre.src = first.mediaUrl;
+      }
+    });
   } catch (e) {}
 }
 
@@ -4363,6 +4432,8 @@ function pauseStoryProgress(){
   storyIsPaused = true;
   storyElapsedMs = Math.min(storyDurationMs, storyElapsedMs + (Date.now() - storySegStartTime));
   clearStoryTimer();
+  clearTimeout(songStopTimer);
+  if (songAudio && !songAudio.paused) songAudio.pause();
   const fill = document.getElementById('storyProgFill' + currentStoryIndex);
   if (fill) { fill.style.transition = 'none'; fill.style.width = getComputedStyle(fill).width; }
   const vidEl = document.getElementById('storyViewVideo');
@@ -4373,6 +4444,10 @@ function resumeStoryProgress(){
   if (!storyIsPaused) return;
   storyIsPaused = false;
   const remaining = Math.max(250, storyDurationMs - storyElapsedMs);
+  if (songAudio && songAudio.paused) {
+    songAudio.play().catch(() => {});
+    songStopTimer = setTimeout(stopSong, remaining);
+  }
   const vidEl = document.getElementById('storyViewVideo');
   if (vidEl && !vidEl.classList.contains('hidden')) vidEl.play().catch(() => {});
   startStorySegment(remaining);
@@ -4432,25 +4507,45 @@ function startStoryPlayback(){
   imgEl.onload = null; imgEl.onerror = null;
   clearStoryTimer();
 
+  const spinEl = document.getElementById('storyLoadingSpinner');
+  const photoDurationMs = story.song ? ((story.song.duration || 15) * 1000) : 5000;
+
   if (story.mediaType === 'photo') {
-    vidEl.pause(); vidEl.classList.add('hidden'); vidEl.src = '';
-    imgEl.classList.add('hidden');
-    imgEl.onload = () => { imgEl.classList.remove('hidden'); runStoryProgress(5000); };
-    imgEl.onerror = () => { imgEl.classList.remove('hidden'); runStoryProgress(5000); };
+    vidEl.pause(); vidEl.classList.add('hidden'); vidEl.removeAttribute('src');
+    if (spinEl) spinEl.classList.remove('hidden');
+    imgEl.classList.remove('hidden');
+    let started = false;
+    const onPhotoReady = () => {
+      if (started) return;
+      started = true;
+      if (spinEl) spinEl.classList.add('hidden');
+      runStoryProgress(photoDurationMs);
+    };
+    imgEl.onload = onPhotoReady;
+    imgEl.onerror = onPhotoReady;
     imgEl.src = story.mediaUrl;
+    if (imgEl.complete && imgEl.naturalWidth > 0) onPhotoReady();
   } else {
-    imgEl.classList.add('hidden'); imgEl.src = '';
+    imgEl.classList.add('hidden'); imgEl.removeAttribute('src');
+    if (spinEl) spinEl.classList.remove('hidden');
     vidEl.src = story.mediaUrl;
     vidEl.classList.remove('hidden');
-    vidEl.muted = false;
-    vidEl.play().catch(() => {});
-    vidEl.onloadedmetadata = () => runStoryProgress((vidEl.duration || 5) * 1000);
+    vidEl.muted = !!(story.song && story.song.url);
+    vidEl.oncanplay = () => { if (spinEl) spinEl.classList.add('hidden'); };
+    vidEl.onloadedmetadata = () => {
+      if (spinEl) spinEl.classList.add('hidden');
+      const vidMs = (vidEl.duration || 5) * 1000;
+      runStoryProgress(story.song ? Math.min(vidMs, (story.song.duration || 15) * 1000) : vidMs);
+    };
     vidEl.onended = () => storyGoNext();
+    vidEl.play().catch(() => { vidEl.muted = true; vidEl.play().catch(() => {}); });
   }
 
   currentStoryId = story.id;
   recordStoryView(story.id);
-  loadStoryComments(story.id);
+  if (document.getElementById('storyCommentsDrawer').classList.contains('open')) {
+    loadStoryComments(story.id);
+  }
   preloadNextStoryMedia();
 }
 
@@ -4493,18 +4588,27 @@ function storyAdvanceUser(direction){
   startStoryPlayback();
 }
 
-function openStoryViewer(ownerId){
-  if (!storyGroups.length) return;
+function openStoryViewer(ownerId, targetStoryId, openComments){
+  if (!storyGroups.length) return false;
   currentStoryUserQueue = storyGroups;
-  currentStoryGroupIndex = storyGroups.findIndex(g => g.ownerId === ownerId);
-  if (currentStoryGroupIndex === -1) return;
+  currentStoryGroupIndex = ownerId ? storyGroups.findIndex(g => g.ownerId === ownerId) : -1;
+  if (currentStoryGroupIndex === -1 && targetStoryId) {
+    currentStoryGroupIndex = storyGroups.findIndex(g => (g.stories || []).some(s => s.id === targetStoryId));
+  }
+  if (currentStoryGroupIndex === -1) return false;
   const group = storyGroups[currentStoryGroupIndex];
-  currentStoryIndex = group.stories.findIndex(s => !s.viewedByMe);
-  if (currentStoryIndex === -1) currentStoryIndex = 0;
+  if (targetStoryId) {
+    const idx = group.stories.findIndex(s => s.id === targetStoryId);
+    currentStoryIndex = idx !== -1 ? idx : 0;
+  } else {
+    currentStoryIndex = group.stories.findIndex(s => !s.viewedByMe);
+    if (currentStoryIndex === -1) currentStoryIndex = 0;
+  }
   document.getElementById('storyViewerOverlay').classList.add('open');
-  document.getElementById('storyCommentsDrawer').classList.remove('open');
+  document.getElementById('storyCommentsDrawer').classList.toggle('open', !!openComments);
   renderStoryProgressBars(group.stories.length);
   startStoryPlayback();
+  return true;
 }
 
 function closeStoryViewer(){
@@ -4691,7 +4795,10 @@ function closeStoryViewsSheet(){
 }
 
 function toggleStoryCommentsDrawer(){
-  document.getElementById('storyCommentsDrawer').classList.toggle('open');
+  const dr = document.getElementById('storyCommentsDrawer');
+  const opening = !dr.classList.contains('open');
+  dr.classList.toggle('open', opening);
+  if (opening && currentStoryId) loadStoryComments(currentStoryId);
 }
 
 async function loadStoryComments(storyId){
@@ -4789,9 +4896,11 @@ function notifIcon(type){
   if (type === 'follow') return '👤';
   if (type === 'film_comment' || type === 'story_comment') return '💬';
   if (type === 'comment_like') return '❤️';
-  if (type === 'message') return '✉️';
+  if (type === 'comment_pin') return '📌';
+  if (type === 'message' || type === 'message_reaction') return '✉️';
   if (type === 'mention') return '@';
   if (type === 'collab_invite' || type === 'collab_accepted') return '🤝';
+  if (type === 'bluetick') return '✔';
   if (type === 'helpdesk_reply') return '🆘';
   if (type === 'report_alert') return '🚨';
   return '🔔';
@@ -4808,17 +4917,27 @@ async function openNotifications(){
     if (!notifs.length) {
       listEl.innerHTML = '<p class="comment-empty">No notifications yet.</p>';
     } else {
-      listEl.innerHTML = notifs.map(n => `
-        <div onclick="handleNotifClick('${n.filmId || ''}','${n.storyId || ''}','${n.fromUserId}','${escapeHtml(n.fromUsername)}','${n.type}','${n.conversationId || ''}')" style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
-          <span style="font-size:18px;flex-shrink:0;">${notifIcon(n.type)}</span>
-          <div style="flex:1;">
-            <div style="font-size:13.5px;color:var(--cream);">${escapeHtml(n.message)}</div>
+      listEl.innerHTML = notifs.map(n => {
+        const thumbHtml = n.thumbUrl
+          ? (n.mediaKind === 'video'
+              ? `<video src="${escapeAttr(n.thumbUrl)}" muted playsinline preload="metadata" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;"></video>`
+              : `<img src="${escapeAttr(n.thumbUrl)}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;background:#111;flex-shrink:0;" loading="lazy" decoding="async" onerror="this.style.display='none'">`)
+          : '';
+        return `
+        <div data-film-id="${escapeAttr(n.filmId || '')}" data-film-type="${escapeAttr(n.filmType || '')}" data-film-owner="${escapeAttr(n.filmOwnerId || '')}" data-story-id="${escapeAttr(n.storyId || '')}" data-story-owner="${escapeAttr(n.storyOwnerId || '')}" data-from-id="${escapeAttr(n.fromUserId || '')}" data-from-name="${escapeAttr(n.fromUsername || '')}" data-type="${escapeAttr(n.type || '')}" data-convo-id="${escapeAttr(n.conversationId || '')}" onclick="handleNotifRowClick(this)" style="display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--gold-line);cursor:pointer;${n.read ? '' : 'background:rgba(124,92,255,0.08);'}">
+          ${n.fromAvatar
+            ? `<img src="${escapeAttr(n.fromAvatar)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;" loading="lazy" decoding="async" onclick="event.stopPropagation();if('${escapeAttr(n.fromUserId)}' !== 'system'){closeAllOverlays();goToProfileDirect('${escapeAttr(n.fromUserId)}','${escapeAttr(n.fromUsername)}');}">`
+            : `<span style="font-size:18px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${notifIcon(n.type)}</span>`}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13.5px;color:var(--cream);line-height:1.35;">${escapeHtml(n.message)}</div>
             <div style="font-size:11.5px;color:var(--cream-dim);margin-top:2px;">${storyTimeAgo(n.createdAt)}</div>
-            ${n.type === 'collab_invite' ? `<div style="display:flex;gap:8px;margin-top:8px;"><button type="button" class="profile-btn primary" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${n.filmId}','accept',this)">Accept</button><button type="button" class="profile-btn" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${n.filmId}','decline',this)">Decline</button></div>` : ''}
+            ${n.type === 'collab_invite' ? `<div style="display:flex;gap:8px;margin-top:8px;"><button type="button" class="profile-btn primary" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${escapeAttr(n.filmId)}','accept',this)">Accept</button><button type="button" class="profile-btn" style="padding:6px 14px;font-size:12.5px;" onclick="event.stopPropagation();respondCollab('${escapeAttr(n.filmId)}','decline',this)">Decline</button></div>` : ''}
           </div>
-          ${n.read ? '' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--marigold);flex-shrink:0;margin-top:5px;"></span>'}
+          ${thumbHtml}
+          ${n.read ? '' : '<span style="width:8px;height:8px;border-radius:50%;background:var(--marigold);flex-shrink:0;"></span>'}
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
     await prependAnnouncements(listEl);
     if (data.unreadCount > 0) {
@@ -4843,22 +4962,87 @@ async function respondCollab(filmId, action, btn){
   } catch (e) {}
 }
 
-function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId){
-  closeNotifications();
+function handleNotifRowClick(el){
+  if (!el) return;
+  handleNotifClick(
+    el.dataset.filmId,
+    el.dataset.storyId,
+    el.dataset.fromId,
+    el.dataset.fromName,
+    el.dataset.type,
+    el.dataset.convoId,
+    el.dataset.filmType,
+    el.dataset.filmOwner,
+    el.dataset.storyOwner
+  );
+}
+
+async function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type, conversationId, filmTypeHint, filmOwnerHint, storyOwnerHint){
+  // Close all open sheets/modals first so no background overlay hides the target media
+  closeAllOverlays();
   if (type === 'report_alert') { window.location.href = '/dashboard.html'; return; }
   if (type === 'helpdesk_reply') { openProfileMenu(); setTimeout(() => { renderSettingsPrivacyMenu(); setTimeout(renderHelpDesk, 60); }, 60); return; }
-  if (type === 'message') { openChatConvo(fromUserId, fromUsername); return; }
+  if (type === 'bluetick') { openBlueTick(); return; }
+  if (type === 'message' || type === 'message_reaction') { openChatConvo(fromUserId, fromUsername); return; }
+
+  // 1. Post / Video / Short / Photo notification
   if (filmId) {
-    const f = (allFilms || []).find(x => x.id === filmId);
-    if (f && f.type === 'photo') { openProfilePhotoFeed(f.ownerId, f.id); return; }
-    if (f && f.type === 'short') { openShortAt(f.id); return; }
-    playFilm(filmId); return;
+    let f = (allFilms || []).find(x => x.id === filmId);
+    if (!f) {
+      try {
+        const res = await fetch('/api/films/' + encodeURIComponent(filmId));
+        if (res.ok) {
+          f = await res.json();
+          if (f && f.id && !allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
+        } else {
+          showToast('Ye post ab available nahi hai (deleted)');
+          return;
+        }
+      } catch (e) {
+        showToast('Post open karne me problem aayi');
+        return;
+      }
+    }
+    const fType = (f && f.type) || filmTypeHint || 'film';
+    const fOwner = (f && f.ownerId) || filmOwnerHint || fromUserId;
+    const isCommentNotif = (type === 'film_comment' || type === 'comment_like' || type === 'comment_pin');
+
+    if (fType === 'photo') {
+      await openProfilePhotoFeed(fOwner, filmId);
+      if (isCommentNotif) setTimeout(() => openSheet(filmId), 220);
+      return;
+    }
+    if (fType === 'short') {
+      await openShortAt(filmId, isCommentNotif);
+      return;
+    }
+    await playFilm(filmId);
+    if (isCommentNotif) {
+      setTimeout(() => {
+        const cl = document.getElementById('commentList');
+        if (cl) cl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
+    }
+    return;
   }
+
+  // 2. Story notification (story_comment or comment_like on a story)
   if (storyId) {
-    const stories = (window.activeStoriesByUser || {})[fromUserId];
-    if (stories && stories.length) { openStoryViewer(fromUserId); return; }
+    const wantComments = (type === 'story_comment' || type === 'comment_like');
+    // For story_comment on your own story, YOU are the story owner (currentUser.id), not fromUserId!
+    const targetOwnerId = storyOwnerHint || (type === 'story_comment' && currentUser ? currentUser.id : null);
+    if (!storyGroups.length || !storyGroups.some(g => (g.stories || []).some(s => s.id === storyId))) {
+      await loadStories();
+    }
+    if (openStoryViewer(targetOwnerId, storyId, wantComments)) return;
+    showToast('Ye story expire ho chuki hai (24h)');
+    return;
   }
-  goToProfileDirect(fromUserId, fromUsername);
+
+  // 3. Fallback: open user profile (unless it's a system notification)
+  if (fromUserId && fromUserId !== 'system') {
+    goToProfileDirect(fromUserId, fromUsername);
+  }
 }
 
 // ===================== MESSAGES / CHAT (DM) =====================
@@ -5172,13 +5356,17 @@ function renderChatBubble(m, mine, showStatus){
       <button class="chat-voice-play">▶</button><div class="chat-voice-wave"></div><span class="chat-voice-duration">${mm}:${ss}</span>
     </div>`;
   } else if (m.type === 'short') {
-    bubbleInner = `<div class="chat-bubble chat-short-bubble" onclick="openSharedShort('${m.shortId}')">
-      <img src="${m.shortThumb}" onerror="this.style.display='none'" loading="lazy" decoding="async">
-      <div class="chat-short-bubble-info">
-        <div class="chat-short-bubble-title">${escapeHtml(m.shortTitle || 'Short')}</div>
-        <div class="chat-short-bubble-tag">▶ ${m.shortOwnerUsername ? '@' + escapeHtml(m.shortOwnerUsername) : 'Short'}</div>
+    bubbleInner = `<div><div class="chat-bubble chat-short-bubble" style="cursor:pointer;" onclick="openSharedShort('${escapeAttr(m.shortId)}')">
+      <div style="position:relative;width:100%;aspect-ratio:9/14;background:#111;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <img src="${escapeAttr(m.shortThumb || '')}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block';" loading="lazy" decoding="async">
+        ${m.shortVideoUrl ? `<video src="${escapeAttr(m.shortVideoUrl)}" muted playsinline preload="metadata" style="display:none;width:100%;height:100%;object-fit:cover;"></video>` : ''}
+        <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.7);pointer-events:none;">▶</span>
       </div>
-    </div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}`;
+      <div class="chat-short-bubble-info">
+        <div class="chat-short-bubble-title">${escapeHtml(m.shortTitle || 'Post')}</div>
+        <div class="chat-short-bubble-tag">▶ ${m.shortOwnerUsername ? '@' + escapeHtml(m.shortOwnerUsername) : 'Open post'}</div>
+      </div>
+    </div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else {
     bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
   }
@@ -5295,17 +5483,26 @@ function openShortFromProfile(filmId, userId, username){
   openShortAt(filmId);
 }
 
-function openSharedShort(filmId){
-  fetch('/api/films/' + filmId).then(r => r.json()).then(f => {
-    if (!f || f.error) { showToast((f && f.error) || 'This content is no longer available'); return; }
+async function openSharedShort(filmId){
+  if (!filmId) return;
+  try {
+    const r = await fetch('/api/films/' + encodeURIComponent(filmId));
+    const f = await r.json();
+    if (!r.ok || !f || f.error) { showToast((f && f.error) || 'Ye post ab available nahi hai'); return; }
+    if (!allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
+    if (f.type === 'photo') {
+      await openProfilePhotoFeed(f.ownerId, f.id);
+      return;
+    }
     if (f.type === 'short') {
       shortsReturnTo = chatOtherUser ? { type: 'chat', userId: chatOtherUser.id, username: chatOtherUser.username } : null;
-      closeChatConvo();
-      openShortAt(filmId);
-    } else {
-      playFilm(filmId);
+      await openShortAt(f.id);
+      return;
     }
-  }).catch(() => showToast('Couldn’t open'));
+    await playFilm(f.id);
+  } catch (e) {
+    showToast('Post open karne me problem aayi');
+  }
 }
 
 // ---- Voice recording ----
@@ -5668,10 +5865,12 @@ function setupShortsSwipeToProfile(){
 }
 
 async function init(){
-  try { await loadProfile(); } catch (e) { console.error('loadProfile failed:', e); }
-  if (currentUser) startHeartbeat();
-  try { await loadFilms(); } catch (e) { console.error('loadFilms failed:', e); }
-  try { await loadStories(); } catch (e) { console.error('loadStories failed:', e); }
+  await Promise.allSettled([
+    loadProfile().then(() => { if (currentUser) startHeartbeat(); }),
+    loadStories(),
+    loadFilms()
+  ]);
+  renderStoriesBar();
   try { if (window.UploadMgr) UploadMgr.restore(); } catch (e) { console.error('restore uploads failed:', e); }
   try { loadAnnouncementBanner(); } catch (e) {}
   setupDoubleTapLike(
@@ -6199,6 +6398,7 @@ async function likeFeedPost(id, btn) {
     const film = allFilms.find(f => f.id === id);
     if (film) {
       film.likes = data.likes;
+      if (typeof data.views === 'number') film.views = data.views;
       if (!film.likedBy) film.likedBy = [];
       if (data.liked) { if (!film.likedBy.includes(currentUser.id)) film.likedBy.push(currentUser.id); }
       else film.likedBy = film.likedBy.filter(uid => uid !== currentUser.id);
@@ -6277,6 +6477,7 @@ function shareCurrentFilmById(id, title) {
     entries.forEach(en => {
       if (!en.isIntersecting || !en.intersectionRatio || en.intersectionRatio < 0.6) return;
       const id = en.target.getAttribute('data-id');
+      if (id) recordFeedCardView(id);
       const f = (allFilms || []).find(x => x.id === id);
       if (f && f.song) playSong(f.song); else stopSong();
     });
