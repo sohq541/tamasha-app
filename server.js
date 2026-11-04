@@ -264,7 +264,7 @@ async function notifyCollabInvite(newFilm, currentUser) {
   if (newFilm.collabStatus !== 'pending' || !currentUser) return;
   await notify(newFilm.collaboratorId, {
     type: 'collab_invite', fromUserId: currentUser.id, fromUsername: currentUser.username,
-    filmId: newFilm.id, message: `@${currentUser.username} ne tumhe "${newFilm.title}" pe collab ke liye invite kiya`
+    filmId: newFilm.id, message: `@${currentUser.username} invited you to collab on "${newFilm.title}"`
   });
 }
 
@@ -541,7 +541,7 @@ app.post('/api/login', async (req, res) => {
     if (!user.passwordHash) return res.status(401).json({ error: 'This account was created with Google. Please use "Continue with Google" below to log in.' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Incorrect email or password' });
-    if (user.suspended) return res.status(403).json({ error: 'Ye account suspend kar diya gaya hai community guidelines violate karne ki wajah se.' });
+    if (user.suspended) return res.status(403).json({ error: 'This account has been suspended for violating the community guidelines.' });
     const token = signToken(user, await startSession(req, user));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ id: user.id, email: user.email, username: user.username });
@@ -557,7 +557,7 @@ app.post('/api/logout', async (req, res) => {
 // Devices list and logout (Settings and Privacy → Devices)
 app.get('/api/me/sessions', async (req, res) => {
   const p = getUserFromReq(req);
-  if (!p) return res.status(401).json({ error: 'Login karo' });
+  if (!p) return res.status(401).json({ error: 'Log in' });
   const users = await readUsers();
   const u = users.find(x => x.id === p.id);
   const list = ((u && u.sessions) || []).map(x => ({ sid: x.sid, device: x.device, createdAt: x.createdAt, current: x.sid === p.sid }))
@@ -566,14 +566,14 @@ app.get('/api/me/sessions', async (req, res) => {
 });
 app.post('/api/me/sessions/:sid/logout', async (req, res) => {
   const p = getUserFromReq(req);
-  if (!p) return res.status(401).json({ error: 'Login karo' });
+  if (!p) return res.status(401).json({ error: 'Log in' });
   await dropSessions(p.id, x => x !== req.params.sid);
   if (req.params.sid === p.sid) res.clearCookie('token');
   res.json({ success: true, current: req.params.sid === p.sid });
 });
 app.post('/api/me/sessions/logout-others', async (req, res) => {
   const p = getUserFromReq(req);
-  if (!p) return res.status(401).json({ error: 'Login karo' });
+  if (!p) return res.status(401).json({ error: 'Log in' });
   await dropSessions(p.id, x => x === p.sid);
   res.json({ success: true });
 });
@@ -688,7 +688,7 @@ app.post('/api/accounts/switch', (req, res) => {
   const want = String((req.body && req.body.id) || '');
   const list = savedTokens(req);
   const target = list.find(t => { const p = payloadOf(t); return p && p.id === want && !suspendedIds.has(p.id); });
-  if (!target) return res.status(404).json({ error: 'Ye account saved nahi hai, dobara login karo' });
+  if (!target) return res.status(404).json({ error: 'This account is not saved, log in again' });
   const cur = getUserFromReq(req);
   let rest = list.filter(t => t !== target);
   if (cur && req.cookies.token) rest = [req.cookies.token, ...rest.filter(t => payloadOf(t) && payloadOf(t).id !== cur.id)];
@@ -810,7 +810,7 @@ app.put('/api/me/password', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both password fields are required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
@@ -987,7 +987,7 @@ app.post('/api/forgot-password/question', async (req, res) => {
 app.post('/api/forgot-password/reset', async (req, res) => {
   try {
     const { email, securityAnswer, newPassword } = req.body;
-    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'Naya password kam se kam 6 characters ka ho' });
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
     const users = await readUsers();
     const user = users.find(u => u.email.toLowerCase() === (email || '').toLowerCase());
     if (!user) return res.status(404).json({ error: 'This email is not registered' });
@@ -1077,10 +1077,10 @@ app.post('/api/films/:id/collab/accept', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f || f.collaboratorId !== currentUser.id || f.collabStatus !== 'pending') return res.status(404).json({ error: 'Invite nahi mila' });
+    if (!f || f.collaboratorId !== currentUser.id || f.collabStatus !== 'pending') return res.status(404).json({ error: 'Invite not found' });
     f.collabStatus = 'accepted';
     await writeFilms(films);
-    await notify(f.ownerId, { type: 'collab_accepted', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} ne "${f.title}" ka collab accept kar liya` });
+    await notify(f.ownerId, { type: 'collab_accepted', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} accepted the collab on "${f.title}"` });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1091,7 +1091,7 @@ app.post('/api/films/:id/collab/decline', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f || !f.collaboratorId) return res.status(404).json({ error: 'Collab nahi mila' });
+    if (!f || !f.collaboratorId) return res.status(404).json({ error: 'Collab not found' });
     if (f.collaboratorId !== currentUser.id && f.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
     delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus;
     await writeFilms(films);
@@ -1126,8 +1126,8 @@ app.post('/api/films/:id/collab', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f) return res.status(404).json({ error: 'Post nahi mili' });
-    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'Sirf post ka owner collab set kar sakta hai' });
+    if (!f) return res.status(404).json({ error: 'Post not found' });
+    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'Only the post owner can set the collab' });
 
     const raw = String(req.body.username || '').trim().replace(/^@/, '');
     if (!raw) {
@@ -1137,9 +1137,9 @@ app.post('/api/films/:id/collab', async (req, res) => {
     }
     const users = await readUsers();
     const target = users.find(u => (u.username || '').toLowerCase() === raw.toLowerCase());
-    if (!target) return res.status(404).json({ error: 'Ye username nahi mila' });
-    if (target.id === currentUser.id) return res.status(400).json({ error: 'Apne aap ke saath collab nahi ho sakta' });
-    if ((target.blockedUsers || []).includes(currentUser.id)) return res.status(403).json({ error: 'Is user ko invite nahi kar sakte' });
+    if (!target) return res.status(404).json({ error: 'This username was not found' });
+    if (target.id === currentUser.id) return res.status(400).json({ error: 'You cannot collab with yourself' });
+    if ((target.blockedUsers || []).includes(currentUser.id)) return res.status(403).json({ error: 'You cannot invite this user' });
 
     f.collaboratorId = target.id; f.collaboratorUsername = target.username; f.collabStatus = 'pending';
     await writeFilms(films);
@@ -1582,12 +1582,13 @@ app.post('/api/films/:id/view', async (req, res) => {
     const f = films.find(x => x.id === req.params.id);
     if (!f) return res.status(404).json({ error: 'Film not found' });
     const viewer = getUserFromReq(req);
+    let counted = true;
     if (viewer) {
       if (!f.viewedBy) f.viewedBy = [];
-      if (f.viewedBy.includes(viewer.id)) return res.json({ views: f.views || 0, counted: false });
-      f.viewedBy.push(viewer.id);
+      if (f.viewedBy.includes(viewer.id)) counted = false;   // same person again: no new view, but history still updates
+      else f.viewedBy.push(viewer.id);
     }
-    f.views = (f.views || 0) + 1;
+    if (counted) f.views = (f.views || 0) + 1;
     await writeFilms(films);
     try {
       const sz = k => (k && storageStats.sizes.get(k)) || 0;
@@ -1604,7 +1605,7 @@ app.post('/api/films/:id/view', async (req, res) => {
       await writeWatchHistory(history);
     }
 
-    res.json({ views: f.views });
+    res.json({ views: f.views, counted });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1708,7 +1709,7 @@ app.post('/api/films/:id/comments', async (req, res) => {
 
     const { text } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ error: 'Please write a comment' });
-    if (await findBannedWord(text)) return res.status(400).json({ error: 'Is comment me aisa shabd hai jo allowed nahi hai' });
+    if (await findBannedWord(text)) return res.status(400).json({ error: 'This comment contains a word that is not allowed' });
 
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
@@ -1799,11 +1800,11 @@ app.post('/api/films/:filmId/comments/:commentId/pin', async (req, res) => {
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.filmId);
     if (!f || !f.comments) return res.status(404).json({ error: 'Not found' });
-    if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'Sirf post owner pin kar sakta hai' });
+    if (!isFilmOwnerOrCollab(f, currentUser.id)) return res.status(403).json({ error: 'Only the post owner can pin' });
 
     const comment = f.comments.find(c => c.id === req.params.commentId);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
-    if (comment.hidden) return res.status(400).json({ error: 'Hidden comment pin nahi ho sakta' });
+    if (comment.hidden) return res.status(400).json({ error: 'A hidden comment cannot be pinned' });
 
     const willPin = !comment.pinned;
     f.comments.forEach(c => { c.pinned = false; });   // only one pinned comment per post
@@ -2015,10 +2016,10 @@ app.post('/api/stories/from-film', async (req, res) => {
     const { filmId } = req.body;
     const films = await readFilms();
     const film = films.find(f => f.id === filmId);
-    if (!film) return res.status(404).json({ error: 'Ye video/photo ab available nahi hai' });
+    if (!film) return res.status(404).json({ error: 'This video/photo is no longer available' });
 
     const sourceKey = film.type === 'photo' ? (film.posterFile || film.videoFile) : (film.videoFile || film.posterFile);
-    if (!sourceKey) return res.status(400).json({ error: 'Story me daalne layak media nahi mila' });
+    if (!sourceKey) return res.status(400).json({ error: 'No usable media found for the story' });
     const isVideo = film.type !== 'photo';
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -2256,12 +2257,12 @@ app.post('/api/highlights', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const title = (req.body.title || '').trim().slice(0, 30);
     const storyIds = Array.isArray(req.body.storyIds) ? req.body.storyIds.slice(0, 50) : [];
-    if (!title) return res.status(400).json({ error: 'Highlight ko ek title do' });
-    if (!storyIds.length) return res.status(400).json({ error: 'Kam se kam ek story chuno' });
+    if (!title) return res.status(400).json({ error: 'Give the highlight a title' });
+    if (!storyIds.length) return res.status(400).json({ error: 'Choose at least one story' });
 
     const stories = await readStories();
     const mine = storyIds.map(id => stories.find(s => s.id === id && s.ownerId === currentUser.id)).filter(Boolean);
-    if (!mine.length) return res.status(404).json({ error: 'Stories nahi mili' });
+    if (!mine.length) return res.status(404).json({ error: 'Stories not found' });
 
     const highlight = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -2488,7 +2489,7 @@ APP KE FEATURES (ye sab jaante ho):
 - **Feed (Home):** full videos 16:9 me, shorts/reels 9:16 me, photos ek ke baad ek. Photo par double-tap = like. Single tap par photo nahi khulti.
 - **Full video page:** video upar sticky, neeche comments, "Suggested reels" (Instagram jaisi row) aur "Up next" (YouTube jaisi list). Video band karne par suggestions chhup jaate hain.
 - **Shorts:** vertical scroll, pause par timer (0:12 / 0:45), khatam hone par agla short apne aap chalta hai. Speed 0.5x–2x. Hold karke 2x.
-- **Upload:** "+ Upload" button se video, short, photo ya carousel (2-10 photo/video). Upload refresh ya band hone par bhi resume hota hai. Pehle se review ON ho to post admin approval ke baad dikhegi. "Kab publish karna hai" se scheduled post bhi kar sakte ho.
+- **Upload:** "+ Upload" button se video, short, photo ya carousel (2-10 photo/video). Upload refresh ya band hone par bhi resume hota hai. Pehle se review ON ho to post admin approval ke baad dikhegi. "When to publish" se scheduled post bhi kar sakte ho.
 - **Profile:** Videos, Photos, Saved tabs. Photo par tap karke photo-feed khulti hai (sirf us user ki photos). Post ke ⋮ me Pin (profile par 3 tak). Note (24 ghante).
 - **Profile edit:** Edit Profile se naam, bio, avatar.
 - **Stories:** Add Story se 24 ghante ki story. Highlights bhi.
@@ -2602,14 +2603,14 @@ function runFfmpegBin(args) {
 // The user sent a photo or a video in the Ask AI chat: look at it and explain it (Hindi by default)
 async function answerWithMedia(msg) {
   const userText = String(msg.text || '').trim();
-  const question = userText || 'Ye media kya hai? Hindi me samjhaiye.';
+  const question = userText || 'What is this media? Please explain it.';
   const parts = [];
   let note = '';
   const tmp = path.join(os.tmpdir(), 'askai-' + String(msg.id).replace(/[^A-Za-z0-9]/g, ''));
   const cleanup = [];
   try {
     const buf = await gdGetByKey(msg.mediaKey);
-    if (buf.length > 40 * 1024 * 1024) return 'Ye file bahut badi hai (40 MB se kam bhejo).';
+    if (buf.length > 40 * 1024 * 1024) return 'This file is too large (send under 40 MB).';
     if (msg.mediaType === 'photo') {
       parts.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + buf.toString('base64') } });
     } else {
@@ -2629,26 +2630,26 @@ async function answerWithMedia(msg) {
         fd.append('response_format', 'json');
         const tr = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd });
         const tj = await tr.json().catch(() => ({}));
-        if (tj.text) note = 'Video ke bolne ka transcript (ho sakta hai English me ho): "' + String(tj.text).slice(0, 2000) + '"';
+        if (tj.text) note = 'Speech transcript of the video (may be in English): "' + String(tj.text).slice(0, 2000) + '"';
       } catch (e) { /* no audio or transcription failed: frames are still used */ }
     }
   } catch (e) {
     cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
-    return 'Ye media abhi khol nahi paya. Chhota size me dobara bhejo.';
+    return 'Could not open this media. Send a smaller file and try again.';
   }
   cleanup.forEach(f => { try { fs.unlinkSync(f); } catch (x) {} });
-  if (!parts.length && !note) return 'Ye media abhi samajh nahi aaya. Dobara bhejo.';
+  if (!parts.length && !note) return 'Could not process this media. Please send it again.';
   const text = question + '\n\n' + (note ? note + '\n\n' : '') +
     'Jawab usi bhasha me do jisme user ne likha hai (default Hindi). Simple shabdon me, chhote points me (**bold** headings ke saath). Agar koi insaan dikhe to uska naam ya pehchaan mat batana.';
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
   const r = await callGroqChat(GROQ_VISION_MODEL, messages);
   if (!r.ok) return 'Media samajhne me problem aayi: ' + ((r.data && r.data.error && r.data.error.message) || 'unknown');
-  return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'Mujhe samajh nahi aaya.';
+  return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'I didn’t understand.';
 }
 
 async function callAiAssistant(recentMessages, currentUserId) {
   if (!GROQ_API_KEY) {
-    return "Groq API Key set nahi hai, please GROQ_API_KEY add karein.";
+    return "Groq API key is not set. Please add GROQ_API_KEY.";
   }
 
   // a photo or video sent by the user is looked at directly
@@ -2676,7 +2677,7 @@ async function callAiAssistant(recentMessages, currentUserId) {
 
   // Keep the conversation starting on a real user turn (our seeded welcome message is 'assistant').
   while (history.length && history[0].role === 'assistant') history.shift();
-  if (!history.length) return "Hi! Main Ask AI hoon. Kuch bhi pooch sakte hain aap.";
+  if (!history.length) return "Hi! I’m Ask AI. You can ask me anything.";
 
   const latestUserText = history[history.length - 1].content;
   const webData = await getLiveWebContext(latestUserText);
@@ -2707,12 +2708,12 @@ async function callAiAssistant(recentMessages, currentUserId) {
 
     if (!ok) {
       console.error('Groq API Error:', JSON.stringify(data));
-      return "Abhi jawab nahi de paya (error: " + (data.error && data.error.message || 'unknown') + ")";
+      return "Could not reply right now (error: " + (data.error && data.error.message || 'unknown') + ")";
     }
-    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "Mujhe samajh nahi aaya, dobara poochein.";
+    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "I didn’t understand, please ask again.";
   } catch (err) {
     console.error('Ask AI error:', err.message);
-    return "Error: Thodi der baad try karein.";
+    return "Error: please try again later.";
   }
 }
 async function ensureAiConversation(userId){
@@ -2727,7 +2728,7 @@ async function ensureAiConversation(userId){
   const welcomeMsg = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     conversationId: id, senderId: AI_ASSISTANT_ID,
-    type: 'text', text: "Hi! Main Ask AI hoon 🤖 — TAMASHA use karne me koi bhi problem ho (account, upload, follow, kuch bhi), yahan pooch lo.",
+    type: 'text', text: "Hi! I’m Ask AI 🤖 — if you have any problem using TAMASHA (account, upload, follow, anything), ask me here.",
     mediaKey: null, mediaType: null, storageProvider: null, duration: null,
     shortId: null, shortTitle: null, shortOwnerUsername: null,
     createdAt: new Date().toISOString(), editedAt: null,
@@ -2876,7 +2877,7 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     let convo = await getConversationForUsers(currentUser.id, target.id, false);
     if (!convo) {
       const iFollowThem = me && me.following && me.following.includes(target.id);
-      if (!iFollowThem) return res.status(403).json({ error: 'Message karne ke liye pehle is user ko follow karo' });
+      if (!iFollowThem) return res.status(403).json({ error: 'Follow this user first to message them' });
       convo = await getConversationForUsers(currentUser.id, target.id, true);
     }
 
@@ -2944,7 +2945,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const isVoice = toBool(req.body.isVoice);
     const mediaFile = req.files && req.files.media && req.files.media[0];
 
-    if (!text && !mediaFile && !shortId) return res.status(400).json({ error: 'Kuch to bhejo — message, photo, video ya short' });
+    if (!text && !mediaFile && !shortId) return res.status(400).json({ error: 'Send something — a message, photo, video or short' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     let type = 'text', mediaKey = null, mediaType = null, duration = null;
@@ -2961,7 +2962,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     } else if (shortId) {
       const films = await readFilms();
       const film = films.find(f => f.id === shortId);
-      if (!film) return res.status(404).json({ error: 'Ye short ab available nahi hai' });
+      if (!film) return res.status(404).json({ error: 'This short is no longer available' });
       type = 'short';
       shortTitle = film.title;
       shortOwnerUsername = film.ownerUsername;
@@ -3016,7 +3017,7 @@ app.put('/api/conversations/:id/messages/:messageId', async (req, res) => {
     if (Date.now() - new Date(m.createdAt).getTime() > MSG_EDIT_WINDOW_MS) return res.status(400).json({ error: 'Edit window (24h) has expired' });
 
     const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Message khali nahi ho sakta' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Message cannot be empty' });
     m.text = text.trim().slice(0, 2000);
     m.editedAt = new Date().toISOString();
     await writeChatMessages(convo.id, messages);
@@ -3310,7 +3311,7 @@ app.post('/api/help-desk', async (req, res) => {
     const text = String(problem || '').trim().slice(0, 2000);
     if (!text) return res.status(400).json({ error: 'Please describe your problem' });
     const contact = String(email || (currentUser && currentUser.email) || '').trim();
-    if (contact && !looksLikeEmail(contact)) return res.status(400).json({ error: 'Email sahi nahi lag raha' });
+    if (contact && !looksLikeEmail(contact)) return res.status(400).json({ error: 'Email does not look valid' });
     if (!helpRateOk(currentUser ? 'u:' + currentUser.id : 'ip:' + req.ip)) return res.status(429).json({ error: 'Bahut zyada messages — thodi der baad try karo' });
 
     const list = await readHelpdesk();
@@ -3325,9 +3326,9 @@ app.post('/api/help-desk', async (req, res) => {
     list.push(ticket);
     await writeHelpdesk(list.slice(-1000));
     // tell the owner: in-app notification (+ email through Resend if configured) — never blocks the ticket itself
-    alertAdminText(`📩 Naya Help Desk message: ${ticket.name}${ticket.email ? ' (' + ticket.email + ')' : ''} — "${text.slice(0, 80)}"`).catch(() => {});
+    alertAdminText(`📩 New Help Desk message: ${ticket.name}${ticket.email ? ' (' + ticket.email + ')' : ''} — "${text.slice(0, 80)}"`).catch(() => {});
     sendResendMail('sohailp541@gmail.com', 'YouSeries Help Desk - ' + ticket.name,
-      `Name: ${ticket.name}\nEmail: ${ticket.email || '-'}\nUser ID: ${ticket.userId || '-'}\n\nProblem:\n${text}\n\nDashboard → Help Desk me jawab de sakte ho.`).catch(() => {});
+      `Name: ${ticket.name}\nEmail: ${ticket.email || '-'}\nUser ID: ${ticket.userId || '-'}\n\nProblem:\n${text}\n\nYou can reply from Dashboard → Help Desk.`).catch(() => {});
     res.status(201).json({ success: true, id: ticket.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3354,7 +3355,7 @@ app.post('/api/help-desk/:id/reply', async (req, res) => {
     if (!text) return res.status(400).json({ error: 'Message likho' });
     const list = await readHelpdesk();
     const t = list.find(x => x.id === req.params.id && x.userId === currentUser.id);
-    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
     if (!helpRateOk('u:' + currentUser.id)) return res.status(429).json({ error: 'Bahut zyada messages — thodi der baad try karo' });
     t.replies = t.replies || [];
     t.replies.push({ from: 'user', text, at: new Date().toISOString() });
@@ -3377,14 +3378,14 @@ app.post('/api/admin/helpdesk/:id/reply', requireAdmin, async (req, res) => {
     if (!text) return res.status(400).json({ error: 'Jawab likho' });
     const list = await readHelpdesk();
     const t = list.find(x => x.id === req.params.id);
-    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
     t.replies = t.replies || [];
     t.replies.push({ from: 'admin', text, at: new Date().toISOString() });
     t.hasNewReply = true; t.adminSeen = true; t.status = 'answered';
     await writeHelpdesk(list);
-    if (t.userId) await notify(t.userId, { type: 'helpdesk_reply', fromUserId: 'system', fromUsername: 'Help Desk', message: '🆘 Help Desk ne tumhare sawal ka jawab diya' });
+    if (t.userId) await notify(t.userId, { type: 'helpdesk_reply', fromUserId: 'system', fromUsername: 'Help Desk', message: '🆘 Help Desk replied to your question' });
     let emailed = false;
-    if (t.email) emailed = await sendResendMail(t.email, 'YouSeries Help Desk — tumhare sawal ka jawab', `Hi ${t.name},\n\n${text}\n\n— YouSeries Help Desk\n\n(Tumhara sawal: ${t.problem.slice(0, 200)})`);
+    if (t.email) emailed = await sendResendMail(t.email, 'YouSeries Help Desk — reply to your question', `Hi ${t.name},\n\n${text}\n\n— YouSeries Help Desk\n\n(Tumhara sawal: ${t.problem.slice(0, 200)})`);
     res.json({ success: true, emailed });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3393,7 +3394,7 @@ app.post('/api/admin/helpdesk/:id/status', requireAdmin, async (req, res) => {
     const status = (req.body && req.body.status) === 'closed' ? 'closed' : 'open';
     const list = await readHelpdesk();
     const t = list.find(x => x.id === req.params.id);
-    if (!t) return res.status(404).json({ error: 'Ticket nahi mila' });
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
     t.status = status; await writeHelpdesk(list);
     res.json({ success: true, status });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3592,7 +3593,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     });
     users.forEach(u => {
       (u.following || []).forEach(id => { followers[id] = (followers[id] || 0) + 1; });
-      events.push({ type: 'signup', at: u.createdAt, userId: u.id, username: u.username, text: 'naya account bana' });
+      events.push({ type: 'signup', at: u.createdAt, userId: u.id, username: u.username, text: 'create a new account' });
     });
     reports.forEach(r => { if (r.targetOwnerId && r.status !== 'dismissed') reportsAgainst[r.targetOwnerId] = (reportsAgainst[r.targetOwnerId] || 0) + 1; });
 
@@ -3713,14 +3714,14 @@ async function alertAdminOfReport(r) {
     const users = await readUsers();
     const owners = users.filter(u => (u.email || '').toLowerCase() === ALERT_EMAIL_TO.toLowerCase());
     for (const o of owners) {
-      await notify(o.id, { type: 'report_alert', fromUserId: 'system', fromUsername: 'Reports', message: `🚨 Naya ${label}${preview}` });
+      await notify(o.id, { type: 'report_alert', fromUserId: 'system', fromUsername: 'Reports', message: `🚨 New ${label}${preview}` });
     }
     if (process.env.RESEND_API_KEY) {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: 'YouSeries <onboarding@resend.dev>', to: [ALERT_EMAIL_TO], subject: '🚨 Naya report — ' + label,
-          text: `Naya ${label}\nReporter: ${r.reporterUsername || 'unknown'}\nNote: ${r.note || '-'}\n${r.targetPreview ? 'Content: ' + r.targetPreview + '\n' : ''}\nDashboard: /dashboard.html (Reports tab)` })
+        body: JSON.stringify({ from: 'YouSeries <onboarding@resend.dev>', to: [ALERT_EMAIL_TO], subject: '🚨 New report — ' + label,
+          text: `New ${label}\nReporter: ${r.reporterUsername || 'unknown'}\nNote: ${r.note || '-'}\n${r.targetPreview ? 'Content: ' + r.targetPreview + '\n' : ''}\nDashboard: /dashboard.html (Reports tab)` })
       });
     }
   } catch (e) { console.error('report alert failed:', e.message); }
@@ -3734,13 +3735,13 @@ app.post('/api/films/:id/pin-profile', async (req, res) => {
     const [users, films] = await Promise.all([readUsers(), readFilms()]);
     const me = users.find(u => u.id === currentUser.id);
     const f = films.find(x => x.id === req.params.id);
-    if (!me || !f) return res.status(404).json({ error: 'Post nahi mili' });
-    if (!isFilmOwnerOrCollab(f, me.id)) return res.status(403).json({ error: 'Sirf apni post pin kar sakte ho' });
+    if (!me || !f) return res.status(404).json({ error: 'Post not found' });
+    if (!isFilmOwnerOrCollab(f, me.id)) return res.status(403).json({ error: 'You can only pin your own posts' });
     const live = new Set(films.map(x => x.id));
     let pins = (me.pinnedFilmIds || []).filter(id => live.has(id));
     const has = pins.includes(f.id);
     if (has) pins = pins.filter(id => id !== f.id);
-    else { if (pins.length >= 3) return res.status(400).json({ error: 'Sirf 3 posts pin ho sakti hain — pehle koi unpin karo' }); pins.push(f.id); }
+    else { if (pins.length >= 3) return res.status(400).json({ error: 'Only 3 posts can be pinned — unpin one first' }); pins.push(f.id); }
     me.pinnedFilmIds = pins;
     await writeUsers(users);
     res.json({ pinned: !has, pinnedFilmIds: pins });
@@ -3773,7 +3774,7 @@ app.post('/api/me/note', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const text = String((req.body && req.body.text) || '').trim().slice(0, 60);
-    if (text && await findBannedWord(text)) return res.status(400).json({ error: 'Is note me aisa shabd hai jo allowed nahi hai' });
+    if (text && await findBannedWord(text)) return res.status(400).json({ error: 'This note contains a word that is not allowed' });
     const users = await readUsers();
     const me = users.find(u => u.id === currentUser.id);
     if (!me) return res.status(404).json({ error: 'User not found' });
@@ -3848,7 +3849,7 @@ app.post('/api/admin/users/:id/verify', requireAdmin, async (req, res) => {
   try {
     const users = await readUsers();
     const u = users.find(x => x.id === req.params.id);
-    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    if (!u) return res.status(404).json({ error: 'User not found' });
     u.verified = !u.verified;
     await writeUsers(users);
     res.json({ verified: u.verified });
@@ -3889,7 +3890,7 @@ app.post('/api/admin/moderation/settings', requireAdmin, async (req, res) => {
 app.post('/api/admin/moderation/:id/approve', requireAdmin, async (req, res) => {
   const films = await readFilms();
   const f = films.find(x => x.id === req.params.id);
-  if (!f) return res.status(404).json({ error: 'Post nahi mili' });
+  if (!f) return res.status(404).json({ error: 'Post not found' });
   delete f.pendingReview;
   await writeFilms(films);
   res.json({ success: true });
@@ -3897,7 +3898,7 @@ app.post('/api/admin/moderation/:id/approve', requireAdmin, async (req, res) => 
 app.post('/api/admin/moderation/:id/reject', requireAdmin, async (req, res) => {
   let films = await readFilms();
   const f = films.find(x => x.id === req.params.id);
-  if (!f) return res.status(404).json({ error: 'Post nahi mili' });
+  if (!f) return res.status(404).json({ error: 'Post not found' });
   await storeDelete(f.videoFile); await storeDelete(f.posterFile);
   films = films.filter(x => x.id !== f.id);
   await writeFilms(films);
@@ -3910,7 +3911,7 @@ app.get('/api/admin/users/:id/detail', requireAdmin, async (req, res) => {
     const id = req.params.id;
     const [users, films, reqs, tickets, reports] = await Promise.all([readUsers(), readFilms(), readBlueRequests(), readHelpdesk(), readReports()]);
     const u = users.find(x => x.id === id);
-    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    if (!u) return res.status(404).json({ error: 'User not found' });
     const mine = films.filter(f => f.ownerId === id);
     res.json({
       user: { id: u.id, username: u.username, email: u.email, createdAt: u.createdAt, lastActiveAt: u.lastActiveAt, suspended: !!u.suspended, verified: !!u.verified, blueFree: !!u.blueFree, blueUntil: u.blueUntil || null, google: !u.passwordHash, notifPrefs: u.notifPrefs || {} },
@@ -3945,7 +3946,7 @@ app.post('/api/admin/users/:id/delete', requireAdmin, async (req, res) => {
     const id = req.params.id;
     let users = await readUsers();
     const u = users.find(x => x.id === id);
-    if (!u) return res.status(404).json({ error: 'User nahi mila' });
+    if (!u) return res.status(404).json({ error: 'User not found' });
     const delFile = async (key, provider) => { if (!key) return; try { await storeDelete(key); } catch (e) {} };
 
     let films = await readFilms();
@@ -4052,13 +4053,13 @@ app.post('/api/bluetick/request', async (req, res) => {
     const cu = getUserFromReq(req);
     if (!cu) return res.status(401).json({ error: 'Login required' });
     const utr = String((req.body && req.body.utr) || '').replace(/\s/g, '');
-    if (!/^\d{12}$/.test(utr)) return res.status(400).json({ error: 'UPI transaction ID (UTR) 12 digits ka hona chahiye' });
+    if (!/^\d{12}$/.test(utr)) return res.status(400).json({ error: 'UPI transaction ID (UTR) must be 12 digits' });
     const [users, films, reqs, st] = await Promise.all([readUsers(), readFilms(), readBlueRequests(), readBlueSettings()]);
     const me = users.find(u => u.id === cu.id);
     if (!me) return res.status(404).json({ error: 'User not found' });
-    if (me.blueFree) return res.status(409).json({ error: 'Tumhara blue tick permanent hai, payment ki zaroorat nahi' });
-    if (reqs.some(r => r.utr === utr)) return res.status(409).json({ error: 'Ye UTR pehle use ho chuka hai' });
-    if (reqs.some(r => r.userId === me.id && r.status === 'pending')) return res.status(409).json({ error: 'Tumhari ek request pehle se pending hai' });
+    if (me.blueFree) return res.status(409).json({ error: 'Your blue tick is permanent, no payment needed' });
+    if (reqs.some(r => r.utr === utr)) return res.status(409).json({ error: 'This UTR has already been used' });
+    if (reqs.some(r => r.userId === me.id && r.status === 'pending')) return res.status(409).json({ error: 'You already have a pending request' });
     reqs.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), userId: me.id, username: me.username, utr, amount: st.price, status: 'pending', createdAt: new Date().toISOString() });
     await writeBlueRequests(reqs);
     res.status(201).json({ success: true });
@@ -4078,7 +4079,7 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
     const reason = String((req.body && req.body.reason) || '').slice(0, 200);
     const reqs = await readBlueRequests();
     const r = reqs.find(x => x.id === req.params.id);
-    if (!r || r.status !== 'pending') return res.status(404).json({ error: 'Pending request nahi mili' });
+    if (!r || r.status !== 'pending') return res.status(404).json({ error: 'Pending request not found' });
     const users = await readUsers();
     const u = users.find(x => x.id === r.userId);
     r.status = approve ? 'approved' : 'rejected';
@@ -4087,7 +4088,7 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
     if (approve && u && !u.blueFree) { u.verified = true; u.blueUntil = Date.now() + BT_DAYS * 24 * 60 * 60 * 1000; await writeUsers(users); }
     await writeBlueRequests(reqs);
     if (u) notify(u.id, { type: 'bluetick', fromUserId: 'system', fromUsername: 'Blue tick',
-      message: approve ? '✔ Blue tick mil gaya! 30 din ke liye active hai' : ('❌ Blue tick request reject hui' + (reason ? ': ' + reason : '')) }).catch(() => {});
+      message: approve ? '✔ Blue tick granted! Active for 30 days' : ('❌ Blue tick request rejected' + (reason ? ': ' + reason : '')) }).catch(() => {});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4095,7 +4096,7 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
 app.post('/api/admin/bluetick/settings', requireAdmin, async (req, res) => {
   try {
     const price = Math.round(Number(req.body && req.body.price));
-    if (!(price >= 5 && price <= 49)) return res.status(400).json({ error: 'Price ₹5 se ₹49 ke beech hona chahiye' });
+    if (!(price >= 5 && price <= 49)) return res.status(400).json({ error: 'Price must be between ₹5 and ₹49' });
     const st = await readBlueSettings();
     st.price = price;
     st.upi = String((req.body && req.body.upi) || '').trim().slice(0, 80);
@@ -4106,7 +4107,7 @@ app.post('/api/admin/bluetick/settings', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/bluetick/qr', requireAdmin, upload.single('qr'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'QR image chuno' });
+    if (!req.file) return res.status(400).json({ error: 'Choose a QR image' });
     const buf = readFileAsBuffer(req.file.path);
     // a new name for every upload, so browsers never show the old QR from cache
     const key = 'bluetick/qr-' + Date.now().toString(36) + '.png';
@@ -4151,9 +4152,9 @@ app.get('/api/songs', async (req, res) => {
 });
 app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Song file chuno' });
+    if (!req.file) return res.status(400).json({ error: 'Choose a song file' });
     const title = String((req.body && req.body.title) || '').trim().slice(0, 80);
-    if (!title) return res.status(400).json({ error: 'Song ka title likho' });
+    if (!title) return res.status(400).json({ error: 'Enter the song title' });
     storeNeedsDrive();
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const ext = (path.extname(req.file.originalname) || '.mp3').replace(/[^A-Za-z0-9.]/g, '').slice(0, 6);
@@ -4168,7 +4169,7 @@ app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, re
 app.post('/api/admin/songs/:id/trend', requireAdmin, async (req, res) => {
   const list = await readSongs();
   const x = list.find(y => y.id === req.params.id);
-  if (!x) return res.status(404).json({ error: 'Song nahi mila' });
+  if (!x) return res.status(404).json({ error: 'Song not found' });
   x.trending = !!(req.body && req.body.on);
   await writeSongs(list);
   res.json({ success: true });
@@ -4176,7 +4177,7 @@ app.post('/api/admin/songs/:id/trend', requireAdmin, async (req, res) => {
 app.post('/api/admin/songs/:id/delete', requireAdmin, async (req, res) => {
   const list = await readSongs();
   const x = list.find(y => y.id === req.params.id);
-  if (!x) return res.status(404).json({ error: 'Song nahi mila' });
+  if (!x) return res.status(404).json({ error: 'Song not found' });
   await storeDelete(x.key);
   await writeSongs(list.filter(y => y.id !== x.id));
   res.json({ success: true });
@@ -4227,11 +4228,11 @@ app.post('/api/admin/login', (req, res) => {
   const ip = req.ip || 'ip';
   const now = Date.now();
   const tries = (adminLoginTries.get(ip) || []).filter(t => now - t < 15 * 60 * 1000);
-  if (tries.length >= 8) return res.status(429).json({ error: 'Bahut zyada galat koshish — 15 minute baad try karo' });
+  if (tries.length >= 8) return res.status(429).json({ error: 'Too many failed attempts — try again after 15 minutes' });
   const { username, password } = req.body || {};
   if (!safeEq(username || '', ADMIN_USER) || !safeEq(password || '', ADMIN_PASS)) {
     tries.push(now); adminLoginTries.set(ip, tries);
-    return res.status(401).json({ error: 'Username ya password galat hai' });
+    return res.status(401).json({ error: 'Wrong username or password' });
   }
   adminLoginTries.delete(ip);
   const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
