@@ -698,7 +698,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9 22 2Z"/></svg>
     <span id="tabChatBadge" class="tab-badge hidden">0</span>
   </button>
-  <button class="tab-btn" id="tabProfile" onclick="openAccountsSheet()" aria-label="Profile">
+  <button class="tab-btn" id="tabProfile" onclick="goToMyProfile()" aria-label="Profile">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
   </button>
 </div>
@@ -1841,7 +1841,7 @@ async function renderProfile(){
         <div onclick="openUserList('${currentUser.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username">@${escapeHtml(currentUser.username)}${vb(mine.verified)}</div>
+    <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)} <span style="font-size:13px;opacity:.7;">▾</span></div>
     <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) : '＋ Note chhodo (24 ghante)'}</span></div>
     ${(window.activeStoriesByUser||{})[currentUser.id] ? `<div style="margin:4px 0 8px;"><button type="button" onclick="openStoryViewer('${currentUser.id}')" style="background:rgba(124,92,255,0.15);border:1px solid #7C5CFF;color:#B388FF;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">▶ View my Story</button></div>` : ''}
     ${mine.bio ? `<div class="profile-bio">${escapeHtml(mine.bio)}</div>` : ''}
@@ -6188,6 +6188,26 @@ function shareCurrentFilmById(id, title) {
   const watch = () => list.querySelectorAll('[data-id]').forEach(el => io.observe(el));
   new MutationObserver(watch).observe(list, { childList: true, subtree: true });
   watch();
+})();
+</script>
+<script>
+(function(){
+  // Bottom profile icon: short tap opens the profile, press and hold (0.5 s) opens the account switcher
+  const btn = document.getElementById('tabProfile');
+  if (!btn) return;
+  btn.removeAttribute('onclick');
+  let timer = null, held = false;
+  const start = () => { held = false; clearTimeout(timer); timer = setTimeout(() => { held = true; openAccountsSheet(); }, 500); };
+  const cancel = () => clearTimeout(timer);
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', cancel);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+  btn.addEventListener('click', e => {
+    if (held) { held = false; e.preventDefault(); e.stopImmediatePropagation(); return; }
+    goToMyProfile();
+  });
 })();
 </script>
 </body>
