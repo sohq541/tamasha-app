@@ -4543,26 +4543,41 @@ app.get('/api/admin/users.csv', requireAdmin, async (req, res) => {
 });
 
 // ---------------- Blue tick (verified badge), paid by UPI, approved by the owner ----------------
-const BT_MIN_FOLLOWERS = 10, BT_MIN_VIEWS = 150, BT_DAYS = 30;
 const BT_KEY_QR = 'bluetick/qr.png';
-async function readBlueSettings() { return (await storeTryReadJSON('bluetick-settings.json')) || { price: 49, upi: '', qrUrl: null }; }
+async function readBlueSettings() {
+  const d = await storeTryReadJSON('bluetick-settings.json');
+  return {
+    price: 49,
+    upi: '',
+    qrUrl: null,
+    minFollowers: 10,
+    minViews: 150,
+    freeEnabled: true,
+    ...(d || {})
+  };
+}
 async function writeBlueSettings(x) { await storeWriteJSON('bluetick-settings.json', x); }
 async function readBlueRequests() { return (await storeTryReadJSON('bluetick.json')) || []; }
 async function writeBlueRequests(x) { await storeWriteJSON('bluetick.json', x.slice(-2000)); }
+
 // Criteria met -> permanent free blue tick (no payment, never removed later)
-function grantFreeBlueTicks(users, films) {
+function grantFreeBlueTicks(users, films, settings) {
+  if (!settings.freeEnabled) return false;
   let changed = false;
   users.forEach(u => {
     if (u.blueFree) return;
-    const st = blueStats(u, users, films);
+    const st = blueStats(u, users, films, settings);
     if (st.eligible) { u.verified = true; u.blueFree = true; delete u.blueUntil; changed = true; }
   });
   return changed;
 }
-function blueStats(user, users, films) {
+function blueStats(user, users, films, settings) {
+  const minF = typeof settings.minFollowers === 'number' ? settings.minFollowers : 10;
+  const minV = typeof settings.minViews === 'number' ? settings.minViews : 150;
   const followers = users.filter(u => (u.following || []).includes(user.id)).length;
   const views = films.filter(f => f.ownerId === user.id).reduce((a, f) => a + (f.views || 0), 0);
-  return { followers, views, minFollowers: BT_MIN_FOLLOWERS, minViews: BT_MIN_VIEWS, eligible: followers >= BT_MIN_FOLLOWERS && views >= BT_MIN_VIEWS };
+  const eligible = !!settings.freeEnabled && (followers >= minF && views >= minV);
+  return { followers, views, minFollowers: minF, minViews: minV, freeEnabled: !!settings.freeEnabled, eligible };
 }
 
 app.get('/api/bluetick/status', async (req, res) => {
@@ -4572,12 +4587,16 @@ app.get('/api/bluetick/status', async (req, res) => {
     const [users, films, reqs, st] = await Promise.all([readUsers(), readFilms(), readBlueRequests(), readBlueSettings()]);
     const me = users.find(u => u.id === cu.id);
     if (!me) return res.status(404).json({ error: 'User not found' });
-    if (grantFreeBlueTicks(users, films)) await writeUsers(users);
+    if (grantFreeBlueTicks(users, films, st)) await writeUsers(users);
     const mine = reqs.filter(r => r.userId === me.id).slice(-1)[0] || null;
     const qrUrl = st.qrUrl ? await storeUrl(st.qrUrl).catch(() => null) : null;
+    let daysRemaining = null;
+    if (me.verified && me.blueUntil) {
+      daysRemaining = Math.max(0, Math.ceil((new Date(me.blueUntil).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+    }
     res.json({
-      ...blueStats(me, users, films),
-      verified: !!me.verified, verifiedUntil: me.blueUntil || null, free: !!me.blueFree,
+      ...blueStats(me, users, films, st),
+      verified: !!me.verified, verifiedUntil: me.blueUntil || null, daysRemaining, free: !!me.blueFree,
       price: st.price, upi: st.upi || '', qrUrl,
       pending: !!reqs.find(r => r.userId === me.id && r.status === 'pending'),
       latest: mine ? { status: mine.status, createdAt: mine.createdAt, reason: mine.reason || null } : null
@@ -4585,7 +4604,7 @@ app.get('/api/bluetick/status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/bluetick/request', async (req, res) => {
+app.post('/api/bluetick/request', upload.single('screenshot'), async (req, res) => {
   try {
     const cu = getUserFromReq(req);
     if (!cu) return res.status(401).json({ error: 'Login required' });
@@ -4597,16 +4616,47 @@ app.post('/api/bluetick/request', async (req, res) => {
     if (me.blueFree) return res.status(409).json({ error: 'Your blue tick is permanent, no payment needed' });
     if (reqs.some(r => r.utr === utr)) return res.status(409).json({ error: 'This UTR has already been used' });
     if (reqs.some(r => r.userId === me.id && r.status === 'pending')) return res.status(409).json({ error: 'You already have a pending request' });
-    reqs.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), userId: me.id, username: me.username, utr, amount: st.price, status: 'pending', createdAt: new Date().toISOString() });
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let screenshotKey = null;
+    if (req.file) {
+      const ext = (path.extname(req.file.originalname) || '.jpg').replace(/[^A-Za-z0-9.]/g, '').slice(0, 6);
+      screenshotKey = `bluetick/${id}${ext}`;
+      await storePutBuffer(readFileAsBuffer(req.file.path), screenshotKey, req.file.mimetype || 'image/jpeg');
+    }
+
+    reqs.push({
+      id,
+      userId: me.id,
+      username: me.username,
+      utr,
+      amount: st.price,
+      screenshotKey,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
     await writeBlueRequests(reqs);
+    alertAdminText(`💳 New Blue Tick request from @${me.username} (UTR: ${utr}, ₹${st.price})`).catch(() => {});
     res.status(201).json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/admin/bluetick', requireAdmin, async (req, res) => {
   try {
-    const [reqs, st] = await Promise.all([readBlueRequests(), readBlueSettings()]);
-    res.json({ requests: reqs.slice().reverse(), settings: st });
+    const [reqs, st, users] = await Promise.all([readBlueRequests(), readBlueSettings(), readUsers()]);
+    const totalRevenue = reqs.filter(r => r.status === 'approved').reduce((a, r) => a + (Number(r.amount) || 0), 0);
+    const pendingCount = reqs.filter(r => r.status === 'pending').length;
+    const approvedCount = reqs.filter(r => r.status === 'approved').length;
+    const activeVerifiedCount = users.filter(u => u.verified).length;
+    const enrichedReqs = reqs.map(r => ({
+      ...r,
+      screenshotUrl: r.screenshotKey ? r2PublicUrl(r.screenshotKey) : null
+    }));
+    res.json({
+      requests: enrichedReqs.slice().reverse(),
+      settings: st,
+      analytics: { totalRevenue, pendingCount, approvedCount, activeVerifiedCount }
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4614,6 +4664,7 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
   try {
     const approve = !!(req.body && req.body.approve);
     const reason = String((req.body && req.body.reason) || '').slice(0, 200);
+    const duration = String((req.body && req.body.duration) || '30'); // 30, 90, 365, permanent
     const reqs = await readBlueRequests();
     const r = reqs.find(x => x.id === req.params.id);
     if (!r || r.status !== 'pending') return res.status(404).json({ error: 'Pending request not found' });
@@ -4621,11 +4672,41 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
     const u = users.find(x => x.id === r.userId);
     r.status = approve ? 'approved' : 'rejected';
     r.decidedAt = new Date().toISOString();
+    r.duration = duration;
     if (!approve) r.reason = reason || null;
-    if (approve && u && !u.blueFree) { u.verified = true; u.blueUntil = Date.now() + BT_DAYS * 24 * 60 * 60 * 1000; await writeUsers(users); }
+    if (approve && u) {
+      u.verified = true;
+      if (duration === 'permanent') {
+        u.blueFree = true;
+        delete u.blueUntil;
+      } else {
+        const days = parseInt(duration, 10) || 30;
+        u.blueUntil = Date.now() + days * 24 * 60 * 60 * 1000;
+      }
+      await writeUsers(users);
+    }
     await writeBlueRequests(reqs);
-    if (u) notify(u.id, { type: 'bluetick', fromUserId: 'system', fromUsername: 'Blue tick',
-      message: approve ? '✔ Blue tick granted! Active for 30 days' : ('❌ Blue tick request rejected' + (reason ? ': ' + reason : '')) }).catch(() => {});
+    if (u) {
+      const durText = duration === 'permanent' ? 'Permanent' : `${duration} days`;
+      notify(u.id, {
+        type: 'bluetick', fromUserId: 'system', fromUsername: 'Blue tick',
+        message: approve ? `✔ Blue tick granted! Active for ${durText}` : ('❌ Blue tick request rejected' + (reason ? ': ' + reason : ''))
+      }).catch(() => {});
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/bluetick/:userId/revoke', requireAdmin, async (req, res) => {
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === req.params.userId);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    u.verified = false;
+    delete u.blueFree;
+    delete u.blueUntil;
+    await writeUsers(users);
+    notify(u.id, { type: 'bluetick', fromUserId: 'system', fromUsername: 'Blue tick', message: 'Your Blue tick verified badge has been revoked by admin.' }).catch(() => {});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4633,10 +4714,13 @@ app.post('/api/admin/bluetick/:id/decide', requireAdmin, async (req, res) => {
 app.post('/api/admin/bluetick/settings', requireAdmin, async (req, res) => {
   try {
     const price = Math.round(Number(req.body && req.body.price));
-    if (!(price >= 5 && price <= 49)) return res.status(400).json({ error: 'Price must be between ₹5 and ₹49' });
+    if (!(price >= 1 && price <= 9999)) return res.status(400).json({ error: 'Price must be between ₹1 and ₹9999' });
     const st = await readBlueSettings();
     st.price = price;
     st.upi = String((req.body && req.body.upi) || '').trim().slice(0, 80);
+    if (req.body.minFollowers !== undefined) st.minFollowers = Math.max(0, parseInt(req.body.minFollowers, 10) || 0);
+    if (req.body.minViews !== undefined) st.minViews = Math.max(0, parseInt(req.body.minViews, 10) || 0);
+    if (req.body.freeEnabled !== undefined) st.freeEnabled = !!req.body.freeEnabled;
     await writeBlueSettings(st);
     res.json(st);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -4646,7 +4730,6 @@ app.post('/api/admin/bluetick/qr', requireAdmin, upload.single('qr'), async (req
   try {
     if (!req.file) return res.status(400).json({ error: 'Choose a QR image' });
     const buf = readFileAsBuffer(req.file.path);
-    // a new name for every upload, so browsers never show the old QR from cache
     const key = 'bluetick/qr-' + Date.now().toString(36) + '.png';
     await storePutBuffer(buf, key, req.file.mimetype || 'image/png');
     const st = await readBlueSettings();
@@ -4669,14 +4752,14 @@ app.post('/api/admin/bluetick/qr/delete', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// a verified badge from a paid plan lasts BT_DAYS days; after that it is removed (manual verifies have no end date)
+// a verified badge from a paid plan lasts until blueUntil; after that it is removed
 setInterval(async () => {
   try {
-    const [users, films] = await Promise.all([readUsers(), readFilms()]);
-    let changed = grantFreeBlueTicks(users, films);
+    const [users, films, st] = await Promise.all([readUsers(), readFilms(), readBlueSettings()]);
+    let changed = grantFreeBlueTicks(users, films, st);
     users.forEach(u => { if (!u.blueFree && u.verified && u.blueUntil && Date.now() > u.blueUntil) { u.verified = false; delete u.blueUntil; changed = true; } });
     if (changed) await writeUsers(users);
-  } catch (e) { /* try again next hour */ }
+  } catch (e) {}
 }, 60 * 60 * 1000);
 
 // ---------------- Songs library (admin uploads; users pick a song for stories, notes and uploads) ----------------
