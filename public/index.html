@@ -698,6 +698,49 @@
 .cmt-act{background:none;border:none;color:var(--cream-dim);font-size:12px;font-weight:600;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:4px;font-family:'Mukta',sans-serif;}
 .cmt-act.liked{color:#ff3366;}
 
+
+/* ===== YouTube-style Full Video Page & 16:9 Profile Videos ===== */
+#playerBackBtn{position:absolute;top:10px;left:12px;z-index:7;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.yt-title{font-family:'Baloo 2',sans-serif;font-size:18.5px;font-weight:800;line-height:1.28;margin:4px 0 6px;color:var(--cream);}
+.yt-subline{font-size:12.5px;color:var(--cream-dim);cursor:pointer;line-height:1.4;margin-bottom:10px;}
+.yt-subline b{color:var(--cream);font-weight:600;}
+.yt-desc-box{background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:12px;font-size:13.5px;color:var(--cream);line-height:1.5;display:none;}
+.yt-desc-box.open{display:block;}
+.yt-chan-row{display:flex;align-items:center;gap:10px;margin:10px 0 12px;}
+.yt-chan-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:linear-gradient(150deg,#3A2E7A,#4361EE);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;cursor:pointer;overflow:hidden;}
+.yt-chan-avatar img{width:100%;height:100%;object-fit:cover;}
+.yt-chan-name{font-weight:700;font-size:14.5px;color:var(--cream);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.yt-follow-pill{background:var(--cream);color:var(--ink);border:none;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Mukta',sans-serif;flex-shrink:0;}
+.yt-follow-pill.following{background:rgba(255,255,255,0.12);color:var(--cream);border:1px solid var(--gold-line);}
+.yt-actions-scroll{display:flex;align-items:center;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none;}
+.yt-actions-scroll::-webkit-scrollbar{display:none;}
+.yt-actions-scroll .action-btn{flex-shrink:0;padding:7px 14px;font-size:13.5px;background:rgba(255,255,255,0.08);border:none;}
+.yt-cmt-card{background:rgba(255,255,255,0.07);border:1px solid var(--gold-line);border-radius:12px;padding:11px 14px;margin-bottom:18px;cursor:pointer;}
+.yt-cmt-head{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--cream);margin-bottom:6px;}
+.yt-cmt-head span{color:var(--cream-dim);font-weight:500;font-size:12.5px;}
+.yt-cmt-preview{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--cream);line-height:1.35;}
+.yt-cmt-preview-av{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden;}
+.yt-cmt-preview-av img{width:100%;height:100%;object-fit:cover;}
+.yt-cmt-preview-txt{flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--cream);}
+.yt-up-card{margin:0 -16px 18px;cursor:pointer;}
+.yt-up-thumb{position:relative;width:100%;aspect-ratio:16/9;background:#111;overflow:hidden;}
+.yt-up-thumb img,.yt-up-thumb video{width:100%;height:100%;object-fit:cover;display:block;}
+.yt-up-badge{position:absolute;right:10px;bottom:8px;background:rgba(0,0,0,0.75);color:#fff;font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:6px;}
+.yt-up-meta-row{display:flex;align-items:flex-start;gap:12px;padding:10px 16px 0;}
+.yt-up-info{flex:1;min-width:0;}
+.yt-up-title{font-size:15px;font-weight:700;color:var(--cream);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.yt-up-sub{font-size:12px;color:var(--cream-dim);margin-top:3px;}
+
+/* Profile 16:9 Full Videos Grid */
+.profile-videogrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+@media (max-width:480px){ .profile-videogrid{grid-template-columns:1fr;gap:14px;} }
+.profile-video-card{cursor:pointer;border-radius:10px;overflow:hidden;background:var(--panel);border:1px solid var(--gold-line);}
+.profile-video-thumb{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden;}
+.profile-video-thumb img,.profile-video-thumb video{width:100%;height:100%;object-fit:cover;display:block;}
+.profile-video-info{padding:8px 10px;}
+.profile-video-title{font-size:13.5px;font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.profile-video-meta{font-size:11.5px;color:var(--cream-dim);margin-top:2px;}
+
 </style>
 </head>
 <body>
@@ -765,34 +808,40 @@
 <div class="modal-overlay" id="overlay" onclick="if(event.target===this) closeModal()">
   <div class="modal">
     <div id="playerMediaWrap" style="position:sticky;top:0;z-index:6;background:#000;">
+      <button type="button" id="playerBackBtn" onclick="closeModal()" aria-label="Close">∨</button>
       <video id="player" controls preload="metadata"></video>
       <button type="button" id="playerFsBtn" onclick="fullscreenPlayer()" aria-label="Fullscreen">⛶</button>
       <img id="playerImg" style="width:100%;display:none;max-height:70vh;object-fit:contain;background:#000;" loading="lazy" decoding="async">
       <div id="playerCarousel" style="display:none;"></div>
     </div>
-    <div class="modal-body">
-      <button class="modal-close" onclick="closeModal()">Close</button>
-      <h2 id="mTitle"></h2>
-      <span class="modal-owner" id="mOwner"></span>
-      <p id="mMeta" style="color:var(--marigold);"></p>
-      <p id="mDesc"></p>
-      <div class="action-row" style="flex-wrap:wrap;gap:8px;">
-        <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
+    <div class="modal-body" style="padding:12px 16px 40px;">
+      <h2 id="mTitle" class="yt-title"></h2>
+      <div id="mSubline" class="yt-subline" onclick="toggleYtDescBox()"></div>
+      <div id="mDescBox" class="yt-desc-box">
+        <div id="mMeta" style="color:var(--marigold);font-weight:600;margin-bottom:6px;font-size:12.5px;"></div>
+        <div id="mDesc"></div>
+      </div>
+      <div class="yt-chan-row" id="mOwner"></div>
+      <div class="yt-actions-scroll">
+        <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">👍 <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
+        <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
         <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()" title="Playback speed">⚡ 1x</button>
         <button class="action-btn" id="pipBtn" onclick="togglePlayerPiP()" title="Mini Player (Picture-in-Picture)">⧉ PiP</button>
-        <button class="action-btn" id="playerMenuBtn" onclick="openPlayerMenu()" aria-label="More options" style="font-size:20px;padding:6px 14px;line-height:1;">⋮</button>
+        <button class="action-btn" id="playerMenuBtn" onclick="openPlayerMenu()" aria-label="More options" style="font-size:18px;padding:7px 14px;line-height:1;">⋯</button>
         <div class="hidden" id="playerHiddenActions">
-          <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
           <button class="action-btn hidden" id="modalCollabBtn" onclick="openCollabSheet(currentFilm ? currentFilm.id : '')">🤝 Collab</button>
           <button class="action-btn hidden" id="modalInsightsBtn" onclick="openInsights(currentFilm ? currentFilm.id : '')">📊 Insights</button>
           <button class="action-btn hidden" id="modalEditBtn" onclick="editCurrentFilmModal()">✏️ Edit</button>
           <button class="action-btn hidden" id="modalDeleteBtn" onclick="deleteCurrentFilmModal()" style="color:#e88a8a;">🗑️ Delete</button>
+          <span class="view-count" id="viewCount"></span>
         </div>
-        <span class="view-count" id="viewCount"></span>
       </div>
-      <div class="comments-section">
-        <h3>Comments</h3>
+      <div class="yt-cmt-card" id="ytCommentsCard" onclick="if(currentFilm)openSheet(currentFilm.id)">
+        <div class="yt-cmt-head">Comments <span id="ytCmtCount">0</span></div>
+        <div class="yt-cmt-preview" id="ytCmtPreview"></div>
+      </div>
+      <div class="comments-section hidden" id="legacyCommentsSection">
         <form class="comment-form" id="commentForm">
           <textarea id="commentText" placeholder="Add a comment..." maxlength="500" required></textarea>
           <button type="submit">Post</button>
@@ -1399,8 +1448,15 @@ function closeAllOverlays(){
 }
 
 let shortsReturnTo = null; // { type:'chat', userId, username } — where to go back to when exiting a short opened from elsewhere
+let activeMainTab = 'home';
+let savedHomeScrollY = 0;
 
 function switchTab(tab){
+  if (activeMainTab === 'home' && tab !== 'home') {
+    savedHomeScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  }
+  const prevTab = activeMainTab;
+  activeMainTab = tab;
   closeAllOverlays();
   if (tab !== 'shorts') shortsReturnTo = null;
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
@@ -1411,7 +1467,16 @@ function switchTab(tab){
   document.getElementById('searchView').classList.toggle('hidden', tab !== 'search');
   document.getElementById('shortsView').classList.toggle('active', tab === 'shorts');
   document.getElementById('profileView').classList.toggle('hidden', tab !== 'profile');
+  const seoFoot = document.querySelector('.seo-footer');
+  if (seoFoot) seoFoot.classList.toggle('hidden', tab !== 'home');
   document.body.classList.toggle('shorts-mode', tab === 'shorts');
+
+  if (tab === 'home') {
+    const targetY = (prevTab === 'home') ? 0 : savedHomeScrollY;
+    window.scrollTo({ top: targetY, behavior: 'instant' });
+  } else if (tab === 'profile' || tab === 'search') {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
 
   if (tab === 'shorts') {
     setupShortsObserver();
@@ -1664,8 +1729,8 @@ async function renderOtherProfile(userId, usernameHint){
       <button class="tab-btn" id="otherProfileTabShorts" onclick="switchOtherProfileGrid('shorts')" style="flex:1;max-width:none;font-size:13px;">⚡ Shorts (${theirShorts.length})</button>
       <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;max-width:none;font-size:13px;">🖼️ Photos (${theirPhotos.length})</button>
     </div>
-    <div class="profile-mygrid" id="otherProfileGridVideos">
-      ${pinSort(theirLongVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
+    <div class="profile-videogrid" id="otherProfileGridVideos">
+      ${pinSort(theirLongVideos, pub.pinnedFilmIds).map(f => videoCardHtml(f, `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No full videos yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridShorts">
       ${pinSort(theirShorts, pub.pinnedFilmIds).map(f => gridItemHtml(f, `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No shorts yet.</p>'}
@@ -2014,8 +2079,8 @@ async function renderProfile(){
       <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">🖼️ Photos (${myPhotos.length})</button>
       <button class="tab-btn" id="profileTabSaved" onclick="switchProfileGrid('saved')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">🔖 Saved</button>
     </div>
-    <div class="profile-mygrid" id="profileGridVideos">
-      ${pinSort(myLongVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No full videos uploaded yet.</p>'}
+    <div class="profile-videogrid" id="profileGridVideos">
+      ${pinSort(myLongVideos, mine.pinnedFilmIds).map(f => videoCardHtml(f, `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No full videos uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridShorts">
       ${pinSort(myShorts, mine.pinnedFilmIds).map(f => gridItemHtml(f, `openShortAt('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No shorts uploaded yet.</p>'}
@@ -2065,11 +2130,17 @@ function toggleSettings(){
   document.getElementById('settingsCard').classList.toggle('hidden');
 }
 
+function syncFollowStateLocal(userId, isFollowing){
+  (allFilms || []).forEach(f => { if (f.ownerId === userId) f.isFollowing = !!isFollowing; });
+  if (currentFilm && currentFilm.ownerId === userId) currentFilm.isFollowing = !!isFollowing;
+}
+
 async function toggleFollow(userId){
   try {
     const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
+    syncFollowStateLocal(userId, data.following);
     if (otherProfileUserId === userId) renderOtherProfile(userId);
     else renderProfile();
   } catch (err) {
@@ -2083,7 +2154,15 @@ async function followFromFeed(userId, btn){
     const res = await fetch('/api/users/' + userId + '/follow', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    document.querySelectorAll('.feed-follow-btn[data-owner="' + userId + '"]').forEach(b => b.remove());
+    syncFollowStateLocal(userId, data.following);
+    document.querySelectorAll('.feed-follow-btn[data-owner="' + userId + '"]').forEach(b => {
+      if (data.following) b.remove();
+    });
+    document.querySelectorAll('.yt-follow-pill[data-owner="' + userId + '"]').forEach(b => {
+      b.disabled = false;
+      b.classList.toggle('following', !!data.following);
+      b.textContent = data.following ? '🔔 Following' : 'Follow';
+    });
   } catch (err) {
     btn.disabled = false;
     showToast(err.message);
@@ -3533,6 +3612,10 @@ document.getElementById('sheetCommentForm').addEventListener('submit', async (e)
       film.comments.push(comment);
       const scEl = document.getElementById('short-comment-' + currentShortId);
       if (scEl) scEl.textContent = film.comments.length;
+      if (currentFilm && currentFilm.id === currentShortId) {
+        currentFilm.comments = film.comments;
+        updateYtCommentCard(currentFilm);
+      }
       ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
         const cSpan = document.querySelector(prefix + currentShortId + ' .feed-comment-num');
         if (cSpan) cSpan.textContent = film.comments.length;
@@ -3749,19 +3832,61 @@ async function toggleHideComment(filmId, commentId){
     showToast(err.message);
   }
 }
+function toggleYtDescBox(){
+  const b = document.getElementById('mDescBox');
+  if (b) b.classList.toggle('open');
+}
+function updateYtCommentCard(f){
+  const cntEl = document.getElementById('ytCmtCount');
+  const prevEl = document.getElementById('ytCmtPreview');
+  if (!cntEl || !prevEl) return;
+  const cmts = (f && f.comments) || [];
+  cntEl.textContent = cmts.length || '';
+  if (!cmts.length) {
+    const myInitial = currentUser && currentUser.username ? escapeHtml(currentUser.username[0].toUpperCase()) : '💬';
+    prevEl.innerHTML = `<div class="yt-cmt-preview-av">${myInitial}</div><div class="yt-cmt-preview-txt" style="color:var(--cream-dim);">Add a comment...</div>`;
+    return;
+  }
+  const top = cmts.find(c => c.pinned) || cmts[cmts.length - 1];
+  const av = top.profileImage
+    ? `<img src="${escapeAttr(top.profileImage)}" loading="lazy" decoding="async">`
+    : escapeHtml((top.name || 'U')[0].toUpperCase());
+  prevEl.innerHTML = `<div class="yt-cmt-preview-av">${av}</div><div class="yt-cmt-preview-txt">${escapeHtml(top.text || '')}</div>`;
+}
 function renderUpNext(cur){
   const box = document.getElementById('upNext');
   if (!box) return;
   if (!cur || cur.type === 'short' || cur.type === 'photo') { box.innerHTML = ''; return; }
   const pool = (allFilms || []).filter(x => x.id !== cur.id && !x.pendingReview);
-  const reels = pool.filter(x => x.type === 'short').slice(0, 12);
   const films = pool.filter(x => x.type !== 'short' && x.type !== 'photo').slice(0, 20);
-  const reelsHtml = reels.length ? '<h3 class="up-h">Suggested reels</h3><div class="up-reels">' +
-    reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')">${r.posterUrl ? `<img src="${r.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph">▶</div>'}<div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
+  const reels = pool.filter(x => x.type === 'short').slice(0, 12);
   const autoOn = localStorage.getItem('autoplayUpNext') !== '0';
-  const filmsHtml = films.length ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px;"><h3 class="up-h" style="margin:0;">Up next</h3><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream-dim);cursor:pointer;"><input type="checkbox" ${autoOn ? 'checked' : ''} onchange="localStorage.setItem('autoplayUpNext',this.checked?'1':'0')"> Autoplay</label></div>` +
-    films.map(f => `<div class="up-row" onclick="playFilm('${f.id}')"><div class="up-thumb">${f.posterUrl ? `<img src="${f.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph-wide">▶</div>'}</div><div class="up-info"><div class="up-title">${escapeHtml(f.title)}</div><div class="up-meta">@${escapeHtml(f.ownerUsername || '')} · ${f.views || 0} views</div></div></div>`).join('') : '';
-  box.innerHTML = reelsHtml + filmsHtml;
+
+  const filmsHtml = films.map(f => {
+    const av = f.ownerProfileImage
+      ? `<img src="${escapeAttr(f.ownerProfileImage)}" loading="lazy" decoding="async">`
+      : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase());
+    const mediaHtml = f.posterUrl
+      ? `<img src="${escapeAttr(f.posterUrl)}" alt="" loading="lazy" decoding="async">`
+      : (f.videoUrl ? `<video src="${escapeAttr(f.videoUrl)}" muted playsinline preload="metadata"></video>` : '<div class="up-ph-wide" style="width:100%;height:100%;">▶</div>');
+    return `<div class="yt-up-card" onclick="playFilm('${f.id}')">
+      <div class="yt-up-thumb">${mediaHtml}<span class="yt-up-badge">🎬 Video</span></div>
+      <div class="yt-up-meta-row">
+        <div class="yt-chan-avatar" onclick="event.stopPropagation();closeModal();goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">${av}</div>
+        <div class="yt-up-info">
+          <div class="yt-up-title">${escapeHtml(f.title)}</div>
+          <div class="yt-up-sub">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)} · ▷ ${f.views || 0} views${f.uploadedAt ? ' · ' + storyTimeAgo(f.uploadedAt) : ''}</div>
+        </div>
+        <button type="button" class="chat-input-icon-btn" style="font-size:18px;padding:2px 6px;" onclick="event.stopPropagation();openPostSafetyMenu('${f.id}')">⋮</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const reelsHtml = reels.length ? '<h3 class="up-h" style="margin:10px 0 10px;">⚡ Suggested Shorts</h3><div class="up-reels" style="margin-bottom:18px;">' +
+    reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')">${r.posterUrl ? `<img src="${r.posterUrl}" alt="" loading="lazy">` : (r.videoUrl ? `<video src="${escapeAttr(r.videoUrl)}" muted playsinline preload="metadata" style="width:118px;height:196px;object-fit:cover;border-radius:12px;background:#111;display:block;"></video>` : '<div class="up-ph">▶</div>')}<div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
+
+  const hdrHtml = films.length ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;"><span style="font-size:14px;font-weight:700;color:var(--cream);">Up next</span><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream-dim);cursor:pointer;"><input type="checkbox" ${autoOn ? 'checked' : ''} onchange="localStorage.setItem('autoplayUpNext',this.checked?'1':'0')"> Autoplay</label></div>` : '';
+  box.innerHTML = hdrHtml + filmsHtml + reelsHtml;
 }
 
 async function playFilm(id){
@@ -3836,17 +3961,34 @@ async function playFilm(id){
   }
 
   document.getElementById('mTitle').textContent = f.title;
+  const subEl = document.getElementById('mSubline');
+  const descBox = document.getElementById('mDescBox');
+  if (descBox) descBox.classList.remove('open');
+  const descPreview = (f.description || '').trim().split(/\s+/).slice(0, 4).join(' ');
+  if (subEl) {
+    subEl.innerHTML = `<b>@${escapeHtml(f.ownerUsername || 'user')}</b> · ${f.likes || 0} likes · ${f.views || 0} views${f.uploadedAt ? ' · ' + storyTimeAgo(f.uploadedAt) : ''}${descPreview ? ' · ' + escapeHtml(descPreview) : ''} <b>...more</b>`;
+  }
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    const canFollowOwner = !!(currentUser && f.ownerId && f.ownerId !== currentUser.id && !f.isFollowing);
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;" loading="lazy" decoding="async">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '') + (canFollowOwner ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:10px;text-decoration:none;">Follow</button>` : '');
+    const isMe = !!(currentUser && f.ownerId === currentUser.id);
+    const avHtml = f.ownerProfileImage
+      ? `<img src="${escapeAttr(f.ownerProfileImage)}" loading="lazy" decoding="async">`
+      : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase());
+    mOwnerEl.innerHTML = `
+      <div class="yt-chan-avatar" id="mOwnerAvatar">${avHtml}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="yt-chan-name" id="mOwnerName">@${escapeHtml(f.ownerUsername)}${vb(f.ownerVerified)}${collabLabel(f)}</div>
+      </div>
+      ${(!isMe && currentUser) ? `<button type="button" class="yt-follow-pill ${f.isFollowing ? 'following' : ''}" data-owner="${escapeAttr(f.ownerId)}" onclick="event.stopPropagation();followFromFeed('${escapeAttr(f.ownerId)}',this)">${f.isFollowing ? '🔔 Following' : 'Follow'}</button>` : ''}
+    `;
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
-  } else { mOwnerEl.textContent = ''; mOwnerEl.onclick = null; }
+  } else { mOwnerEl.innerHTML = ''; }
   document.getElementById('mMeta').textContent = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
-  document.getElementById('mDesc').innerHTML = linkifyRich(f.description || '', f.mentions);
+  document.getElementById('mDesc').innerHTML = linkifyRich(f.description || '', f.mentions) || '<span style="color:var(--cream-dim);">No description</span>';
   document.getElementById('viewCount').textContent = (f.views || 0) + ' views';
+  updateYtCommentCard(f);
   const isOwnerOfFilm = currentUser && f.ownerId === currentUser.id;
   const isOwnerOrCollab = !!(currentUser && isMyPost(f, currentUser.id));
   document.getElementById('modalEditBtn').classList.toggle('hidden', !isOwnerOfFilm);
@@ -3869,7 +4011,12 @@ async function playFilm(id){
   document.getElementById('overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
   if (markViewed(f.id)) {
-    fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => { document.getElementById('viewCount').textContent = data.views + ' views'; }).catch(() => {});
+    fetch('/api/films/' + id + '/view', { method: 'POST' }).then(r => r.json()).then(data => {
+      document.getElementById('viewCount').textContent = data.views + ' views';
+      if (currentFilm && currentFilm.id === id) currentFilm.views = data.views;
+      const localF = allFilms.find(x => x.id === id);
+      if (localF) localF.views = data.views;
+    }).catch(() => {});
   }
 }
 
@@ -4048,6 +4195,29 @@ function playNoteSong(note){
 function closeProfilePhotoFeed(){
   stopSong();
   document.getElementById('profilePhotoFeedOverlay').classList.remove('open');
+}
+
+function videoCardHtml(f, onclickJs, pinned){
+  const imgUrl = f.posterUrl || null;
+  const vidUrl = f.videoUrl || null;
+  const mediaHtml = imgUrl
+    ? `<img src="${escapeAttr(imgUrl)}" loading="lazy" decoding="async">`
+    : (vidUrl ? `<video src="${escapeAttr(vidUrl)}" muted playsinline preload="metadata"></video>` : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;">🎬</div>`);
+  const isScheduled = f.publishAt && new Date(f.publishAt).getTime() > Date.now();
+  const statusBadge = f.pendingReview ? '<span class="grid-badge" style="top:6px;right:6px;font-size:10px;">🛡️ Review</span>'
+    : (isScheduled ? '<span class="grid-badge" style="top:6px;right:6px;font-size:10px;">⏳ Scheduled</span>' : '');
+  return `<div class="profile-video-card" onclick="${onclickJs}">
+    <div class="profile-video-thumb">
+      ${mediaHtml}
+      ${pinned ? '<span class="grid-badge pin">📌</span>' : ''}
+      ${statusBadge}
+      <div class="shorts-grid-views" style="font-size:11.5px;bottom:6px;left:8px;">▶ ${f.views || 0}</div>
+    </div>
+    <div class="profile-video-info">
+      <div class="profile-video-title">${escapeHtml(f.title || 'Untitled')}</div>
+      <div class="profile-video-meta">${f.views || 0} views${f.uploadedAt ? ' · ' + storyTimeAgo(f.uploadedAt) : ''}</div>
+    </div>
+  </div>`;
 }
 
 function gridItemHtml(f, onclickJs, pinned){
@@ -6778,6 +6948,11 @@ window.UploadMgr = (function(){
     }
     if (document.getElementById('shortsView').classList.contains('active')) {
       exitShorts();
+      history.pushState({ page: 'home' }, '', location.pathname);
+      return;
+    }
+    if (activeMainTab !== 'home') {
+      switchTab('home');
       history.pushState({ page: 'home' }, '', location.pathname);
       return;
     }
