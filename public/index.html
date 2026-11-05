@@ -1932,7 +1932,7 @@ async function renderProfile(){
   el.innerHTML = `
     <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
-      <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="openOwnAvatarMenu()" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
+      <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="${hasOwnStory ? `openStoryViewer('${currentUser.id}')` : 'openOwnAvatarMenu()'}" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
         ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
         <div class="story-add-badge" style="background:var(--marigold);" onclick="event.stopPropagation();document.getElementById('avatarFileInput').click()" title="Change photo">📷</div>
       </div>
@@ -1945,7 +1945,6 @@ async function renderProfile(){
     </div>
     <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)} <span style="font-size:13px;opacity:.7;">▾</span></div>
     <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Note chhodo (24 ghante)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
-    ${hasOwnStory ? `<div style="margin:4px 0 8px;"><button type="button" onclick="openStoryViewer('${currentUser.id}')" style="background:rgba(124,92,255,0.15);border:1px solid #7C5CFF;color:#B388FF;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">▶ View my Story</button></div>` : ''}
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
     <div class="profile-btn-row">
