@@ -271,10 +271,16 @@
     color:#fff;width:62px;height:62px;border-radius:50%;font-size:36px;font-weight:700;
     display:flex;align-items:center;justify-content:center;text-shadow:0 2px 6px rgba(0,0,0,0.5);
   }
-  .short-info{position:absolute;left:18px;bottom:34px;right:100px;color:#fff;z-index:5;}
-  .short-owner{font-family:'Baloo 2',sans-serif;font-size:22px;font-weight:800;margin:0 0 10px;text-shadow:0 2px 12px rgba(0,0,0,0.9);cursor:pointer;}
-  .short-info h3{font-family:'Baloo 2',sans-serif;font-size:36px;font-weight:800;margin:0 0 12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);}
-  .short-info p{font-size:21px;color:#fff;margin:0;text-shadow:0 2px 12px rgba(0,0,0,0.9);line-height:1.5;}
+  .short-info{position:absolute;left:16px;bottom:28px;right:78px;color:#fff;z-index:5;}
+  .short-owner{font-family:'Baloo 2',sans-serif;font-size:15.5px;font-weight:800;margin:0 0 6px;text-shadow:0 2px 10px rgba(0,0,0,0.9);cursor:pointer;}
+  .short-info h3{font-family:'Baloo 2',sans-serif;font-size:16px;font-weight:700;margin:0 0 4px;line-height:1.3;text-shadow:0 2px 10px rgba(0,0,0,0.9);}
+  .short-info p{font-size:13.5px;color:rgba(255,255,255,0.92);margin:0;text-shadow:0 2px 10px rgba(0,0,0,0.9);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;}
+  .short-info p.expanded{-webkit-line-clamp:unset;max-height:32vh;overflow-y:auto;}
+  .short-scrubber{position:absolute;left:0;right:0;bottom:0;height:14px;display:flex;align-items:flex-end;z-index:8;cursor:pointer;touch-action:none;}
+  .short-scrubber-track{width:100%;height:3.5px;background:rgba(255,255,255,0.28);transition:height .12s;}
+  .short-scrubber:active .short-scrubber-track{height:6px;}
+  .short-scrubber-fill{height:100%;width:0%;background:var(--marigold);position:relative;}
+  .seek-badge{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.65);color:#fff;font-weight:800;font-size:15px;padding:10px 16px;border-radius:999px;z-index:12;pointer-events:none;animation:dbltapHeartPop 0.7s ease forwards;}
   .short-actions{
     position:absolute;right:14px;bottom:40px;display:flex;flex-direction:column;gap:24px;
     align-items:center;z-index:5;
@@ -770,10 +776,12 @@
       <span class="modal-owner" id="mOwner"></span>
       <p id="mMeta" style="color:var(--marigold);"></p>
       <p id="mDesc"></p>
-      <div class="action-row">
+      <div class="action-row" style="flex-wrap:wrap;gap:8px;">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">♡ <span id="likeCount">0</span></button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
-        <button class="action-btn" id="playerMenuBtn" onclick="openPlayerMenu()" aria-label="More options" style="font-size:20px;padding:6px 16px;line-height:1;">⋮</button>
+        <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()" title="Playback speed">⚡ 1x</button>
+        <button class="action-btn" id="pipBtn" onclick="togglePlayerPiP()" title="Mini Player (Picture-in-Picture)">⧉ PiP</button>
+        <button class="action-btn" id="playerMenuBtn" onclick="openPlayerMenu()" aria-label="More options" style="font-size:20px;padding:6px 14px;line-height:1;">⋮</button>
         <div class="hidden" id="playerHiddenActions">
           <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
           <button class="action-btn hidden" id="modalCollabBtn" onclick="openCollabSheet(currentFilm ? currentFilm.id : '')">🤝 Collab</button>
@@ -1123,7 +1131,11 @@
       <label>Year</label><input type="text" id="qYear">
       <label>Language</label><input type="text" id="qLanguage">
       <label>Genre</label><input type="text" id="qGenre">
-      <label>Description</label><textarea id="qDescription"></textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">
+        <label style="margin:0;">Description &amp; #Hashtags</label>
+        <button type="button" id="aiCaptionBtn" onclick="generateAiUploadCaption()" style="background:rgba(124,92,255,0.18);border:1px solid var(--marigold);color:var(--cream);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">✨ AI Write Caption &amp; #Tags</button>
+      </div>
+      <textarea id="qDescription" placeholder="Write a caption or tap '✨ AI Write Caption & #Tags' above..."></textarea>
       <label>🤝 Collab (optional) — share a post with another user</label>
       <div class="collab-chip hidden" id="qCollabChip"></div>
       <input type="text" id="qCollab" placeholder="type a username — tap one from the list" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
@@ -3132,9 +3144,11 @@ document.addEventListener('ended', function(e){
 
 function renderShorts(shorts){
   const container = document.getElementById('shortsContainer');
-  if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="/admin.html" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
+  if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="#" onclick="openUploadModal();return false;" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
   container.innerHTML = shorts.map(f => {
     const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isSaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
+    const canFollow = !!(currentUser && f.ownerId && f.ownerId !== currentUser.id && !f.isFollowing);
     return `
     <div class="short-item" data-id="${f.id}">
       <video data-src="${f.videoUrl}" preload="none" playsinline data-id="${f.id}"></video>
@@ -3143,16 +3157,20 @@ function renderShorts(shorts){
       <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;" loading="lazy" decoding="async">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
-        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:6px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:4px;" loading="lazy" decoding="async">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
-        <p>${linkifyRich(f.description || '', f.mentions)}</p>
+        ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
       </div>
       <div class="short-actions">
-        <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" onclick="likeShort('${f.id}', this)">♡</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
+        <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" id="short-like-btn-${f.id}" onclick="likeShort('${f.id}', this)">${isLiked ? '❤️' : '🤍'}</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
+        <div><button class="short-action-btn" id="short-save-btn-${f.id}" onclick="toggleSaveShort('${f.id}', this)" style="font-size:26px;">${isSaved ? '🔖' : '📑'}</button><div class="short-action-count">Save</div></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
+      </div>
+      <div class="short-scrubber" onclick="seekShortFromBar(event, this)">
+        <div class="short-scrubber-track"><div class="short-scrubber-fill" id="short-prog-${f.id}"></div></div>
       </div>
     </div>
   `;
@@ -3160,6 +3178,35 @@ function renderShorts(shorts){
   setupShortsSwipeToProfile();
   setupShortsDoubleTapLike();
   setupShortsHoldSpeed();
+}
+
+function seekShortFromBar(e, barEl){
+  e.stopPropagation();
+  const item = barEl.closest('.short-item');
+  const video = item ? item.querySelector('video') : null;
+  if (!video || !isFinite(video.duration) || video.duration <= 0) return;
+  const rect = barEl.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / (rect.width || 1)));
+  video.currentTime = ratio * video.duration;
+  const fill = barEl.querySelector('.short-scrubber-fill');
+  if (fill) fill.style.width = (ratio * 100).toFixed(1) + '%';
+}
+
+async function toggleSaveShort(id, btn){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/films/' + id + '/save', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return;
+    const film = allFilms.find(f => f.id === id);
+    if (film) {
+      if (!film.savedBy) film.savedBy = [];
+      if (data.saved) { if (!film.savedBy.includes(currentUser.id)) film.savedBy.push(currentUser.id); }
+      else film.savedBy = film.savedBy.filter(uid => uid !== currentUser.id);
+    }
+    btn.textContent = data.saved ? '🔖' : '📑';
+    showToast(data.saved ? 'Saved 🔖' : 'Removed from Saved');
+  } catch (e) {}
 }
 
 function setupShortsDoubleTapLike(){
@@ -3295,6 +3342,13 @@ function setupShortsObserver(){
         if (sf && sf.song) { video.muted = true; playSong(sf.song); } else { stopSong(); }
         if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
         watchTimeStart(id);
+        // Preload the next Short in the background so swiping down has 0ms lag
+        const nextItem = video.closest('.short-item') && video.closest('.short-item').nextElementSibling;
+        const nextVid = nextItem && nextItem.querySelector ? nextItem.querySelector('video') : null;
+        if (nextVid && !nextVid.src && nextVid.dataset.src) {
+          nextVid.preload = 'metadata';
+          nextVid.src = nextVid.dataset.src;
+        }
       } else {
         video.pause();
         watchTimeFlush(id);
@@ -3312,6 +3366,15 @@ async function likeShort(id, btn){
     if (!res.ok) return;
     document.getElementById('short-like-' + id).textContent = data.likes;
     btn.classList.toggle('liked', data.liked);
+    btn.textContent = data.liked ? '❤️' : '🤍';
+    const film = allFilms.find(f => f.id === id);
+    if (film) {
+      film.likes = data.likes;
+      if (typeof data.views === 'number') film.views = data.views;
+      if (!film.likedBy) film.likedBy = [];
+      if (data.liked) { if (!film.likedBy.includes(currentUser.id)) film.likedBy.push(currentUser.id); }
+      else film.likedBy = film.likedBy.filter(uid => uid !== currentUser.id);
+    }
   } catch (err) {}
 }
 
@@ -3695,7 +3758,8 @@ function renderUpNext(cur){
   const films = pool.filter(x => x.type !== 'short' && x.type !== 'photo').slice(0, 20);
   const reelsHtml = reels.length ? '<h3 class="up-h">Suggested reels</h3><div class="up-reels">' +
     reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')">${r.posterUrl ? `<img src="${r.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph">▶</div>'}<div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
-  const filmsHtml = films.length ? '<h3 class="up-h">Up next</h3>' +
+  const autoOn = localStorage.getItem('autoplayUpNext') !== '0';
+  const filmsHtml = films.length ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px;"><h3 class="up-h" style="margin:0;">Up next</h3><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream-dim);cursor:pointer;"><input type="checkbox" ${autoOn ? 'checked' : ''} onchange="localStorage.setItem('autoplayUpNext',this.checked?'1':'0')"> Autoplay</label></div>` +
     films.map(f => `<div class="up-row" onclick="playFilm('${f.id}')"><div class="up-thumb">${f.posterUrl ? `<img src="${f.posterUrl}" alt="" loading="lazy">` : '<div class="up-ph-wide">▶</div>'}</div><div class="up-info"><div class="up-title">${escapeHtml(f.title)}</div><div class="up-meta">@${escapeHtml(f.ownerUsername || '')} · ${f.views || 0} views</div></div></div>`).join('') : '';
   box.innerHTML = reelsHtml + filmsHtml;
 }
@@ -3729,17 +3793,53 @@ async function playFilm(id){
       if (fsBtn) fsBtn.style.display = 'block';
     }
   }
+  const isVid = f.type !== 'photo' && !(f.slideUrls && f.slideUrls.length > 1);
+  const spBtn = document.getElementById('speedBtn');
+  const pipBtn = document.getElementById('pipBtn');
+  if (spBtn) { spBtn.style.display = isVid ? '' : 'none'; spBtn.textContent = '⚡ 1x'; }
+  if (pipBtn) { pipBtn.style.display = (isVid && document.pictureInPictureEnabled) ? '' : 'none'; }
+
   if (!playerEl.dataset.watchListeners) {
     playerEl.dataset.watchListeners = '1';
     playerEl.addEventListener('play', () => { if (currentFilm) watchTimeStart(currentFilm.id); });
-    playerEl.addEventListener('pause', () => { if (currentFilm) watchTimeStop(currentFilm.id); });
-    playerEl.addEventListener('ended', () => { if (currentFilm) watchTimeStop(currentFilm.id); });
+    playerEl.addEventListener('pause', () => { if (currentFilm) { watchTimeStop(currentFilm.id); saveVideoResume(currentFilm.id, playerEl.currentTime, playerEl.duration); } });
+    playerEl.addEventListener('timeupdate', () => {
+      if (currentFilm && !playerEl.paused && Math.floor(playerEl.currentTime) % 4 === 0) {
+        saveVideoResume(currentFilm.id, playerEl.currentTime, playerEl.duration);
+      }
+    });
+    playerEl.addEventListener('ended', () => {
+      if (!currentFilm) return;
+      watchTimeStop(currentFilm.id);
+      saveVideoResume(currentFilm.id, 0, playerEl.duration);
+      if (localStorage.getItem('autoplayUpNext') !== '0') {
+        const nextFilm = (allFilms || []).find(x => x.id !== currentFilm.id && !x.pendingReview && x.type === 'film');
+        if (nextFilm) {
+          showToast('Up next: ' + nextFilm.title);
+          setTimeout(() => {
+            if (document.getElementById('overlay').classList.contains('open') && currentFilm && playerEl.ended) {
+              playFilm(nextFilm.id);
+            }
+          }, 2200);
+        }
+      }
+    });
+  }
+  if (isVid) {
+    playerEl.onloadedmetadata = () => {
+      const savedSec = getVideoResume(f.id);
+      if (savedSec > 5 && isFinite(playerEl.duration) && savedSec < playerEl.duration - 5) {
+        playerEl.currentTime = savedSec;
+        showToast('Resumed from ' + fmtClipSec(savedSec));
+      }
+    };
   }
 
   document.getElementById('mTitle').textContent = f.title;
   const mOwnerEl = document.getElementById('mOwner');
   if (f.ownerUsername) {
-    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;" loading="lazy" decoding="async">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '');
+    const canFollowOwner = !!(currentUser && f.ownerId && f.ownerId !== currentUser.id && !f.isFollowing);
+    mOwnerEl.innerHTML = (f.ownerProfileImage ? `<img id="mOwnerAvatar" src="${f.ownerProfileImage}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;cursor:pointer;" loading="lazy" decoding="async">` : '') + `<span id="mOwnerName" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>` + vb(f.ownerVerified) + collabLabel(f) + (f.uploadedAt ? `<span style="color:var(--cream-dim);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : '') + (canFollowOwner ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:10px;text-decoration:none;">Follow</button>` : '');
     const avatarEl = document.getElementById('mOwnerAvatar');
     if (avatarEl) avatarEl.onclick = () => { closeModal(); viewProfile(f.ownerId, f.ownerUsername); };
     document.getElementById('mOwnerName').onclick = () => { closeModal(); goToProfileDirect(f.ownerId, f.ownerUsername); };
@@ -4092,7 +4192,7 @@ function closeModal(){
   document.getElementById('playerImg').src = '';
 }
 
-const PLAYER_SPEED_STEPS = [0.5, 1, 1.5, 2];
+const PLAYER_SPEED_STEPS = [0.5, 1, 1.25, 1.5, 2];
 function cyclePlayerSpeed(){
   const player = document.getElementById('player');
   const btn = document.getElementById('speedBtn');
@@ -4101,7 +4201,54 @@ function cyclePlayerSpeed(){
   idx = (idx === -1 ? 1 : idx + 1) % PLAYER_SPEED_STEPS.length;
   const rate = PLAYER_SPEED_STEPS[idx];
   player.playbackRate = rate;
-  if (btn) btn.textContent = rate + 'x';
+  if (btn) btn.textContent = '⚡ ' + rate + 'x';
+  showToast('Speed: ' + rate + 'x');
+}
+async function togglePlayerPiP(){
+  const v = document.getElementById('player');
+  if (!v) return;
+  try {
+    if (document.pictureInPictureElement) await document.exitPictureInPicture();
+    else if (v.requestPictureInPicture) await v.requestPictureInPicture();
+  } catch (e) { showToast('Mini-player not supported on this video'); }
+}
+function saveVideoResume(id, sec, dur){
+  if (!id) return;
+  try {
+    const map = JSON.parse(localStorage.getItem('videoResumeMap') || '{}');
+    if (!sec || sec < 5 || (isFinite(dur) && sec > dur - 5)) delete map[id];
+    else map[id] = Math.floor(sec);
+    const keys = Object.keys(map);
+    if (keys.length > 100) delete map[keys[0]];
+    localStorage.setItem('videoResumeMap', JSON.stringify(map));
+  } catch (e) {}
+}
+function getVideoResume(id){
+  try {
+    const map = JSON.parse(localStorage.getItem('videoResumeMap') || '{}');
+    return Number(map[id]) || 0;
+  } catch (e) { return 0; }
+}
+async function generateAiUploadCaption(){
+  const title = (document.getElementById('qTitle') || {}).value || '';
+  const genre = (document.getElementById('qGenre') || {}).value || '';
+  const typeEl = document.querySelector('input[name="qType"]:checked');
+  const type = typeEl ? typeEl.value : 'video';
+  if (!title.trim()) { showToast('Pehle Title likho, phir AI Caption dabao!'); document.getElementById('qTitle').focus(); return; }
+  const btn = document.getElementById('aiCaptionBtn');
+  const desc = document.getElementById('qDescription');
+  if (btn) { btn.disabled = true; btn.textContent = '✨ Writing…'; }
+  try {
+    const res = await fetch('/api/ai/caption', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim(), type, genre: genre.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'AI failed');
+    if (d.caption && desc) desc.value = d.caption;
+    showToast('AI Caption & #Hashtags ready ✨');
+  } catch (e) { showToast(e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '✨ AI Write Caption & #Tags'; } }
 }
 
 function openPlayerMenu(){
@@ -6083,6 +6230,45 @@ function setupShortsSwipeToProfile(){
   });
 }
 
+function showSeekBadge(wrap, text, side){
+  const b = document.createElement('div');
+  b.className = 'seek-badge';
+  b.style[side] = '18%';
+  b.textContent = text;
+  wrap.appendChild(b);
+  setTimeout(() => b.remove(), 700);
+}
+function setupPlayerDoubleTapZones(){
+  const wrap = document.getElementById('playerMediaWrap');
+  if (!wrap) return;
+  let lastTap = 0, lastX = 0;
+  wrap.addEventListener('click', function(e){
+    if (e.target && e.target.id === 'playerFsBtn') return;
+    const now = Date.now();
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (now - lastTap < 300 && Math.abs(x - lastX) < 80) {
+      lastTap = 0;
+      const v = document.getElementById('player');
+      const isVidVisible = v && v.style.display !== 'none' && isFinite(v.duration);
+      const ratio = x / (rect.width || 1);
+      if (isVidVisible && ratio < 0.35) {
+        v.currentTime = Math.max(0, v.currentTime - 10);
+        showSeekBadge(wrap, '⏪ 10s', 'left');
+      } else if (isVidVisible && ratio > 0.65) {
+        v.currentTime = Math.min(v.duration, v.currentTime + 10);
+        showSeekBadge(wrap, '10s ⏩', 'right');
+      } else {
+        showHeartBurst(wrap);
+        if (!document.getElementById('likeBtn').classList.contains('liked')) likeCurrentFilm();
+      }
+    } else {
+      lastTap = now;
+      lastX = x;
+    }
+  });
+}
+
 async function init(){
   await Promise.allSettled([
     loadProfile().then(() => { if (currentUser) startHeartbeat(); }),
@@ -6092,12 +6278,7 @@ async function init(){
   renderStoriesBar();
   try { if (window.UploadMgr) UploadMgr.restore(); } catch (e) { console.error('restore uploads failed:', e); }
   try { loadAnnouncementBanner(); } catch (e) {}
-  setupDoubleTapLike(
-    document.getElementById('playerMediaWrap'),
-    null,
-    () => document.getElementById('likeBtn').classList.contains('liked'),
-    () => likeCurrentFilm()
-  );
+  setupPlayerDoubleTapZones();
 }
 function sendHeartbeat(){
   if (!currentUser || document.visibilityState === 'hidden') return;
@@ -6672,7 +6853,16 @@ function shareCurrentFilmById(id, title) {
   ['pause','play','playing','loadedmetadata','seeked','ended'].forEach(function(ev){
     document.addEventListener(ev, function(e){ if (e.target && e.target.tagName === 'VIDEO') update(e.target); }, true);
   });
-  document.addEventListener('timeupdate', function(e){ const v = e.target; if (v && v.tagName === 'VIDEO' && v.paused) update(v); }, true);
+  document.addEventListener('timeupdate', function(e){
+    const v = e.target;
+    if (!v || v.tagName !== 'VIDEO') return;
+    if (v.paused) update(v);
+    const id = v.dataset && v.dataset.id;
+    if (id && isFinite(v.duration) && v.duration > 0) {
+      const fill = document.getElementById('short-prog-' + id);
+      if (fill) fill.style.width = Math.min(100, (v.currentTime / v.duration) * 100).toFixed(1) + '%';
+    }
+  }, true);
 })();
 </script>
 <footer class="seo-footer" style="padding:18px 16px 90px;text-align:center;font-size:12.5px;line-height:1.6;color:#A9A3C9;">
