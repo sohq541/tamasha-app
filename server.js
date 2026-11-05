@@ -797,6 +797,22 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.delete('/api/me/avatar', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const user = users.find(u => u.id === currentUser.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.profileImage) {
+      await storeDelete(user.profileImage).catch(() => {});
+      user.profileImage = null;
+      await writeUsers(users);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/media/avatar/:id', async (req, res) => {
   try {
     const users = await readUsers();
@@ -833,8 +849,18 @@ app.put('/api/me/username', async (req, res) => {
 
     const films = await readFilms();
     let updated = false;
-    films.forEach(f => { if (f.ownerId === user.id) { f.ownerUsername = newUsername; updated = true; } });
+    films.forEach(f => {
+      if (f.ownerId === user.id) { f.ownerUsername = newUsername; updated = true; }
+      if (f.collaboratorId === user.id) { f.collaboratorUsername = newUsername; updated = true; }
+      (f.comments || []).forEach(c => { if (c.userId === user.id) { c.name = newUsername; updated = true; } });
+    });
     if (updated) await writeFilms(films);
+    try {
+      const stories = await readStories();
+      let stUpdated = false;
+      stories.forEach(s => { if (s.ownerId === user.id) { s.ownerUsername = newUsername; stUpdated = true; } });
+      if (stUpdated) await writeStories(stories);
+    } catch (e) {}
 
     const token = signToken(user, await startSession(req, user));
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
@@ -847,15 +873,18 @@ app.put('/api/me/password', async (req, res) => {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both password fields are required' });
+    if (!newPassword) return res.status(400).json({ error: 'New password is required' });
     if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+    if (user.passwordHash) {
+      if (!currentPassword) return res.status(400).json({ error: 'Current password is required' });
+      const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+    }
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await writeUsers(users);
@@ -1009,6 +1038,21 @@ app.get('/api/users/:id/followers', async (req, res) => {
       isMe: !!(currentUser && currentUser.id === u.id)
     })));
     res.json({ users: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/me/followers/:id/remove', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const follower = users.find(u => u.id === req.params.id);
+    if (!follower) return res.status(404).json({ error: 'User not found' });
+    if (Array.isArray(follower.following)) {
+      follower.following = follower.following.filter(id => id !== currentUser.id);
+      await writeUsers(users);
+    }
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1544,7 +1588,7 @@ async function pickSong(body, kind) {
   if (!x) return null;
   const start = Math.max(0, Math.min(3600, Number(body.songStart) || 0));
   const want = (kind === 'story' || kind === 'note') ? 15 : kind === 'photo' ? 15 : Math.max(1, Math.min(600, Number(body.songDuration) || 15));
-  return { url: r2PublicUrl(x.key), title: x.title, artist: x.artist || '', start, duration: want };
+  return { id: x.id, url: r2PublicUrl(x.key), title: x.title, artist: x.artist || '', Category: x.category || '', start, duration: want };
 }
 app.post('/api/films/finalize', async (req, res) => {
   try {
@@ -3446,10 +3490,18 @@ app.get('/api/me/saved', async (req, res) => {
     const films = await readFilms();
     const directUrl = makeDirectUrlCache();
     const mine = films.filter(f => f.savedBy && f.savedBy.includes(currentUser.id));
-    const out = await Promise.all(mine.map(async f => ({
-      id: f.id, filmId: f.id, title: f.title, type: f.type,
-      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null
-    })));
+    const out = await Promise.all(mine.map(async f => {
+      const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+      const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+      const videoKey = f.videoFile || (slide0 && slide0.mediaType === 'video' ? slide0.key : null);
+      return {
+        id: f.id, filmId: f.id, ownerId: f.ownerId, title: f.title, type: f.type,
+        views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
+        slidesCount: Array.isArray(f.slides) ? f.slides.length : 0,
+        posterUrl: posterKey ? await directUrl(posterKey, f.storageProvider) : null,
+        videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
+      };
+    }));
     res.json({ saved: out.reverse() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3582,34 +3634,64 @@ async function sendResendMail(to, subject, text) {
   } catch (e) { return false; }
 }
 function ticketView(t) {
-  return { id: t.id, problem: t.problem, status: t.status, createdAt: t.createdAt, replies: t.replies || [], hasNewReply: !!t.hasNewReply };
+  return {
+    id: t.id,
+    category: t.category || 'General',
+    problem: t.problem,
+    screenshotUrl: t.screenshotKey ? r2PublicUrl(t.screenshotKey) : null,
+    status: t.status,
+    rating: t.rating || null,
+    createdAt: t.createdAt,
+    replies: t.replies || [],
+    hasNewReply: !!t.hasNewReply
+  };
 }
 
-app.post('/api/help-desk', async (req, res) => {
+app.post('/api/help-desk', upload.single('screenshot'), async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
-    const { name, problem, email } = req.body || {};
+    const { name, problem, email, category } = req.body || {};
     const text = String(problem || '').trim().slice(0, 2000);
     if (!text) return res.status(400).json({ error: 'Please describe your problem' });
     const contact = String(email || (currentUser && currentUser.email) || '').trim();
     if (contact && !looksLikeEmail(contact)) return res.status(400).json({ error: 'Email does not look valid' });
     if (!helpRateOk(currentUser ? 'u:' + currentUser.id : 'ip:' + req.ip)) return res.status(429).json({ error: 'Bahut zyada messages — thodi der baad try karo' });
 
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let screenshotKey = null;
+    if (req.file) {
+      const ext = (path.extname(req.file.originalname) || '.jpg').replace(/[^A-Za-z0-9.]/g, '').slice(0, 6);
+      screenshotKey = `helpdesk/${id}${ext}`;
+      await storePutBuffer(readFileAsBuffer(req.file.path), screenshotKey, req.file.mimetype || 'image/jpeg');
+    }
+
     const list = await readHelpdesk();
     const ticket = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      id,
       userId: currentUser ? currentUser.id : null,
       username: currentUser ? currentUser.username : null,
       name: String(name || (currentUser && currentUser.username) || 'User').slice(0, 60),
       email: contact || null,
-      problem: text, status: 'open', createdAt: new Date().toISOString(), replies: []
+      category: String(category || 'General').trim().slice(0, 40),
+      problem: text,
+      screenshotKey,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      replies: []
     };
     list.push(ticket);
     await writeHelpdesk(list.slice(-1000));
-    // tell the owner: in-app notification (+ email through Resend if configured) — never blocks the ticket itself
-    alertAdminText(`📩 New Help Desk message: ${ticket.name}${ticket.email ? ' (' + ticket.email + ')' : ''} — "${text.slice(0, 80)}"`).catch(() => {});
-    sendResendMail('sohailp541@gmail.com', 'YouSeries Help Desk - ' + ticket.name,
-      `Name: ${ticket.name}\nEmail: ${ticket.email || '-'}\nUser ID: ${ticket.userId || '-'}\n\nProblem:\n${text}\n\nYou can reply from Dashboard → Help Desk.`).catch(() => {});
+    alertAdminText(`📩 New Help Desk [${ticket.category}]: ${ticket.name}${ticket.email ? ' (' + ticket.email + ')' : ''} — "${text.slice(0, 80)}"`).catch(() => {});
+    sendResendMail('sohailp541@gmail.com', `YouSeries Help Desk [${ticket.category}] - ` + ticket.name,
+      `Name: ${ticket.name}
+Category: ${ticket.category}
+Email: ${ticket.email || '-'}
+User ID: ${ticket.userId || '-'}
+
+Problem:
+${text}
+
+You can reply from Dashboard → Help Desk.`).catch(() => {});
     res.status(201).json({ success: true, id: ticket.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3647,12 +3729,85 @@ app.post('/api/help-desk/:id/reply', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/help-desk/:id/resolve', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id && x.userId === currentUser.id);
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
+    t.status = 'closed';
+    t.rating = req.body && req.body.rating === 'helpful' ? 'helpful' : 'resolved';
+    await writeHelpdesk(list);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/admin/helpdesk', requireAdmin, async (req, res) => {
   try {
     const list = await readHelpdesk();
-    res.json({ tickets: list.slice().reverse().sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1)) });
+    // Compute Help Desk analytics for the admin dashboard
+    let openCount = 0, answeredCount = 0, closedCount = 0, helpfulCount = 0;
+    let respMinutesTotal = 0, respSamples = 0;
+    const byCategory = {};
+    list.forEach(t => {
+      if (t.status === 'open') openCount++;
+      else if (t.status === 'answered') answeredCount++;
+      else closedCount++;
+      if (t.rating === 'helpful') helpfulCount++;
+      const cat = t.category || 'General';
+      byCategory[cat] = (byCategory[cat] || 0) + 1;
+      const firstAdmin = (t.replies || []).find(r => r.from === 'admin');
+      if (firstAdmin && t.createdAt && firstAdmin.at) {
+        const diffMin = Math.max(1, Math.round((new Date(firstAdmin.at) - new Date(t.createdAt)) / 60000));
+        if (diffMin < 60 * 24 * 30) { respMinutesTotal += diffMin; respSamples++; }
+      }
+    });
+    const enriched = list.slice().reverse().map(t => ({
+      ...t,
+      category: t.category || 'General',
+      screenshotUrl: t.screenshotKey ? r2PublicUrl(t.screenshotKey) : null
+    })).sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1));
+    res.json({
+      tickets: enriched,
+      analytics: {
+        total: list.length,
+        open: openCount,
+        answered: answeredCount,
+        closed: closedCount,
+        helpful: helpfulCount,
+        avgResponseMinutes: respSamples ? Math.round(respMinutesTotal / respSamples) : null,
+        byCategory
+      }
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// AI Help Desk Analyst: generates a smart Hinglish support reply & diagnosis for any ticket
+app.post('/api/admin/helpdesk/:id/ai-suggest', requireAdmin, async (req, res) => {
+  try {
+    if (!GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY is not set' });
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id);
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
+    const thread = (t.replies || []).map(r => `${r.from === 'admin' ? 'Admin' : 'User'}: ${r.text}`).join("\\n");
+    const prompt = `User Name: ${t.name} (${t.username ? '@' + t.username : 'guest'})
+Category: ${t.category || 'General'}
+Problem: "${t.problem}"
+${thread ? "Previous Thread:\\n" + thread : ''}
+
+Tum YouSeries (TAMASHA) ke Help Desk Support Analyst ho. Is user ko bhejne ke liye ek polite, helpful, aur to-the-point Hinglish reply likho (bina kisi markdown heading ke, seedha message jo user ko bheja ja sake, 2-4 sentences me).`;
+    const model = await resolveGroqModel();
+    const { ok, data } = await callGroqChat(model, [
+      { role: 'system', content: AI_SYSTEM_PROMPT },
+      { role: 'user', content: prompt }
+    ]);
+    if (!ok) return res.status(500).json({ error: (data && data.error && data.error.message) || 'AI error' });
+    const suggestion = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    res.json({ suggestion: suggestion.trim() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/admin/helpdesk/:id/reply', requireAdmin, async (req, res) => {
   try {
     const text = String((req.body && req.body.message) || '').trim().slice(0, 1500);
@@ -3666,7 +3821,13 @@ app.post('/api/admin/helpdesk/:id/reply', requireAdmin, async (req, res) => {
     await writeHelpdesk(list);
     if (t.userId) await notify(t.userId, { type: 'helpdesk_reply', fromUserId: 'system', fromUsername: 'Help Desk', message: '🆘 Help Desk replied to your question' });
     let emailed = false;
-    if (t.email) emailed = await sendResendMail(t.email, 'YouSeries Help Desk — reply to your question', `Hi ${t.name},\n\n${text}\n\n— YouSeries Help Desk\n\n(Tumhara sawal: ${t.problem.slice(0, 200)})`);
+    if (t.email) emailed = await sendResendMail(t.email, 'YouSeries Help Desk — reply to your question', `Hi ${t.name},
+
+${text}
+
+— YouSeries Help Desk
+
+(Tumhara sawal: ${t.problem.slice(0, 200)})`);
     res.json({ success: true, emailed });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3678,6 +3839,16 @@ app.post('/api/admin/helpdesk/:id/status', requireAdmin, async (req, res) => {
     if (!t) return res.status(404).json({ error: 'Ticket not found' });
     t.status = status; await writeHelpdesk(list);
     res.json({ success: true, status });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/admin/helpdesk/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const list = await readHelpdesk();
+    const t = list.find(x => x.id === req.params.id);
+    if (!t) return res.status(404).json({ error: 'Ticket not found' });
+    if (t.screenshotKey) await storeDelete(t.screenshotKey).catch(() => {});
+    await writeHelpdesk(list.filter(x => x.id !== req.params.id));
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3990,7 +4161,7 @@ async function buildSlideUrls(f, directUrl) {
 function activeNote(u) {
   if (!u || !u.note || !u.note.text) return null;
   if (Date.now() - new Date(u.note.createdAt).getTime() > 24 * 60 * 60 * 1000) return null;
-  return { text: u.note.text, createdAt: u.note.createdAt };
+  return { text: u.note.text, createdAt: u.note.createdAt, song: u.note.song || null };
 }
 
 // ---------------- Report alerts (in-app + push to the owner's account, optional email through Resend) ----------------
@@ -4087,7 +4258,7 @@ app.get('/api/notes', async (req, res) => {
     const notes = await Promise.all(list.map(async u => ({
       userId: u.id, username: u.username, verified: !!u.verified, mine: u.id === me.id,
       profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
-      text: u.note.text, createdAt: u.note.createdAt
+      text: u.note.text, createdAt: u.note.createdAt, song: u.note.song || null
     })));
     notes.sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ notes });
@@ -4473,10 +4644,44 @@ setInterval(async () => {
 // ---------------- Songs library (admin uploads; users pick a song for stories, notes and uploads) ----------------
 async function readSongs() { return (await storeTryReadJSON('songs.json')) || []; }
 async function writeSongs(list) { await storeWriteJSON('songs.json', list); }
+async function computeSongUsageMap() {
+  const counts = {};
+  try {
+    const [films, stories, users] = await Promise.all([
+      readFilms().catch(() => []),
+      readStories().catch(() => []),
+      readUsers().catch(() => [])
+    ]);
+    const bump = s => {
+      if (!s) return;
+      const key = s.id || s.url || s.title;
+      if (key) counts[key] = (counts[key] || 0) + 1;
+    };
+    films.forEach(f => bump(f && f.song));
+    stories.filter(isStoryActive).forEach(s => bump(s && s.song));
+    users.forEach(u => { const n = activeNote(u); if (n && n.song) bump(n.song); });
+  } catch (e) {}
+  return counts;
+}
 app.get('/api/songs', async (req, res) => {
   if (!getUserFromReq(req) && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login required' });
-  const list = await readSongs();
-  res.json(list.map(x => ({ id: x.id, title: x.title, artist: x.artist || '', trending: !!x.trending, url: r2PublicUrl(x.key) })));
+  const [list, usageMap] = await Promise.all([readSongs(), computeSongUsageMap()]);
+  const out = list.map(x => {
+    const url = r2PublicUrl(x.key);
+    const useCount = (usageMap[x.id] || 0) + (usageMap[url] || 0);
+    return {
+      id: x.id,
+      title: x.title,
+      artist: x.artist || '',
+      category: x.category || 'General',
+      trending: !!x.trending,
+      useCount,
+      createdAt: x.createdAt || null,
+      url
+    };
+  });
+  out.sort((a, b) => (b.trending - a.trending) || (b.useCount - a.useCount) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  res.json(out);
 });
 app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, res) => {
   try {
@@ -4489,9 +4694,33 @@ app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, re
     const key = `songs/${id}${ext}`;
     await storePutBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype || 'audio/mpeg');
     const list = await readSongs();
-    list.push({ id, key, title, artist: String((req.body && req.body.artist) || '').trim().slice(0, 80), trending: false, createdAt: new Date().toISOString() });
+    list.push({
+      id,
+      key,
+      title,
+      artist: String((req.body && req.body.artist) || '').trim().slice(0, 80),
+      category: String((req.body && req.body.category) || 'General').trim().slice(0, 40),
+      trending: toBool(req.body && req.body.trending),
+      createdAt: new Date().toISOString()
+    });
     await writeSongs(list);
     res.json({ success: true, id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.put('/api/admin/songs/:id', requireAdmin, async (req, res) => {
+  try {
+    const list = await readSongs();
+    const x = list.find(y => y.id === req.params.id);
+    if (!x) return res.status(404).json({ error: 'Song not found' });
+    if (req.body.title !== undefined) {
+      const t = String(req.body.title || '').trim().slice(0, 80);
+      if (!t) return res.status(400).json({ error: 'Title cannot be empty' });
+      x.title = t;
+    }
+    if (req.body.artist !== undefined) x.artist = String(req.body.artist || '').trim().slice(0, 80);
+    if (req.body.category !== undefined) x.category = String(req.body.category || 'General').trim().slice(0, 40);
+    await writeSongs(list);
+    res.json({ success: true, song: x });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/admin/songs/:id/trend', requireAdmin, async (req, res) => {
