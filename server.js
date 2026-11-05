@@ -768,7 +768,8 @@ app.get('/api/users/:id/public', async (req, res) => {
       pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
-      hideSensitiveContent: !!user.hideSensitiveContent,
+      showSensitiveContent: (user.showSensitiveContent !== false && !user.hideSensitiveContent),
+      hideSensitiveContent: !(user.showSensitiveContent !== false && !user.hideSensitiveContent),
       online: isUserOnline(user),
       blocked: !!(me && me.blockedUsers && me.blockedUsers.includes(user.id)),
       restricted: !!(me && me.restrictedUsers && me.restrictedUsers.includes(user.id)),
@@ -1107,7 +1108,7 @@ app.get('/api/films', async (req, res) => {
     const users = await readUsers();
     const userById = new Map(users.map(u => [u.id, u]));
     const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
-    const hideSensitive = me ? !!me.hideSensitiveContent : false;
+    const hideSensitive = me ? (me.showSensitiveContent === false || me.hideSensitiveContent === true) : false;
     const myBlocked = (me && me.blockedUsers) || [];
     const directUrl = makeDirectUrlCache();
 
@@ -3589,9 +3590,18 @@ app.post('/api/me/settings', async (req, res) => {
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    if (typeof req.body.hideSensitiveContent === 'boolean') user.hideSensitiveContent = req.body.hideSensitiveContent;
+    if (typeof req.body.showSensitiveContent === 'boolean') {
+      user.showSensitiveContent = req.body.showSensitiveContent;
+      user.hideSensitiveContent = !req.body.showSensitiveContent;
+    } else if (typeof req.body.hideSensitiveContent === 'boolean') {
+      user.hideSensitiveContent = req.body.hideSensitiveContent;
+      user.showSensitiveContent = !req.body.hideSensitiveContent;
+    }
     await writeUsers(users);
-    res.json({ hideSensitiveContent: !!user.hideSensitiveContent });
+    res.json({
+      showSensitiveContent: (user.showSensitiveContent !== false && !user.hideSensitiveContent),
+      hideSensitiveContent: !(user.showSensitiveContent !== false && !user.hideSensitiveContent)
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
