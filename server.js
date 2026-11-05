@@ -1269,6 +1269,7 @@ app.get('/api/films/:id', async (req, res) => {
     const currentUser = getUserFromReq(req);
     const isFilmOwner = isFilmOwnerOrCollab(f, currentUser && currentUser.id);
     const users = await readUsers();
+    const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
     const owner = users.find(u => u.id === f.ownerId);
     const ownerRestricted = (owner && owner.restrictedUsers) || [];
     const directUrl = makeDirectUrlCache();
@@ -1284,12 +1285,15 @@ app.get('/api/films/:id', async (req, res) => {
       return { ...c, name: cUser ? cUser.username : c.name, profileImage: cAvatarUrl, verified: !!(cUser && cUser.verified) };
     }));
     res.json({
-      ...f, comments: enrichedComments,
+      ...f,
+      views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
+      comments: enrichedComments,
       videoUrl: f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
       slideUrls: await buildSlideUrls(f, directUrl),
       ownerVerified: !!(owner && owner.verified),
-      ownerProfileImage: ownerAvatarUrl
+      ownerProfileImage: ownerAvatarUrl,
+      isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
