@@ -1602,8 +1602,10 @@ async function renderOtherProfile(userId, usernameHint){
   viewingProfile = { id: userId, username: pub.username, blocked: !!pub.blocked, restricted: !!pub.restricted };
 
   const theirFilms = allFilms.filter(f => isMyPost(f, userId));
-  const theirVideos = theirFilms.filter(f => f.type !== 'photo');
+  const theirLongVideos = theirFilms.filter(f => f.type === 'film');
+  const theirShorts = theirFilms.filter(f => f.type === 'short');
   const theirPhotos = theirFilms.filter(f => f.type === 'photo');
+  const hasActiveStory = !!((window.activeStoriesByUser || {})[userId] && (window.activeStoriesByUser || {})[userId].length);
 
   if (pub.hasBlockedMe) {
     el.innerHTML = `<p class="comment-empty" style="padding:40px 20px;">This profile is not available.</p>`;
@@ -1625,7 +1627,10 @@ async function renderOtherProfile(userId, usernameHint){
 
   el.innerHTML = `
     <div class="profile-top-row">
-      <div class="profile-avatar">${pub.profileImage ? `<img src="${pub.profileImage}" loading="lazy" decoding="async">` : escapeHtml((pub.username[0] || '?').toUpperCase())}<div class="online-dot ${pub.online ? 'on' : ''}" style="width:16px;height:16px;bottom:2px;right:2px;"></div></div>
+      <div class="profile-avatar" style="${hasActiveStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}" onclick="${hasActiveStory ? `openStoryViewer('${userId}')` : (pub.profileImage ? `openChatMediaLightbox('${escapeAttr(pub.profileImage)}','photo')` : '')}">
+        ${pub.profileImage ? `<img src="${pub.profileImage}" loading="lazy" decoding="async">` : escapeHtml((pub.username[0] || '?').toUpperCase())}
+        <div class="online-dot ${pub.online ? 'on' : ''}" style="width:16px;height:16px;bottom:2px;right:2px;"></div>
+      </div>
       <div class="profile-stats">
         <div><div class="profile-stat-num">${theirFilms.length}</div><div class="profile-stat-label">Posts</div></div>
         <div onclick="openUserList('${userId}','followers')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followersCount}</div><div class="profile-stat-label">Followers</div></div>
@@ -1633,8 +1638,8 @@ async function renderOtherProfile(userId, usernameHint){
       </div>
     </div>
     <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}</div>
-    ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${JSON.stringify(pub.note).replace(/"/g, '&quot;')})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
-    ${pub.bio ? `<div class="profile-bio">${escapeHtml(pub.bio)}</div>` : ''}
+    ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${escapeAttr(JSON.stringify(pub.note))})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
+    ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
     ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
     <div class="profile-btn-row">
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
@@ -1643,11 +1648,15 @@ async function renderOtherProfile(userId, usernameHint){
     </div>
     <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
-      <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;">🎬 Videos (${theirVideos.length})</button>
-      <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;">🖼️ Photos (${theirPhotos.length})</button>
+      <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;max-width:none;font-size:13px;">🎬 Videos (${theirLongVideos.length})</button>
+      <button class="tab-btn" id="otherProfileTabShorts" onclick="switchOtherProfileGrid('shorts')" style="flex:1;max-width:none;font-size:13px;">⚡ Shorts (${theirShorts.length})</button>
+      <button class="tab-btn" id="otherProfileTabPhotos" onclick="switchOtherProfileGrid('photos')" style="flex:1;max-width:none;font-size:13px;">🖼️ Photos (${theirPhotos.length})</button>
     </div>
     <div class="profile-mygrid" id="otherProfileGridVideos">
-      ${pinSort(theirVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')` : `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
+      ${pinSort(theirLongVideos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos yet.</p>'}
+    </div>
+    <div class="profile-mygrid hidden" id="otherProfileGridShorts">
+      ${pinSort(theirShorts, pub.pinnedFilmIds).map(f => gridItemHtml(f, `openShortFromProfile('${f.id}','${userId}','${escapeHtml(pub.username)}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No shorts yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
       ${pinSort(theirPhotos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `openProfilePhotoFeed('${userId}','${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos yet.</p>'}
@@ -1658,8 +1667,10 @@ async function renderOtherProfile(userId, usernameHint){
 
 function switchOtherProfileGrid(type){
   document.getElementById('otherProfileTabVideos').classList.toggle('active', type === 'videos');
+  document.getElementById('otherProfileTabShorts').classList.toggle('active', type === 'shorts');
   document.getElementById('otherProfileTabPhotos').classList.toggle('active', type === 'photos');
   document.getElementById('otherProfileGridVideos').classList.toggle('hidden', type !== 'videos');
+  document.getElementById('otherProfileGridShorts').classList.toggle('hidden', type !== 'shorts');
   document.getElementById('otherProfileGridPhotos').classList.toggle('hidden', type !== 'photos');
 }
 
@@ -1791,24 +1802,38 @@ async function submitReport(reason){
   } catch (e) {}
 }
 
-// ---- Your dashboard (own posts, last 30 days) ----
+// ---- Your dashboard (own posts, last 30 days + all-time analytics) ----
 function myDashStats(){
   const me = currentUser ? currentUser.id : null;
   const mine = allFilms.filter(f => me && isMyPost(f, me));
   const now = Date.now(), d30 = 30 * 24 * 3600 * 1000;
-  const recent = mine.filter(f => f.createdAt && now - new Date(f.createdAt).getTime() < d30);
+  const recent = mine.filter(f => {
+    const dt = f.uploadedAt || f.createdAt;
+    return dt && (now - new Date(dt).getTime() < d30);
+  });
+  const totalViews = mine.reduce((a, f) => a + (f.views || 0), 0);
+  const totalLikes = mine.reduce((a, f) => a + (f.likes || 0), 0);
+  const totalComments = mine.reduce((a, f) => a + ((f.comments || []).length), 0);
+  const topPost = mine.slice().sort((a, b) => ((b.views || 0) + (b.likes || 0) * 2) - ((a.views || 0) + (a.likes || 0) * 2))[0] || null;
+  const likeRate = totalViews > 0 ? Math.min(100, Math.round((totalLikes / totalViews) * 1000) / 10) : 0;
   return {
-    views: recent.reduce((a, f) => a + (f.views || 0), 0),
-    likes: recent.reduce((a, f) => a + (f.likes || 0), 0),
-    shared: recent.length,
+    views30d: recent.reduce((a, f) => a + (f.views || 0), 0),
+    likes30d: recent.reduce((a, f) => a + (f.likes || 0), 0),
+    shared30d: recent.length,
+    totalViews,
+    totalLikes,
+    totalComments,
+    totalPosts: mine.length,
+    likeRate,
+    topPost,
     followers: (window.myProfileData && window.myProfileData.followersCount) || 0
   };
 }
 function openYourDashboard(){
   if (!currentUser) return;
   const st = myDashStats();
-  const row = (label, val, note) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--gold-line);">
-      <div><div style="color:var(--cream);font-size:15px;">${label}</div>${note ? `<div class="meta" style="font-size:12px;">${note}</div>` : ''}</div>
+  const row = (label, val, note) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--gold-line);">
+      <div><div style="color:var(--cream);font-size:14.5px;">${label}</div>${note ? `<div class="meta" style="font-size:12px;">${note}</div>` : ''}</div>
       <div style="color:var(--cream);font-weight:700;font-size:16px;">${val}</div></div>`;
   const tool = (label, action) => `<button type="button" onclick="${action}" style="width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--gold-line);padding:14px 0;color:var(--cream);font-size:15px;cursor:pointer;display:flex;justify-content:space-between;"><span>${label}</span><span style="color:var(--cream-dim);">›</span></button>`;
   let ov = document.getElementById('yourDashOverlay');
@@ -1817,21 +1842,57 @@ function openYourDashboard(){
   ov.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <button type="button" onclick="document.getElementById('yourDashOverlay').remove()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;">←</button>
-      <div style="font-weight:700;font-size:18px;">Your dashboard</div>
+      <div style="font-weight:700;font-size:18px;">📊 Creator Dashboard</div>
       <span style="width:22px;"></span>
     </div>
-    <div style="font-weight:700;margin:18px 0 4px;">Insights</div>
-    <div class="meta" style="margin-bottom:6px;">Pichle 30 din me aapki posts</div>
-    ${row('Views', st.views, 'On posts published in the last 30 days')}
-    ${row('Likes', st.likes, 'On posts published in the last 30 days')}
-    ${row('Content shared', st.shared, 'Posts uploaded in the last 30 days')}
-    ${row('Followers', st.followers, 'Total followers (a separate 30-day count is not tracked yet)')}
-    <div style="font-weight:700;margin:26px 0 4px;">Your tools</div>
-    ${tool('Edit profile', "document.getElementById('yourDashOverlay').remove();toggleSettings()")}
-    ${tool('Share profile', "copyProfileLink('" + currentUser.id + "')")}
-    ${tool('Manage uploads', "window.location.href='/admin.html'")}
-    ${tool('Help desk', "document.getElementById('yourDashOverlay').remove();openProfileMenu();setTimeout(()=>{renderSettingsPrivacyMenu();setTimeout(renderHelpDesk,60);},60)")}
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0;">
+      <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;"><div style="font-size:22px;font-weight:800;color:var(--marigold);">${st.totalViews}</div><div style="font-size:12px;color:var(--cream-dim);">Total Views (All-time)</div></div>
+      <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;"><div style="font-size:22px;font-weight:800;color:#ff5c8a;">${st.totalLikes}</div><div style="font-size:12px;color:var(--cream-dim);">Total Likes (${st.likeRate}% rate)</div></div>
+      <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;"><div style="font-size:22px;font-weight:800;color:var(--cream);">${st.totalComments}</div><div style="font-size:12px;color:var(--cream-dim);">Total Comments</div></div>
+      <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;"><div style="font-size:22px;font-weight:800;color:#5ad19a;">${st.followers}</div><div style="font-size:12px;color:var(--cream-dim);">Followers</div></div>
+    </div>
+    ${st.topPost ? `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:14px;cursor:pointer;" onclick="document.getElementById('yourDashOverlay').remove();handleNotifClick('${escapeAttr(st.topPost.id)}','','','','top','','${escapeAttr(st.topPost.type)}','${escapeAttr(st.topPost.ownerId)}','')">
+      <div style="font-size:12px;color:var(--marigold);font-weight:700;">🏆 Top Performing Post</div>
+      <div style="font-weight:700;font-size:14.5px;margin-top:3px;">${escapeHtml(st.topPost.title)}</div>
+      <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">${st.topPost.views || 0} views · ${st.topPost.likes || 0} likes · ${(st.topPost.comments || []).length} comments</div>
+    </div>` : ''}
+    <div style="font-weight:700;margin:16px 0 4px;">Last 30 Days Performance</div>
+    ${row('Views (30d)', st.views30d, 'On posts uploaded in the last 30 days')}
+    ${row('Likes (30d)', st.likes30d, 'On posts uploaded in the last 30 days')}
+    ${row('Posts uploaded (30d)', st.shared30d, 'Total all-time posts: ' + st.totalPosts)}
+    <div style="font-weight:700;margin:24px 0 4px;">Creator Tools</div>
+    ${tool('✏️ Edit profile', "document.getElementById('yourDashOverlay').remove();toggleSettings()")}
+    ${tool('✔ Blue tick status', "document.getElementById('yourDashOverlay').remove();openBlueTick()")}
+    ${tool('🔗 Share profile link', "copyProfileLink('" + currentUser.id + "')")}
+    ${tool('🗂️ Manage uploads', "window.location.href='/admin.html'")}
+    ${tool('🆘 Help desk', "document.getElementById('yourDashOverlay').remove();openProfileMenu();setTimeout(()=>{renderSettingsPrivacyMenu();setTimeout(renderHelpDesk,60);},60)")}
   `;
+}
+
+function openOwnAvatarMenu(){
+  if (!currentUser) return;
+  const hasStory = !!((window.activeStoriesByUser || {})[currentUser.id] && (window.activeStoriesByUser || {})[currentUser.id].length);
+  const hasPhoto = !!(window.myProfileData && window.myProfileData.profileImage);
+  let html = '';
+  if (hasStory) html += `<div class="menu-item" onclick="closePostSafetyMenu();openStoryViewer('${currentUser.id}')">▶ View my Story</div>`;
+  html += `<div class="menu-item" onclick="closePostSafetyMenu();openStoryUploadModal()">➕ Add to Story</div>`;
+  if (hasPhoto) html += `<div class="menu-item" onclick="closePostSafetyMenu();openChatMediaLightbox('${escapeAttr(window.myProfileData.profileImage)}','photo')">🔍 View profile photo</div>`;
+  html += `<div class="menu-item" onclick="closePostSafetyMenu();document.getElementById('avatarFileInput').click()">📷 Change profile photo</div>`;
+  if (hasPhoto) html += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();removeOwnAvatar()">🗑️ Remove profile photo</div>`;
+  document.getElementById('postSafetyMenuItems').innerHTML = html;
+  document.getElementById('postSafetyOverlay').classList.add('open');
+}
+
+async function removeOwnAvatar(){
+  if (!confirm('Remove your profile photo?')) return;
+  try {
+    const res = await fetch('/api/me/avatar', { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not remove photo');
+    showToast('Profile photo removed');
+    await loadProfile();
+    await loadStories();
+    renderProfile();
+  } catch (e) { showToast(e.message); }
 }
 
 async function renderProfile(){
@@ -1863,15 +1924,17 @@ async function renderProfile(){
   window.myProfileData = mine;
 
   const myFilms = allFilms.filter(f => isMyPost(f, currentUser.id));
-  const myVideos = myFilms.filter(f => f.type !== 'photo');
+  const myLongVideos = myFilms.filter(f => f.type === 'film');
+  const myShorts = myFilms.filter(f => f.type === 'short');
   const myPhotos = myFilms.filter(f => f.type === 'photo');
+  const hasOwnStory = !!((window.activeStoriesByUser||{})[currentUser.id] && (window.activeStoriesByUser||{})[currentUser.id].length);
 
   el.innerHTML = `
     <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
-      <div class="profile-avatar" id="ownProfileAvatarWrap" style="${(window.activeStoriesByUser||{})[currentUser.id] ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
+      <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="openOwnAvatarMenu()" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
         ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
-        ${(window.activeStoriesByUser||{})[currentUser.id] ? `<div class="story-add-badge" style="background:#7C5CFF;top:-2px;right:-2px;bottom:auto;" onclick="event.stopPropagation();openStoryViewer('${currentUser.id}')">▶</div>` : ''}
+        <div class="story-add-badge" style="background:var(--marigold);" onclick="event.stopPropagation();document.getElementById('avatarFileInput').click()" title="Change photo">📷</div>
       </div>
       <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
       <div class="profile-stats">
@@ -1881,30 +1944,31 @@ async function renderProfile(){
       </div>
     </div>
     <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)} <span style="font-size:13px;opacity:.7;">▾</span></div>
-    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) : '＋ Note chhodo (24 ghante)'}</span></div>
-    ${(window.activeStoriesByUser||{})[currentUser.id] ? `<div style="margin:4px 0 8px;"><button type="button" onclick="openStoryViewer('${currentUser.id}')" style="background:rgba(124,92,255,0.15);border:1px solid #7C5CFF;color:#B388FF;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">▶ View my Story</button></div>` : ''}
-    ${mine.bio ? `<div class="profile-bio">${escapeHtml(mine.bio)}</div>` : ''}
+    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Note chhodo (24 ghante)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
+    ${hasOwnStory ? `<div style="margin:4px 0 8px;"><button type="button" onclick="openStoryViewer('${currentUser.id}')" style="background:rgba(124,92,255,0.15);border:1px solid #7C5CFF;color:#B388FF;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;">▶ View my Story</button></div>` : ''}
+    ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
       <button class="profile-btn" onclick="copyProfileLink('${currentUser.id}')">Share Profile</button>
-      <button class="profile-btn" onclick="openYourDashboard()">Your dashboard</button>
+      <button class="profile-btn" onclick="openYourDashboard()">Dashboard</button>
     </div>
 
     <div class="highlights-bar" id="myHighlightsBar"></div>
 
     <div class="settings-panel hidden" id="settingsCard">
       <h3 class="section-title" style="text-align:left;margin-bottom:14px;">Profile photo</h3>
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <div class="profile-avatar" style="width:56px;height:56px;font-size:22px;cursor:default;">
           ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
         </div>
-        <button type="button" class="settings-save-btn" style="width:auto;margin:0;" onclick="document.getElementById('avatarFileInput').click()">Change photo</button>
+        <button type="button" class="settings-save-btn" style="width:auto;margin:0;padding:9px 14px;" onclick="document.getElementById('avatarFileInput').click()">Change photo</button>
+        ${mine.profileImage ? `<button type="button" class="profile-btn" style="flex:none;padding:9px 14px;color:#e88a8a;border-color:#E63950;" onclick="removeOwnAvatar()">Remove</button>` : ''}
       </div>
 
-      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Bio & link</h3>
-      <textarea id="bioInput" placeholder="Write something about yourself...">${escapeHtml(mine.bio)}</textarea>
-      <input type="text" id="websiteInput" placeholder="Website ya social link" value="${escapeHtml(mine.website)}">
+      <h3 class="section-title" style="text-align:left;margin:22px 0 8px;">Bio & link <span id="bioCounter" style="font-size:12px;color:var(--cream-dim);font-weight:400;">(${(mine.bio || '').length}/150)</span></h3>
+      <textarea id="bioInput" maxlength="150" oninput="const c=document.getElementById('bioCounter');if(c)c.textContent='('+this.value.length+'/150)';" placeholder="Write something about yourself...">${escapeHtml(mine.bio)}</textarea>
+      <input type="text" id="websiteInput" maxlength="100" placeholder="Website ya social link" value="${escapeHtml(mine.website)}">
       <button class="settings-save-btn" onclick="saveBio()">Save bio</button>
       <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
 
@@ -1913,8 +1977,8 @@ async function renderProfile(){
       <button class="settings-save-btn" onclick="changeUsername()">Save username</button>
       <div id="usernameStatus" style="margin-top:8px;font-size:13px;"></div>
 
-      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change password</h3>
-      <input type="password" id="currentPasswordInput" placeholder="Current password">
+      <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change / Set password</h3>
+      <input type="password" id="currentPasswordInput" placeholder="Current password (leave blank if Google login)">
       <input type="password" id="newPasswordInput" placeholder="Naya password (kam se kam 6 characters)">
       <button class="settings-save-btn" onclick="changePassword()">Save password</button>
       <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
@@ -1934,12 +1998,16 @@ async function renderProfile(){
     </div>
 
     <div class="profile-tabs-row">
-      <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;">🎬 Videos (${myVideos.length})</button>
-      <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;">🖼️ Photos (${myPhotos.length})</button>
-      <button class="tab-btn" id="profileTabSaved" onclick="switchProfileGrid('saved')" style="flex:1;">🔖 Saved</button>
+      <button class="tab-btn active" id="profileTabVideos" onclick="switchProfileGrid('videos')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">🎬 Videos (${myLongVideos.length})</button>
+      <button class="tab-btn" id="profileTabShorts" onclick="switchProfileGrid('shorts')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">⚡ Shorts (${myShorts.length})</button>
+      <button class="tab-btn" id="profileTabPhotos" onclick="switchProfileGrid('photos')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">🖼️ Photos (${myPhotos.length})</button>
+      <button class="tab-btn" id="profileTabSaved" onclick="switchProfileGrid('saved')" style="flex:1;max-width:none;font-size:12.5px;padding:8px 6px;">🔖 Saved</button>
     </div>
     <div class="profile-mygrid" id="profileGridVideos">
-      ${pinSort(myVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, f.type === 'short' ? `openShortAt('${f.id}')` : `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No videos uploaded yet.</p>'}
+      ${pinSort(myLongVideos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `playFilm('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No full videos uploaded yet.</p>'}
+    </div>
+    <div class="profile-mygrid hidden" id="profileGridShorts">
+      ${pinSort(myShorts, mine.pinnedFilmIds).map(f => gridItemHtml(f, `openShortAt('${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No shorts uploaded yet.</p>'}
     </div>
     <div class="profile-mygrid hidden" id="profileGridPhotos">
       ${pinSort(myPhotos, mine.pinnedFilmIds).map(f => gridItemHtml(f, `openProfilePhotoFeed('${currentUser.id}','${f.id}')`, (mine.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos uploaded yet.</p>'}
@@ -1953,9 +2021,13 @@ async function renderProfile(){
 
 function switchProfileGrid(which){
   document.getElementById('profileTabVideos').classList.toggle('active', which === 'videos');
+  const shTab = document.getElementById('profileTabShorts');
+  if (shTab) shTab.classList.toggle('active', which === 'shorts');
   document.getElementById('profileTabPhotos').classList.toggle('active', which === 'photos');
   document.getElementById('profileTabSaved').classList.toggle('active', which === 'saved');
   document.getElementById('profileGridVideos').classList.toggle('hidden', which !== 'videos');
+  const shGrid = document.getElementById('profileGridShorts');
+  if (shGrid) shGrid.classList.toggle('hidden', which !== 'shorts');
   document.getElementById('profileGridPhotos').classList.toggle('hidden', which !== 'photos');
   document.getElementById('profileGridSaved').classList.toggle('hidden', which !== 'saved');
   if (which === 'saved') loadSavedGrid();
@@ -1967,7 +2039,12 @@ async function loadSavedGrid(){
     const res = await fetch('/api/me/saved');
     const data = await res.json();
     const saved = data.saved || [];
-    el.innerHTML = saved.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `openShortAt('${f.filmId}')` : `playFilm('${f.filmId}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('') || '<p class="comment-empty">No saved posts yet.</p>';
+    el.innerHTML = saved.map(f => {
+      const clickJs = f.type === 'short'
+        ? `openShortAt('${escapeAttr(f.filmId)}')`
+        : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.filmId)}')` : `playFilm('${escapeAttr(f.filmId)}')`);
+      return gridItemHtml(f, clickJs, false);
+    }).join('') || '<p class="comment-empty">No saved posts yet.</p>';
   } catch (e) {
     el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
   }
@@ -2317,16 +2394,27 @@ function renderHelpDesk(){
   setMenuTitle('Help Desk', true, 'renderSettingsPrivacyMenu()');
   const body = document.getElementById('profileMenuBody');
   body.innerHTML = `
-    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Write your question. The reply will show here, and by email too (if you gave an email).</p>
+    <p style="font-size:13px;color:var(--cream-dim);margin:6px 0 14px;">Apni problem likho aur chaho to screenshot bhi attach karo. Jawab yahan aur email par milega.</p>
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Category</label>
+    <select id="hdCategory" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
+      <option value="Upload / Media Issue">🎬 Upload / Video Issue</option>
+      <option value="Account / Login">🔐 Account / Login</option>
+      <option value="Blue Tick / Payment">✔ Blue Tick / UPI Payment</option>
+      <option value="Bug / App Error">🐞 Bug / App Error</option>
+      <option value="Report / Safety">🛡️ Report / Safety</option>
+      <option value="General">💬 General Question</option>
+    </select>
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Tumhara naam</label>
     <input type="text" id="hdName" value="${currentUser ? escapeHtml(currentUser.username) : ''}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Email (jawab yahan bhi bhejenge)</label>
     <input type="email" id="hdEmail" value="${currentUser && currentUser.email ? escapeHtml(currentUser.email) : ''}" placeholder="you@example.com" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);margin-bottom:12px;box-sizing:border-box;">
     <label style="display:block;font-size:13px;color:var(--cream-dim);margin-bottom:6px;">Problem</label>
     <textarea id="hdProblem" placeholder="Describe your problem in detail..." style="width:100%;min-height:90px;padding:10px 12px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);box-sizing:border-box;"></textarea>
-    <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send</button>
+    <label style="display:block;font-size:13px;color:var(--cream-dim);margin:10px 0 6px;">📷 Screenshot attach karo (optional)</label>
+    <input type="file" id="hdScreenshot" accept="image/*" style="width:100%;font-size:13px;color:var(--cream-dim);">
+    <button type="button" id="hdSubmitBtn" onclick="submitHelpDesk()" style="width:100%;margin-top:14px;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send Ticket</button>
     <div id="hdStatus" style="margin-top:8px;font-size:13px;color:var(--cream-dim);"></div>
-    <h3 style="font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 8px;">Tumhare messages</h3>
+    <h3 style="font-size:13px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 8px;">Tumhare Tickets</h3>
     <div id="hdMine"><div class="comment-empty">Loading…</div></div>
   `;
   loadMyHelpTickets();
@@ -2351,13 +2439,20 @@ async function loadMyHelpTickets(){
           ${escapeHtml(r.text)}<div style="font-size:11px;color:var(--cream-dim);margin-top:3px;">${r.from === 'admin' ? 'Help Desk' : 'Tum'} · ${storyTimeAgo(r.at)}</div>
         </div>`).join('');
       return `<div style="border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">${stBadge}<span style="font-size:11.5px;color:var(--cream-dim);">${storyTimeAgo(t.createdAt)}</span></div>
-        <div style="margin-top:8px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.05);font-size:13.5px;word-break:break-word;">${escapeHtml(t.problem)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span>${stBadge} <span style="font-size:11px;color:var(--cream-dim);margin-left:6px;">[${escapeHtml(t.category || 'General')}]</span></span>
+          <span style="font-size:11.5px;color:var(--cream-dim);">${storyTimeAgo(t.createdAt)}</span>
+        </div>
+        <div style="margin-top:8px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.05);font-size:13.5px;word-break:break-word;">
+          ${escapeHtml(t.problem)}
+          ${t.screenshotUrl ? `<div style="margin-top:8px;"><img src="${escapeAttr(t.screenshotUrl)}" style="max-width:180px;max-height:180px;border-radius:8px;display:block;" loading="lazy"></div>` : ''}
+        </div>
         ${thread}
         ${t.status !== 'closed' ? `<div style="display:flex;gap:8px;margin-top:10px;">
           <input id="hdr-${t.id}" type="text" placeholder="Reply likho…" maxlength="1000" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.04);color:var(--cream);">
           <button type="button" onclick="replyMyHelpTicket('${t.id}')" style="background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:0 14px;font-weight:600;cursor:pointer;">Send</button>
-        </div>` : ''}
+        </div>
+        ${t.status === 'answered' ? `<button type="button" onclick="resolveMyHelpTicket('${t.id}')" style="margin-top:8px;width:100%;background:rgba(90,209,154,0.15);border:1px solid #5ad19a;color:#5ad19a;border-radius:8px;padding:8px;font-size:12.5px;font-weight:600;cursor:pointer;">👍 Problem Solved (Close Ticket)</button>` : ''}` : ''}
       </div>`;
     }).join('');
   } catch (e) { box.innerHTML = `<div class="comment-empty">❌ ${escapeHtml(e.message)}</div>`; }
@@ -2376,20 +2471,36 @@ async function replyMyHelpTicket(id){
   } catch (e) { showToast(e.message); }
 }
 
+async function resolveMyHelpTicket(id){
+  try {
+    const res = await fetch('/api/help-desk/' + id + '/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating: 'helpful' }) });
+    if (res.ok) { showToast('Ticket closed 👍'); loadMyHelpTickets(); }
+  } catch (e) {}
+}
+
 async function submitHelpDesk(){
   const name = document.getElementById('hdName').value.trim();
   const email = document.getElementById('hdEmail').value.trim();
+  const category = (document.getElementById('hdCategory') || {}).value || 'General';
   const problem = document.getElementById('hdProblem').value.trim();
+  const fileInput = document.getElementById('hdScreenshot');
+  const screenshot = fileInput && fileInput.files && fileInput.files[0];
   const btn = document.getElementById('hdSubmitBtn');
   const statusEl = document.getElementById('hdStatus');
   if (!problem) { showToast('Please describe your problem'); return; }
   btn.disabled = true; btn.textContent = 'Sending...'; statusEl.textContent = '';
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), 25000);
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('email', email);
+    fd.append('category', category);
+    fd.append('problem', problem);
+    if (screenshot) fd.append('screenshot', screenshot);
     const res = await fetch('/api/help-desk', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, problem }),
+      method: 'POST',
+      body: fd,
       signal: controller.signal
     });
     clearTimeout(timer);
@@ -2595,6 +2706,8 @@ async function uploadAvatar(input){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     showToast('Profile photo updated!');
+    await loadProfile();
+    await loadStories();
     renderProfile();
   } catch (err) {
     showToast(err.message);
@@ -2870,7 +2983,7 @@ function renderHome(films) {
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})" title="Tap to play song">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -2983,13 +3096,21 @@ function setupHomeVideoObserver(){
     homeVideoObserver.observe(v);
   });
 
-  // Also count views for photo/carousel cards on the Home feed when >=60% visible
+  // Also count views and play attached song for cards on the Home feed when >=60% visible
   const mediaBoxes = document.querySelectorAll('#grid .card-media-box[data-id]');
   homeCardViewObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
+      const id = entry.target.dataset.id;
+      const f = id ? allFilms.find(x => x.id === id) : null;
       if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-        const id = entry.target.dataset.id;
         if (id) recordFeedCardView(id);
+        if (f && f.song) {
+          const vid = entry.target.querySelector('video');
+          if (vid) vid.muted = true;
+          playSong(f.song);
+        }
+      } else if (f && f.song) {
+        stopSong();
       }
     });
   }, { threshold: [0.6] });
@@ -3024,6 +3145,7 @@ function renderShorts(shorts){
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:8px;" loading="lazy" decoding="async">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:6px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:6px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         <p>${linkifyRich(f.description || '', f.mentions)}</p>
       </div>
@@ -3170,6 +3292,8 @@ function setupShortsObserver(){
           if (btn) btn.textContent = '🔇';
           video.play().catch(() => {});
         });
+        const sf = allFilms.find(x => x.id === id);
+        if (sf && sf.song) { video.muted = true; playSong(sf.song); } else { stopSong(); }
         if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
         watchTimeStart(id);
       } else {
@@ -3828,8 +3952,18 @@ function closeProfilePhotoFeed(){
 }
 
 function gridItemHtml(f, onclickJs, pinned){
-  const n = (f.slideUrls && f.slideUrls.length) || (f.slides && f.slides.length) || 0;
-  return `<div class="profile-mygrid-item" onclick="${onclickJs}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}</div>`;
+  const n = (f.slideUrls && f.slideUrls.length) || (f.slides && f.slides.length) || f.slidesCount || 0;
+  const slide0 = (f.slideUrls && f.slideUrls[0]) || null;
+  const imgUrl = f.posterUrl || (slide0 && slide0.mediaType === 'photo' ? slide0.url : null);
+  const vidUrl = f.videoUrl || (slide0 && slide0.mediaType === 'video' ? slide0.url : null);
+  const mediaHtml = imgUrl
+    ? `<img src="${escapeAttr(imgUrl)}" loading="lazy" decoding="async">`
+    : (vidUrl ? `<video src="${escapeAttr(vidUrl)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;"></video>` : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;">🎬</div>`);
+  const isScheduled = f.publishAt && new Date(f.publishAt).getTime() > Date.now();
+  const statusBadge = f.pendingReview ? '<span class="grid-badge" style="top:auto;bottom:26px;left:6px;right:auto;font-size:10px;">🛡️ Review</span>'
+    : (isScheduled ? '<span class="grid-badge" style="top:auto;bottom:26px;left:6px;right:auto;font-size:10px;">⏳ Scheduled</span>' : '');
+  const viewsHtml = `<div class="shorts-grid-views" style="font-size:11.5px;bottom:6px;left:6px;">▶ ${f.views || 0}</div>`;
+  return `<div class="profile-mygrid-item" style="cursor:pointer;" onclick="${onclickJs}">${mediaHtml}${pinned ? '<span class="grid-badge pin">📌</span>' : ''}${n > 1 ? '<span class="grid-badge">❐</span>' : ''}${statusBadge}${viewsHtml}</div>`;
 }
 async function togglePinProfile(id){
   try {
@@ -3889,8 +4023,8 @@ async function loadNotesStrip(){
     const mine = notes.find(n => n.mine);
     window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt } : null;
     const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}" loading="lazy" decoding="async">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
-    const first = `<div class="note-item" onclick="openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) : '＋ Note'}</div>${av({ profileImage: null, username: currentUser.username })}<div class="note-name">Tumhara note</div></div>`;
-    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')"><div class="note-bubble">${escapeHtml(n.text)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
+    const first = `<div class="note-item" onclick="${mine && mine.song ? `playNoteSong(${escapeAttr(JSON.stringify(mine))});` : ''}openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) + (mine.song ? ' 🎵' : '') : '＋ Note'}</div>${av({ profileImage: null, username: currentUser.username })}<div class="note-name">Tumhara note</div></div>`;
+    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="${n.song ? `playNoteSong(${escapeAttr(JSON.stringify(n))})` : `closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')`}"><div class="note-bubble">${escapeHtml(n.text)}${n.song ? ' 🎵' : ''}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
     el.innerHTML = first + others;
   } catch (e) {}
 }
@@ -4108,41 +4242,102 @@ function mediaDurationOf(file){
   });
 }
 // resolves: { songId, songStart, songDuration } | null (no song) | 'cancel' (user closed the picker)
+function fmtClipSec(s){
+  s = Math.max(0, Math.floor(Number(s) || 0));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
 function openSongPicker(kind, mediaSec){
   return new Promise(async resolve => {
     let list = [];
     try { const r = await fetch('/api/songs'); list = await r.json(); if (!Array.isArray(list)) list = []; } catch (e) {}
     const want = (kind === 'story' || kind === 'note' || kind === 'photo') ? 15 : Math.max(1, Math.min(600, Math.round(mediaSec || 15)));
+    let spFilter = 'all', spQuery = '';
     const ov = document.createElement('div');
     ov.id = 'songPicker';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:980;display:flex;align-items:center;justify-content:center;padding:16px;';
-    ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:16px;width:100%;max-width:380px;max-height:86vh;overflow:auto;">
-      <div style="font-weight:700;margin-bottom:4px;color:var(--cream);">🎵 Choose a song</div>
-      <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Ye ${want} second tak chalega.</div>
-      <div id="spList">${list.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px;border:1px solid var(--gold-line);border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);"><b>${escapeHtml(x.title)}</b>${x.trending ? ' 🔥' : ''}<div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || '')}</div></div>`).join('') || '<div style="color:var(--cream-dim);">No songs yet.</div>'}</div>
-      <div id="spStart" style="display:none;margin-top:10px;color:var(--cream);font-size:13px;">Start from: <span id="spSecs">0s</span><input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;"><button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid #888;background:none;color:var(--cream);">Close</button><button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;opacity:.5;">Use this song</button></div>
-      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);">Continue without a song</button></div>`;
+    ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:16px;width:100%;max-width:400px;max-height:88vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-weight:700;font-size:16px;color:var(--cream);">🎵 Choose a song</div>
+        <span style="font-size:12px;color:var(--marigold);font-weight:600;">${want}s clip</span>
+      </div>
+      <input id="spSearch" type="text" placeholder="Search song, artist or mood…" style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13.5px;margin:6px 0 8px;">
+      <div id="spTabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">
+        <button type="button" data-f="all" class="feed-chip active" style="padding:4px 12px;font-size:12px;">All</button>
+        <button type="button" data-f="trending" class="feed-chip" style="padding:4px 12px;font-size:12px;">🔥 Trending</button>
+        <button type="button" data-f="popular" class="feed-chip" style="padding:4px 12px;font-size:12px;">⭐ Most Used</button>
+      </div>
+      <div id="spList" style="flex:1;overflow-y:auto;min-height:140px;max-height:42vh;padding-right:2px;"></div>
+      <div id="spStart" style="display:none;margin-top:10px;padding:10px;border-radius:10px;background:rgba(124,92,255,0.1);border:1px solid var(--gold-line);color:var(--cream);font-size:13px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Clip window:</span><b id="spSecs">0:00 – 0:${String(want).padStart(2,'0')}</b></div>
+        <input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--gold-line);background:none;color:var(--cream);cursor:pointer;">Cancel</button>
+        <button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;font-weight:700;opacity:.5;cursor:pointer;">Use Song</button>
+      </div>
+      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);font-size:13px;padding:6px;cursor:pointer;">Continue without a song</button>
+    </div>`;
     document.body.appendChild(ov);
     let chosen = null, audio = null, stopT = null;
     const stopPreview = () => { clearTimeout(stopT); if (audio) { audio.pause(); audio = null; } };
+    const startClipPreview = (startSec) => {
+      if (!audio) return;
+      clearTimeout(stopT);
+      audio.currentTime = startSec;
+      audio.play().catch(() => {});
+      stopT = setTimeout(() => { if (audio) { audio.pause(); audio.currentTime = startSec; } }, want * 1000);
+    };
+    const updateClipLabel = (startSec) => {
+      const s = Number(startSec) || 0;
+      ov.querySelector('#spSecs').textContent = fmtClipSec(s) + ' – ' + fmtClipSec(s + want);
+    };
+    const drawList = () => {
+      const q = spQuery.trim().toLowerCase();
+      let rows = list.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q));
+      if (spFilter === 'trending') rows = rows.filter(x => x.trending);
+      else if (spFilter === 'popular') rows = rows.slice().sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
+      const box = ov.querySelector('#spList');
+      box.innerHTML = rows.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px 12px;border:1.5px solid ${chosen && chosen.id === x.id ? 'var(--marigold)' : 'var(--gold-line)'};border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(x.title)} ${x.trending ? '🔥' : ''}</div>
+          <div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || 'Unknown artist')} · ${escapeHtml(x.category || 'General')}</div>
+        </div>
+        ${x.useCount ? `<span style="font-size:11px;color:var(--marigold);white-space:nowrap;">${x.useCount} posts</span>` : ''}
+      </div>`).join('') || '<div style="color:var(--cream-dim);text-align:center;padding:24px 0;">No songs found.</div>';
+      box.querySelectorAll('.sp-item').forEach(el => el.onclick = () => {
+        chosen = list.find(x => x.id === el.dataset.id);
+        drawList();
+        stopPreview();
+        audio = new Audio(chosen.url);
+        const sl = ov.querySelector('#spSlider');
+        audio.onloadedmetadata = () => {
+          sl.max = Math.max(0, Math.floor((audio.duration || want) - want));
+          sl.value = 0;
+          updateClipLabel(0);
+        };
+        sl.oninput = () => {
+          const st = Number(sl.value) || 0;
+          updateClipLabel(st);
+          startClipPreview(st);
+        };
+        ov.querySelector('#spStart').style.display = 'block';
+        ov.querySelector('#spOk').disabled = false;
+        ov.querySelector('#spOk').style.opacity = '1';
+        updateClipLabel(0);
+        startClipPreview(0);
+      });
+    };
+    ov.querySelector('#spSearch').oninput = e => { spQuery = e.target.value; drawList(); };
+    ov.querySelectorAll('#spTabs button').forEach(b => b.onclick = () => {
+      spFilter = b.dataset.f;
+      ov.querySelectorAll('#spTabs button').forEach(x => x.classList.toggle('active', x === b));
+      drawList();
+    });
     const finish = val => { stopPreview(); ov.remove(); resolve(val); };
     ov.querySelector('#spCancel').onclick = () => finish('cancel');
     ov.querySelector('#spNone').onclick = () => finish(null);
-    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
-    ov.querySelectorAll('.sp-item').forEach(el => el.onclick = () => {
-      chosen = list.find(x => x.id === el.dataset.id);
-      ov.querySelectorAll('.sp-item').forEach(e => e.style.borderColor = e === el ? 'var(--marigold)' : 'var(--gold-line)');
-      stopPreview();
-      audio = new Audio(chosen.url);
-      const sl = ov.querySelector('#spSlider');
-      audio.onloadedmetadata = () => { sl.max = Math.max(0, Math.floor(audio.duration - want)); sl.value = 0; ov.querySelector('#spSecs').textContent = '0s'; };
-      sl.oninput = () => { ov.querySelector('#spSecs').textContent = sl.value + 's'; if (audio) audio.currentTime = Number(sl.value); };
-      ov.querySelector('#spStart').style.display = 'block';
-      ov.querySelector('#spOk').disabled = false; ov.querySelector('#spOk').style.opacity = '1';
-      audio.currentTime = 0; audio.play().catch(() => {});
-      stopT = setTimeout(() => { if (audio) { audio.pause(); audio.currentTime = Number(sl.value) || 0; } }, want * 1000);
-    });
+    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, title: chosen.title, artist: chosen.artist, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
+    drawList();
   });
 }
 // Plays a song from its chosen start point for its chosen length
@@ -4228,7 +4423,7 @@ async function pickStorySong(){
   if (pick === 'cancel') return;
   storyChosenSong = pick;
   const lbl = document.getElementById('storySongLabel');
-  if (lbl) lbl.textContent = pick ? '🎵 Song selected' : '';
+  if (lbl) lbl.textContent = pick ? ('🎵 ' + (pick.title || 'Song') + ' (' + fmtClipSec(pick.songStart) + ' – ' + fmtClipSec((pick.songStart || 0) + (pick.songDuration || 15)) + ')') : '';
 }
 let storyPickedType = null;
 
@@ -4359,7 +4554,7 @@ async function pickUploadSong(){
   if (pick === 'cancel') return;
   uploadSongChoice = pick || null;
   const lbl = document.getElementById('qSongLabel');
-  if (lbl) lbl.textContent = uploadSongChoice ? '🎵 Song selected' : '';
+  if (lbl) lbl.textContent = uploadSongChoice ? ('🎵 ' + (uploadSongChoice.title || 'Song') + ' (' + fmtClipSec(uploadSongChoice.songStart) + ' – ' + fmtClipSec((uploadSongChoice.songStart || 0) + (uploadSongChoice.songDuration || 15)) + ')') : '';
 }
 async function postStory(){
   if (!storyPickedFile) return;
@@ -5780,6 +5975,7 @@ function sendToExternalShare(){
 }
 
 // ---- Following / Followers list ----
+let userListCache = [];
 async function openUserList(userId, mode){
   userListUserId = userId; userListMode = mode;
   document.getElementById('userListTitle').textContent = mode === 'following' ? 'Following' : 'Followers';
@@ -5790,20 +5986,44 @@ async function openUserList(userId, mode){
     const res = await fetch('/api/users/' + userId + '/' + mode);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load');
-    const list = data.users || [];
-    if (!list.length) { bodyEl.innerHTML = '<p class="comment-empty">No one here.</p>'; return; }
-    bodyEl.innerHTML = list.map(u => `
-      <div class="userlist-row" id="userListRow-${u.id}">
-        <div onclick="closeUserList();goToProfileDirect('${u.id}','${escapeHtml(u.username)}')" style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;">
-          ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
-          <span class="userlist-name">@${escapeHtml(u.username)}</span>
-        </div>
-        ${u.isMe ? '' : `<button class="userlist-btn ${u.isFollowing ? '' : 'primary'}" onclick="toggleFollowInList('${u.id}', this)">${u.isFollowing ? 'Following' : 'Follow'}</button>`}
-      </div>
-    `).join('');
+    userListCache = data.users || [];
+    if (!userListCache.length) { bodyEl.innerHTML = '<p class="comment-empty">No one here.</p>'; return; }
+    bodyEl.innerHTML = `
+      <input type="text" class="sendto-search" id="userListSearch" placeholder="Search @username…" oninput="drawUserListRows(this.value)" style="margin:0 0 10px;">
+      <div id="userListRowsWrap"></div>
+    `;
+    drawUserListRows('');
   } catch (err) {
     bodyEl.innerHTML = `<p class="comment-empty">${escapeHtml(err.message)}</p>`;
   }
+}
+function drawUserListRows(q){
+  const wrap = document.getElementById('userListRowsWrap');
+  if (!wrap) return;
+  const query = String(q || '').trim().toLowerCase().replace(/^@/, '');
+  const isMyFollowers = !!(currentUser && userListUserId === currentUser.id && userListMode === 'followers');
+  const rows = userListCache.filter(u => !query || (u.username || '').toLowerCase().includes(query));
+  wrap.innerHTML = rows.map(u => `
+    <div class="userlist-row" id="userListRow-${u.id}">
+      <div onclick="closeUserList();goToProfileDirect('${u.id}','${escapeHtml(u.username)}')" style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer;min-width:0;">
+        ${avatarOrFallback(u.profileImage, u.username, 'userlist-avatar', 'userlist-avatar-fallback')}
+        <span class="userlist-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${escapeHtml(u.username)}</span>
+      </div>
+      ${u.isMe ? '' : `<button class="userlist-btn ${u.isFollowing ? '' : 'primary'}" onclick="toggleFollowInList('${u.id}', this)">${u.isFollowing ? 'Following' : 'Follow'}</button>`}
+      ${isMyFollowers && !u.isMe ? `<button class="userlist-btn" style="color:#e88a8a;border-color:#E63950;padding:6px 10px;" onclick="removeMyFollower('${u.id}')" title="Remove follower">✕</button>` : ''}
+    </div>
+  `).join('') || '<p class="comment-empty">No matching users.</p>';
+}
+async function removeMyFollower(followerId){
+  if (!confirm('Remove this follower?')) return;
+  try {
+    const res = await fetch('/api/me/followers/' + followerId + '/remove', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not remove follower');
+    userListCache = userListCache.filter(u => u.id !== followerId);
+    drawUserListRows((document.getElementById('userListSearch') || {}).value || '');
+    renderProfile();
+    showToast('Follower removed');
+  } catch (e) { showToast(e.message); }
 }
 function closeUserList(){ document.getElementById('userListOverlay').classList.remove('open'); }
 

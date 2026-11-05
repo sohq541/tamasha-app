@@ -222,7 +222,7 @@ async function load(){
     document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     try { const rj = await res2.json(); R = res2.ok ? (rj.reports || []) : []; } catch (e) { R = []; }
-    try { const hj = await res3.json(); H = res3.ok ? (hj.tickets || []) : []; } catch (e) { H = []; }
+    try { const hj = await res3.json(); H = res3.ok ? (hj.tickets || []) : []; window.HD_STATS = hj.analytics || null; } catch (e) { H = []; window.HD_STATS = null; }
     document.getElementById('updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
     render();
   } catch (e) {
@@ -371,6 +371,8 @@ async function adminDeletePost(id){
   } catch (e) { alert(e.message); }
 }
 
+let ADMIN_SONGS = [], snQuery = '', snCatFilter = 'all';
+const SONG_CATS = ['Trending / Viral', 'Hindi / Bollywood', 'Punjabi', 'Romantic', 'Lofi / Sad', 'BGM / Beats', 'General'];
 async function renderSongs(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
@@ -378,15 +380,31 @@ async function renderSongs(){
     const res = await fetch('/api/songs', { headers: { 'x-no-prompt': '1' } });
     const list = await res.json();
     if (!res.ok) throw new Error(list.error || 'Failed');
+    ADMIN_SONGS = list || [];
+    const totalUses = ADMIN_SONGS.reduce((a, s) => a + (s.useCount || 0), 0);
+    const trendingCount = ADMIN_SONGS.filter(s => s.trending).length;
     v.innerHTML = `
+      <div class="grid" style="margin-bottom:14px;">
+        <div class="stat"><b>${ADMIN_SONGS.length}</b><span>🎵 Total Songs</span></div>
+        <div class="stat"><b>${trendingCount}</b><span>🔥 Trending Songs</span></div>
+        <div class="stat"><b>${totalUses}</b><span>📊 Total Uses (Posts/Stories/Notes)</span></div>
+      </div>
       <div class="card">
-        <b>🎵 Songs library</b>
-        <div class="meta">Users can add songs to their stories, notes and uploads from here. Upload only royalty-free or your own songs.</div>
-        <input id="snTitle" type="text" placeholder="Song name" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-        <input id="snArtist" type="text" placeholder="Artist (optional)" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-        <input id="snFile" type="file" accept="audio/*" style="margin-top:10px;">
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" id="snBtn" onclick="uploadSong()">Upload song</button></div>
-        <div id="snFileInfo" class="meta" style="margin-top:8px;"></div>
+        <b>🎵 Upload new song</b>
+        <div class="meta">Users can attach these songs (15s on Stories & Notes, or full clip on Videos) from the Song Picker. When you pick a file, the title auto-fills from the file name.</div>
+        <input id="snFile" type="file" accept="audio/*" style="margin-top:10px;width:100%;">
+        <div id="snFileInfo" class="meta" style="margin-top:6px;"></div>
+        <input id="snTitle" type="text" placeholder="Song name *" style="width:100%;margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <input id="snArtist" type="text" placeholder="Artist / Singer (optional)" style="flex:1;min-width:160px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+          <select id="snCategory" style="flex:1;min-width:150px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+            ${SONG_CATS.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--cream);cursor:pointer;">
+          <input type="checkbox" id="snTrending"> 🔥 Mark as Trending immediately
+        </label>
+        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" id="snBtn" onclick="uploadSong()">⬆️ Upload song</button></div>
         <div id="snProgress" style="display:none;margin-top:12px;border:1px solid var(--gold-line);border-radius:12px;padding:12px;">
           <div id="snStatusText" style="font-weight:600;color:var(--cream);"></div>
           <div style="height:10px;border-radius:6px;background:var(--field);overflow:hidden;margin-top:8px;">
@@ -395,17 +413,58 @@ async function renderSongs(){
           <div id="snNums" class="meta" style="margin-top:6px;"></div>
         </div>
       </div>
-      <h3 class="sec">Songs (${list.length})</h3>
-      ${list.map(x => `<div class="card">
-        <div class="row1"><span class="name">${esc(x.title)}</span>${x.trending ? '<span class="pill g">trending</span>' : ''}</div>
-        <div class="meta">${esc(x.artist || '')}</div>
-        <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
-        <div class="row1" style="margin-top:8px;">
-          <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove from trending' : '🔥 Add to trending'}</button>
-          <button class="btn btn-danger" onclick="deleteSong('${x.id}')">Delete</button>
-        </div>
-      </div>`).join('') || '<div class="empty">No songs yet.</div>'}`;
+      <h3 class="sec">Songs Library (${ADMIN_SONGS.length})</h3>
+      <input class="search" id="snSearch" placeholder="Search songs by title, artist or category…" value="${esc(snQuery)}" oninput="snQuery=this.value;drawAdminSongs()">
+      <div class="row1" style="margin-bottom:12px;gap:6px;">
+        <button class="btn ${snCatFilter==='all'?'btn-ok':''}" onclick="snCatFilter='all';renderSongs()">All</button>
+        <button class="btn ${snCatFilter==='trending'?'btn-ok':''}" onclick="snCatFilter='trending';renderSongs()">🔥 Trending</button>
+        <button class="btn ${snCatFilter==='popular'?'btn-ok':''}" onclick="snCatFilter='popular';renderSongs()">⭐ Most Used</button>
+      </div>
+      <div id="snListWrap"></div>`;
+    drawAdminSongs();
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+function drawAdminSongs(){
+  const box = document.getElementById('snListWrap');
+  if (!box) return;
+  const q = snQuery.trim().toLowerCase();
+  let rows = ADMIN_SONGS.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q));
+  if (snCatFilter === 'trending') rows = rows.filter(x => x.trending);
+  else if (snCatFilter === 'popular') rows = rows.slice().sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
+  box.innerHTML = rows.map(x => `<div class="card">
+    <div class="row1">
+      <span class="name">${esc(x.title)}</span>
+      <span class="chip" style="margin:0;">${esc(x.category || 'General')}</span>
+      ${x.trending ? '<span class="pill g">🔥 trending</span>' : ''}
+      <span class="pill rep" style="margin-left:auto;">📊 ${x.useCount || 0} uses</span>
+    </div>
+    <div class="meta">${esc(x.artist || 'Unknown artist')}</div>
+    <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
+    <div class="row1" style="margin-top:8px;">
+      <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove trending' : '🔥 Trending'}</button>
+      <button class="btn" onclick="editSongPrompt('${x.id}')">✏️ Edit</button>
+      <button class="btn btn-danger" onclick="deleteSong('${x.id}')">🗑️ Delete</button>
+    </div>
+  </div>`).join('') || '<div class="empty">No matching songs.</div>';
+}
+async function editSongPrompt(id){
+  const s = ADMIN_SONGS.find(x => x.id === id);
+  if (!s) return;
+  const title = prompt('Song title:', s.title || '');
+  if (title === null || !title.trim()) return;
+  const artist = prompt('Artist name:', s.artist || '');
+  if (artist === null) return;
+  const category = prompt('Category (' + SONG_CATS.join(', ') + '):', s.category || 'General');
+  if (category === null) return;
+  try {
+    const res = await fetch('/api/admin/songs/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ title: title.trim(), artist: artist.trim(), category: category.trim() || 'General' })
+    });
+    if (!res.ok) throw new Error('Update failed');
+    renderSongs();
+  } catch (e) { alert(e.message); }
 }
 function fmtMB(b){ return (b / 1048576).toFixed(2) + ' MB'; }
 document.addEventListener('change', e => {
@@ -413,6 +472,10 @@ document.addEventListener('change', e => {
     const f = e.target.files[0];
     const info = document.getElementById('snFileInfo');
     if (info) info.textContent = f ? 'File: ' + f.name + ' · Size: ' + fmtMB(f.size) : '';
+    const titleEl = document.getElementById('snTitle');
+    if (f && titleEl && !titleEl.value.trim()) {
+      titleEl.value = f.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    }
   }
 });
 async function uploadSong(){
@@ -431,7 +494,11 @@ async function uploadSong(){
   nums.textContent = '0 MB / ' + fmtMB(file.size) + ' (0%)';
   btn.disabled = true;
   const fd = new FormData();
-  fd.append('song', file); fd.append('title', title); fd.append('artist', document.getElementById('snArtist').value.trim());
+  fd.append('song', file);
+  fd.append('title', title);
+  fd.append('artist', document.getElementById('snArtist').value.trim());
+  fd.append('category', (document.getElementById('snCategory') || {}).value || 'General');
+  fd.append('trending', !!(document.getElementById('snTrending') && document.getElementById('snTrending').checked));
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/admin/songs');
   xhr.setRequestHeader('x-no-prompt', '1');
@@ -546,26 +613,102 @@ async function removeReported(id){
   } catch (e) { alert(e.message); }
 }
 
+let hdFilter = 'all', hdSearch = '';
+const HD_CANNED = [
+  ['✔ Fixed', 'Namaste! Aapki batayi gayi problem check karke theek kar di gayi hai. Kripya app ko ek baar refresh karke dekhein.'],
+  ['🔄 Clear Cache', 'Kripya apne browser ki cache clear karein ya page refresh karke dobara try karein. Agar phir bhi dikkat aaye to screenshot ke saath reply karein.'],
+  ['💳 UTR Check', 'Hum aapka UPI Transaction ID (UTR) verify kar rahe hain. Verification pura hote hi 24 ghante ke andar aapka Blue Tick activate ho jayega.'],
+  ['🛡️ Report Action', 'Dhanyavaad! Humari moderation team ne aapki report par action le liya hai.']
+];
 function renderHelpdesk(){
   const v = document.getElementById('view');
-  if (!H.length) { v.innerHTML = '<div class="empty">No help desk messages yet.</div>'; return; }
-  v.innerHTML = H.map(t => {
+  const st = window.HD_STATS || {
+    total: H.length,
+    open: H.filter(x => x.status === 'open').length,
+    answered: H.filter(x => x.status === 'answered').length,
+    closed: H.filter(x => x.status === 'closed').length,
+    avgResponseMinutes: null,
+    byCategory: {}
+  };
+  const avgLabel = st.avgResponseMinutes == null ? '—' : (st.avgResponseMinutes < 60 ? st.avgResponseMinutes + 'm' : (st.avgResponseMinutes / 60).toFixed(1) + 'h');
+  const catsHtml = Object.entries(st.byCategory || {}).map(([k, c]) => `<span class="chip">${esc(k)}: ${c}</span>`).join('');
+  v.innerHTML = `
+    <div class="grid" style="margin-bottom:12px;">
+      <div class="stat ${st.open ? 'warn' : ''}" onclick="hdFilter='open';drawHelpdeskList()" style="cursor:pointer;"><b>${st.open}</b><span>⏳ Open Tickets</span></div>
+      <div class="stat" onclick="hdFilter='answered';drawHelpdeskList()" style="cursor:pointer;"><b>${st.answered}</b><span>✅ Answered</span></div>
+      <div class="stat" onclick="hdFilter='closed';drawHelpdeskList()" style="cursor:pointer;"><b>${st.closed}</b><span>🔒 Closed / Solved</span></div>
+      <div class="stat"><b>${avgLabel}</b><span>⚡ Avg Response Time</span></div>
+    </div>
+    ${catsHtml ? `<div class="card" style="margin-bottom:12px;"><b>📊 Tickets by Category</b><div style="margin-top:6px;">${catsHtml}</div></div>` : ''}
+    <input class="search" id="hdSearchInput" placeholder="Search tickets by username, email, category or problem…" value="${esc(hdSearch)}" oninput="hdSearch=this.value;drawHelpdeskList()">
+    <div class="row1" style="margin-bottom:12px;gap:6px;">
+      ${['all','open','answered','closed'].map(f => `<button class="btn ${hdFilter === f ? 'btn-ok' : ''}" onclick="hdFilter='${f}';renderHelpdesk()">${f.toUpperCase()}</button>`).join('')}
+    </div>
+    <div id="hdListBox"></div>
+  `;
+  drawHelpdeskList();
+}
+function drawHelpdeskList(){
+  const box = document.getElementById('hdListBox');
+  if (!box) return;
+  const q = hdSearch.trim().toLowerCase();
+  const rows = H.filter(t => (hdFilter === 'all' || t.status === hdFilter) && (!q || (t.name || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q) || (t.problem || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q)));
+  if (!rows.length) { box.innerHTML = '<div class="empty">No matching help desk tickets.</div>'; return; }
+  box.innerHTML = rows.map(t => {
     const thread = (t.replies || []).map(r => `<div class="bubble ${r.from === 'admin' ? 'admin' : 'user'}">${esc(r.text)}<small>${r.from === 'admin' ? 'Tum (admin)' : esc(t.name)} · ${ago(r.at)}</small></div>`).join('');
     const st = t.status === 'open' ? '<span class="hdtick" style="background:rgba(255,180,0,.2);color:#ffcf5c;">open</span>'
       : t.status === 'answered' ? '<span class="hdtick" style="background:rgba(90,209,154,.2);color:var(--ok);">answered</span>'
       : '<span class="hdtick" style="background:var(--field);color:var(--cream-dim);">closed</span>';
     return `<div class="card">
-      <div class="row1"><span class="name">${esc(t.name)}</span>${st}<span class="meta push" style="margin:0;">${ago(t.createdAt)}</span></div>
+      <div class="row1">
+        <span class="name">${esc(t.name)}</span>
+        <span class="chip" style="margin:0;">${esc(t.category || 'General')}</span>
+        ${st}
+        ${t.rating === 'helpful' ? '<span class="pill g">👍 Helpful</span>' : ''}
+        <span class="meta push" style="margin:0;">${ago(t.createdAt)}</span>
+      </div>
       <div class="meta">${esc(t.email || 'no email')} · ${t.username ? '@' + esc(t.username) : 'guest'}</div>
-      <div class="bubble user" style="margin-top:10px;">${esc(t.problem)}<small>${esc(t.name)} · ${ago(t.createdAt)}</small></div>
+      <div class="bubble user" style="margin-top:10px;">
+        ${esc(t.problem)}
+        ${t.screenshotUrl ? `<div style="margin-top:8px;"><a href="${esc(t.screenshotUrl)}" target="_blank"><img src="${esc(t.screenshotUrl)}" style="max-width:220px;max-height:220px;border-radius:8px;display:block;border:1px solid var(--gold-line);" loading="lazy"></a></div>` : ''}
+        <small>${esc(t.name)} · ${ago(t.createdAt)}</small>
+      </div>
       ${thread}
-      <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho… (user ko app me aur email pe dikhega)" style="margin-top:10px;min-height:70px;"></textarea>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn" id="aiSugBtn-${t.id}" onclick="suggestAiHelpReply('${t.id}')" style="border-color:var(--marigold);color:var(--marigold);">🤖 AI Analyst Reply</button>
+        ${HD_CANNED.map(([lbl, txt]) => `<button class="btn" style="font-size:11.5px;padding:4px 9px;" onclick="document.getElementById('hr-${t.id}').value=${esc(JSON.stringify(txt))}">${esc(lbl)}</button>`).join('')}
+      </div>
+      <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho ya upar '🤖 AI Analyst Reply' dabao…" style="margin-top:8px;min-height:70px;"></textarea>
       <div class="row1" style="margin-top:8px;">
         <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Send reply</button>
         <button class="btn" onclick="setHelpStatus('${t.id}','${t.status === 'closed' ? 'open' : 'closed'}')">${t.status === 'closed' ? 'Reopen' : 'Close'}</button>
+        <button class="btn btn-danger" style="margin-left:auto;" onclick="deleteHelpTicket('${t.id}')">🗑️ Delete</button>
       </div>
     </div>`;
   }).join('');
+}
+async function suggestAiHelpReply(id){
+  const btn = document.getElementById('aiSugBtn-' + id);
+  const ta = document.getElementById('hr-' + id);
+  if (!ta) return;
+  if (btn) { btn.disabled = true; btn.textContent = '🤖 Thinking…'; }
+  try {
+    const res = await fetch('/api/admin/helpdesk/' + id + '/ai-suggest', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'AI failed');
+    ta.value = d.suggestion || '';
+    ta.focus();
+  } catch (e) { alert(e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🤖 AI Analyst Reply'; } }
+}
+async function deleteHelpTicket(id){
+  if (!confirm('Delete this help desk ticket?')) return;
+  try {
+    const res = await fetch('/api/admin/helpdesk/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    if (!res.ok) throw new Error('Delete failed');
+    H = H.filter(x => x.id !== id);
+    renderHelpdesk();
+  } catch (e) { alert(e.message); }
 }
 async function replyHelpdesk(id){
   const ta = document.getElementById('hr-' + id);
