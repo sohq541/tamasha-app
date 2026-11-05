@@ -313,7 +313,7 @@
   .menu-item:hover{background:rgba(255,255,255,0.06);}
 
   /* -------- Instagram-style profile -------- */
-  .profile-wrap{max-width:560px;margin:0 auto;padding:24px 20px;position:relative;}
+  .profile-wrap{max-width:560px;margin:0 auto;padding:24px 20px calc(115px + env(safe-area-inset-bottom));position:relative;box-sizing:border-box;}
   .profile-top-row{display:flex;align-items:center;gap:20px;margin-bottom:18px;}
   .profile-avatar{width:84px;height:84px;border-radius:50%;background:linear-gradient(150deg,#3A2E7A,#4361EE);
     display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-size:34px;font-weight:800;
@@ -732,7 +732,7 @@
 .yt-up-sub{font-size:12px;color:var(--cream-dim);margin-top:3px;}
 
 /* Profile 16:9 Full Videos Grid */
-.profile-videogrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.profile-videogrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:24px;}
 @media (max-width:480px){ .profile-videogrid{grid-template-columns:1fr;gap:14px;} }
 .profile-video-card{cursor:pointer;border-radius:10px;overflow:hidden;background:var(--panel);border:1px solid var(--gold-line);}
 .profile-video-thumb{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden;}
@@ -1460,6 +1460,11 @@ function switchTab(tab){
   activeMainTab = tab;
   closeAllOverlays();
   if (tab !== 'shorts') shortsReturnTo = null;
+  if (tab !== 'home') {
+    document.querySelectorAll('#grid video').forEach(v => {
+      try { v.pause(); } catch (e) {}
+    });
+  }
   document.getElementById('tabHome').classList.toggle('active', tab === 'home');
   document.getElementById('tabShorts').classList.toggle('active', tab === 'shorts');
   document.getElementById('tabSearch').classList.toggle('active', tab === 'search');
@@ -3164,13 +3169,29 @@ function toggleCardMute(id, btnEl){
 
 let homeVideoObserver = null;
 let homeCardViewObserver = null;
+function isAnyModalOrOverlayOpen(){
+  const ov = document.getElementById('overlay');
+  if (ov && ov.classList.contains('open')) return true;
+  const sh = document.getElementById('shortsView');
+  if (sh && sh.classList.contains('active')) return true;
+  const chat = document.getElementById('chatConvoOverlay');
+  if (chat && chat.classList.contains('open')) return true;
+  const lb = document.getElementById('chatMediaLightbox');
+  if (lb && lb.classList.contains('open')) return true;
+  const st = document.getElementById('storyViewerOverlay');
+  if (st && st.classList.contains('open')) return true;
+  return false;
+}
 function tryPlayHomeVideo(video){
+  if (isAnyModalOrOverlayOpen()) {
+    try { video.pause(); } catch (e) {}
+    return;
+  }
   video.playsInline = true;
   video.muted = homeFeedSoundMuted;
   const p = video.play();
   if (p && p.catch) {
     p.catch(() => {
-      // If browser autoplay policy prevents unmuted autoplay before the first user tap, fallback to muted so video plays smoothly
       video.muted = true;
       const box = video.closest('.card-media-box');
       const btn = box ? box.querySelector('.mute-toggle-btn') : null;
@@ -3217,6 +3238,10 @@ function setupHomeVideoObserver(){
   // Also count views and play attached song for cards on the Home feed when >=60% visible
   const mediaBoxes = document.querySelectorAll('#grid .card-media-box[data-id]');
   homeCardViewObserver = new IntersectionObserver((entries) => {
+    if (isAnyModalOrOverlayOpen()) {
+      stopSong();
+      return;
+    }
     entries.forEach(entry => {
       const id = entry.target.dataset.id;
       const f = id ? allFilms.find(x => x.id === id) : null;
@@ -3927,6 +3952,12 @@ function renderUpNext(cur){
 }
 
 async function playFilm(id){
+  stopSong();
+  document.querySelectorAll('video').forEach(v => {
+    if (v.id !== 'player') {
+      try { v.pause(); } catch (e) {}
+    }
+  });
   if (currentFilm) watchTimeFlush(currentFilm.id);
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
