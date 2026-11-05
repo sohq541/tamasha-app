@@ -1452,6 +1452,7 @@ let activeMainTab = 'home';
 let savedHomeScrollY = 0;
 
 function switchTab(tab){
+  stopSong();
   if (activeMainTab === 'home' && tab !== 'home') {
     savedHomeScrollY = window.scrollY || document.documentElement.scrollTop || 0;
   }
@@ -1995,7 +1996,8 @@ async function renderProfile(){
     const res = await fetch('/api/users/' + currentUser.id + '/public');
     mine = await res.json();
   } catch (err) {}
-  window.myHideSensitive = !!mine.hideSensitiveContent;
+  window.myShowSensitive = (mine.showSensitiveContent !== false && !mine.hideSensitiveContent);
+  window.myHideSensitive = !window.myShowSensitive;
   window.myNote = mine.note || null;
   window.myPinned = mine.pinnedFilmIds || [];
   window.myProfileData = mine;
@@ -2392,13 +2394,13 @@ function renderSettingsPrivacyMenu(){
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
       <div style="max-width:78%;">
-        <div style="font-size:14.5px;font-weight:600;">Sensitive content</div>
-        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Hide sensitive-marked content from your feed</div>
+        <div style="font-size:14.5px;font-weight:600;">Sensitive content (18+)</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Show sensitive and 18+ marked content in your feed (Default: ON)</div>
       </div>
       <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
-        <input type="checkbox" id="sensitiveToggle" ${window.myHideSensitive ? 'checked' : ''} onchange="toggleSensitiveSetting(this.checked)" style="opacity:0;width:0;height:0;">
-        <span id="sensitiveToggleTrack" style="position:absolute;inset:0;background:${window.myHideSensitive ? 'var(--marigold)' : 'rgba(255,255,255,0.15)'};border-radius:999px;transition:0.2s;pointer-events:none;"></span>
-        <span id="sensitiveToggleDot" style="position:absolute;top:3px;left:${window.myHideSensitive ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
+        <input type="checkbox" id="sensitiveToggle" ${window.myShowSensitive !== false ? 'checked' : ''} onchange="toggleSensitiveSetting(this.checked)" style="opacity:0;width:0;height:0;">
+        <span id="sensitiveToggleTrack" style="position:absolute;inset:0;background:${window.myShowSensitive !== false ? 'var(--marigold)' : 'rgba(255,255,255,0.15)'};border-radius:999px;transition:0.2s;pointer-events:none;"></span>
+        <span id="sensitiveToggleDot" style="position:absolute;top:3px;left:${window.myShowSensitive !== false ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
       </label>
     </div>
     ${menuRow(document.documentElement.getAttribute('data-theme') === 'light' ? '🌙' : '☀️', document.documentElement.getAttribute('data-theme') === 'light' ? 'Dark mode (black background)' : 'White mode (white background)', 'toggleAppTheme()')}
@@ -2471,12 +2473,20 @@ async function disablePushNotifications(){
 }
 
 async function toggleSensitiveSetting(checked){
-  window.myHideSensitive = checked;
-  document.getElementById('sensitiveToggleTrack').style.background = checked ? 'var(--marigold)' : 'rgba(255,255,255,0.15)';
-  document.getElementById('sensitiveToggleDot').style.left = checked ? '21px' : '3px';
+  window.myShowSensitive = checked;
+  window.myHideSensitive = !checked;
+  const track = document.getElementById('sensitiveToggleTrack');
+  const dot = document.getElementById('sensitiveToggleDot');
+  if (track) track.style.background = checked ? 'var(--marigold)' : 'rgba(255,255,255,0.15)';
+  if (dot) dot.style.left = checked ? '21px' : '3px';
   try {
-    await fetch('/api/me/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hideSensitiveContent: checked }) });
+    await fetch('/api/me/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ showSensitiveContent: checked, hideSensitiveContent: !checked })
+    });
     loadFilms();
+    showToast(checked ? 'Sensitive content: ON (Dikhega)' : 'Sensitive content: OFF (Chhipa rahega)');
   } catch (e) {}
 }
 
@@ -3083,8 +3093,8 @@ function renderHome(films) {
         <div class="card-media-box" data-id="${f.id}" data-short="${isShort ? '1' : '0'}" data-kind="${isPhoto ? 'photo' : (isShort ? 'short' : 'film')}">
           ${
             isPhoto
-              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`)
-              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline muted loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">🔇</button>`
+              ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`) + (f.song ? `<button class="mute-toggle-btn song-corner-mute" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${songMutedPref ? '🔇' : '🔊'}</button>` : '')
+              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline ${homeFeedSoundMuted ? 'muted' : ''} loop></video><button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${(homeFeedSoundMuted || (f.song && songMutedPref)) ? '🔇' : '🔊'}</button>`
           }
         </div>
 
@@ -3131,11 +3141,24 @@ function setupHomeDoubleTapLike(){
 }
 
 function toggleCardMute(id, btnEl){
-  const card = document.getElementById('feed-card-' + id);
+  const f = (allFilms || []).find(x => x.id === id);
+  if (f && f.song) {
+    if (!songAudio) {
+      songMutedPref = false;
+      try { localStorage.setItem('songMuted', '0'); } catch (e) {}
+      playSong(f.song);
+    } else {
+      toggleSongMute();
+    }
+    return;
+  }
+  const card = document.getElementById('feed-card-' + id) || document.getElementById('pfeed-card-' + id);
   if (!card) return;
   const video = card.querySelector('video');
   if (!video) return;
   video.muted = !video.muted;
+  homeFeedSoundMuted = video.muted;
+  try { localStorage.setItem('homeFeedSoundMuted', homeFeedSoundMuted ? '1' : '0'); } catch (e) {}
   btnEl.textContent = video.muted ? '🔇' : '🔊';
 }
 
@@ -3143,11 +3166,16 @@ let homeVideoObserver = null;
 let homeCardViewObserver = null;
 function tryPlayHomeVideo(video){
   video.playsInline = true;
+  video.muted = homeFeedSoundMuted;
   const p = video.play();
   if (p && p.catch) {
     p.catch(() => {
-      const retry = () => { video.play().catch(() => {}); };
-      video.addEventListener('canplay', retry, { once: true });
+      // If browser autoplay policy prevents unmuted autoplay before the first user tap, fallback to muted so video plays smoothly
+      video.muted = true;
+      const box = video.closest('.card-media-box');
+      const btn = box ? box.querySelector('.mute-toggle-btn') : null;
+      if (btn && !btn.classList.contains('song-corner-mute')) btn.textContent = '🔇';
+      video.play().catch(() => {});
     });
   }
 }
@@ -3181,7 +3209,7 @@ function setupHomeVideoObserver(){
     });
   }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
   videos.forEach(v => {
-    v.muted = true;
+    v.muted = homeFeedSoundMuted;
     v.playsInline = true;
     homeVideoObserver.observe(v);
   });
@@ -3347,7 +3375,16 @@ function setupShortsHoldSpeed(){
 }
 function toggleShortMute(e, btn){
   e.stopPropagation();
-  const video = btn.closest('.short-item').querySelector('video');
+  const item = btn.closest('.short-item');
+  const id = item ? item.dataset.id : null;
+  const f = id ? (allFilms || []).find(x => x.id === id) : null;
+  if (f && f.song) {
+    toggleSongMute();
+    btn.textContent = songMutedPref ? '🔇' : '🔊';
+    return;
+  }
+  const video = item ? item.querySelector('video') : null;
+  if (!video) return;
   video.muted = !video.muted;
   btn.textContent = video.muted ? '🔇' : '🔊';
 }
@@ -4141,6 +4178,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
 
         <div class="card-media-box" data-id="${f.id}" data-short="0" data-kind="photo">
           ${f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`}
+          ${f.song ? `<button class="mute-toggle-btn song-corner-mute" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${songMutedPref ? '🔇' : '🔊'}</button>` : ''}
         </div>
 
         <div class="card-actions-bar">
@@ -4664,29 +4702,33 @@ function playSong(song){
   songAudio.muted = songMutedPref;
   songAudio.currentTime = song.start || 0;
   songAudio.play().catch(() => {});
-  songStopTimer = setTimeout(stopSong, (song.duration || 8) * 1000);
+  songStopTimer = setTimeout(stopSong, (song.duration || 15) * 1000);
   refreshSongBtn();
 }
 // Story/post song playback: starts at the chosen point and stops after the chosen length
 let songAudio = null, songStopTimer = null;
-// ---- Song mute / unmute (one button, works for stories, photos and video posts) ----
-let songMutedPref = (() => { try { return localStorage.getItem('songMuted') === '1'; } catch (e) { return false; } })();
-function ensureSongBtn(){
-  let b = document.getElementById('songMuteBtn');
-  if (!b) {
-    b = document.createElement('button');
-    b.id = 'songMuteBtn'; b.type = 'button';
-    b.setAttribute('aria-label', 'Song mute ya unmute');
-    b.onclick = toggleSongMute;
-    b.style.cssText = 'position:fixed;right:16px;bottom:110px;z-index:1100;width:46px;height:46px;border-radius:50%;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:20px;cursor:pointer;display:none;align-items:center;justify-content:center;';
-    document.body.appendChild(b);
-  }
-  return b;
-}
+// ---- Home feed sound & Song mute / unmute (DEFAULT UNMUTED / SOUND ON) ----
+let homeFeedSoundMuted = (() => {
+  try {
+    const val = localStorage.getItem('homeFeedSoundMuted');
+    if (val === '1') return true;
+    if (val === '0') return false;
+    return false; // Default: UNMUTED (Sound ON)
+  } catch (e) { return false; }
+})();
+let songMutedPref = (() => {
+  try {
+    const val = localStorage.getItem('songMuted');
+    if (val === '1') return true;
+    if (val === '0') return false;
+    return false; // Default: UNMUTED (Sound ON)
+  } catch (e) { return false; }
+})();
 function refreshSongBtn(){
-  const b = ensureSongBtn();
-  if (songAudio) { b.style.display = 'flex'; b.textContent = songAudio.muted ? '🔇' : '🔊'; }
-  else b.style.display = 'none';
+  const oldFixed = document.getElementById('songMuteBtn');
+  if (oldFixed) oldFixed.remove();
+  const icon = songMutedPref ? '🔇' : '🔊';
+  document.querySelectorAll('.song-corner-mute').forEach(b => { b.textContent = icon; });
 }
 function toggleSongMute(){
   songMutedPref = !songMutedPref;
@@ -4723,11 +4765,10 @@ function playStorySong(){
   if (chip) { chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : ''; chip.style.display = st && st.song ? 'block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
   songAudio = new Audio(st.song.url);
-  songAudio.muted = songMutedPref;
+  songAudio.muted = false;
   songAudio.currentTime = st.song.start || 0;
   songAudio.play().catch(() => {});
-  songStopTimer = setTimeout(stopSong, (st.song.duration || 8) * 1000);
-  refreshSongBtn();
+  songStopTimer = setTimeout(stopSong, (st.song.duration || 15) * 1000);
   if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
 }
 let storyPickedFile = null;
