@@ -1567,6 +1567,24 @@ async function loadProfile(){
         : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>`;
       pollNotificationCount();
       pollMessagesCount();
+      // If films were already loaded before profile resolved, refresh their like button states
+      if (allFilms && allFilms.length > 0) {
+        allFilms.forEach(f => {
+          const isLiked = isFilmLikedByMe(f);
+          ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+            const b = document.querySelector(prefix + f.id + ' .card-actions-bar .feed-act-btn');
+            if (b) {
+              b.classList.toggle('liked', isLiked);
+              b.innerHTML = `${isLiked ? '❤️' : '♡'} <span class="like-num">${f.likes || 0}</span>`;
+            }
+          });
+          const sb = document.getElementById('short-like-btn-' + f.id);
+          if (sb) {
+            sb.classList.toggle('liked', isLiked);
+            sb.textContent = isLiked ? '❤️' : '🤍';
+          }
+        });
+      }
     } else {
       headerRight.innerHTML = `
         <a href="/login.html" style="margin-right:14px;">Login</a>
@@ -2265,22 +2283,56 @@ async function saveNotifPref(key, on){
   } catch (e) { showToast(e.message); }
 }
 
+function openVerifiedTrustModal(){
+  const old = document.getElementById('trustModal'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'trustModal';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:18px;';
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.innerHTML = `
+    <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:18px;padding:24px 20px;width:100%;max-width:340px;text-align:center;color:var(--cream);box-shadow:0 12px 36px rgba(0,0,0,.6);">
+      <div style="width:58px;height:58px;border-radius:50%;background:#3897f0;color:#fff;font-size:32px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 0 0 6px rgba(56,151,240,0.2);">✔</div>
+      <div style="font-family:'Baloo 2',sans-serif;font-size:20px;font-weight:800;margin-bottom:6px;">Verified Account</div>
+      <div style="font-size:13.5px;color:var(--cream-dim);line-height:1.5;margin-bottom:18px;">This account is verified as an authentic, active creator on YouSeries (TAMASHA).</div>
+      <div style="border-top:1px solid var(--gold-line);padding-top:14px;display:flex;flex-direction:column;gap:8px;">
+        <button type="button" onclick="document.getElementById('trustModal').remove();openBlueTick();" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;">Get Verified Badge</button>
+        <button type="button" onclick="document.getElementById('trustModal').remove();" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--gold-line);background:none;color:var(--cream);font-size:13.5px;cursor:pointer;">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
 async function openBlueTick(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   closeProfileMenu && closeProfileMenu();
   const old = document.getElementById('blueOverlay'); if (old) old.remove();
   const el = document.createElement('div');
   el.id = 'blueOverlay';
-  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;';
-  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:380px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">✔ Blue tick</div><div id="blueBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div><button type="button" onclick="document.getElementById(\'blueOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Close</button></div>';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:20px;width:100%;max-width:390px;max-height:88vh;overflow-y:auto;color:var(--cream);box-sizing:border-box;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-weight:800;font-size:18px;display:flex;align-items:center;gap:6px;"><span class="vbadge" style="width:20px;height:20px;font-size:12px;">✔</span> Blue Tick Verification</div><button type="button" onclick="document.getElementById(\'blueOverlay\').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button></div><div id="blueBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div></div>';
   document.body.appendChild(el);
   renderBlueTick();
 }
+
 function blueBar(label, have, need){
-  const pct = Math.min(100, Math.round(have / need * 100));
+  const pct = need > 0 ? Math.min(100, Math.round(have / need * 100)) : 100;
   const ok = have >= need;
-  return `<div style="margin-top:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--cream);"><span>${label}</span><span>${Math.min(have, need)} / ${need} ${ok ? '✅' : ''}</span></div><div style="height:8px;border-radius:6px;background:var(--field);overflow:hidden;margin-top:5px;"><div style="height:100%;width:${pct}%;background:${ok ? '#5ad19a' : 'var(--marigold)'};"></div></div></div>`;
+  return `<div style="margin-top:10px;">
+    <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--cream);">
+      <span>${label}</span>
+      <span>${Math.min(have, need)} / ${need} ${ok ? '✅' : ''}</span>
+    </div>
+    <div style="height:8px;border-radius:6px;background:var(--field);overflow:hidden;margin-top:5px;">
+      <div style="height:100%;width:${pct}%;background:${ok ? '#5ad19a' : 'var(--marigold)'};"></div>
+    </div>
+  </div>`;
 }
+
+function copyUpiIdText(upi){
+  navigator.clipboard.writeText(upi).then(() => showToast('UPI ID copied: ' + upi)).catch(() => {});
+}
+
 async function renderBlueTick(){
   const body = document.getElementById('blueBody');
   if (!body) return;
@@ -2289,50 +2341,116 @@ async function renderBlueTick(){
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || 'Failed');
     let html = '';
+
     if (d.free) {
-      html += '<div style="color:var(--ok);font-weight:600;">✔ Requirements met — your blue tick is permanent (free)</div>';
+      html += `<div style="padding:14px;background:rgba(90,209,154,0.12);border:1px solid #5ad19a;border-radius:12px;margin-bottom:12px;text-align:center;">
+        <div style="color:var(--ok);font-size:24px;">✔</div>
+        <div style="color:var(--ok);font-weight:700;font-size:15px;margin-top:4px;">Permanent Free Blue Tick Active</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:4px;">Aapne creator requirements poore kiye hain. Ye badge hamesha active rahega.</div>
+      </div>`;
     } else if (d.verified) {
       const until = d.verifiedUntil ? new Date(d.verifiedUntil).toLocaleDateString() : '';
-      html += `<div style="color:var(--ok);font-weight:600;">✔ Your paid blue tick is active${until ? ' (' + until + ' until)' : ''}</div>`;
+      const days = d.daysRemaining != null ? d.daysRemaining : 0;
+      html += `<div style="padding:14px;background:rgba(56,151,240,0.12);border:1px solid #3897f0;border-radius:12px;margin-bottom:12px;text-align:center;">
+        <div style="color:#3897f0;font-size:24px;">✔</div>
+        <div style="color:#3897f0;font-weight:700;font-size:15px;margin-top:4px;">Verified Badge Active (${days} Days Left)</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:4px;">Valid until: <b>${until}</b></div>
+      </div>`;
     }
-    if (!d.verified) {
-      html += '<div style="margin-top:8px;font-size:12.5px;">Free: reach 10 followers and 150 total views to get a permanent blue tick.</div>';
-      html += '<div style="margin-top:6px;">Criteria:</div>';
-      html += blueBar('Followers', d.followers, d.minFollowers);
-      html += blueBar('Total views', d.views, d.minViews);
+
+    if (!d.verified && d.freeEnabled !== false) {
+      html += `<div style="border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:14px;background:rgba(255,255,255,0.03);">
+        <div style="font-weight:700;color:var(--cream);">🎁 Free Creator Qualification</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Reach ${d.minFollowers} followers and ${d.minViews} views to get an automatic permanent Blue Tick:</div>
+        ${blueBar('Followers', d.followers, d.minFollowers)}
+        ${blueBar('Total Views', d.views, d.minViews)}
+      </div>`;
     }
-    if (d.latest && d.latest.status === 'rejected') html += `<div style="margin-top:12px;color:var(--bad);">Your last request was rejected${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. You can try again.</div>`;
+
+    if (d.latest && d.latest.status === 'rejected') {
+      html += `<div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(230,57,80,0.12);border:1px solid var(--bad);color:var(--bad);font-size:13px;">
+        ❌ Last request rejected${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. Aap dobara request bhej sakte hain.
+      </div>`;
+    }
+
     if (d.pending) {
-      html += '<div style="margin-top:14px;color:#ffcf5c;">⏳ Your request is being reviewed. You will get a notification when it is approved.</div>';
+      html += `<div style="padding:14px;border-radius:12px;background:rgba(255,180,0,0.12);border:1px solid #ffcf5c;color:#ffe3a0;text-align:center;">
+        <div style="font-size:22px;">⏳</div>
+        <div style="font-weight:700;margin-top:4px;">Verification Request Under Review</div>
+        <div style="font-size:12.5px;margin-top:4px;">Admin aapka UTR aur receipt verify kar rahe hain. Approve hote hi Blue Tick notification mil jayegi.</div>
+      </div>`;
     } else if (d.free) {
-      /* permanent free tick: no payment needed */
+      // Nothing more needed
     } else {
-      html += `<div style="margin-top:14px;font-weight:600;color:var(--cream);">Monthly: ₹${d.price} / mahine</div>`;
-      html += '<div style="margin-top:4px;font-size:12.5px;">Don’t want to wait for the requirements? Pay this amount via UPI. You will need to pay again every 30 days.</div>';
-      if (!d.qrUrl && !d.upi) html += '<div style="margin-top:12px;color:#ffcf5c;">Payment details are not set up yet. Please try again later.</div>';
-      if (d.qrUrl) html += `<img src="${d.qrUrl}" alt="UPI QR" style="display:block;margin:10px auto;width:200px;max-width:70%;border-radius:10px;background:#fff;" loading="lazy" decoding="async">`;
-      if (d.upi) html += `<div style="text-align:center;color:var(--cream);font-weight:600;">${escapeHtml(d.upi)}</div>`;
-      if (d.upi) html += `<a href="upi://pay?pa=${encodeURIComponent(d.upi)}&pn=${encodeURIComponent('YouSeries')}&am=${encodeURIComponent(d.price)}&cu=INR&tn=${encodeURIComponent('YouSeries Blue tick')}" style="display:block;margin-top:12px;text-align:center;background:var(--marigold);color:#fff;padding:12px;border-radius:8px;font-weight:600;text-decoration:none;">₹${d.price} UPI app se pay karo</a>
-        <div style="text-align:center;font-size:11.5px;margin-top:4px;">The button opens your UPI app (GPay, PhonePe, Paytm). After paying, enter the UTR here.</div>`;
-      html += `<div style="margin-top:12px;">After payment, enter your 12-digit UPI transaction ID (UTR) here:</div>
-        <input id="blueUtr" type="text" inputmode="numeric" maxlength="16" placeholder="123456789012" style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-        <button type="button" onclick="submitBlueTick()" style="margin-top:10px;width:100%;background:var(--marigold);color:#fff;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;">Send request</button>
-        <div id="blueMsg" style="margin-top:8px;color:#e88a8a;"></div>`;
+      const showRenew = d.verified && (d.daysRemaining != null && d.daysRemaining <= 7);
+      if (showRenew) {
+        html += `<div style="font-weight:700;color:var(--cream);margin-top:12px;">Renew Blue Tick (Extend 30 Days):</div>`;
+      } else if (!d.verified) {
+        html += `<div style="font-weight:700;color:var(--cream);margin-top:10px;">⚡ Instant Verification via UPI (₹${d.price} / month)</div>`;
+      }
+
+      if (d.qrUrl) {
+        html += `<div style="text-align:center;margin:12px 0;">
+          <img src="${escapeAttr(d.qrUrl)}" alt="UPI QR" style="width:180px;height:180px;border-radius:12px;border:1px solid var(--gold-line);background:#fff;padding:6px;display:inline-block;" loading="lazy">
+        </div>`;
+      }
+
+      if (d.upi) {
+        const upiPayLink = `upi://pay?pa=${encodeURIComponent(d.upi)}&pn=${encodeURIComponent('YouSeries')}&am=${encodeURIComponent(d.price)}&cu=INR&tn=${encodeURIComponent('YouSeries Blue Tick Verification')}`;
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);margin-bottom:10px;">
+          <span style="font-weight:700;color:var(--cream);font-size:14px;">${escapeHtml(d.upi)}</span>
+          <button type="button" onclick="copyUpiIdText('${escapeAttr(d.upi)}')" style="background:none;border:none;color:var(--marigold);font-size:12.5px;font-weight:700;cursor:pointer;">📋 Copy</button>
+        </div>
+        <a href="${upiPayLink}" style="display:block;text-align:center;background:var(--marigold);color:#fff;padding:11px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14.5px;margin-bottom:12px;">
+          Pay ₹${d.price} via UPI App (GPay/PhonePe/Paytm)
+        </a>`;
+      }
+
+      html += `<form id="blueReqForm" onsubmit="event.preventDefault();submitBlueTick();" style="border-top:1px solid var(--gold-line);padding-top:12px;margin-top:12px;">
+        <label style="display:block;font-size:12.5px;color:var(--cream-dim);margin-bottom:6px;">12-digit UPI Transaction ID (UTR) *</label>
+        <input id="blueUtr" type="text" inputmode="numeric" maxlength="16" required placeholder="e.g. 431289123456" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;margin-bottom:10px;">
+
+        <label style="display:block;font-size:12.5px;color:var(--cream-dim);margin-bottom:6px;">📷 Payment Screenshot Receipt (Optional, fast-approval)</label>
+        <input id="blueReceipt" type="file" accept="image/*" style="width:100%;font-size:12.5px;color:var(--cream-dim);margin-bottom:12px;">
+
+        <button type="submit" id="blueSubmitBtn" style="width:100%;background:var(--marigold);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:14.5px;cursor:pointer;">
+          ${showRenew ? 'Submit Renewal Request' : 'Submit Verification Request'}
+        </button>
+        <div id="blueMsg" style="margin-top:8px;font-size:13px;text-align:center;"></div>
+      </form>`;
     }
+
     body.innerHTML = html;
-  } catch (e) { body.textContent = '❌ ' + e.message; }
+  } catch (e) { body.innerHTML = '<div style="color:var(--bad);">❌ ' + escapeHtml(e.message) + '</div>'; }
 }
+
 async function submitBlueTick(){
-  const utr = (document.getElementById('blueUtr').value || '').replace(/\s/g, '');
-  const msg = document.getElementById('blueMsg');
-  if (!/^\d{12}$/.test(utr)) { msg.textContent = 'UTR must be 12 digits'; return; }
+  const utrEl = document.getElementById('blueUtr');
+  const fileEl = document.getElementById('blueReceipt');
+  const msgEl = document.getElementById('blueMsg');
+  const btnEl = document.getElementById('blueSubmitBtn');
+  const utr = (utrEl && utrEl.value ? utrEl.value : '').replace(/\s/g, '');
+  if (!/^\d{12}$/.test(utr)) {
+    if (msgEl) { msgEl.textContent = 'UPI Transaction ID (UTR) must be 12 digits'; msgEl.style.color = 'var(--bad)'; }
+    return;
+  }
+  btnEl.disabled = true; btnEl.textContent = 'Submitting…';
+  if (msgEl) msgEl.textContent = '';
+  const fd = new FormData();
+  fd.append('utr', utr);
+  if (fileEl && fileEl.files && fileEl.files[0]) {
+    fd.append('screenshot', fileEl.files[0]);
+  }
   try {
-    const res = await fetch('/api/bluetick/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ utr }) });
+    const res = await fetch('/api/bluetick/request', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    showToast('Request bhej di ✔');
+    showToast('Verification request sent ✔');
     renderBlueTick();
-  } catch (e) { msg.textContent = e.message; }
+  } catch (e) {
+    if (msgEl) { msgEl.textContent = e.message; msgEl.style.color = 'var(--bad)'; }
+    btnEl.disabled = false; btnEl.textContent = 'Submit Verification Request';
+  }
 }
 
 function toggleAppTheme(){
@@ -3070,6 +3188,13 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
   resultsEl.innerHTML = tagHtml + userHtml + filmHtml;
 }
 
+function isFilmLikedByMe(f){
+  if (!f || !currentUser || !currentUser.id) return false;
+  if (Array.isArray(f.likedBy) && f.likedBy.includes(currentUser.id)) return true;
+  if (f.likedAt && f.likedAt[currentUser.id]) return true;
+  return false;
+}
+
 function renderHome(films) {
   const grid = document.getElementById('grid');
   if (!films || films.length === 0) {
@@ -3077,7 +3202,7 @@ function renderHome(films) {
     return;
   }
   grid.innerHTML = films.map(f => {
-    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isLiked = isFilmLikedByMe(f);
     const isPhoto = f.type === 'photo';
     const isShort = f.type === 'short';
 
@@ -3278,7 +3403,7 @@ function renderShorts(shorts){
   const container = document.getElementById('shortsContainer');
   if (shorts.length === 0) { container.innerHTML = '<div class="short-empty">No Shorts yet.<br><a href="#" onclick="openUploadModal();return false;" style="color:var(--marigold);">Upload your first Short</a></div>'; return; }
   container.innerHTML = shorts.map(f => {
-    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isLiked = isFilmLikedByMe(f);
     const isSaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
     const canFollow = !!(currentUser && f.ownerId && f.ownerId !== currentUser.id && !f.isFollowing);
     return `
@@ -4065,10 +4190,10 @@ async function playFilm(id){
   document.getElementById('modalCollabBtn').classList.toggle('hidden', !isOwnerOfFilm);
 
   const likeBtn = document.getElementById('likeBtn');
-  const alreadyLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+  const alreadyLiked = isFilmLikedByMe(f);
   likeBtn.classList.toggle('liked', alreadyLiked);
+  likeBtn.innerHTML = `👍 <span id="likeCount">${f.likes || 0}</span>`;
   likeBtn.disabled = false;
-  document.getElementById('likeCount').textContent = f.likes || 0;
 
   const saveBtn = document.getElementById('modalSaveBtn');
   const alreadySaved = !!(currentUser && f.savedBy && f.savedBy.includes(currentUser.id));
@@ -4101,7 +4226,7 @@ async function toggleSaveCurrentFilm(){
   } catch (e) {}
 }
 
-const vb = flag => flag ? '<span class="vbadge" title="Verified">✔</span>' : '';
+const vb = flag => flag ? '<span class="vbadge" onclick="event.stopPropagation();openVerifiedTrustModal()" title="Verified Badge">✔</span>' : '';
 
 function carouselHtml(f){
   const slides = f.slideUrls || [];
@@ -4191,7 +4316,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
   titleEl.textContent = username ? ('@' + username + ' · Photos') : 'Photos';
 
   listEl.innerHTML = userPhotos.map(f => {
-    const isLiked = !!(currentUser && f.likedBy && f.likedBy.includes(currentUser.id));
+    const isLiked = isFilmLikedByMe(f);
     const isPinned = pinnedIds.includes(f.id);
     return `
       <div class="card" id="pfeed-card-${f.id}">
@@ -4535,11 +4660,30 @@ async function likeCurrentFilm(){
   try {
     const res = await fetch('/api/films/' + currentFilm.id + '/like', { method: 'POST' });
     const data = await res.json();
-    document.getElementById('likeCount').textContent = data.likes;
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    currentFilm.likes = data.likes;
+    if (typeof data.views === 'number') currentFilm.views = data.views;
+    if (!Array.isArray(currentFilm.likedBy)) currentFilm.likedBy = [];
+    if (data.liked) {
+      if (!currentFilm.likedBy.includes(currentUser.id)) currentFilm.likedBy.push(currentUser.id);
+    } else {
+      currentFilm.likedBy = currentFilm.likedBy.filter(id => id !== currentUser.id);
+    }
     likeBtn.classList.toggle('liked', data.liked);
-    currentFilm.likedBy = data.liked
-      ? [...(currentFilm.likedBy || []), currentUser.id]
-      : (currentFilm.likedBy || []).filter(id => id !== currentUser.id);
+    likeBtn.innerHTML = `👍 <span id="likeCount">${data.likes}</span>`;
+    const f = allFilms.find(x => x.id === currentFilm.id);
+    if (f) {
+      f.likes = data.likes;
+      f.views = data.views || f.views;
+      f.likedBy = currentFilm.likedBy.slice();
+    }
+    ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+      const b = document.querySelector(prefix + currentFilm.id + ' .card-actions-bar .feed-act-btn');
+      if (b) {
+        b.classList.toggle('liked', data.liked);
+        b.innerHTML = `${data.liked ? '❤️' : '♡'} <span class="like-num">${data.likes}</span>`;
+      }
+    });
   } catch (err) {}
   likeBtn.disabled = false;
 }
@@ -6512,8 +6656,12 @@ function setupPlayerDoubleTapZones(){
 }
 
 async function init(){
+  // Load current user profile first so currentUser.id is available when films and shorts render likes
+  try {
+    await loadProfile();
+    if (currentUser) startHeartbeat();
+  } catch (e) {}
   await Promise.allSettled([
-    loadProfile().then(() => { if (currentUser) startHeartbeat(); }),
     loadStories(),
     loadFilms()
   ]);

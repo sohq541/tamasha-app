@@ -733,75 +733,7 @@ async function setHelpStatus(id, status){
   } catch (e) { alert(e.message); }
 }
 
-let BT = null;
-async function renderModeration(){
-  const v = document.getElementById('view');
-  v.innerHTML = '<div class="loading">Loading…</div>';
-  try {
-    const res = await fetch('/api/admin/moderation', { headers: { 'x-no-prompt': '1' } });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error || 'Failed');
-    v.innerHTML = `
-      <div class="card">
-        <b>🛡️ Upload review</b>
-        <div class="meta">When on, new uploads will not be visible to users until you approve them.</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
-      </div>
-      <h3 class="sec">Queue (${d.queue.length})</h3>
-      ${d.queue.map(f => `<div class="card">
-        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
-        <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button><button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button></div>
-      </div>`).join('') || '<div class="empty">The queue is empty.</div>'}`;
-  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
-}
-async function toggleReview(on){
-  await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ reviewUploads: on }) });
-  renderModeration();
-}
-async function modDecide(id, approve){
-  if (!approve && !confirm('Permanently delete this post?')) return;
-  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
-  renderModeration();
-}
-async function renderSearches(){
-  const v = document.getElementById('view');
-  v.innerHTML = '<div class="loading">Loading…</div>';
-  try {
-    const res = await fetch('/api/admin/search-terms', { headers: { 'x-no-prompt': '1' } });
-    const d = await res.json();
-    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">What users are searching for. Useful for content ideas.</div></div>` +
-      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">No searches yet.</div>');
-  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
-}
-async function showUserDetail(id){
-  const v = document.getElementById('view');
-  v.innerHTML = '<div class="loading">Loading…</div>';
-  try {
-    const res = await fetch('/api/admin/users/' + id + '/detail', { headers: { 'x-no-prompt': '1' } });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error || 'Failed');
-    const u = d.user;
-    v.innerHTML = `
-      <div class="card">
-        <button class="btn" onclick="setTab('users')">← Users</button>
-        <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
-        <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
-        <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
-        <div class="meta">Blue tick: ${u.blueFree ? 'free (permanent)' : (u.blueUntil ? 'paid, ' + new Date(u.blueUntil).toLocaleDateString() + ' tak' : 'no')}</div>
-        <div class="nums"><span><b>${d.followers}</b> followers</span><span><b>${d.following}</b> following</span><span><b>${d.totalViews}</b> total views</span><span><b>${d.commentsWritten}</b> comments</span></div>
-      </div>
-      <h3 class="sec">Posts (${d.posts.length})</h3>
-      ${d.posts.map(p => `<div class="card"><div class="row1"><span class="name">${esc(p.title)}</span><span class="pill g">${esc(p.type)}</span>${p.pending ? '<span class="pill rep">review me</span>' : ''}${p.scheduledFor ? '<span class="pill rep">scheduled</span>' : ''}</div>
-        <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span><span>${ago(p.uploadedAt)}</span></div></div>`).join('') || '<div class="empty">No posts.</div>'}
-      <h3 class="sec">Reports against (${d.reportsAgainst.length})</h3>
-      ${d.reportsAgainst.map(r => `<div class="card"><div class="meta">${esc(r.reason || '')} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">No reports.</div>'}
-      <h3 class="sec">Blue tick requests (${d.bluetickRequests.length})</h3>
-      ${d.bluetickRequests.map(r => `<div class="card"><div class="meta">₹${esc(r.amount)} · ${esc(r.status)} · ${ago(r.createdAt)}</div></div>`).join('') || '<div class="empty">No requests.</div>'}
-      <h3 class="sec">Help desk (${d.helpTickets.length})</h3>
-      ${d.helpTickets.map(h => `<div class="card"><div class="meta">${esc(h.problem)} · ${esc(h.status)}</div></div>`).join('') || '<div class="empty">No messages.</div>'}`;
-  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
-}
+let BT = null, btFilter = 'all', btSearch = '';
 async function renderBluetickAdmin(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
@@ -812,55 +744,156 @@ async function renderBluetickAdmin(){
     BT = data;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; return; }
   const st = BT.settings || {};
-  const pending = BT.requests.filter(r => r.status === 'pending');
-  const done = BT.requests.filter(r => r.status !== 'pending').slice(0, 30);
-  const rq = r => `<div class="card">
-      <div class="row1"><span class="name">@${esc(r.username)}</span><span class="pill ${r.status === 'approved' ? 'g' : r.status === 'rejected' ? 'sus' : 'rep'}">${esc(r.status)}</span><span class="meta push" style="margin:0;">${ago(r.createdAt)}</span></div>
-      <div class="meta">UTR: <b>${esc(r.utr)}</b> · ₹${esc(r.amount)}</div>
-      ${r.reason ? `<div class="meta">Reason: ${esc(r.reason)}</div>` : ''}
-      ${r.status === 'pending' ? `<div class="row1" style="margin-top:10px;">
-        <button class="btn btn-ok" onclick="decideBluetick('${r.id}', true)">✔ Approve (30 din)</button>
-        <button class="btn btn-danger" onclick="decideBluetick('${r.id}', false)">Reject</button>
-      </div>` : ''}
-    </div>`;
+  const an = BT.analytics || { totalRevenue: 0, pendingCount: 0, approvedCount: 0, activeVerifiedCount: 0 };
+  const allReqs = BT.requests || [];
+
   v.innerHTML = `
-    <div class="card">
-      <b>💳 Payment settings</b>
-      <div class="meta">Users will see this UPI ID and QR. Price between ₹5 and ₹49.</div>
-      <label class="meta" style="display:block;margin-top:10px;">Price (₹ / mahine)</label>
-      <input id="btPrice" type="number" min="5" max="49" value="${esc(st.price || 49)}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-      <label class="meta" style="display:block;margin-top:10px;">UPI ID</label>
-      <input id="btUpi" type="text" value="${esc(st.upi || '')}" placeholder="yourname@upi" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-      <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">Save</button></div>
-      <label class="meta" style="display:block;margin-top:14px;">QR image (UPI QR screenshot)</label>
-      <input id="btQr" type="file" accept="image/*">
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">Upload QR</button>${st.qrUrl ? '<button class="btn btn-danger" onclick="deleteBluetickQr()">Delete QR</button><span class="meta" style="margin:0 0 0 8px;">✅ QR is set</span>' : ''}</div>
+    <div class="grid" style="margin-bottom:14px;">
+      <div class="stat"><b style="color:var(--ok);">₹${an.totalRevenue}</b><span>💰 Revenue Collected</span></div>
+      <div class="stat ${an.pendingCount ? 'warn' : ''}" onclick="btFilter='pending';drawBluetickRows()" style="cursor:pointer;"><b>${an.pendingCount}</b><span>⏳ Pending Requests</span></div>
+      <div class="stat" onclick="btFilter='approved';drawBluetickRows()" style="cursor:pointer;"><b>${an.approvedCount}</b><span>✔ Total Approved</span></div>
+      <div class="stat"><b>${an.activeVerifiedCount}</b><span>🛡️ Active Verified Users</span></div>
     </div>
-    <h3 class="sec">Pending (${pending.length})</h3>
-    ${pending.map(rq).join('') || '<div class="empty">No pending requests.</div>'}
-    <h3 class="sec">Purani requests</h3>
-    ${done.map(rq).join('') || '<div class="empty">Nothing yet.</div>'}`;
+
+    <div class="card">
+      <b>⚙️ Blue Tick &amp; Payment Settings</b>
+      <div class="meta">Configure price, UPI details, and free creator qualification criteria. All criteria updates save live.</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px;">
+        <div>
+          <label class="meta" style="display:block;margin-bottom:4px;">Monthly Price (₹ / month)</label>
+          <input id="btPrice" type="number" min="1" max="9999" value="${esc(st.price || 49)}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        </div>
+        <div>
+          <label class="meta" style="display:block;margin-bottom:4px;">Receiving UPI ID</label>
+          <input id="btUpi" type="text" value="${esc(st.upi || '')}" placeholder="yourname@upi" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+        </div>
+      </div>
+
+      <div style="margin-top:14px;padding:12px;border:1px solid var(--gold-line);border-radius:10px;background:rgba(124,92,255,0.06);">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--cream);font-weight:600;cursor:pointer;">
+          <input type="checkbox" id="btFreeToggle" ${st.freeEnabled !== false ? 'checked' : ''} style="width:18px;height:18px;">
+          <span>🎁 Free Qualification Criteria (Auto-grant permanent badge)</span>
+        </label>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px;">
+          <div>
+            <label class="meta" style="display:block;margin-bottom:4px;">Min Followers Required</label>
+            <input id="btMinFollowers" type="number" min="0" value="${esc(st.minFollowers != null ? st.minFollowers : 10)}" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+          </div>
+          <div>
+            <label class="meta" style="display:block;margin-bottom:4px;">Min Total Views Required</label>
+            <input id="btMinViews" type="number" min="0" value="${esc(st.minViews != null ? st.minViews : 150)}" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
+          </div>
+        </div>
+      </div>
+
+      <div class="row1" style="margin-top:12px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">💾 Save Settings</button></div>
+
+      <label class="meta" style="display:block;margin-top:16px;">UPI QR Image (Screenshot)</label>
+      <input id="btQr" type="file" accept="image/*" style="width:100%;">
+      <div class="row1" style="margin-top:8px;">
+        <button class="btn" onclick="uploadBluetickQr()">Upload QR</button>
+        ${st.qrUrl ? `<button class="btn btn-danger" onclick="deleteBluetickQr()">Delete QR</button><span class="meta" style="margin:0 0 0 8px;">✅ QR is active</span>` : ''}
+      </div>
+    </div>
+
+    <h3 class="sec">Verification Requests (${allReqs.length})</h3>
+    <input class="search" id="btSearchInput" placeholder="Search by username or 12-digit UTR…" value="${esc(btSearch)}" oninput="btSearch=this.value;drawBluetickRows()">
+    <div class="row1" style="margin-bottom:12px;gap:6px;">
+      ${['all','pending','approved','rejected'].map(f => `<button class="btn ${btFilter === f ? 'btn-ok' : ''}" onclick="btFilter='${f}';renderBluetickAdmin()">${f.toUpperCase()}</button>`).join('')}
+    </div>
+    <div id="btRowsWrap"></div>
+  `;
+  drawBluetickRows();
 }
+
+function drawBluetickRows(){
+  const box = document.getElementById('btRowsWrap');
+  if (!box || !BT) return;
+  const q = btSearch.trim().toLowerCase();
+  const rows = (BT.requests || []).filter(r => (btFilter === 'all' || r.status === btFilter) && (!q || (r.username || '').toLowerCase().includes(q) || (r.utr || '').includes(q)));
+  if (!rows.length) { box.innerHTML = '<div class="empty">No matching verification requests.</div>'; return; }
+  box.innerHTML = rows.map(r => `
+    <div class="card" id="btr-${r.id}">
+      <div class="row1">
+        <span class="name">@${esc(r.username)}</span>
+        <span class="pill ${r.status === 'approved' ? 'g' : r.status === 'rejected' ? 'sus' : 'rep'}">${esc(r.status)}</span>
+        <span class="meta push" style="margin:0;">${ago(r.createdAt)}</span>
+      </div>
+      <div class="meta" style="margin-top:6px;">UTR: <b>${esc(r.utr)}</b> · Amount: ₹<b>${esc(r.amount)}</b> ${r.duration ? '· Plan: ' + esc(r.duration === 'permanent' ? 'Permanent' : r.duration + ' days') : ''}</div>
+      ${r.screenshotUrl ? `<div style="margin-top:8px;">
+        <span class="meta" style="display:block;margin-bottom:4px;">Payment Receipt:</span>
+        <a href="${esc(r.screenshotUrl)}" target="_blank"><img src="${esc(r.screenshotUrl)}" style="max-width:180px;max-height:220px;border-radius:8px;border:1px solid var(--gold-line);object-fit:contain;background:#000;" loading="lazy"></a>
+      </div>` : ''}
+      ${r.reason ? `<div class="meta" style="color:var(--bad);margin-top:6px;">Rejection reason: ${esc(r.reason)}</div>` : ''}
+      ${r.status === 'pending' ? `
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <select id="btdur-${r.id}" style="padding:7px 10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13px;">
+            <option value="30">1 Month (30 Days)</option>
+            <option value="90">3 Months (90 Days)</option>
+            <option value="365">1 Year (365 Days)</option>
+            <option value="permanent">Permanent Verified</option>
+          </select>
+          <button class="btn btn-ok" onclick="decideBluetick('${r.id}', true)">✔ Approve</button>
+          <button class="btn btn-danger" onclick="decideBluetick('${r.id}', false)">Reject</button>
+        </div>` : ''}
+      ${r.status === 'approved' ? `
+        <div class="row1" style="margin-top:10px;">
+          <button class="btn btn-danger" onclick="revokeUserBluetick('${r.userId}')">🚫 Revoke Verified Badge</button>
+        </div>` : ''}
+    </div>`).join('');
+}
+
 async function decideBluetick(id, approve){
   let reason = '';
+  const durEl = document.getElementById('btdur-' + id);
+  const duration = (durEl && durEl.value) || '30';
   if (!approve) { reason = prompt('Reject reason (shown to the user):', '') || ''; }
-  else if (!confirm('Approve and give a 30-day blue tick?')) return;
+  else if (!confirm(`Approve this request for ${duration === 'permanent' ? 'Permanent' : duration + ' days'}?`)) return;
   try {
-    const res = await fetch('/api/admin/bluetick/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ approve, reason }) });
+    const res = await fetch('/api/admin/bluetick/' + id + '/decide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ approve, reason, duration })
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
+
+async function revokeUserBluetick(userId){
+  if (!confirm('Revoke and remove the Blue tick verified badge from this user?')) return;
+  try {
+    const res = await fetch('/api/admin/bluetick/' + userId + '/revoke', {
+      method: 'POST', headers: { 'x-no-prompt': '1' }
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    alert('Blue tick badge revoked.');
+    renderBluetickAdmin();
+  } catch (e) { alert(e.message); }
+}
+
 async function saveBluetickSettings(){
   try {
-    const res = await fetch('/api/admin/bluetick/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ price: document.getElementById('btPrice').value, upi: document.getElementById('btUpi').value }) });
+    const res = await fetch('/api/admin/bluetick/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({
+        price: document.getElementById('btPrice').value,
+        upi: document.getElementById('btUpi').value,
+        minFollowers: document.getElementById('btMinFollowers').value,
+        minViews: document.getElementById('btMinViews').value,
+        freeEnabled: document.getElementById('btFreeToggle').checked
+      })
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    alert('Saved ✔');
+    alert('Blue Tick settings saved successfully ✔');
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
+
 async function deleteBluetickQr(){
   if (!confirm('Delete the QR? Users will no longer see it.')) return;
   try {
@@ -870,6 +903,7 @@ async function deleteBluetickQr(){
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
+
 async function uploadBluetickQr(){
   const f = document.getElementById('btQr').files[0];
   if (!f) { alert('Choose a QR image'); return; }
