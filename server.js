@@ -3118,6 +3118,30 @@ app.post('/api/ai/clear', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/ai/caption', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    if (!GROQ_API_KEY) return res.status(400).json({ error: 'GROQ_API_KEY is not set' });
+    const title = String((req.body && req.body.title) || '').trim().slice(0, 120);
+    const type = String((req.body && req.body.type) || 'video').trim();
+    const genre = String((req.body && req.body.genre) || '').trim();
+    if (!title) return res.status(400).json({ error: 'Pehle Title likho taaki AI caption bana sake' });
+    const prompt = `Post Title: "${title}"
+Content Type: ${type}${genre ? "\\nGenre/Topic: " + genre : ''}
+
+Is post ke liye ek catchy, engaging Hinglish caption (1-2 lines) aur uske neeche 6-8 trending relevant #hashtags likho. Sirf caption aur hashtags output karo, koi extra intro ya quotes mat likho.`;
+    const model = await resolveGroqModel();
+    const { ok, data } = await callGroqChat(model, [
+      { role: 'system', content: 'Tum social media content expert ho jo Hinglish me viral captions aur #hashtags likhta hai.' },
+      { role: 'user', content: prompt }
+    ]);
+    if (!ok) return res.status(500).json({ error: (data && data.error && data.error.message) || 'AI error' });
+    const caption = ((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '').trim().replace(/^["']|["']$/g, '');
+    res.json({ caption });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ===================== CHAT / DM ROUTES =====================
 
 app.get('/api/conversations', async (req, res) => {
