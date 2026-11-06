@@ -1482,7 +1482,7 @@ function closeAllOverlays(){
     overlay: closeModal, profileMenuOverlay: closeProfileMenu, menuOverlay: closeMenu,
     editSheetOverlay: closeEditSheet, sheetOverlay: closeSheet, storyUploadOverlay: closeStoryUploadModal,
     storyViewerOverlay: closeStoryViewer, storyViewsOverlay: closeStoryViewsSheet,
-    storyCommentsDrawer: toggleStoryCommentsDrawer, notifOverlay: closeNotifications,
+     notifOverlay: closeNotifications,
     chatInboxOverlay: closeChatInbox, chatConvoOverlay: closeChatConvo,
     chatMsgMenuOverlay: closeChatMsgMenu, chatEditOverlay: closeChatEdit, chatMediaLightbox: closeChatMediaLightbox,
     sendToOverlay: closeSendTo, userListOverlay: closeUserList, uploadModalOverlay: closeUploadModal,
@@ -2015,7 +2015,7 @@ function openYourDashboard(){
     ${tool('✏️ Edit profile', "document.getElementById('yourDashOverlay').remove();toggleSettings()")}
     ${tool('✔ Blue tick status', "document.getElementById('yourDashOverlay').remove();openBlueTick()")}
     ${tool('🔗 Share profile link', "copyProfileLink('" + currentUser.id + "')")}
-    ${tool('🗂️ Manage uploads', "window.location.href='/admin.html'")}
+    ${tool('🗂️ Manage uploads', "window.location.href='/dashboard.html'")}
     ${tool('🆘 Help desk', "document.getElementById('yourDashOverlay').remove();openProfileMenu();setTimeout(()=>{renderSettingsPrivacyMenu();setTimeout(renderHelpDesk,60);},60)")}
   `;
 }
@@ -2295,7 +2295,7 @@ function renderProfileMenuMain(){
   document.getElementById('profileMenuBody').innerHTML =
     menuRow('⚙️', 'Settings and Privacy', 'renderSettingsPrivacyMenu()') +
     menuRow('📊', 'Your Activity', 'renderActivityMenu()') +
-    menuRow('🗂️', 'Manage uploads', "window.location.href='/admin.html'") +
+    menuRow('🗂️', 'Manage uploads', "window.location.href='/dashboard.html'") +
     menuRow('📲', 'Get App', "window.open('https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk','_blank')") +
     menuRow('🚪', 'Log Out', 'confirmLogoutFromMenu()', true);
 }
@@ -5405,7 +5405,7 @@ function closeStoryViewer(){
   vidEl.onended = null; vidEl.onloadedmetadata = null;
   vidEl.pause(); vidEl.src = '';
   document.getElementById('storyViewerOverlay').classList.remove('open');
-  document.getElementById('storyCommentsDrawer').classList.remove('open');
+  const _scd = document.getElementById('storyCommentsDrawer'); if (_scd) _scd.classList.remove('open');
   currentStoryId = null;
   loadStories();
 }
@@ -5514,7 +5514,7 @@ async function openHighlightViewer(highlightId){
     currentStoryGroupIndex = 0;
     currentStoryIndex = 0;
     document.getElementById('storyViewerOverlay').classList.add('open');
-    document.getElementById('storyCommentsDrawer').classList.remove('open');
+    const _scd = document.getElementById('storyCommentsDrawer'); if (_scd) _scd.classList.remove('open');
     renderStoryProgressBars(group.stories.length);
     startStoryPlayback();
   } catch (e) {}
@@ -7298,7 +7298,7 @@ window.UploadMgr = (function(){
     storyUploadOverlay: () => closeStoryUploadModal(),
     storyViewerOverlay: () => closeStoryViewer(),
     storyViewsOverlay: () => closeStoryViewsSheet(),
-    storyCommentsDrawer: () => toggleStoryCommentsDrawer(),
+    
     notifOverlay: () => closeNotifications(),
     chatInboxOverlay: () => closeChatInbox(),
     chatConvoOverlay: () => closeChatConvo(),
@@ -7508,3 +7508,4 @@ function shareCurrentFilmById(id, title) {
 </script>
 </body>
 </html>
+function toggleStoryCommentsDrawer(){ const d = document.getElementById('storyCommentsDrawer'); if (d) d.classList.toggle('open'); }
