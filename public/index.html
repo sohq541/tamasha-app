@@ -5382,8 +5382,16 @@ function storyAdvanceUser(direction){
   startStoryPlayback();
 }
 
+// Opening a story silences the home feed: its videos are paused and its song is stopped
+function pauseFeedMedia(){
+  document.querySelectorAll('video').forEach(v => {
+    if (!v.closest('#storyViewerOverlay') && !v.paused) v.pause();
+  });
+  stopSong();
+}
 function openStoryViewer(ownerId, targetStoryId, openComments){
   if (!storyGroups.length) return false;
+  pauseFeedMedia();
   currentStoryUserQueue = storyGroups;
   currentStoryGroupIndex = ownerId ? storyGroups.findIndex(g => g.ownerId === ownerId) : -1;
   if (currentStoryGroupIndex === -1 && targetStoryId) {
