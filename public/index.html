@@ -13,6 +13,8 @@
   <meta property="og:description" content="Watch and share short videos, full videos and photos.">
   <meta property="og:url" content="https://www.tamasha.qd.je/">
   <meta name="twitter:card" content="summary">
+  <meta name="author" content="Sohail Parvez">
+  <meta name="creator" content="Sohail Parvez">
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#FFFFFF">
 <script>
@@ -771,54 +773,90 @@
 </style>
 <script type="application/ld+json">
 {
- "@context": "https://schema.org",
- "@graph": [
-  {
-   "@type": "Organization",
-   "@id": "https://www.tamasha.qd.je/#org",
-   "name": "YouSeries (Tamasha)",
-   "alternateName": [
-    "Tamasha",
-    "YouSeries"
-   ],
-   "url": "https://www.tamasha.qd.je/",
-   "logo": "https://www.tamasha.qd.je/icon-512.png",
-   "description": "YouSeries (Tamasha) is a video and shorts social media platform. Founded by Sohail Parvez.",
-   "sameAs": [
-    "https://www.instagram.com/sohail_parvezofficial/"
-   ],
-   "founder": {
-    "@id": "https://www.tamasha.qd.je/#founder"
-   }
-  },
-  {
-   "@type": "Person",
-   "@id": "https://www.tamasha.qd.je/#founder",
-   "name": "Sohail Parvez",
-   "jobTitle": [
-    "Founder",
-    "CEO"
-   ],
-   "description": "Founder and CEO of YouSeries (Tamasha), a video and shorts social media platform. Holds an MBA in Data Analytics.",
-   "url": "https://www.tamasha.qd.je/",
-   "sameAs": [
-    "https://www.instagram.com/sohail_parvezofficial/",
-    "https://www.facebook.com/share/1CKJdD67rj/"
-   ],
-   "worksFor": {
-    "@id": "https://www.tamasha.qd.je/#org"
-   }
-  },
-  {
-   "@type": "WebSite",
-   "@id": "https://www.tamasha.qd.je/#site",
-   "url": "https://www.tamasha.qd.je/",
-   "name": "YouSeries (Tamasha)",
-   "publisher": {
-    "@id": "https://www.tamasha.qd.je/#org"
-   }
-  }
- ]
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.tamasha.qd.je/#org",
+      "name": "YouSeries (Tamasha)",
+      "alternateName": [
+        "Tamasha",
+        "YouSeries"
+      ],
+      "url": "https://www.tamasha.qd.je/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.tamasha.qd.je/icon-512.png"
+      },
+      "description": "YouSeries (Tamasha) is a video and shorts social media platform. Founded by Sohail Parvez.",
+      "email": "sohailp541@gmail.com",
+      "sameAs": [
+        "https://www.instagram.com/sohail_parvezofficial/",
+        "https://www.facebook.com/share/1CKJdD67rj/"
+      ],
+      "founder": {
+        "@id": "https://www.tamasha.qd.je/#founder"
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://www.tamasha.qd.je/#founder",
+      "name": "Sohail Parvez",
+      "jobTitle": [
+        "Founder",
+        "CEO"
+      ],
+      "description": "Founder and CEO of YouSeries (Tamasha), a video and shorts social media platform. Holds an MBA in Data Analytics.",
+      "url": "https://www.tamasha.qd.je/",
+      "sameAs": [
+        "https://www.instagram.com/sohail_parvezofficial/",
+        "https://www.facebook.com/share/1CKJdD67rj/"
+      ],
+      "worksFor": {
+        "@id": "https://www.tamasha.qd.je/#org"
+      }
+    },
+    {
+      "@type": "ProfilePage",
+      "@id": "https://www.tamasha.qd.je/#profilepage",
+      "url": "https://www.tamasha.qd.je/",
+      "name": "Sohail Parvez – Founder & CEO of YouSeries (Tamasha)",
+      "mainEntity": {
+        "@id": "https://www.tamasha.qd.je/#founder"
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://www.tamasha.qd.je/#app",
+      "name": "YouSeries (Tamasha)",
+      "operatingSystem": "Web, Android, iOS",
+      "applicationCategory": "SocialNetworkingApplication",
+      "url": "https://www.tamasha.qd.je/",
+      "downloadUrl": "https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk",
+      "author": {
+        "@id": "https://www.tamasha.qd.je/#founder"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "150"
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.tamasha.qd.je/#site",
+      "url": "https://www.tamasha.qd.je/",
+      "name": "YouSeries (Tamasha)",
+      "publisher": {
+        "@id": "https://www.tamasha.qd.je/#org"
+      }
+    }
+  ]
 }
 </script>
 </head>
@@ -7521,7 +7559,8 @@ function shareCurrentFilmById(id, title) {
 </script>
 <footer class="seo-footer" style="padding:18px 16px 90px;text-align:center;font-size:12.5px;line-height:1.6;color:#A9A3C9;">
   <h2 style="font-size:14px;margin:0 0 6px;color:#EDEBFF;">YouSeries – Video & Shorts Streaming</h2>
-  <p style="margin:0 0 8px;">Watch and share short videos, full videos and photos on YouSeries. Follow your favorite creators, comment, and upload your own content.</p>
+  <p style="margin:0 0 6px;">Watch and share short videos, full videos and photos on YouSeries (Tamasha). Follow your favorite creators, comment, and upload your own content.</p>
+  <p style="margin:0 0 8px;color:#EDEBFF;font-weight:600;">Founded by Sohail Parvez (Founder &amp; CEO)</p>
   <p style="margin:0;"><a href="/login.html" style="color:#7C5CFF;">Login</a> · <a href="/signup.html" style="color:#7C5CFF;">Sign up</a> · <a href="/privacy-policy.html" style="color:#7C5CFF;">Privacy Policy</a> · <a href="/terms-of-service.html" style="color:#7C5CFF;">Terms of Service</a></p>
 </footer>
 <script>
