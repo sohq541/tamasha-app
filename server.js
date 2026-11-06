@@ -351,7 +351,7 @@ async function storeWriteJSON(key, data) {
 
 // ---------------- Notifications ----------------
 const NOTIF_CATS = {
-  like: ['comment_like'], comment: ['film_comment', 'story_comment'], follow: ['follow'], mention: ['mention'],
+  like: ['comment_like', 'story_like'], comment: ['film_comment', 'story_comment'], follow: ['follow'], mention: ['mention'],
   message: ['message'], collab: ['collab_invite', 'collab_accepted'], story: ['story_view', 'story_reaction', 'story_comment']
 };
 async function notify(toUserId, { type, fromUserId, fromUsername, filmId, storyId, conversationId, message }) {
@@ -2191,14 +2191,20 @@ app.get('/api/stories', async (req, res) => {
     const groups = await Promise.all(Object.keys(byUser).map(async ownerId => {
       const owner = users.find(u => u.id === ownerId);
       const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
-      const userStories = await Promise.all(byUser[ownerId].slice().reverse().map(async s => ({
-        id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-        mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
-        mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
-        viewCount: (s.views || []).length,
-        commentCount: (s.comments || []).length,
-        viewedByMe: !!(currentUser && (s.views || []).some(v => v.userId === currentUser.id))
-      })));
+      const userStories = await Promise.all(byUser[ownerId].slice().reverse().map(async s => {
+        const likesArr = Array.isArray(s.likes) ? s.likes : [];
+        const isLikedByMe = !!(currentUser && (likesArr.includes(currentUser.id) || (s.comments || []).some(c => c && c.userId === currentUser.id && c.text && c.text.trim() === '❤️')));
+        return {
+          id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
+          mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
+          mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
+          viewCount: (s.views || []).length,
+          likeCount: likesArr.length,
+          likedByMe: isLikedByMe,
+          commentCount: (s.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️').length,
+          viewedByMe: !!(currentUser && (s.views || []).some(v => v.userId === currentUser.id))
+        };
+      }));
       return {
         ownerId,
         ownerUsername: owner ? owner.username : userStories[0].ownerUsername,
@@ -2272,11 +2278,103 @@ app.get('/api/stories/:id/views', async (req, res) => {
     if (!s) return res.status(404).json({ error: 'Story not found' });
     if (s.ownerId !== currentUser.id) return res.status(403).json({ error: 'Only the story owner can view this' });
     const users = await readUsers();
-    const viewers = (s.views || []).slice().reverse().map(v => {
-      const u = users.find(x => x.id === v.userId);
-      return { userId: v.userId, username: u ? u.username : v.username, profileImage: u && u.profileImage ? '/media/avatar/' + u.id : null, viewedAt: v.viewedAt };
+    const directUrl = makeDirectUrlCache();
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const likesSet = new Set(s.likes || []);
+    (s.comments || []).forEach(c => {
+      if (c && c.text && c.text.trim() === '❤️') likesSet.add(c.userId);
     });
-    res.json({ viewCount: viewers.length, viewers });
+
+    const userCommentsMap = new Map();
+    const rawComments = (s.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️');
+    rawComments.forEach(c => {
+      if (!c || !c.userId) return;
+      if (!userCommentsMap.has(c.userId)) userCommentsMap.set(c.userId, []);
+      userCommentsMap.get(c.userId).push(c.text);
+    });
+
+    const viewsList = (s.views || []).slice();
+    const viewsUserIds = new Set(viewsList.map(v => v.userId));
+    rawComments.forEach(c => {
+      if (c.userId && !viewsUserIds.has(c.userId)) {
+        viewsUserIds.add(c.userId);
+        viewsList.push({ userId: c.userId, username: c.name || 'viewer', viewedAt: c.createdAt || new Date().toISOString() });
+      }
+    });
+    likesSet.forEach(uid => {
+      if (uid && !viewsUserIds.has(uid)) {
+        viewsUserIds.add(uid);
+        const u = userMap.get(uid);
+        viewsList.push({ userId: uid, username: u ? u.username : 'viewer', viewedAt: new Date().toISOString() });
+      }
+    });
+
+    const viewers = await Promise.all(viewsList.reverse().map(async v => {
+      const u = userMap.get(v.userId);
+      const avatarUrl = u && u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null;
+      const cmts = userCommentsMap.get(v.userId) || [];
+      return {
+        userId: v.userId,
+        username: u ? u.username : v.username,
+        profileImage: avatarUrl,
+        viewedAt: v.viewedAt,
+        liked: likesSet.has(v.userId),
+        comment: cmts.length ? cmts[cmts.length - 1] : null,
+        comments: cmts,
+        commentCount: cmts.length
+      };
+    }));
+
+    const comments = await Promise.all(rawComments.slice().reverse().map(async c => {
+      const u = userMap.get(c.userId);
+      const avatarUrl = u && u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null;
+      return {
+        id: c.id,
+        userId: c.userId,
+        name: u ? u.username : c.name,
+        profileImage: avatarUrl,
+        text: c.text,
+        createdAt: c.createdAt
+      };
+    }));
+
+    res.json({
+      viewCount: viewers.length,
+      likeCount: likesSet.size,
+      commentCount: comments.length,
+      viewers,
+      comments
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/stories/:id/like', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Please log in to like' });
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+    if (!Array.isArray(s.likes)) s.likes = [];
+    const idx = s.likes.indexOf(currentUser.id);
+    const liked = idx === -1;
+    if (liked) {
+      s.likes.push(currentUser.id);
+      if (s.ownerId !== currentUser.id) {
+        notify(s.ownerId, {
+          type: 'story_like',
+          fromUserId: currentUser.id,
+          fromUsername: currentUser.username,
+          storyId: s.id,
+          message: `@${currentUser.username} liked your story`
+        }).catch(() => {});
+      }
+    } else {
+      s.likes.splice(idx, 1);
+    }
+    await writeStories(stories);
+    res.json({ liked, likesCount: s.likes.length, likes: s.likes });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
