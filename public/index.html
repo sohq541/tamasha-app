@@ -454,10 +454,13 @@
 .story-views-tab.active{background:rgba(80,140,255,0.25);color:#6EA8FF;}
 .story-views-count-row{padding:0 16px 12px;}
 .story-views-count{font-size:22px;font-weight:800;color:#fff;}
-.story-viewer-row{display:flex;align-items:center;gap:12px;padding:10px 16px;}
-.story-viewer-row img{width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;}
-.story-viewer-row-fallback{width:48px;height:48px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;}
-.story-viewer-row-name{color:#fff;font-size:15px;}
+.story-viewer-row{display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.story-viewer-avatar-wrap{position:relative;width:44px;height:44px;flex-shrink:0;}
+.story-viewer-avatar-wrap img{width:44px;height:44px;border-radius:50%;object-fit:cover;display:block;}
+.story-viewer-avatar-wrap .story-viewer-row-fallback{width:44px;height:44px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;}
+.story-viewer-heart-badge{position:absolute;bottom:-3px;right:-3px;width:19px;height:19px;background:#ff2d55;border:2.5px solid #141225;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1;box-shadow:0 2px 5px rgba(0,0,0,0.5);pointer-events:none;}
+.story-viewer-row-name{color:#fff;font-size:14.5px;}
+.story-viewer-comment-preview{display:flex;align-items:flex-start;gap:6px;background:rgba(255,255,255,0.07);border-left:3px solid #6ea8ff;padding:5px 9px;border-radius:3px 8px 8px 3px;margin-top:5px;font-size:12.5px;color:#f0f2f5;line-height:1.35;word-break:break-word;}
 
 /* ===== CHAT / DM ===== */
 .chat-full-overlay{position:fixed;top:0;left:0;right:0;bottom:calc(63px + env(safe-area-inset-bottom));background:var(--ink);display:none;z-index:120;flex-direction:column;}
@@ -741,6 +744,30 @@
 .profile-video-title{font-size:13.5px;font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .profile-video-meta{font-size:11.5px;color:var(--cream-dim);margin-top:2px;}
 
+
+/* ===== Story Floating Heart Animation & Views Sheet ===== */
+@keyframes storyHeartFloat {
+  0% { transform: translate(0, 0) scale(0.6) rotate(0deg); opacity: 1; }
+  50% { opacity: 0.95; }
+  100% { transform: translate(var(--tx, 0px), -240px) scale(1.35) rotate(var(--rot, 15deg)); opacity: 0; }
+}
+.floating-story-heart {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  font-size: 28px;
+  animation: storyHeartFloat 1.05s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+}
+.story-heart-pop {
+  animation: storyHeartPulse 0.35s ease-out;
+}
+@keyframes storyHeartPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+
 </style>
 </head>
 <body>
@@ -933,11 +960,30 @@
 </div>
 
 <div class="story-views-overlay" id="storyViewsOverlay">
-  <div class="story-views-header"><button onclick="closeStoryViewsSheet()">✕</button></div>
+  <div class="story-views-header">
+    <div style="font-family:'Baloo 2',sans-serif;font-size:18px;font-weight:800;color:#fff;margin-right:auto;">Story Activity</div>
+    <button onclick="closeStoryViewsSheet()">✕</button>
+  </div>
   <div class="story-views-preview-row" id="storyViewsPreviewWrap"></div>
-  <div class="story-views-tabs"><button class="story-views-tab active">Viewers</button></div>
-  <div class="story-views-count-row"><div class="story-views-count" id="storyViewsCountHeading">0 viewers</div></div>
-  <div id="storyViewsList" style="flex:1;overflow-y:auto;"></div>
+  <div class="story-views-tabs">
+    <button class="story-views-tab active" id="svTabViews" onclick="switchStoryViewsTab('views')">👁️ Viewers (<span id="svTabViewsCount">0</span>)</button>
+    <button class="story-views-tab" id="svTabComments" onclick="switchStoryViewsTab('comments')">💬 Replies &amp; Comments (<span id="svTabCommentsCount">0</span>)</button>
+  </div>
+  <div id="svViewsSection" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px 10px;">
+      <div class="story-views-count" id="storyViewsCountHeading" style="font-size:17px;font-weight:700;color:#fff;">0 viewers</div>
+      <div style="display:flex;gap:6px;">
+        <button type="button" class="feed-chip active" id="svFiltAll" onclick="filterStoryViewers('all')" style="padding:4px 10px;font-size:11.5px;">All</button>
+        <button type="button" class="feed-chip" id="svFiltLiked" onclick="filterStoryViewers('liked')" style="padding:4px 10px;font-size:11.5px;">❤️ Liked</button>
+        <button type="button" class="feed-chip" id="svFiltCommented" onclick="filterStoryViewers('commented')" style="padding:4px 10px;font-size:11.5px;">💬 Commented</button>
+      </div>
+    </div>
+    <div id="storyViewsList" style="flex:1;overflow-y:auto;"></div>
+  </div>
+  <div id="svCommentsSection" style="flex:1;overflow-y:auto;display:none;flex-direction:column;">
+    <div style="padding:0 16px 10px;font-size:15px;font-weight:700;color:#fff;">Replies &amp; Comments</div>
+    <div id="svCommentsList" style="flex:1;overflow-y:auto;padding:0 14px 20px;"></div>
+  </div>
 </div>
 
 <!-- ===== STORY VIEWER (full screen) ===== -->
@@ -959,15 +1005,19 @@
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
     <div class="story-tap-zone story-tap-right" onclick="storyGoNext()"></div>
   </div>
-  <div class="story-viewer-footer">
-    <button class="story-views-btn hidden" id="storyOwnerViewsBtn" onclick="openStoryViewsSheet()">👁 <span id="storyViewCountLabel">0</span></button>
-    <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Comment..." onkeydown="if(event.key==='Enter'){postStoryComment();}">
-    <button class="story-heart-btn" id="storyLikeBtn" onclick="postStoryQuickLike()">🤍</button>
-    <button class="story-views-btn" onclick="toggleStoryCommentsDrawer()">💬 <span id="storyCommentCountLabel">0</span></button>
-  </div>
-  <div class="story-comments-drawer" id="storyCommentsDrawer">
-    <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="toggleStoryCommentsDrawer()">✕</button></div>
-    <div class="story-comments-list" id="storyCommentsList"></div>
+  <div class="story-viewer-footer" id="storyViewerFooter">
+    <div id="storyOwnerFooter" class="hidden" style="width:100%;display:flex;align-items:center;justify-content:space-between;">
+      <button type="button" class="story-views-btn" onclick="openStoryViewsSheet('views')" style="font-size:14px;font-weight:700;background:rgba(255,255,255,0.18);padding:9px 18px;border-radius:999px;">
+        👁️ <span id="storyViewCountLabel">0</span> Viewers · Activity
+      </button>
+      <button type="button" class="story-views-btn" onclick="openStoryViewsSheet('comments')" style="font-size:13.5px;color:rgba(255,255,255,0.9);background:none;padding:8px;">
+        💬 <span id="storyCommentCountLabel">0</span> Replies
+      </button>
+    </div>
+    <div id="storyViewerReplyRow" style="width:100%;display:flex;align-items:center;gap:10px;">
+      <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Send reply..." onkeydown="if(event.key==='Enter'){postStoryComment();}">
+      <button type="button" class="story-heart-btn" id="storyLikeBtn" onclick="toggleStoryLike(event)" title="Like story">🤍</button>
+    </div>
   </div>
 </div>
 
@@ -5221,12 +5271,25 @@ function startStoryPlayback(){
   ovEl.innerHTML = linkifyStoryTags(story.textOverlay || '');
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
-  document.getElementById('storyOwnerViewsBtn').classList.toggle('hidden', !isOwner);
+  const ownerFoot = document.getElementById('storyOwnerFooter');
+  const replyRow = document.getElementById('storyViewerReplyRow');
+  if (ownerFoot) ownerFoot.classList.toggle('hidden', !isOwner);
+  if (replyRow) replyRow.classList.toggle('hidden', isOwner);
   document.getElementById('storyDeleteBtn').classList.toggle('hidden', !isOwner || !!group.highlightId);
   document.getElementById('storyHighlightDeleteBtn').classList.toggle('hidden', !isOwner || !group.highlightId);
   document.getElementById('storyViewCountLabel').textContent = story.viewCount || 0;
   document.getElementById('storyCommentCountLabel').textContent = story.commentCount || 0;
-  document.getElementById('storyLikeBtn').textContent = '🤍';
+  const likeBtn = document.getElementById('storyLikeBtn');
+  const isLiked = !!(story.likedByMe || (story.likes && currentUser && story.likes.includes(currentUser.id)));
+  if (likeBtn) {
+    likeBtn.textContent = isLiked ? '❤️' : '🤍';
+    likeBtn.classList.toggle('liked', isLiked);
+  }
+  const cmtInput = document.getElementById('storyCommentInput');
+  if (cmtInput) {
+    cmtInput.placeholder = 'Send reply to @' + group.ownerUsername + '...';
+    cmtInput.value = '';
+  }
 
   const imgEl = document.getElementById('storyViewImg');
   const vidEl = document.getElementById('storyViewVideo');
@@ -5270,9 +5333,6 @@ function startStoryPlayback(){
 
   currentStoryId = story.id;
   recordStoryView(story.id);
-  if (document.getElementById('storyCommentsDrawer').classList.contains('open')) {
-    loadStoryComments(story.id);
-  }
   preloadNextStoryMedia();
 }
 
@@ -5332,9 +5392,9 @@ function openStoryViewer(ownerId, targetStoryId, openComments){
     if (currentStoryIndex === -1) currentStoryIndex = 0;
   }
   document.getElementById('storyViewerOverlay').classList.add('open');
-  document.getElementById('storyCommentsDrawer').classList.toggle('open', !!openComments);
   renderStoryProgressBars(group.stories.length);
   startStoryPlayback();
+  if (openComments) setTimeout(() => openStoryViewsSheet('comments'), 250);
   return true;
 }
 
@@ -5486,10 +5546,12 @@ async function recordStoryView(storyId){
   try { await fetch('/api/stories/' + storyId + '/view', { method: 'POST' }); } catch (e) {}
 }
 
-async function openStoryViewsSheet(){
+let storyViewsCache = { viewers: [], comments: [] };
+let storyViewsFilter = 'all';
+
+async function openStoryViewsSheet(initialTab){
   if (!currentStoryId) return;
-  clearStoryTimer();
-  document.getElementById('storyViewVideo').pause();
+  pauseStoryProgress();
   const group = currentStoryUserQueue[currentStoryGroupIndex];
   const story = group ? group.stories[currentStoryIndex] : null;
   const previewWrap = document.getElementById('storyViewsPreviewWrap');
@@ -5498,105 +5560,230 @@ async function openStoryViewsSheet(){
         ? `<video src="${story.mediaUrl}" muted autoplay loop playsinline></video>`
         : `<img src="${story.mediaUrl}" loading="lazy" decoding="async">`)
     : '';
+
+  switchStoryViewsTab(initialTab === 'comments' ? 'comments' : 'views');
+  document.getElementById('storyViewsList').innerHTML = '<p class="comment-empty" style="padding:16px;">Loading…</p>';
+  document.getElementById('svCommentsList').innerHTML = '<p class="comment-empty" style="padding:16px;">Loading…</p>';
+  document.getElementById('storyViewsOverlay').classList.add('open');
+
   try {
     const res = await fetch('/api/stories/' + currentStoryId + '/views');
     const data = await res.json();
-    document.getElementById('storyViewsCountHeading').textContent = data.viewCount + (data.viewCount === 1 ? ' viewer' : ' viewers');
-    const listEl = document.getElementById('storyViewsList');
-    if (!data.viewers || !data.viewers.length) {
-      listEl.innerHTML = '<p class="comment-empty" style="padding:16px;">No views yet.</p>';
-    } else {
-      listEl.innerHTML = data.viewers.map(v => `
-        <div class="story-viewer-row">
-          ${v.profileImage ? `<img src="${v.profileImage}" loading="lazy" decoding="async">` : `<div class="story-viewer-row-fallback">${escapeHtml(v.username[0].toUpperCase())}</div>`}
-          <div class="story-viewer-row-name">@${escapeHtml(v.username)}</div>
-        </div>
-      `).join('');
-    }
-    document.getElementById('storyViewsOverlay').classList.add('open');
-  } catch (e) { showToast('Something went wrong'); }
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    storyViewsCache = {
+      viewers: data.viewers || [],
+      comments: data.comments || []
+    };
+    document.getElementById('svTabViewsCount').textContent = data.viewCount || 0;
+    document.getElementById('svTabCommentsCount').textContent = data.commentCount || 0;
+    document.getElementById('storyViewCountLabel').textContent = data.viewCount || 0;
+    document.getElementById('storyCommentCountLabel').textContent = data.commentCount || 0;
+    document.getElementById('storyViewsCountHeading').textContent = (data.viewCount || 0) + ((data.viewCount === 1) ? ' viewer' : ' viewers');
+    renderStoryViewersList();
+    renderStoryCommentsInViews();
+  } catch (e) {
+    document.getElementById('storyViewsList').innerHTML = '<p class="comment-empty" style="padding:16px;">❌ ' + escapeHtml(e.message) + '</p>';
+  }
 }
+
 function closeStoryViewsSheet(){
   document.getElementById('storyViewsOverlay').classList.remove('open');
-  if (currentStoryId) startStoryPlayback();
+  resumeStoryProgress();
 }
 
-function toggleStoryCommentsDrawer(){
-  const dr = document.getElementById('storyCommentsDrawer');
-  const opening = !dr.classList.contains('open');
-  dr.classList.toggle('open', opening);
-  if (opening && currentStoryId) loadStoryComments(currentStoryId);
+function switchStoryViewsTab(tab){
+  const isViews = tab === 'views';
+  document.getElementById('svTabViews').classList.toggle('active', isViews);
+  document.getElementById('svTabComments').classList.toggle('active', !isViews);
+  document.getElementById('svViewsSection').style.display = isViews ? 'flex' : 'none';
+  document.getElementById('svCommentsSection').style.display = isViews ? 'none' : 'flex';
 }
 
-async function loadStoryComments(storyId){
-  try {
-    const res = await fetch('/api/stories/' + storyId);
-    const story = await res.json();
-    document.getElementById('storyCommentCountLabel').textContent = (story.comments || []).length;
-    renderStoryCommentList(story.comments || [], storyId);
-  } catch (e) {}
+function filterStoryViewers(f){
+  storyViewsFilter = f;
+  const btnAll = document.getElementById('svFiltAll');
+  const btnLiked = document.getElementById('svFiltLiked');
+  const btnCmt = document.getElementById('svFiltCommented');
+  if (btnAll) btnAll.classList.toggle('active', f === 'all');
+  if (btnLiked) btnLiked.classList.toggle('active', f === 'liked');
+  if (btnCmt) btnCmt.classList.toggle('active', f === 'commented');
+  renderStoryViewersList();
 }
 
-function renderStoryCommentList(comments, storyId){
-  const listEl = document.getElementById('storyCommentsList');
-  if (!comments.length) { listEl.innerHTML = '<p class="comment-empty">Be the first to comment.</p>'; return; }
-  listEl.innerHTML = comments.slice().reverse().map(c => {
-    const liked = currentUser && (c.likes || []).includes(currentUser.id);
+function renderStoryViewersList(){
+  const listEl = document.getElementById('storyViewsList');
+  if (!listEl) return;
+  const rawList = storyViewsCache.viewers || [];
+  const commentsList = (storyViewsCache.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️');
+
+  const userCommentsMap = new Map();
+  commentsList.forEach(c => {
+    if (!c || !c.userId) return;
+    if (!userCommentsMap.has(c.userId)) userCommentsMap.set(c.userId, []);
+    userCommentsMap.get(c.userId).push(c);
+  });
+
+  const list = rawList.filter(v => {
+    if (storyViewsFilter === 'liked') return !!v.liked;
+    if (storyViewsFilter === 'commented') {
+      const cmts = userCommentsMap.get(v.userId) || [];
+      return (v.comment && v.comment.trim()) || cmts.length > 0;
+    }
+    return true;
+  });
+
+  if (!list.length) {
+    let emptyMsg = 'No views yet.';
+    if (storyViewsFilter === 'liked') emptyMsg = 'No likes on this story yet.';
+    else if (storyViewsFilter === 'commented') emptyMsg = 'No comments or replies from viewers yet.';
+    listEl.innerHTML = `<p class="comment-empty" style="padding:24px 16px;">${emptyMsg}</p>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(v => {
+    const userCmts = userCommentsMap.get(v.userId) || [];
+    const displayComment = v.comment || (userCmts.length ? userCmts[userCmts.length - 1].text : null);
+    const cmtCount = (v.comments && v.comments.length) || userCmts.length;
+
     return `
-      <div class="comment-item">
-        <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
-          <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="goToProfileDirect('${c.userId}','${escapeHtml(c.name)}')">
-            ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : ''}
-            <span style="font-weight:600;">@${escapeHtml(c.name)}</span>
-          </div>
-          <button type="button" onclick="toggleStoryCommentLike('${storyId}','${c.id}',this)" style="background:transparent;border:none;color:${liked ? 'var(--marigold)' : 'var(--cream-dim)'};font-size:13px;cursor:pointer;display:flex;align-items:center;gap:3px;">
-            ${liked ? '❤️' : '🤍'} <span>${(c.likes || []).length}</span>
-          </button>
+      <div class="story-viewer-row">
+        <div class="story-viewer-avatar-wrap" style="cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${v.userId}','${escapeHtml(v.username)}')">
+          ${v.profileImage
+            ? `<img src="${v.profileImage}" loading="lazy" decoding="async">`
+            : `<div class="story-viewer-row-fallback">${escapeHtml((v.username || '?')[0].toUpperCase())}</div>`}
+          ${v.liked ? `
+            <span class="story-viewer-heart-badge" title="Liked this story">❤️</span>
+          ` : ''}
         </div>
-        <div class="comment-text">${escapeHtml(c.text)}</div>
-        <div style="color:var(--cream-dim);font-size:11px;margin-top:3px;">${storyTimeAgo(c.createdAt)}</div>
+        <div style="flex:1;min-width:0;padding-top:2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span class="story-viewer-row-name" style="font-weight:600;cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${v.userId}','${escapeHtml(v.username)}')">@${escapeHtml(v.username)}</span>
+            <span style="font-size:11px;color:rgba(255,255,255,0.5);flex-shrink:0;">${storyTimeAgo(v.viewedAt)}</span>
+          </div>
+          ${displayComment ? `
+            <div class="story-viewer-comment-preview">
+              <span style="font-size:11px;opacity:0.85;flex-shrink:0;margin-top:1px;">💬</span>
+              <div style="flex:1;min-width:0;">
+                <span style="color:#fff;">${escapeHtml(displayComment)}</span>
+                ${cmtCount > 1 ? `<span style="font-size:10.5px;color:#6ea8ff;font-weight:700;margin-left:6px;">(${cmtCount} replies)</span>` : ''}
+              </div>
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
   }).join('');
 }
 
-async function toggleStoryCommentLike(storyId, commentId, btnEl){
-  if (!currentUser) { window.location.href = '/login.html'; return; }
+function renderStoryCommentsInViews(){
+  const listEl = document.getElementById('svCommentsList');
+  if (!listEl) return;
+  const list = storyViewsCache.comments || [];
+  if (!list.length) {
+    listEl.innerHTML = '<p class="comment-empty" style="padding:24px 16px;">No replies or comments on this story yet.</p>';
+    return;
+  }
+  listEl.innerHTML = list.map(c => `
+    <div class="comment-item" style="background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${c.userId}','${escapeHtml(c.name)}')">
+          ${c.profileImage ? `<img src="${c.profileImage}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" loading="lazy">` : `<div style="width:26px;height:26px;border-radius:50%;background:var(--marigold);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">${escapeHtml((c.name || 'U')[0].toUpperCase())}</div>`}
+          <span style="font-weight:700;color:#fff;font-size:13.5px;">@${escapeHtml(c.name)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:11.5px;color:rgba(255,255,255,0.55);">${storyTimeAgo(c.createdAt)}</span>
+          <button type="button" onclick="deleteStoryCommentFromViews('${c.id}')" style="background:none;border:none;color:#e88a8a;font-size:13px;cursor:pointer;" title="Delete reply">🗑️</button>
+        </div>
+      </div>
+      <div style="font-size:14px;color:#fff;line-height:1.4;word-break:break-word;">${escapeHtml(c.text)}</div>
+    </div>
+  `).join('');
+}
+
+async function deleteStoryCommentFromViews(commentId){
+  if (!confirm('Delete this reply?')) return;
   try {
-    const res = await fetch(`/api/stories/${storyId}/comments/${commentId}/like`, { method: 'POST' });
+    const res = await fetch(`/api/stories/${currentStoryId}/comments/${commentId}/delete`, { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete');
+    storyViewsCache.comments = (storyViewsCache.comments || []).filter(c => c.id !== commentId);
+    document.getElementById('svTabCommentsCount').textContent = storyViewsCache.comments.length;
+    document.getElementById('storyCommentCountLabel').textContent = storyViewsCache.comments.length;
+    renderStoryCommentsInViews();
+  } catch (e) { showToast(e.message); }
+}
+
+function triggerStoryHeartAnimation(sourceBtn){
+  const footer = document.getElementById('storyViewerFooter');
+  if (!footer) return;
+  sourceBtn.classList.remove('story-heart-pop');
+  void sourceBtn.offsetWidth;
+  sourceBtn.classList.add('story-heart-pop');
+
+  const count = 5;
+  for (let i = 0; i < count; i++) {
+    const heart = document.createElement('div');
+    heart.className = 'floating-story-heart';
+    heart.textContent = '❤️';
+    const offsetX = (Math.random() * 50 - 25);
+    const targetX = (Math.random() * 90 - 45);
+    const rot = (Math.random() * 40 - 20) + 'deg';
+    const rect = sourceBtn.getBoundingClientRect();
+    const footRect = footer.getBoundingClientRect();
+    heart.style.left = (rect.left - footRect.left + 8 + offsetX) + 'px';
+    heart.style.bottom = '16px';
+    heart.style.setProperty('--tx', targetX + 'px');
+    heart.style.setProperty('--rot', rot);
+    heart.style.animationDelay = (i * 0.08) + 's';
+    footer.appendChild(heart);
+    setTimeout(() => heart.remove(), 1200 + (i * 80));
+  }
+}
+
+async function toggleStoryLike(event){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const btn = event ? event.currentTarget : document.getElementById('storyLikeBtn');
+  if (!currentStoryId) return;
+
+  const wasLiked = btn.textContent === '❤️' || btn.classList.contains('liked');
+  const willLike = !wasLiked;
+  btn.textContent = willLike ? '❤️' : '🤍';
+  btn.classList.toggle('liked', willLike);
+  if (willLike) triggerStoryHeartAnimation(btn);
+
+  try {
+    const res = await fetch(`/api/stories/${currentStoryId}/like`, { method: 'POST' });
     const data = await res.json();
-    btnEl.innerHTML = `${data.liked ? '❤️' : '🤍'} <span>${data.likes}</span>`;
-    btnEl.style.color = data.liked ? 'var(--marigold)' : 'var(--cream-dim)';
-  } catch (e) {}
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    btn.textContent = data.liked ? '❤️' : '🤍';
+    btn.classList.toggle('liked', data.liked);
+    const group = currentStoryUserQueue[currentStoryGroupIndex];
+    const story = group ? group.stories[currentStoryIndex] : null;
+    if (story) {
+      story.likedByMe = data.liked;
+      story.likeCount = data.likesCount;
+    }
+  } catch (e) {
+    btn.textContent = wasLiked ? '❤️' : '🤍';
+    btn.classList.toggle('liked', wasLiked);
+  }
 }
 
 async function postStoryComment(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const input = document.getElementById('storyCommentInput');
-  const text = input.value.trim();
+  const text = (input ? input.value : '').trim();
   if (!text || !currentStoryId) return;
   input.value = '';
+  input.blur();
+  const group = currentStoryUserQueue[currentStoryGroupIndex];
   try {
-    await fetch(`/api/stories/${currentStoryId}/comments`, {
+    const res = await fetch(`/api/stories/${currentStoryId}/comments`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
     });
-    loadStoryComments(currentStoryId);
-    showToast('Comment posted!');
-  } catch (e) { showToast('Comment failed to post'); }
-}
-
-async function postStoryQuickLike(){
-  if (!currentUser) { window.location.href = '/login.html'; return; }
-  const btn = document.getElementById('storyLikeBtn');
-  btn.textContent = '❤️';
-  if (!currentStoryId) return;
-  try {
-    await fetch(`/api/stories/${currentStoryId}/comments`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: '❤️' })
-    });
-    loadStoryComments(currentStoryId);
-  } catch (e) {}
-  setTimeout(() => { btn.textContent = '🤍'; }, 1200);
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    showToast('Reply sent to @' + (group ? group.ownerUsername : 'user'));
+  } catch (e) { showToast('Reply failed to send'); }
 }
 
 let notifPollInterval = null;
