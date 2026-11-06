@@ -3655,7 +3655,7 @@ function setupShortsObserver(){
           video.play().catch(() => {});
         });
         const sf = allFilms.find(x => x.id === id);
-        if (sf && sf.song) { video.muted = true; playSong(sf.song); } else { stopSong(); }
+        if (sf && sf.song) playSong(sf.song, video); else stopSong();
         if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
         watchTimeStart(id);
         // Preload the next Short in the background so swiping down has 0ms lag
@@ -4140,8 +4140,7 @@ async function playFilm(id){
   currentFilm = f;
   renderUpNext(f);
   if (f.song && f.type !== 'photo' && f.type !== 'short') {
-    const pv = document.getElementById('player'); if (pv) pv.muted = true;
-    playSong(f.song);
+    playSong(f.song, document.getElementById('player'));
   }
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
@@ -4920,13 +4919,18 @@ function openSongPicker(kind, mediaSec){
   });
 }
 // Plays a song from its chosen start point for its chosen length
-function playSong(song){
+function playSong(song, videoEl){
   stopSong();
   if (!song || !song.url) return;
   songAudio = new Audio(song.url);
   songAudio.muted = songMutedPref;
   songAudio.currentTime = song.start || 0;
-  songAudio.play().catch(() => {});
+  songAudio.play().then(() => {
+    if (videoEl) videoEl.muted = true;               // song is playing: the video's own sound is replaced
+  }).catch(() => {
+    if (videoEl) videoEl.muted = false;              // browser blocked the song: keep the video's sound
+    refreshSongBtn();                                // shows ▶ so one tap starts the song with sound
+  });
   songStopTimer = setTimeout(stopSong, (song.duration || 15) * 1000);
   refreshSongBtn();
 }
@@ -4952,10 +4956,18 @@ let songMutedPref = (() => {
 function refreshSongBtn(){
   const oldFixed = document.getElementById('songMuteBtn');
   if (oldFixed) oldFixed.remove();
-  const icon = songMutedPref ? '🔇' : '🔊';
+  const icon = (songAudio && songAudio.paused) ? '▶' : (songMutedPref ? '🔇' : '🔊');
   document.querySelectorAll('.song-corner-mute').forEach(b => { b.textContent = icon; });
 }
 function toggleSongMute(){
+  if (songAudio && songAudio.paused) {               // the song was blocked: start it now (this tap allows sound)
+    songMutedPref = false;
+    try { localStorage.setItem('songMuted', '0'); } catch (e) {}
+    songAudio.muted = false;
+    songAudio.play().catch(() => {});
+    refreshSongBtn();
+    return;
+  }
   songMutedPref = !songMutedPref;
   try { localStorage.setItem('songMuted', songMutedPref ? '1' : '0'); } catch (e) {}
   if (songAudio) songAudio.muted = songMutedPref;
@@ -4989,12 +5001,7 @@ function playStorySong(){
   const chip = document.getElementById('storyViewerSong');
   if (chip) { chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : ''; chip.style.display = st && st.song ? 'block' : 'none'; }
   if (!st || !st.song || !st.song.url) return;
-  songAudio = new Audio(st.song.url);
-  songAudio.muted = false;
-  songAudio.currentTime = st.song.start || 0;
-  songAudio.play().catch(() => {});
-  songStopTimer = setTimeout(stopSong, (st.song.duration || 15) * 1000);
-  if (st.mediaType === 'video') { const v = document.getElementById('storyViewVideo'); if (v) v.muted = true; }
+  playSong(st.song, st.mediaType === 'video' ? document.getElementById('storyViewVideo') : null);
 }
 let storyPickedFile = null;
 let storyAdjust = null;
