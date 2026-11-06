@@ -465,6 +465,8 @@ function readFileAsBuffer(filePath) {
   return buf;
 }
 
+app.get(['/admin', '/admin.html'], (req, res) => res.redirect('/dashboard.html'));
+
 app.get('/moderation.html', (req, res) => {
   if (!isAdminBasicAuth(req)) {
     res.set('WWW-Authenticate', 'Basic realm="Moderation"');
