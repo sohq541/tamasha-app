@@ -5398,6 +5398,11 @@ function openStoryViewer(ownerId, targetStoryId, openComments){
   return true;
 }
 
+function toggleStoryCommentsDrawer(){
+  const d = document.getElementById('storyCommentsDrawer');
+  if (d) d.classList.toggle('open');
+}
+
 function closeStoryViewer(){
   stopSong();
   clearStoryTimer();
@@ -7508,4 +7513,3 @@ function shareCurrentFilmById(id, title) {
 </script>
 </body>
 </html>
-function toggleStoryCommentsDrawer(){ const d = document.getElementById('storyCommentsDrawer'); if (d) d.classList.toggle('open'); }
