@@ -1007,17 +1007,23 @@ app.post('/api/me/avatar', upload.single('avatar'), async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     if (!req.file) return res.status(400).json({ error: 'A photo file is required' });
 
-    const key = `profiles/${currentUser.id}${path.extname(req.file.originalname) || '.jpg'}`;
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const key = `profiles/${currentUser.id}-${Date.now()}${ext}`;
     await storePutBuffer(readFileAsBuffer(req.file.path), key, req.file.mimetype);
 
     const users = await readUsers();
     const user = users.find(u => u.id === currentUser.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    const oldKey = user.profileImage;
     user.profileImage = key;
-    user.avatarStorageProvider = 'gdrive';
+    user.avatarStorageProvider = r2On() ? 'r2' : 'gdrive';
     await writeUsers(users);
-
-    res.json({ profileImage: '/media/avatar/' + currentUser.id });
+    if (oldKey && oldKey !== key) {
+      storeDelete(oldKey).catch(() => {});
+    }
+    const directUrl = makeDirectUrlCache();
+    const freshUrl = await directUrl(key, user.avatarStorageProvider);
+    res.json({ profileImage: freshUrl || ('/media/avatar/' + currentUser.id + '?t=' + Date.now()) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
