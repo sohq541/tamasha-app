@@ -1880,9 +1880,10 @@ async function loadProfile(){
     if (currentUser) {
       let avatarUrl = null;
       try {
-        const pubRes = await fetch('/api/users/' + currentUser.id + '/public');
+        const pubRes = await fetch('/api/users/' + currentUser.id + '/public?t=' + Date.now());
         const pubData = await pubRes.json();
         avatarUrl = pubData.profileImage;
+        currentUser.profileImage = avatarUrl;
       } catch (err) {}
 
       headerRight.innerHTML = `
@@ -2362,9 +2363,11 @@ async function renderProfile(){
   el.innerHTML = `
     <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
-      <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="${hasOwnStory ? `openStoryViewer('${currentUser.id}')` : 'openOwnAvatarMenu()'}" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
-        ${mine.profileImage ? `<img src="${mine.profileImage}" loading="lazy" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
-        <div class="story-add-badge" style="background:var(--marigold);" onclick="event.stopPropagation();document.getElementById('avatarFileInput').click()" title="Change photo">📷</div>
+      <div style="position:relative;width:84px;height:84px;flex-shrink:0;">
+        <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="openOwnAvatarMenu()" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
+          ${mine.profileImage ? `<img src="${mine.profileImage}" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
+        </div>
+        <div class="story-add-badge" style="background:var(--marigold);width:26px;height:26px;font-size:13px;bottom:0;right:0;z-index:3;cursor:pointer;" onclick="event.stopPropagation();document.getElementById('avatarFileInput').click()" title="Change profile photo">📷</div>
       </div>
       <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="uploadAvatar(this)">
       <div class="profile-stats">
@@ -3163,7 +3166,7 @@ function openCropper(file, aspect, outW, title, videoMode){
     ov.innerHTML = `<div style="font-weight:700;margin-bottom:10px;">${title}</div>
       <div id="cropBox" style="position:relative;width:${boxW}px;height:${boxH}px;overflow:hidden;background:#111;border-radius:16px;touch-action:none;user-select:none;">
         ${isVid ? '' : `<img id="cropBg" src="${url}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.55);transform:scale(1.15);pointer-events:none;" loading="lazy" decoding="async">`}
-        ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;" loading="lazy" decoding="async">`}
+        ${isVid ? `<video id="cropImg" src="${url}" muted loop autoplay playsinline style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;"></video>` : `<img id="cropImg" src="${url}" draggable="false" style="position:absolute;left:0;top:0;max-width:none;pointer-events:none;">`}
       </div>
       <div style="font-size:12px;color:#aaa;margin-top:8px;">Pinch to zoom, drag with one finger</div>
       <div style="display:flex;gap:10px;margin-top:14px;width:${boxW}px;">
@@ -3199,7 +3202,8 @@ function openCropper(file, aspect, outW, title, videoMode){
       base = Math.min(boxW / dimW(), boxH / dimH());   // whole picture visible first
       scale = base; apply();
     };
-    if (isVid) img.addEventListener('loadedmetadata', onReady); else img.onload = onReady;
+    if (isVid) img.addEventListener('loadedmetadata', onReady);
+    else { img.onload = onReady; if (img.complete && img.naturalWidth > 0) setTimeout(onReady, 10); }
     box.onpointerdown = e => {
       box.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, pos(e));
@@ -3246,22 +3250,25 @@ function openCropper(file, aspect, outW, title, videoMode){
 }
 
 async function uploadAvatar(input){
-  if (!input.files[0]) return;
-  const cropped = await openCropper(input.files[0], 1, 512, 'Adjust profile photo');
+  if (!input.files || !input.files[0]) return;
+  const rawFile = input.files[0];
   input.value = '';
+  const cropped = await openCropper(rawFile, 1, 512, 'Adjust profile photo');
   if (!cropped) return;
+  showToast('Uploading profile photo...');
   const formData = new FormData();
   formData.append('avatar', cropped);
   try {
     const res = await fetch('/api/me/avatar', { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
-    showToast('Profile photo updated!');
+    showToast('Profile photo updated! ✔');
     await loadProfile();
+    await renderProfile();
     await loadStories();
-    renderProfile();
+    await loadFilms();
   } catch (err) {
-    showToast(err.message);
+    showToast(err.message || 'Upload failed');
   }
 }
 
