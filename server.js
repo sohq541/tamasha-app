@@ -266,6 +266,32 @@ async function notifyCollabInvite(newFilm, currentUser) {
     type: 'collab_invite', fromUserId: currentUser.id, fromUsername: currentUser.username,
     filmId: newFilm.id, message: `@${currentUser.username} invited you to collab on "${newFilm.title}"`
   });
+  try {
+    const convo = await getConversationForUsers(currentUser.id, newFilm.collaboratorId, true);
+    if (convo) {
+      const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const dmMsg = {
+        id: msgId, conversationId: convo.id, senderId: currentUser.id,
+        type: 'collab_invite', text: `🤝 Invited you to collaborate on "${newFilm.title || 'Post'}"`,
+        mediaKey: null, mediaType: null, fileName: null, storageProvider: r2On() ? 'r2' : 'gdrive', duration: null,
+        shortId: newFilm.id, shortTitle: newFilm.title || 'Post', shortOwnerUsername: currentUser.username,
+        collabStatus: 'pending',
+        createdAt: new Date().toISOString(), editedAt: null,
+        deletedFor: [], unsent: false, readBy: [currentUser.id]
+      };
+      const msgs = await readChatMessages(convo.id);
+      msgs.push(dmMsg);
+      await writeChatMessages(convo.id, msgs);
+      const convos = await readConversations();
+      const cRef = convos.find(c => c.id === convo.id);
+      if (cRef) {
+        cRef.updatedAt = dmMsg.createdAt;
+        cRef.lastMessage = { senderId: currentUser.id, preview: `🤝 Collab invite: ${newFilm.title || 'Post'}`, createdAt: dmMsg.createdAt };
+        if (cRef.hiddenFor) delete cRef.hiddenFor[newFilm.collaboratorId];
+        await writeConversations(convos);
+      }
+    }
+  } catch (e) {}
 }
 
 // ---------------- File storage: Google Drive only ----------------
@@ -980,13 +1006,22 @@ app.get('/api/users/:id/public', async (req, res) => {
 
     const currentUser = getUserFromReq(req);
     const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+    if (currentUser && currentUser.id !== user.id) {
+      if (!Array.isArray(user.profileViews)) user.profileViews = [];
+      user.profileViews = user.profileViews.filter(v => v && v.userId !== currentUser.id);
+      user.profileViews.push({ userId: currentUser.id, username: currentUser.username, viewedAt: new Date().toISOString() });
+      if (user.profileViews.length > 60) user.profileViews = user.profileViews.slice(-60);
+      writeUsers(users).catch(() => {});
+    }
     const isFollowing = me && me.following ? me.following.includes(user.id) : false;
     const followersCount = users.filter(u => u.following && u.following.includes(user.id)).length;
     const followingCount = user.following ? user.following.length : 0;
+    const defaultRole = ((user.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null;
 
     res.json({
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
       verified: !!user.verified,
+      roleBadge: user.roleBadge || defaultRole,
       note: activeNote(user),
       pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
@@ -998,6 +1033,30 @@ app.get('/api/users/:id/public', async (req, res) => {
       restricted: !!(me && me.restrictedUsers && me.restrictedUsers.includes(user.id)),
       hasBlockedMe: !!(currentUser && user.blockedUsers && user.blockedUsers.includes(currentUser.id))
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/me/profile-views', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    const directUrl = makeDirectUrlCache();
+    const now = Date.now(), d7 = 7 * 24 * 60 * 60 * 1000;
+    const recent = (me.profileViews || []).filter(v => v && v.viewedAt && (now - new Date(v.viewedAt).getTime() < d7)).slice().reverse();
+    const visitors = await Promise.all(recent.slice(0, 30).map(async v => {
+      const u = users.find(x => x.id === v.userId);
+      return {
+        userId: v.userId,
+        username: u ? u.username : (v.username || 'user'),
+        verified: !!(u && u.verified),
+        profileImage: (u && u.profileImage) ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+        viewedAt: v.viewedAt
+      };
+    }));
+    res.json({ count7d: recent.length, visitors });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1368,12 +1427,17 @@ app.get('/api/films', async (req, res) => {
         }));
         const videoUrl = f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null;
         const posterUrl = f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null;
+        const collabUser = (f.collabStatus === 'accepted' && f.collaboratorId) ? userById.get(f.collaboratorId) : null;
+        const collabAvatarUrl = collabUser && collabUser.profileImage ? await directUrl(collabUser.profileImage, collabUser.avatarStorageProvider) : null;
+        const ownerDefaultRole = (owner && (owner.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null;
         return {
           ...f, comments: enrichedComments,
           videoUrl, posterUrl,
           slideUrls: await buildSlideUrls(f, directUrl),
           ownerVerified: !!(owner && owner.verified),
+          ownerRoleBadge: (owner && owner.roleBadge) || ownerDefaultRole,
           ownerProfileImage: ownerAvatarUrl,
+          collaboratorProfileImage: collabAvatarUrl,
           views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
           adminBoosted: !!f.adminBoosted,
           isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
@@ -1385,17 +1449,55 @@ app.get('/api/films', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+async function markCollabInviteResolved(userId, ownerId, filmId, filmTitle, status) {
+  try {
+    let notifs = (await storeTryReadJSON('notifications.json')) || [];
+    let changed = false;
+    if (status === 'declined') {
+      const before = notifs.length;
+      notifs = notifs.filter(n => !(n.type === 'collab_invite' && String(n.filmId) === String(filmId) && n.userId === userId));
+      if (notifs.length !== before) changed = true;
+    } else {
+      notifs.forEach(n => {
+        if (n.type === 'collab_invite' && String(n.filmId) === String(filmId) && n.userId === userId) {
+          n.type = 'collab_accepted';
+          n.read = true;
+          n.message = `🤝 You accepted the collab invite on "${filmTitle || 'Post'}"`;
+          changed = true;
+        }
+      });
+    }
+    if (changed) await storeWriteJSON('notifications.json', notifs);
+  } catch (e) {}
+  try {
+    if (userId && ownerId) {
+      const cid = conversationIdFor(userId, ownerId);
+      const msgs = await readChatMessages(cid);
+      let mChanged = false;
+      msgs.forEach(m => {
+        if (m.type === 'collab_invite' && String(m.shortId) === String(filmId)) {
+          m.collabStatus = status;
+          m.editedAt = new Date().toISOString();
+          mChanged = true;
+        }
+      });
+      if (mChanged) await writeChatMessages(cid, msgs);
+    }
+  } catch (e) {}
+}
+
 app.post('/api/films/:id/collab/accept', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const films = await readFilms();
     const f = films.find(x => x.id === req.params.id);
-    if (!f || f.collaboratorId !== currentUser.id || f.collabStatus !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+    if (!f || f.collaboratorId !== currentUser.id) return res.status(404).json({ error: 'Invite not found' });
     f.collabStatus = 'accepted';
     await writeFilms(films);
+    await markCollabInviteResolved(currentUser.id, f.ownerId, f.id, f.title, 'accepted');
     await notify(f.ownerId, { type: 'collab_accepted', fromUserId: currentUser.id, fromUsername: currentUser.username, filmId: f.id, message: `@${currentUser.username} accepted the collab on "${f.title}"` });
-    res.json({ success: true });
+    res.json({ success: true, collabStatus: 'accepted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1407,9 +1509,11 @@ app.post('/api/films/:id/collab/decline', async (req, res) => {
     const f = films.find(x => x.id === req.params.id);
     if (!f || !f.collaboratorId) return res.status(404).json({ error: 'Collab not found' });
     if (f.collaboratorId !== currentUser.id && f.ownerId !== currentUser.id) return res.status(403).json({ error: 'You don\'t have permission' });
+    const oldCollabId = f.collaboratorId;
     delete f.collaboratorId; delete f.collaboratorUsername; delete f.collabStatus;
     await writeFilms(films);
-    res.json({ success: true });
+    await markCollabInviteResolved(oldCollabId, f.ownerId, f.id, f.title, 'declined');
+    res.json({ success: true, collabStatus: 'declined' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1523,7 +1627,9 @@ app.get('/api/films/:id', async (req, res) => {
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
       slideUrls: await buildSlideUrls(f, directUrl),
       ownerVerified: !!(owner && owner.verified),
+      ownerRoleBadge: (owner && owner.roleBadge) || ((owner && (owner.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null),
       ownerProfileImage: ownerAvatarUrl,
+      collaboratorProfileImage: (f.collabStatus === 'accepted' && f.collaboratorId) ? (await (async () => { const cu = users.find(u => u.id === f.collaboratorId); return (cu && cu.profileImage) ? await directUrl(cu.profileImage, cu.avatarStorageProvider) : null; })()) : null,
       isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1883,7 +1989,15 @@ app.post('/api/films/finalize', async (req, res) => {
     const attachedSong = await pickSong(req.body, songKind);
     if (attachedSong) newFilm.song = attachedSong;
     const modSet = (await storeTryReadJSON('moderation-settings.json')) || {};
-    if (modSet.reviewUploads) newFilm.pendingReview = true;
+    if (modSet.reviewUploads) {
+      let skipForVerified = false;
+      if (modSet.autoApproveVerified && currentUser) {
+        const allU = await readUsers();
+        const meU = allU.find(u => u.id === currentUser.id);
+        if (meU && meU.verified) skipForVerified = true;
+      }
+      if (!skipForVerified) newFilm.pendingReview = true;
+    }
     if (newFilm.type === 'photo' && slides.length >= 2) {
       newFilm.slides = slides;
       newFilm.posterFile = posterKey || (slides[0].mediaType === 'photo' ? slides[0].key : null);
@@ -2366,6 +2480,20 @@ app.post('/api/stories', (req, res, next) => {
       if (a && isFinite(a.s) && isFinite(a.x) && isFinite(a.y)) storyAdjust = { s: Math.min(4, Math.max(1, a.s)), x: Math.min(1, Math.max(-1, a.x)), y: Math.min(1, Math.max(-1, a.y)) };
     } catch (e) {}
     if (storyAdjust) newStory.adjust = storyAdjust;
+    if (req.body.poll) {
+      try {
+        const p = JSON.parse(req.body.poll);
+        if (p && p.q && p.optA && p.optB) {
+          newStory.poll = {
+            q: String(p.q).trim().slice(0, 100),
+            optA: String(p.optA).trim().slice(0, 40),
+            optB: String(p.optB).trim().slice(0, 40),
+            votesA: [],
+            votesB: []
+          };
+        }
+      } catch (e) {}
+    }
     const storySong = await pickSong(req.body, 'story');
     if (storySong) newStory.song = storySong;
     stories.unshift(newStory);
@@ -2426,7 +2554,7 @@ app.get('/api/stories', async (req, res) => {
         const isLikedByMe = !!(currentUser && (likesArr.includes(currentUser.id) || (s.comments || []).some(c => c && c.userId === currentUser.id && c.text && c.text.trim() === '❤️')));
         return {
           id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-          mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
+          mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, poll: s.poll || null, createdAt: s.createdAt,
           mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
           viewCount: (s.views || []).length,
           likeCount: likesArr.length,
@@ -2699,15 +2827,37 @@ app.post('/api/stories/:id/delete', async (req, res) => {
 
 // ===================== STORY HIGHLIGHTS =====================
 
+app.post('/api/stories/:id/poll-vote', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s || !s.poll) return res.status(404).json({ error: 'Poll not found' });
+    const choice = req.body && req.body.choice === 'B' ? 'B' : 'A';
+    s.poll.votesA = (s.poll.votesA || []).filter(uid => uid !== currentUser.id);
+    s.poll.votesB = (s.poll.votesB || []).filter(uid => uid !== currentUser.id);
+    if (choice === 'A') s.poll.votesA.push(currentUser.id);
+    else s.poll.votesB.push(currentUser.id);
+    await writeStories(stories);
+    res.json({ poll: s.poll });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/me/stories', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const stories = (await readStories()).filter(s => s.ownerId === currentUser.id);
+    const includeArchive = req.query.archive === '1';
+    const allMine = (await readStories()).filter(s => s.ownerId === currentUser.id);
+    const filtered = includeArchive ? allMine : allMine.filter(isStoryActive);
     const directUrl = makeDirectUrlCache();
-    const out = await Promise.all(stories.slice().reverse().map(async s => ({
-      id: s.id, mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
+    const out = await Promise.all(filtered.slice().reverse().map(async s => ({
+      id: s.id, mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, poll: s.poll || null, createdAt: s.createdAt,
       mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
+      viewCount: (s.views || []).length,
+      likeCount: (s.likes || []).length,
+      commentCount: (s.comments || []).length,
       active: isStoryActive(s), highlightId: s.highlightId || null
     })));
     res.json({ stories: out });
@@ -2963,12 +3113,13 @@ async function enrichMessage(m, directUrl) {
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'gdrive');
   }
-  if (!m.unsent && m.type === 'short') {
+  if (!m.unsent && (m.type === 'short' || m.type === 'collab_invite')) {
     out.shortId = m.shortId;
     out.shortTitle = m.shortTitle || null;
     out.shortOwnerUsername = m.shortOwnerUsername || null;
     out.shortThumb = m.shortId ? `/media/poster/${m.shortId}` : null;
     out.shortVideoUrl = m.shortId ? `/media/video/${m.shortId}` : null;
+    out.collabStatus = m.collabStatus || 'pending';
   }
   return out;
 }
@@ -4505,7 +4656,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 
     const rows = users.map(u => ({
       id: u.id, username: u.username, email: u.email, createdAt: u.createdAt || null, lastActiveAt: u.lastActiveAt || null,
-      online: isUserOnline(u), suspended: !!u.suspended, verified: !!u.verified, google: !u.passwordHash,
+      online: isUserOnline(u), suspended: !!u.suspended, verified: !!u.verified, roleBadge: u.roleBadge || (((u.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null), google: !u.passwordHash,
       posts: postCount[u.id] || 0, comments: commentCount[u.id] || 0, followers: followers[u.id] || 0, reports: reportsAgainst[u.id] || 0
     })).sort((a, b) => ts(b.lastActiveAt) - ts(a.lastActiveAt) || ts(b.createdAt) - ts(a.createdAt));
 
@@ -4518,7 +4669,8 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
         activeToday: users.filter(u => now - ts(u.lastActiveAt) < DAY).length,
         suspended: users.filter(u => u.suspended).length,
         posts: byType, uploads24h, comments24h, stories24h,
-        pendingReports: reports.filter(r => r.status === 'pending').length
+        pendingReports: reports.filter(r => r.status === 'pending').length,
+        pendingModeration: films.filter(f => f.pendingReview).length
       },
       trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
       storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
@@ -5014,32 +5166,93 @@ app.get('/api/admin/moderation', requireAdmin, async (req, res) => {
         videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
       };
     }));
-    res.json({ reviewUploads: !!set.reviewUploads, queue });
+    res.json({ reviewUploads: !!set.reviewUploads, autoApproveVerified: !!set.autoApproveVerified, queue });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/admin/moderation/settings', requireAdmin, async (req, res) => {
   const set = (await storeTryReadJSON('moderation-settings.json')) || {};
-  set.reviewUploads = !!(req.body && req.body.reviewUploads);
+  if (req.body && typeof req.body.reviewUploads === 'boolean') set.reviewUploads = req.body.reviewUploads;
+  if (req.body && typeof req.body.autoApproveVerified === 'boolean') set.autoApproveVerified = req.body.autoApproveVerified;
   await storeWriteJSON('moderation-settings.json', set);
-  res.json({ success: true, reviewUploads: set.reviewUploads });
+  res.json({ success: true, reviewUploads: !!set.reviewUploads, autoApproveVerified: !!set.autoApproveVerified });
+});
+app.post('/api/admin/moderation/approve-all', requireAdmin, async (req, res) => {
+  try {
+    const films = await readFilms();
+    const pending = films.filter(f => f.pendingReview);
+    pending.forEach(f => { delete f.pendingReview; });
+    await writeFilms(films);
+    for (const f of pending) {
+      if (f.ownerId) {
+        notify(f.ownerId, { type: 'bluetick', fromUserId: 'system', fromUsername: 'Moderation', filmId: f.id, message: `✅ Your upload "${f.title}" has been approved and is now live!` }).catch(() => {});
+      }
+    }
+    res.json({ success: true, approvedCount: pending.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/admin/moderation/:id/approve', requireAdmin, async (req, res) => {
   const films = await readFilms();
   const f = films.find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: 'Post not found' });
   delete f.pendingReview;
+  if (req.body && req.body.boost) f.adminBoosted = true;
   await writeFilms(films);
+  if (f.ownerId) {
+    notify(f.ownerId, { type: 'bluetick', fromUserId: 'system', fromUsername: 'Moderation', filmId: f.id, message: `✅ Your upload "${f.title}" has been approved${f.adminBoosted ? ' and featured 📌' : ''}!` }).catch(() => {});
+  }
   res.json({ success: true });
 });
 app.post('/api/admin/moderation/:id/reject', requireAdmin, async (req, res) => {
   let films = await readFilms();
   const f = films.find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: 'Post not found' });
+  const reason = String((req.body && req.body.reason) || '').trim().slice(0, 200);
+  const ownerId = f.ownerId, title = f.title || 'Post';
   await storeDelete(f.videoFile); await storeDelete(f.posterFile);
   for (const sl of (f.slides || [])) await storeDelete(sl.key);
   films = films.filter(x => x.id !== f.id);
   await writeFilms(films);
+  if (ownerId) {
+    notify(ownerId, {
+      type: 'helpdesk_reply',
+      fromUserId: 'system',
+      fromUsername: 'Moderation',
+      message: `❌ Your upload "${title}" was rejected by moderation${reason ? ' — Reason: ' + reason : '.'}`
+    }).catch(() => {});
+  }
   res.json({ success: true });
+});
+
+app.post('/api/admin/users/:id/role-badge', requireAdmin, async (req, res) => {
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === req.params.id);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    const badge = String((req.body && req.body.roleBadge) || '').trim().slice(0, 32);
+    if (badge) u.roleBadge = badge; else delete u.roleBadge;
+    await writeUsers(users);
+    feedVer++;
+    res.json({ success: true, roleBadge: u.roleBadge || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/backup.json', requireAdmin, async (req, res) => {
+  try {
+    const [users, films, stories, highlights, reports, tickets, blueReqs, announcements, banned, songs] = await Promise.all([
+      readUsers(), readFilms(), readStories(), readHighlights(), readReports(), readHelpdesk(), readBlueRequests(),
+      readAnnouncements(), getBannedWords(), storeTryReadJSON('songs.json')
+    ]);
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      platform: 'YouSeries (TAMASHA)',
+      founder: 'Sohail Parvez',
+      users, films, stories, highlights, reports, helpdesk: tickets, bluetickRequests: blueReqs,
+      announcements, bannedWords: banned, songs: songs || []
+    };
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="youseries-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---------- 5. one user's full picture for the dashboard ----------
