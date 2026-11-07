@@ -4455,6 +4455,63 @@ async function alertAdminOfReport(r) {
 }
 
 // ---------------- Pin posts to profile + Notes ----------------
+app.get('/api/me/uploads', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const [films, users] = await Promise.all([readFilms(), readUsers()]);
+    const me = users.find(u => u.id === currentUser.id);
+    const pinnedIds = (me && Array.isArray(me.pinnedFilmIds)) ? me.pinnedFilmIds : [];
+    const directUrl = makeDirectUrlCache();
+    const mine = films.filter(f => f.ownerId === currentUser.id || (f.collaboratorId === currentUser.id && f.collabStatus === 'accepted'));
+    const out = await Promise.all(mine.map(async f => {
+      const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+      const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+      const videoKey = f.videoFile || (slide0 && slide0.mediaType === 'video' ? slide0.key : null);
+      return {
+        id: f.id,
+        title: f.title || 'Untitled',
+        description: f.description || '',
+        type: f.type || 'film',
+        ownerId: f.ownerId,
+        ownerUsername: f.ownerUsername || currentUser.username,
+        collaboratorId: f.collaboratorId || null,
+        collaboratorUsername: f.collaboratorUsername || null,
+        collabStatus: f.collabStatus || null,
+        views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
+        likes: f.likes || 0,
+        commentsCount: (f.comments || []).length,
+        savesCount: (f.savedBy || []).length,
+        sharesCount: f.shares || 0,
+        uploadedAt: f.uploadedAt,
+        publishAt: f.publishAt || null,
+        pendingReview: !!f.pendingReview,
+        isSensitive: !!f.isSensitive,
+        pinned: pinnedIds.includes(f.id),
+        slidesCount: Array.isArray(f.slides) ? f.slides.length : 0,
+        posterUrl: posterKey ? await directUrl(posterKey, f.storageProvider) : null,
+        videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
+      };
+    }));
+    res.json({ uploads: out, pinnedFilmIds: pinnedIds });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/films/:id/publish-now', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Post not found' });
+    if (f.ownerId !== currentUser.id) return res.status(403).json({ error: 'Not allowed' });
+    delete f.publishAt;
+    f.uploadedAt = new Date().toISOString();
+    await writeFilms(films);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/films/:id/pin-profile', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
