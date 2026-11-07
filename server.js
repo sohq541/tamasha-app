@@ -83,7 +83,7 @@ app.use(async (req, res, next) => {
 // Logged-out visitors see nothing from the site: no films, photos, videos, profiles or hashtags.
 app.use((req, res, next) => {
   if (req.method !== 'GET' && !req.path.startsWith('/api/hashtags')) return next();
-  const isProtected = (req.path.startsWith('/media/') && !req.path.startsWith('/media/poster/'))
+  const isProtected = (req.path.startsWith('/media/') && !req.path.startsWith('/media/poster/') && req.path !== '/media/founder-avatar')
     || /^\/api\/films(\/|$)/.test(req.path)
     || req.path.startsWith('/api/hashtags')
     || req.path === '/api/users/search'
@@ -478,6 +478,165 @@ app.get('/moderation.html', (req, res) => {
 function escMetaAttr(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+app.get('/media/founder-avatar', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const fu = users.find(u => (u.email || '').toLowerCase() === 'sohailp541@gmail.com')
+      || users.find(u => (u.username || '').toLowerCase() === 'sohail_parvezofficial' || (u.username || '').toLowerCase().includes('sohail'));
+    if (fu && fu.profileImage) {
+      if (fu.avatarStorageProvider === 'r2' && r2On()) {
+        const url = await r2SignedGetUrl(fu.profileImage);
+        if (url) return res.redirect(url);
+      }
+      return storeStream(fu.profileImage, req, res);
+    }
+    return res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
+  } catch (e) {
+    return res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
+  }
+});
+
+app.get(['/founder', '/founder.html', '/about'], async (req, res) => {
+  try {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.get('host') || 'www.tamasha.qd.je';
+    const baseUrl = `${proto}://${host}`;
+    let founderImg = `${baseUrl}/media/founder-avatar`;
+
+    const schemaJson = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      "@id": `${baseUrl}/founder#profilepage`,
+      "url": `${baseUrl}/founder`,
+      "name": "Sohail Parvez – Founder & CEO of YouSeries (TAMASHA)",
+      "description": "Official biography, qualification, photos, and verified social media handles of Sohail Parvez, Founder & CEO of YouSeries (TAMASHA).",
+      "dateCreated": "2025-01-01T00:00:00+05:30",
+      "dateModified": new Date().toISOString(),
+      "mainEntity": {
+        "@type": "Person",
+        "@id": `${baseUrl}/#founder`,
+        "name": "Sohail Parvez",
+        "alternateName": ["sohail_parvezofficial", "Sohail Parvez TAMASHA", "Sohail Parvez YouSeries"],
+        "jobTitle": "Founder & CEO",
+        "description": "Sohail Parvez (born 2003, age 23) is an Indian entrepreneur and the Founder & CEO of YouSeries (TAMASHA), a video, shorts, stories, and photo streaming social platform. He holds an MBA in Data Analytics.",
+        "image": founderImg,
+        "url": `${baseUrl}/founder`,
+        "email": "mailto:sohailp541@gmail.com",
+        "nationality": { "@type": "Country", "name": "India" },
+        "alumniOf": { "@type": "EducationalOrganization", "name": "MBA in Data Analytics" },
+        "knowsAbout": ["Data Analytics", "Social Media Platforms", "Video Streaming", "Business Administration"],
+        "worksFor": {
+          "@type": "Organization",
+          "@id": `${baseUrl}/#organization`,
+          "name": "YouSeries (TAMASHA)",
+          "url": `${baseUrl}/`
+        },
+        "sameAs": [
+          "https://www.instagram.com/sohail_parvezofficial/",
+          "https://www.facebook.com/share/1CKJdD67rj/",
+          `${baseUrl}/`,
+          `${baseUrl}/founder`
+        ]
+      }
+    }, null, 2);
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sohail Parvez – Founder &amp; CEO of YouSeries (TAMASHA) | Biography &amp; Social Links</title>
+  <meta name="description" content="Sohail Parvez (Age 23, MBA in Data Analytics) is the Founder &amp; CEO of YouSeries (TAMASHA). Official biography, photo, Instagram @sohail_parvezofficial, and Facebook.">
+  <meta name="author" content="Sohail Parvez">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="${baseUrl}/founder">
+  <meta property="og:type" content="profile">
+  <meta property="og:title" content="Sohail Parvez – Founder &amp; CEO of YouSeries (TAMASHA)">
+  <meta property="og:description" content="Official profile and biography of Sohail Parvez, Founder &amp; CEO of YouSeries (TAMASHA). MBA in Data Analytics. Instagram: @sohail_parvezofficial">
+  <meta property="og:image" content="${escMetaAttr(founderImg)}">
+  <meta property="og:url" content="${baseUrl}/founder">
+  <script type="application/ld+json">${schemaJson}</script>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:#0b0816; color:#f3f0ff; line-height:1.6; }
+    .wrap { max-width:740px; margin:0 auto; padding:32px 18px 60px; }
+    .card { background:#151129; border:1px solid rgba(255,255,255,0.14); border-radius:20px; padding:26px 22px; box-shadow:0 16px 40px rgba(0,0,0,0.45); }
+    .top { display:flex; gap:20px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+    .avatar { width:108px; height:108px; border-radius:50%; object-fit:cover; border:3px solid #7C5CFF; background:#231c42; }
+    h1 { margin:0 0 4px; font-size:26px; color:#fff; }
+    .role { color:#a996ff; font-weight:700; font-size:15px; margin-bottom:6px; }
+    .badge { display:inline-block; background:rgba(124,92,255,0.2); border:1px solid #7C5CFF; color:#d8d0ff; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+    table { width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; }
+    th, td { text-align:left; padding:11px 10px; border-bottom:1px solid rgba(255,255,255,0.1); }
+    th { color:#a9a3c9; width:38%; font-weight:600; }
+    td { color:#fff; font-weight:500; }
+    .socials { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+    .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:12px; text-decoration:none; font-weight:700; font-size:14px; background:#7C5CFF; color:#fff; }
+    .btn.sec { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="margin-bottom:16px;"><a href="/" style="color:#a996ff;text-decoration:none;font-weight:600;">← Back to YouSeries (TAMASHA)</a></div>
+    <article class="card">
+      <div class="top">
+        <img class="avatar" src="${escMetaAttr(founderImg)}" alt="Sohail Parvez – Founder &amp; CEO of YouSeries (TAMASHA)">
+        <div>
+          <h1>Sohail Parvez</h1>
+          <div class="role">Founder &amp; CEO — YouSeries (TAMASHA)</div>
+          <span class="badge">✔ Verified Founder Profile</span>
+        </div>
+      </div>
+      <p><strong>Sohail Parvez</strong> is an Indian technology entrepreneur and the <strong>Founder &amp; CEO of YouSeries (TAMASHA)</strong> (<a href="${baseUrl}/" style="color:#a996ff;">www.tamasha.qd.je</a>), an Indian short-video, full-length film, story, and photo social streaming platform. At age 23, with an <strong>MBA in Data Analytics</strong>, he built and launched YouSeries (TAMASHA) with an integrated AI assistant (Ask AI), creator monetization &amp; verification, and real-time social messaging.</p>
+      <table>
+        <tr><th>Full Name</th><td>Sohail Parvez</td></tr>
+        <tr><th>Role / Title</th><td>Founder &amp; Chief Executive Officer (CEO)</td></tr>
+        <tr><th>Company / Platform</th><td><a href="${baseUrl}/" style="color:#a996ff;">YouSeries (TAMASHA)</a></td></tr>
+        <tr><th>Age</th><td>23 years</td></tr>
+        <tr><th>Qualification</th><td>MBA in Data Analytics</td></tr>
+        <tr><th>Country</th><td>India</td></tr>
+        <tr><th>Official Instagram</th><td><a href="https://www.instagram.com/sohail_parvezofficial/" rel="me noopener" target="_blank" style="color:#a996ff;">@sohail_parvezofficial</a></td></tr>
+        <tr><th>Official Facebook</th><td><a href="https://www.facebook.com/share/1CKJdD67rj/" rel="me noopener" target="_blank" style="color:#a996ff;">Sohail Parvez on Facebook</a></td></tr>
+        <tr><th>Contact Email</th><td><a href="mailto:sohailp541@gmail.com" style="color:#a996ff;">sohailp541@gmail.com</a></td></tr>
+      </table>
+      <div class="socials">
+        <a class="btn" href="https://www.instagram.com/sohail_parvezofficial/" rel="me noopener" target="_blank">📸 Instagram (@sohail_parvezofficial)</a>
+        <a class="btn sec" href="https://www.facebook.com/share/1CKJdD67rj/" rel="me noopener" target="_blank">📘 Facebook Profile</a>
+        <a class="btn sec" href="${baseUrl}/">🎬 Open YouSeries (TAMASHA)</a>
+      </div>
+    </article>
+  </div>
+</body>
+</html>`);
+  } catch (e) { res.redirect('/'); }
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.get('host') || 'www.tamasha.qd.je';
+  const baseUrl = `${proto}://${host}`;
+  res.set('Content-Type', 'application/xml; charset=utf-8');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${baseUrl}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>${baseUrl}/founder</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>${baseUrl}/login.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>${baseUrl}/signup.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+</urlset>`);
+});
+
+app.get('/robots.txt', (req, res) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.get('host') || 'www.tamasha.qd.je';
+  const baseUrl = `${proto}://${host}`;
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.send(`User-agent: *
+Allow: /
+Allow: /founder
+Sitemap: ${baseUrl}/sitemap.xml
+`);
+});
 
 app.get(['/', '/index.html'], async (req, res, next) => {
   const filmId = req.query.film || req.query.short;
