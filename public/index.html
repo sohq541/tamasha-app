@@ -1349,7 +1349,7 @@
 <!-- ===== PROFILE QR CODE & SHAREABLE CARD ===== -->
 <div class="sheet-overlay" id="profileQrOverlay" onclick="if(event.target===this) closeProfileQr()">
   <div class="sheet" style="text-align:center;max-width:360px;margin:0 auto;">
-    <div class="sheet-header"><h3>🔳 Profile QR Card</h3><button class="sheet-close" onclick="closeProfileQr()">✕</button></div>
+    <div class="sheet-header"><h3>Share Profile</h3><button class="sheet-close" onclick="closeProfileQr()">✕</button></div>
     <div id="profileQrCardBox" style="background:linear-gradient(145deg,#1b1630,#0f0c1d);border:1px solid var(--gold-line);border-radius:18px;padding:20px 16px;margin:8px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,0.45);">
       <div id="profileQrAvatarWrap" style="margin:0 auto 8px;width:54px;height:54px;border-radius:50%;overflow:hidden;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#fff;"></div>
       <div id="profileQrUsername" style="font-family:'Baloo 2',sans-serif;font-size:19px;font-weight:800;color:#fff;"></div>
@@ -1967,6 +1967,7 @@ let otherProfileUserId = null;
 
 async function openOtherProfile(userId, username){
   if (!userId) return;
+  pauseFeedMedia();
   otherProfileUserId = userId;
   document.getElementById('otherProfileHeaderName').textContent = '@' + (username || '');
   document.getElementById('otherProfileOverlay').classList.add('open');
@@ -2031,8 +2032,7 @@ async function renderOtherProfile(userId, usernameHint){
     <div class="profile-btn-row">
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
-      <button class="profile-btn" onclick="copyProfileLink('${userId}')">Share Profile</button>
-      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})" style="flex:0 0 auto;padding:9px 12px;" title="Profile QR Code">🔳 QR</button>
+      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})">Share Profile</button>
     </div>
     <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
@@ -2338,8 +2338,7 @@ async function renderProfile(){
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
-      <button class="profile-btn" onclick="copyProfileLink('${currentUser.id}')">Share Profile</button>
-      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})" style="flex:0 0 auto;padding:9px 12px;" title="My QR Code">🔳 QR</button>
+      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})">Share Profile</button>
       <button class="profile-btn" onclick="openYourDashboard()">Dashboard</button>
     </div>
 
@@ -3591,16 +3590,18 @@ function toggleCardMute(id, btnEl){
 let homeVideoObserver = null;
 let homeCardViewObserver = null;
 function isAnyModalOrOverlayOpen(){
-  const ov = document.getElementById('overlay');
-  if (ov && ov.classList.contains('open')) return true;
+  if (activeMainTab !== 'home') return true;
+  const checkIds = [
+    'overlay', 'chatInboxOverlay', 'chatConvoOverlay', 'chatMediaLightbox',
+    'storyViewerOverlay', 'storyUploadOverlay', 'uploadModalOverlay',
+    'otherProfileOverlay', 'profilePhotoFeedOverlay', 'hashtagFeedOverlay'
+  ];
+  for (let i = 0; i < checkIds.length; i++) {
+    const el = document.getElementById(checkIds[i]);
+    if (el && el.classList.contains('open')) return true;
+  }
   const sh = document.getElementById('shortsView');
   if (sh && sh.classList.contains('active')) return true;
-  const chat = document.getElementById('chatConvoOverlay');
-  if (chat && chat.classList.contains('open')) return true;
-  const lb = document.getElementById('chatMediaLightbox');
-  if (lb && lb.classList.contains('open')) return true;
-  const st = document.getElementById('storyViewerOverlay');
-  if (st && st.classList.contains('open')) return true;
   return false;
 }
 function tryPlayHomeVideo(video){
@@ -5345,6 +5346,7 @@ function renderStoriesBar(){
 // ---- Upload ----
 function openStoryUploadModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   document.getElementById('storyFileInput').value = '';
   document.getElementById('storyPickArea').classList.remove('hidden');
   document.getElementById('storyPreviewArea').classList.add('hidden');
@@ -6409,6 +6411,7 @@ async function onChatInboxSearch(query){
 
 async function openChatInbox(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   const sIn = document.getElementById('chatInboxSearchInput');
   if (sIn) sIn.value = '';
   const sRes = document.getElementById('chatInboxSearchResults');
@@ -6499,6 +6502,7 @@ function clearChatReplyTarget(){
 
 async function openChatConvo(userId, usernameHint){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   if (document.getElementById('otherProfileOverlay').classList.contains('open')) closeOtherProfile();
   stopVoiceRecording(true);
   clearChatAttachPreview();
@@ -8003,6 +8007,13 @@ function shareCurrentFilmById(id, title) {
   const list = document.getElementById('profilePhotoFeedList');
   if (!list || !('IntersectionObserver' in window)) return;
   const io = new IntersectionObserver(entries => {
+    const pfOv = document.getElementById('profilePhotoFeedOverlay');
+    const dmOv = document.getElementById('chatConvoOverlay');
+    const inbOv = document.getElementById('chatInboxOverlay');
+    if ((pfOv && !pfOv.classList.contains('open')) || (dmOv && dmOv.classList.contains('open')) || (inbOv && inbOv.classList.contains('open'))) {
+      stopSong();
+      return;
+    }
     entries.forEach(en => {
       if (!en.isIntersecting || !en.intersectionRatio || en.intersectionRatio < 0.6) return;
       const id = en.target.getAttribute('data-id');
