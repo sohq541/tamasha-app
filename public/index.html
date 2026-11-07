@@ -1367,6 +1367,46 @@
   </div>
 </div>
 
+<!-- ===== USER'S OWN MANAGE UPLOADS STUDIO ===== -->
+<div class="chat-full-overlay" id="myUploadsOverlay" style="z-index:135;">
+  <div class="chat-header" style="gap:8px;">
+    <button class="chat-header-back" onclick="closeMyUploadsManager()">←</button>
+    <span class="chat-header-name" style="flex:1;">🗂️ Manage My Uploads</span>
+    <button type="button" class="profile-btn" id="myUpBulkToggleBtn" onclick="toggleMyUploadsBulkMode()" style="flex:0 0 auto;padding:6px 11px;font-size:12px;">☑️ Select</button>
+    <button type="button" class="profile-btn primary" onclick="closeMyUploadsManager();openUploadModal()" style="flex:0 0 auto;padding:6px 12px;font-size:12px;">＋ Upload</button>
+  </div>
+  <div style="overflow-y:auto;flex:1;padding:12px 14px 40px;">
+    <div id="myUploadsStatsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;"></div>
+    <div id="myUploadsBulkBar" class="hidden" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(230,57,80,0.14);border:1px solid rgba(230,57,80,0.45);border-radius:12px;padding:10px 12px;margin-bottom:12px;">
+      <span id="myUpBulkCountLabel" style="font-size:13px;font-weight:700;color:#fff;">0 selected</span>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="profile-btn" onclick="selectAllMyUploads()" style="padding:5px 10px;font-size:12px;">Select All</button>
+        <button type="button" class="profile-btn" onclick="deleteSelectedMyUploads()" style="padding:5px 12px;font-size:12px;background:#E63950;border-color:#E63950;color:#fff;">🗑️ Delete Selected</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <input type="text" id="myUploadsSearchInput" placeholder="🔍 Search your uploads or #hashtags..." oninput="myUploadsSearch=this.value;renderMyUploadsList()" style="flex:1;min-width:180px;padding:9px 13px;border-radius:10px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.06);color:var(--cream);font-family:'Mukta',sans-serif;font-size:13.5px;outline:none;">
+      <select id="myUploadsSortSelect" onchange="myUploadsSort=this.value;renderMyUploadsList()" style="padding:9px 11px;border-radius:10px;border:1px solid var(--gold-line);background:var(--panel);color:var(--cream);font-family:'Mukta',sans-serif;font-size:13px;outline:none;">
+        <option value="newest">🕒 Newest First</option>
+        <option value="views">🔥 Most Views</option>
+        <option value="likes">❤️ Most Likes</option>
+        <option value="comments">💬 Most Comments</option>
+        <option value="oldest">📅 Oldest First</option>
+      </select>
+    </div>
+    <div class="feed-filters" id="myUploadsTabs" style="padding:0 0 10px;margin:0;">
+      <button type="button" class="feed-chip active" data-uf="all" onclick="setMyUploadsFilter('all')">All</button>
+      <button type="button" class="feed-chip" data-uf="film" onclick="setMyUploadsFilter('film')">🎬 Videos</button>
+      <button type="button" class="feed-chip" data-uf="short" onclick="setMyUploadsFilter('short')">⚡ Shorts</button>
+      <button type="button" class="feed-chip" data-uf="photo" onclick="setMyUploadsFilter('photo')">🖼️ Photos</button>
+      <button type="button" class="feed-chip" data-uf="pinned" onclick="setMyUploadsFilter('pinned')">📌 Pinned</button>
+      <button type="button" class="feed-chip" data-uf="scheduled" onclick="setMyUploadsFilter('scheduled')">⏰ Scheduled / Review</button>
+      <button type="button" class="feed-chip" data-uf="stories" onclick="setMyUploadsFilter('stories')">🔵 My Stories</button>
+    </div>
+    <div id="myUploadsListContainer"></div>
+  </div>
+</div>
+
 <!-- ===== POST INSIGHTS (creator analytics) ===== -->
 <div class="sheet-overlay" id="insightsOverlay" onclick="if(event.target===this) closeInsights()">
   <div class="sheet">
@@ -1725,7 +1765,7 @@ function closeAllOverlays(){
     otherProfileOverlay: closeOtherProfile,
     reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker,
     profileSafetyOverlay: closeProfileSafetyMenu, postSafetyOverlay: closePostSafetyMenu, reportOverlay: closeReportSheet,
-    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet, profilePhotoFeedOverlay: closeProfilePhotoFeed, profileQrOverlay: closeProfileQr
+    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet, profilePhotoFeedOverlay: closeProfilePhotoFeed, profileQrOverlay: closeProfileQr, myUploadsOverlay: closeMyUploadsManager
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -2252,7 +2292,7 @@ function openYourDashboard(){
     ${tool('✏️ Edit profile', "document.getElementById('yourDashOverlay').remove();toggleSettings()")}
     ${tool('✔ Blue tick status', "document.getElementById('yourDashOverlay').remove();openBlueTick()")}
     ${tool('🔗 Share profile link', "copyProfileLink('" + currentUser.id + "')")}
-    ${tool('🗂️ Manage uploads', "window.location.href='/dashboard.html'")}
+    ${tool('🗂️ Manage uploads', "document.getElementById('yourDashOverlay').remove();openMyUploadsManager()")}
     ${tool('🆘 Help desk', "document.getElementById('yourDashOverlay').remove();openProfileMenu();setTimeout(()=>{renderSettingsPrivacyMenu();setTimeout(renderHelpDesk,60);},60)")}
   `;
 }
@@ -2532,7 +2572,7 @@ function renderProfileMenuMain(){
   document.getElementById('profileMenuBody').innerHTML =
     menuRow('⚙️', 'Settings and Privacy', 'renderSettingsPrivacyMenu()') +
     menuRow('📊', 'Your Activity', 'renderActivityMenu()') +
-    menuRow('🗂️', 'Manage uploads', "window.location.href='/dashboard.html'") +
+    menuRow('🗂️', 'Manage uploads', 'closeProfileMenu();openMyUploadsManager()') +
     menuRow('📲', 'Get App', "window.open('https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk','_blank')") +
     menuRow('🚪', 'Log Out', 'confirmLogoutFromMenu()', true);
 }
@@ -7827,7 +7867,7 @@ window.UploadMgr = (function(){
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
     'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay',
-    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay','profilePhotoFeedOverlay','profileQrOverlay'
+    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay','profilePhotoFeedOverlay','profileQrOverlay','myUploadsOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -7858,7 +7898,8 @@ window.UploadMgr = (function(){
     hashtagFeedOverlay: () => closeHashtagFeed(),
     collabOverlay: () => closeCollabSheet(),
     profilePhotoFeedOverlay: () => closeProfilePhotoFeed(),
-    profileQrOverlay: () => closeProfileQr()
+    profileQrOverlay: () => closeProfileQr(),
+    myUploadsOverlay: () => closeMyUploadsManager()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
@@ -8172,6 +8213,361 @@ function downloadProfileQrPng(){
   } catch (e) {
     window.open('https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=10&data=' + encodeURIComponent(currentQrProfile.url), '_blank');
   }
+}
+
+
+// ---- User's Own Manage Uploads Studio ----
+let myUploadsData = [];
+let myStoriesData = [];
+let myUploadsPinnedIds = [];
+let myUploadsFilter = 'all';
+let myUploadsSort = 'newest';
+let myUploadsSearch = '';
+let myUploadsBulkMode = false;
+let myUploadsSelected = new Set();
+
+async function openMyUploadsManager(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
+  myUploadsBulkMode = false;
+  myUploadsSelected.clear();
+  myUploadsSearch = '';
+  const sEl = document.getElementById('myUploadsSearchInput');
+  if (sEl) sEl.value = '';
+  updateMyUploadsBulkUi();
+  document.getElementById('myUploadsOverlay').classList.add('open');
+  await refreshMyUploadsData();
+}
+
+function closeMyUploadsManager(){
+  const ov = document.getElementById('myUploadsOverlay');
+  if (ov) ov.classList.remove('open');
+  myUploadsBulkMode = false;
+  myUploadsSelected.clear();
+}
+
+function setMyUploadsFilter(f){
+  myUploadsFilter = f;
+  document.querySelectorAll('#myUploadsTabs .feed-chip').forEach(b => b.classList.toggle('active', b.dataset.uf === f));
+  myUploadsSelected.clear();
+  updateMyUploadsBulkUi();
+  renderMyUploadsList();
+}
+
+function toggleMyUploadsBulkMode(){
+  myUploadsBulkMode = !myUploadsBulkMode;
+  myUploadsSelected.clear();
+  updateMyUploadsBulkUi();
+  renderMyUploadsList();
+}
+
+function updateMyUploadsBulkUi(){
+  const btn = document.getElementById('myUpBulkToggleBtn');
+  if (btn) btn.textContent = myUploadsBulkMode ? '✕ Cancel' : '☑️ Select';
+  const bar = document.getElementById('myUploadsBulkBar');
+  if (bar) bar.classList.toggle('hidden', !myUploadsBulkMode);
+  const lbl = document.getElementById('myUpBulkCountLabel');
+  if (lbl) lbl.textContent = myUploadsSelected.size + ' selected';
+}
+
+function toggleSelectMyUploadItem(id, checked){
+  if (checked) myUploadsSelected.add(id);
+  else myUploadsSelected.delete(id);
+  updateMyUploadsBulkUi();
+}
+
+function selectAllMyUploads(){
+  const visible = getFilteredMyUploads();
+  if (myUploadsSelected.size === visible.length) myUploadsSelected.clear();
+  else visible.forEach(x => myUploadsSelected.add(x.id));
+  updateMyUploadsBulkUi();
+  renderMyUploadsList();
+}
+
+async function deleteSelectedMyUploads(){
+  if (!myUploadsSelected.size) { showToast('Select at least 1 upload'); return; }
+  if (!confirm(`Permanently delete ${myUploadsSelected.size} selected upload(s)? This cannot be undone.`)) return;
+  const ids = [...myUploadsSelected];
+  let deleted = 0;
+  for (const id of ids) {
+    try {
+      if (myUploadsFilter === 'stories') {
+        const r = await fetch('/api/stories/' + id + '/delete', { method: 'POST' });
+        if (r.ok) deleted++;
+      } else {
+        const r = await fetch('/api/films/' + id, { method: 'DELETE' });
+        if (r.ok) deleted++;
+      }
+    } catch (e) {}
+  }
+  myUploadsSelected.clear();
+  myUploadsBulkMode = false;
+  updateMyUploadsBulkUi();
+  showToast(`Deleted ${deleted} item(s)`);
+  await loadFilms();
+  await loadStories();
+  await refreshMyUploadsData();
+}
+
+async function refreshMyUploadsData(){
+  const listEl = document.getElementById('myUploadsListContainer');
+  if (listEl) listEl.innerHTML = '<p class="comment-empty">Loading your uploads...</p>';
+  try {
+    const [upRes, stRes] = await Promise.all([
+      fetch('/api/me/uploads'),
+      fetch('/api/me/stories')
+    ]);
+    if (upRes.ok) {
+      const upData = await upRes.json();
+      myUploadsData = upData.uploads || [];
+      myUploadsPinnedIds = upData.pinnedFilmIds || (window.myPinned || []);
+    } else {
+      myUploadsPinnedIds = window.myPinned || [];
+      myUploadsData = (allFilms || []).filter(f => currentUser && isMyPost(f, currentUser.id)).map(f => ({
+        id: f.id,
+        title: f.title || 'Untitled',
+        description: f.description || '',
+        type: f.type || 'film',
+        ownerId: f.ownerId,
+        ownerUsername: f.ownerUsername,
+        views: f.views || 0,
+        likes: f.likes || 0,
+        commentsCount: (f.comments || []).length,
+        uploadedAt: f.uploadedAt,
+        publishAt: f.publishAt || null,
+        pendingReview: !!f.pendingReview,
+        isSensitive: !!f.isSensitive,
+        pinned: myUploadsPinnedIds.includes(f.id),
+        slidesCount: (f.slideUrls || []).length,
+        posterUrl: f.posterUrl || null,
+        videoUrl: f.videoUrl || null
+      }));
+    }
+    if (stRes.ok) {
+      const stData = await stRes.json();
+      myStoriesData = stData.stories || [];
+    } else {
+      myStoriesData = [];
+    }
+  } catch (e) {
+    myUploadsData = (allFilms || []).filter(f => currentUser && isMyPost(f, currentUser.id));
+  }
+  renderMyUploadsStats();
+  renderMyUploadsList();
+}
+
+function renderMyUploadsStats(){
+  const box = document.getElementById('myUploadsStatsRow');
+  if (!box) return;
+  const totalPosts = myUploadsData.length;
+  const totalViews = myUploadsData.reduce((a, x) => a + (x.views || 0), 0);
+  const totalLikes = myUploadsData.reduce((a, x) => a + (x.likes || 0), 0);
+  const pinnedCount = myUploadsData.filter(x => x.pinned || myUploadsPinnedIds.includes(x.id)).length;
+  const statCard = (val, lbl, col) => `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:10px;padding:9px 8px;text-align:center;">
+    <div style="font-size:17px;font-weight:800;color:${col || 'var(--cream)'};">${val}</div>
+    <div style="font-size:10.5px;color:var(--cream-dim);">${lbl}</div>
+  </div>`;
+  box.innerHTML =
+    statCard(totalPosts, 'Posts', 'var(--marigold)') +
+    statCard(totalViews, 'Total Views', '#5ce1e6') +
+    statCard(totalLikes, 'Total Likes', '#ff5c8a') +
+    statCard(pinnedCount + '/3', '📌 Pinned', '#5ad19a');
+}
+
+function getFilteredMyUploads(){
+  if (myUploadsFilter === 'stories') return myStoriesData;
+  const q = (myUploadsSearch || '').trim().toLowerCase();
+  const now = Date.now();
+  let list = myUploadsData.filter(f => {
+    const isPinned = !!(f.pinned || myUploadsPinnedIds.includes(f.id));
+    const isScheduled = !!(f.publishAt && new Date(f.publishAt).getTime() > now);
+    if (myUploadsFilter === 'film' && f.type !== 'film') return false;
+    if (myUploadsFilter === 'short' && f.type !== 'short') return false;
+    if (myUploadsFilter === 'photo' && f.type !== 'photo') return false;
+    if (myUploadsFilter === 'pinned' && !isPinned) return false;
+    if (myUploadsFilter === 'scheduled' && !isScheduled && !f.pendingReview) return false;
+    if (q) {
+      const hay = ((f.title || '') + ' ' + (f.description || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  list.sort((a, b) => {
+    if (myUploadsSort === 'views') return (b.views || 0) - (a.views || 0);
+    if (myUploadsSort === 'likes') return (b.likes || 0) - (a.likes || 0);
+    if (myUploadsSort === 'comments') return (b.commentsCount || 0) - (a.commentsCount || 0);
+    if (myUploadsSort === 'oldest') return new Date(a.uploadedAt || 0) - new Date(b.uploadedAt || 0);
+    return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
+  });
+  return list;
+}
+
+function renderMyUploadsList(){
+  const listEl = document.getElementById('myUploadsListContainer');
+  if (!listEl) return;
+
+  if (myUploadsFilter === 'stories') {
+    if (!myStoriesData.length) {
+      listEl.innerHTML = `<div class="empty" style="padding:32px 16px;text-align:center;">
+        <div style="margin-bottom:10px;">You have no active stories right now.</div>
+        <button type="button" class="profile-btn primary" style="max-width:180px;margin:0 auto;" onclick="closeMyUploadsManager();openStoryUploadModal()">＋ Post a Story</button>
+      </div>`;
+      return;
+    }
+    listEl.innerHTML = myStoriesData.map(s => `
+      <div style="display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:12px;margin-bottom:10px;">
+        ${myUploadsBulkMode ? `<input type="checkbox" ${myUploadsSelected.has(s.id) ? 'checked' : ''} onchange="toggleSelectMyUploadItem('${escapeAttr(s.id)}', this.checked)" style="width:18px;height:18px;flex-shrink:0;">` : ''}
+        <div style="width:62px;height:92px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;cursor:pointer;" onclick="closeMyUploadsManager();openStoryViewer('${escapeAttr(currentUser.id)}','${escapeAttr(s.id)}')">
+          ${s.mediaType === 'video'
+            ? `<video src="${escapeAttr(s.mediaUrl)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+            : `<img src="${escapeAttr(s.mediaUrl)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:var(--cream);">${s.mediaType === 'video' ? '🎬 Video Story' : '📷 Photo Story'}</div>
+          ${s.textOverlay ? `<div style="font-size:12.5px;color:var(--cream-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${escapeHtml(s.textOverlay)}"</div>` : ''}
+          <div style="font-size:11.5px;color:var(--cream-dim);margin-top:4px;">Posted ${storyTimeAgo(s.createdAt)} · 👁️ ${s.viewCount || 0} views</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+            <button type="button" class="profile-btn" style="padding:5px 10px;font-size:12px;flex:0 0 auto;" onclick="closeMyUploadsManager();openStoryViewer('${escapeAttr(currentUser.id)}','${escapeAttr(s.id)}')">▶ Open Story</button>
+            <button type="button" class="profile-btn" style="padding:5px 10px;font-size:12px;flex:0 0 auto;color:#e88a8a;border-color:rgba(230,57,80,0.45);" onclick="deleteStoryFromMyUploads('${escapeAttr(s.id)}')">🗑️ Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  const rows = getFilteredMyUploads();
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="empty" style="padding:32px 16px;text-align:center;">
+      <div style="margin-bottom:10px;">No uploads found in this tab.</div>
+      <button type="button" class="profile-btn primary" style="max-width:180px;margin:0 auto;" onclick="closeMyUploadsManager();openUploadModal()">＋ Upload Post</button>
+    </div>`;
+    return;
+  }
+
+  const now = Date.now();
+  listEl.innerHTML = rows.map(f => {
+    const isPinned = !!(f.pinned || myUploadsPinnedIds.includes(f.id));
+    const isScheduled = !!(f.publishAt && new Date(f.publishAt).getTime() > now);
+    const typeLabel = f.type === 'short' ? '⚡ Short' : (f.type === 'photo' ? ((f.slidesCount > 1) ? '❐ Carousel' : '🖼️ Photo') : '🎬 Video');
+    const thumbHtml = f.posterUrl
+      ? `<img src="${escapeAttr(f.posterUrl)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`
+      : (f.videoUrl
+          ? `<video src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;">🎬</div>`);
+
+    return `
+      <div style="background:var(--panel);border:1px solid ${isPinned ? 'var(--marigold)' : 'var(--gold-line)'};border-radius:14px;padding:12px;margin-bottom:10px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          ${myUploadsBulkMode ? `<input type="checkbox" ${myUploadsSelected.has(f.id) ? 'checked' : ''} onchange="toggleSelectMyUploadItem('${escapeAttr(f.id)}', this.checked)" style="width:18px;height:18px;margin-top:24px;flex-shrink:0;">` : ''}
+          <div style="width:74px;height:74px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;cursor:pointer;position:relative;" onclick="openPostFromMyUploads('${escapeAttr(f.id)}','${escapeAttr(f.type)}')">
+            ${thumbHtml}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-weight:700;font-size:14.5px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">${escapeHtml(f.title || 'Untitled')}</span>
+              <span style="font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(124,92,255,0.16);color:var(--marigold);font-weight:700;">${typeLabel}</span>
+              ${isPinned ? `<span style="font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(90,209,154,0.18);color:#5ad19a;font-weight:700;">📌 Pinned</span>` : ''}
+              ${isScheduled ? `<span style="font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,190,60,0.2);color:#ffcf5c;font-weight:700;">⏰ Scheduled (${new Date(f.publishAt).toLocaleString()})</span>` : ''}
+              ${f.pendingReview ? `<span style="font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,190,60,0.2);color:#ffcf5c;font-weight:700;">⏳ Under Review</span>` : ''}
+            </div>
+            ${f.description ? `<div style="font-size:12px;color:var(--cream-dim);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.description)}</div>` : ''}
+            <div style="display:flex;gap:12px;font-size:12px;color:var(--cream-dim);margin-top:6px;flex-wrap:wrap;">
+              <span>👁️ <b>${f.views || 0}</b> views</span>
+              <span>❤️ <b>${f.likes || 0}</b> likes</span>
+              <span>💬 <b>${f.commentsCount || 0}</b> comments</span>
+              <span>· ${storyTimeAgo(f.uploadedAt)}</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid var(--gold-line);flex-wrap:wrap;">
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="openPostFromMyUploads('${escapeAttr(f.id)}','${escapeAttr(f.type)}')">↗ View</button>
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="editPostFromMyUploads('${escapeAttr(f.id)}')">✏️ Edit</button>
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="pinPostFromMyUploads('${escapeAttr(f.id)}')">${isPinned ? '📌 Unpin' : '📌 Pin'}</button>
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="openInsights('${escapeAttr(f.id)}')">📊 Insights</button>
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="openCollabSheet('${escapeAttr(f.id)}')">🤝 Collab</button>
+          ${isScheduled ? `<button type="button" class="profile-btn primary" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="publishScheduledNow('${escapeAttr(f.id)}')">🚀 Publish Now</button>` : ''}
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;" onclick="copyLinkFromMyUploads('${escapeAttr(f.id)}','${escapeAttr(f.type)}')">🔗 Link</button>
+          <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12px;flex:0 0 auto;color:#e88a8a;border-color:rgba(230,57,80,0.45);margin-left:auto;" onclick="deletePostFromMyUploads('${escapeAttr(f.id)}')">🗑️ Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openPostFromMyUploads(id, type){
+  closeMyUploadsManager();
+  if (type === 'short') openShortAt(id);
+  else if (type === 'photo') openProfilePhotoFeed(currentUser.id, id);
+  else playFilm(id);
+}
+
+function editPostFromMyUploads(id){
+  let f = allFilms.find(x => x.id === id);
+  if (!f) {
+    const mu = myUploadsData.find(x => x.id === id);
+    if (mu) { f = mu; allFilms.unshift(mu); }
+  }
+  openEditFromFeed(id);
+}
+
+async function pinPostFromMyUploads(id){
+  try {
+    const res = await fetch('/api/films/' + id + '/pin-profile', { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) { showToast(d.error || 'Could not update pin'); return; }
+    myUploadsPinnedIds = d.pinnedFilmIds || [];
+    window.myPinned = myUploadsPinnedIds;
+    myUploadsData.forEach(x => { x.pinned = myUploadsPinnedIds.includes(x.id); });
+    showToast(d.pinned ? 'Pinned to profile 📌' : 'Unpinned from profile');
+    renderMyUploadsStats();
+    renderMyUploadsList();
+    renderProfile();
+  } catch (e) { showToast(e.message); }
+}
+
+async function publishScheduledNow(id){
+  if (!confirm('Publish this scheduled post right now?')) return;
+  try {
+    const res = await fetch('/api/films/' + id + '/publish-now', { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    showToast('Post is now live! 🚀');
+    await loadFilms();
+    await refreshMyUploadsData();
+  } catch (e) { showToast(e.message); }
+}
+
+function copyLinkFromMyUploads(id, type){
+  const url = location.origin + (type === 'short' ? '/?short=' : '/?film=') + encodeURIComponent(id);
+  navigator.clipboard.writeText(url).then(() => showToast('Post link copied!')).catch(() => {});
+}
+
+async function deletePostFromMyUploads(id){
+  if (!confirm('Permanently delete this upload? This cannot be undone.')) return;
+  try {
+    const res = await fetch('/api/films/' + id, { method: 'DELETE' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not delete');
+    showToast('Upload deleted');
+    myUploadsData = myUploadsData.filter(x => x.id !== id);
+    allFilms = (allFilms || []).filter(x => x.id !== id);
+    renderMyUploadsStats();
+    renderMyUploadsList();
+    renderProfile();
+  } catch (e) { showToast(e.message); }
+}
+
+async function deleteStoryFromMyUploads(storyId){
+  if (!confirm('Delete this story?')) return;
+  try {
+    const res = await fetch('/api/stories/' + storyId + '/delete', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete story');
+    showToast('Story deleted');
+    myStoriesData = myStoriesData.filter(s => s.id !== storyId);
+    renderMyUploadsList();
+    loadStories();
+  } catch (e) { showToast(e.message); }
 }
 
 </script>
