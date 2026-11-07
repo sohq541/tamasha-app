@@ -83,7 +83,7 @@ app.use(async (req, res, next) => {
 // Logged-out visitors see nothing from the site: no films, photos, videos, profiles or hashtags.
 app.use((req, res, next) => {
   if (req.method !== 'GET' && !req.path.startsWith('/api/hashtags')) return next();
-  const isProtected = req.path.startsWith('/media/')
+  const isProtected = (req.path.startsWith('/media/') && !req.path.startsWith('/media/poster/'))
     || /^\/api\/films(\/|$)/.test(req.path)
     || req.path.startsWith('/api/hashtags')
     || req.path === '/api/users/search'
@@ -473,6 +473,68 @@ app.get('/moderation.html', (req, res) => {
     return res.status(401).send('Admin login required');
   }
   res.sendFile(path.join(__dirname, 'public', 'moderation.html'));
+});
+
+function escMetaAttr(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+app.get(['/', '/index.html'], async (req, res, next) => {
+  const filmId = req.query.film || req.query.short;
+  const profileId = req.query.profile;
+  if (!filmId && !profileId) return next();
+  try {
+    const htmlPath = path.join(__dirname, 'public', 'index.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.get('host') || 'www.tamasha.qd.je';
+    const baseUrl = `${proto}://${host}`;
+    let ogTitle = 'YouSeries (TAMASHA) — Watch Films, Shorts & Stories';
+    let ogDesc = 'Stream films, shorts, stories, and photos on YouSeries (TAMASHA), founded by Sohail Parvez.';
+    let ogImg = `${baseUrl}/favicon.ico`;
+    let ogUrl = `${baseUrl}${req.originalUrl}`;
+
+    if (filmId) {
+      const films = await readFilms();
+      const f = films.find(x => x.id === filmId);
+      if (f) {
+        const kind = f.type === 'short' ? 'Short' : (f.type === 'photo' ? 'Photo' : 'Video');
+        ogTitle = `${f.title || kind} by @${f.ownerUsername || 'creator'} — TAMASHA`;
+        ogDesc = (f.description && f.description.trim()) ? f.description.trim().slice(0, 180) : `Watch this ${kind.toLowerCase()} by @${f.ownerUsername || 'creator'} on YouSeries (TAMASHA).`;
+        ogImg = `${baseUrl}/media/poster/${encodeURIComponent(f.id)}`;
+      }
+    } else if (profileId) {
+      const users = await readUsers();
+      const u = users.find(x => x.id === profileId);
+      if (u) {
+        ogTitle = `@${u.username}${u.verified ? ' ✔' : ''} on YouSeries (TAMASHA)`;
+        ogDesc = (u.bio && u.bio.trim()) ? u.bio.trim().slice(0, 180) : `Check out @${u.username}'s videos, shorts, and photos on YouSeries (TAMASHA).`;
+        if (u.profileImage) {
+          const directUrl = makeDirectUrlCache();
+          const av = await directUrl(u.profileImage, u.avatarStorageProvider);
+          if (av) ogImg = av.startsWith('http') ? av : `${baseUrl}${av}`;
+        }
+      }
+    }
+
+    const ogTags = `
+  <meta property="og:site_name" content="YouSeries (TAMASHA)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${escMetaAttr(ogTitle)}">
+  <meta property="og:description" content="${escMetaAttr(ogDesc)}">
+  <meta property="og:image" content="${escMetaAttr(ogImg)}">
+  <meta property="og:url" content="${escMetaAttr(ogUrl)}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escMetaAttr(ogTitle)}">
+  <meta name="twitter:description" content="${escMetaAttr(ogDesc)}">
+  <meta name="twitter:image" content="${escMetaAttr(ogImg)}">`;
+    html = html.replace('</head>', ogTags + '\n</head>');
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    return res.send(html);
+  } catch (e) {
+    return next();
+  }
 });
 
 const gzStatic = new Map();
@@ -1148,6 +1210,7 @@ app.get('/api/films', async (req, res) => {
           ownerVerified: !!(owner && owner.verified),
           ownerProfileImage: ownerAvatarUrl,
           views: Math.max(f.views || 0, (f.viewedBy || []).length, f.likes || 0),
+          adminBoosted: !!f.adminBoosted,
           isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
         };
       }));
@@ -2726,9 +2789,10 @@ async function enrichMessage(m, directUrl) {
     id: m.id, conversationId: m.conversationId, senderId: m.senderId,
     type: m.type, text: m.unsent ? null : (m.text || null),
     createdAt: m.createdAt, editedAt: m.editedAt || null,
-    unsent: !!m.unsent, readBy: m.readBy || [],
+    unsent: !!m.unsent, readBy: m.readBy || [], readAt: m.readAt || null,
     mediaUrl: null, duration: m.duration || null,
     shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null,
+    replyTo: m.unsent ? null : (m.replyTo || null),
     reactions: m.reactions || {}
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
@@ -3258,20 +3322,28 @@ app.get('/api/conversations', async (req, res) => {
     const users = await readUsers();
     const directUrl = makeDirectUrlCache();
 
-    const out = await Promise.all(list
+    const outRaw = await Promise.all(list
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       .map(async c => {
         const otherId = c.participants.find(p => p !== currentUser.id);
+        const allMessages = await readChatMessages(c.id);
+        const visibleMessages = allMessages.filter(m => !(m.deletedFor || []).includes(currentUser.id));
+        const lastVisible = visibleMessages.length ? visibleMessages[visibleMessages.length - 1] : null;
+        const dynamicLastMessage = lastVisible
+          ? { senderId: lastVisible.senderId, preview: previewForMessage(lastVisible), createdAt: lastVisible.createdAt }
+          : null;
+
         if (otherId === AI_ASSISTANT_ID) {
-          const messages = await readChatMessages(c.id);
-          const unreadCount = messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
-            !(m.deletedFor || []).includes(currentUser.id) && !(m.readBy || []).includes(currentUser.id)).length;
-          return { id: c.id, otherUser: AI_ASSISTANT_USER, lastMessage: c.lastMessage, updatedAt: c.updatedAt, unreadCount };
+          const unreadCount = visibleMessages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+            !(m.readBy || []).includes(currentUser.id)).length;
+          return { id: c.id, otherUser: AI_ASSISTANT_USER, lastMessage: dynamicLastMessage || c.lastMessage, updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt, unreadCount };
+        }
+        if (c.hiddenFor && c.hiddenFor[currentUser.id] && !visibleMessages.length) {
+          return null;
         }
         const other = users.find(u => u.id === otherId);
-        const messages = await readChatMessages(c.id);
-        const unreadCount = messages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
-          !(m.deletedFor || []).includes(currentUser.id) && !(m.readBy || []).includes(currentUser.id)).length;
+        const unreadCount = visibleMessages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+          !(m.readBy || []).includes(currentUser.id)).length;
         return {
           id: c.id,
           otherUser: other ? {
@@ -3279,11 +3351,12 @@ app.get('/api/conversations', async (req, res) => {
             profileImage: other.profileImage ? await directUrl(other.profileImage, other.avatarStorageProvider) : null,
             online: isUserOnline(other)
           } : { id: otherId, username: 'Unknown user', profileImage: null, online: false },
-          lastMessage: c.lastMessage,
-          updatedAt: c.updatedAt,
+          lastMessage: dynamicLastMessage,
+          updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt,
           unreadCount
         };
       }));
+    const out = outRaw.filter(Boolean).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
     res.json({ conversations: out });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3359,7 +3432,7 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     const since = req.query.since ? new Date(req.query.since).getTime() : 0;
     const directUrl = makeDirectUrlCache();
     let raw = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
-    if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since) || (m.reactedAt && new Date(m.reactedAt).getTime() > since));
+    if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since) || (m.reactedAt && new Date(m.reactedAt).getTime() > since) || (m.readAt && new Date(m.readAt).getTime() > since));
     const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl)));
 
     const otherId = convo.participants.find(p => p !== currentUser.id);
@@ -3404,11 +3477,12 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     let shortTitle = null, shortOwnerUsername = null;
 
     if (mediaFile) {
-      const isVideo = mediaFile.mimetype.startsWith('video');
+      const isVideo = mediaFile.mimetype.startsWith('video') && !isVoice;
       const isAudio = mediaFile.mimetype.startsWith('audio') || isVoice;
       type = isAudio ? 'voice' : (isVideo ? 'video' : 'photo');
       fileName = path.basename(String(mediaFile.originalname || '')).slice(0, 120) || null;
-      mediaKey = `chats/${convo.id}/${id}${path.extname(mediaFile.originalname) || (isAudio ? '.webm' : '')}`;
+      const defaultAudioExt = (mediaFile.mimetype && mediaFile.mimetype.includes('mp4')) ? '.m4a' : '.webm';
+      mediaKey = `chats/${convo.id}/${id}${path.extname(mediaFile.originalname) || (isAudio ? defaultAudioExt : '')}`;
       await storePutBuffer(readFileAsBuffer(mediaFile.path), mediaKey, mediaFile.mimetype);
       mediaType = type;
       if (isAudio && req.body.duration) duration = parseFloat(req.body.duration) || null;
@@ -3421,16 +3495,35 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       shortOwnerUsername = film.ownerUsername;
     }
 
+    const messages = await readChatMessages(convo.id);
+    let replyTo = null;
+    if (req.body.replyToId) {
+      const targetMsg = messages.find(x => x.id === req.body.replyToId);
+      if (targetMsg && !targetMsg.unsent) {
+        replyTo = {
+          id: targetMsg.id,
+          senderId: targetMsg.senderId,
+          senderName: req.body.replyToSender || (targetMsg.senderId === req.currentUser.id ? req.currentUser.username : 'User'),
+          text: previewForMessage(targetMsg).slice(0, 120),
+          type: targetMsg.type || 'text'
+        };
+      }
+    }
+
     const newMessage = {
       id, conversationId: convo.id, senderId: req.currentUser.id,
       type, text: text || null,
-      mediaKey, mediaType, fileName, storageProvider: 'gdrive', duration,
+      mediaKey, mediaType, fileName, storageProvider: r2On() ? 'r2' : 'gdrive', duration,
       shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
+      replyTo,
       createdAt: new Date().toISOString(), editedAt: null,
       deletedFor: [], unsent: false, readBy: [req.currentUser.id]
     };
 
-    const messages = await readChatMessages(convo.id);
+    if (convo.hiddenFor) {
+      delete convo.hiddenFor[req.currentUser.id];
+      if (otherParticipantId) delete convo.hiddenFor[otherParticipantId];
+    }
     messages.push(newMessage);
     await writeChatMessages(convo.id, messages);
 
@@ -3562,13 +3655,40 @@ app.post('/api/conversations/:id/read', async (req, res) => {
 
     const messages = await readChatMessages(convo.id);
     let changed = false;
+    const nowIso = new Date().toISOString();
     messages.forEach(m => {
       if (m.senderId !== currentUser.id) {
         if (!m.readBy) m.readBy = [];
-        if (!m.readBy.includes(currentUser.id)) { m.readBy.push(currentUser.id); changed = true; }
+        if (!m.readBy.includes(currentUser.id)) {
+          m.readBy.push(currentUser.id);
+          m.readAt = nowIso;
+          changed = true;
+        }
       }
     });
     if (changed) await writeChatMessages(convo.id, messages);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/clear', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+
+    const messages = await readChatMessages(convo.id);
+    messages.forEach(m => {
+      if (!m.deletedFor) m.deletedFor = [];
+      if (!m.deletedFor.includes(currentUser.id)) m.deletedFor.push(currentUser.id);
+    });
+    await writeChatMessages(convo.id, messages);
+
+    if (!convo.hiddenFor) convo.hiddenFor = {};
+    convo.hiddenFor[currentUser.id] = new Date().toISOString();
+    await writeConversations(convos);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4093,8 +4213,17 @@ function requireAdmin(req, res, next) {
 
 app.get('/api/admin/reports', requireAdmin, async (req, res) => {
   try {
-    const reports = await readReports();
-    res.json({ reports: reports.slice().reverse() });
+    const [reports, films] = await Promise.all([readReports(), readFilms()]);
+    const filmMap = new Map(films.map(f => [f.id, f]));
+    const enriched = reports.slice().reverse().map(r => {
+      const f = r.filmId ? filmMap.get(r.filmId) : null;
+      return {
+        ...r,
+        filmType: f ? f.type : null,
+        filmTitle: f ? f.title : null
+      };
+    });
+    res.json({ reports: enriched });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4469,8 +4598,60 @@ app.post('/api/search-log', async (req, res) => {
 app.get('/api/admin/search-terms', requireAdmin, async (req, res) => {
   const terms = (await storeTryReadJSON('search-terms.json')) || {};
   const top = Object.entries(terms).map(([term, v]) => ({ term, count: v.count, last: v.last }))
-    .sort((a, b) => b.count - a.count).slice(0, 30);
+    .sort((a, b) => b.count - a.count).slice(0, 50);
   res.json({ terms: top });
+});
+
+app.post('/api/admin/search-terms/delete', requireAdmin, async (req, res) => {
+  try {
+    if (req.body && req.body.clearAll) {
+      await storeWriteJSON('search-terms.json', {});
+      return res.json({ success: true });
+    }
+    const term = String((req.body && req.body.term) || '').trim().toLowerCase();
+    const terms = (await storeTryReadJSON('search-terms.json')) || {};
+    delete terms[term];
+    await storeWriteJSON('search-terms.json', terms);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/stories', requireAdmin, async (req, res) => {
+  try {
+    const stories = await readStories();
+    const directUrl = makeDirectUrlCache();
+    const now = Date.now();
+    const active = stories.filter(s => now - new Date(s.createdAt).getTime() < 24 * 60 * 60 * 1000);
+    const list = await Promise.all(active.slice().reverse().map(async s => {
+      const key = s.mediaFile || s.videoFile || s.posterFile;
+      return {
+        id: s.id,
+        ownerId: s.ownerId,
+        ownerUsername: s.ownerUsername || 'user',
+        mediaType: s.mediaType || 'photo',
+        textOverlay: s.textOverlay || '',
+        createdAt: s.createdAt,
+        viewCount: (s.views || []).length,
+        likeCount: (s.likes || []).length,
+        commentCount: (s.comments || []).length,
+        mediaUrl: key ? await directUrl(key, s.storageProvider || 'gdrive') : null
+      };
+    }));
+    res.json({ stories: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/stories/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    let stories = await readStories();
+    const s = stories.find(x => x.id === req.params.id);
+    if (!s) return res.status(404).json({ error: 'Story not found' });
+    const key = s.mediaFile || s.videoFile || s.posterFile;
+    if (key) { try { await storeDelete(key); } catch (e) {} }
+    stories = stories.filter(x => x.id !== req.params.id);
+    await writeStories(stories);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---------- 3b. admin content manager ----------
@@ -4478,22 +4659,53 @@ app.get('/api/admin/content', requireAdmin, async (req, res) => {
   try {
     const films = await readFilms();
     const directUrl = makeDirectUrlCache();
-    const list = await Promise.all(films.slice(0, 200).map(async f => ({
-      id: f.id,
-      title: f.title || 'Untitled',
-      description: (f.description || '').slice(0, 140),
-      type: f.type === 'photo' ? ((f.slides && f.slides.length > 1) ? 'carousel' : 'photo') : (f.type === 'short' ? 'short' : 'film'),
-      ownerId: f.ownerId,
-      ownerUsername: f.ownerUsername || 'user',
-      views: f.views || 0,
-      likes: f.likes || 0,
-      comments: (f.comments || []).length,
-      uploadedAt: f.uploadedAt,
-      pendingReview: !!f.pendingReview,
-      isSensitive: !!f.isSensitive,
-      posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null
-    })));
+    const list = await Promise.all(films.slice(0, 200).map(async f => {
+      const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+      const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+      const videoKey = f.videoFile || (slide0 && slide0.mediaType === 'video' ? slide0.key : null);
+      return {
+        id: f.id,
+        title: f.title || 'Untitled',
+        description: (f.description || '').slice(0, 300),
+        type: f.type === 'photo' ? ((f.slides && f.slides.length > 1) ? 'carousel' : 'photo') : (f.type === 'short' ? 'short' : 'film'),
+        ownerId: f.ownerId,
+        ownerUsername: f.ownerUsername || 'user',
+        views: f.views || 0,
+        likes: f.likes || 0,
+        comments: (f.comments || []).length,
+        uploadedAt: f.uploadedAt,
+        pendingReview: !!f.pendingReview,
+        isSensitive: !!f.isSensitive,
+        adminBoosted: !!f.adminBoosted,
+        posterUrl: posterKey ? await directUrl(posterKey, f.storageProvider) : null,
+        videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
+      };
+    }));
     res.json({ content: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/content/:id/edit', requireAdmin, async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Post not found' });
+    if (typeof req.body.title === 'string' && req.body.title.trim()) f.title = req.body.title.trim().slice(0, 140);
+    if (typeof req.body.description === 'string') f.description = req.body.description.trim().slice(0, 2000);
+    if (typeof req.body.isSensitive === 'boolean') f.isSensitive = req.body.isSensitive;
+    await writeFilms(films);
+    res.json({ success: true, title: f.title, description: f.description, isSensitive: !!f.isSensitive });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/content/:id/boost', requireAdmin, async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f) return res.status(404).json({ error: 'Post not found' });
+    f.adminBoosted = !f.adminBoosted;
+    await writeFilms(films);
+    res.json({ success: true, adminBoosted: !!f.adminBoosted });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4511,11 +4723,77 @@ app.post('/api/admin/content/:id/delete', requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/admin/users/:id/dm', requireAdmin, async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const text = String((req.body && req.body.message) || '').trim().slice(0, 2000);
+    if (!text) return res.status(400).json({ error: 'Message likho' });
+    const users = await readUsers();
+    const target = users.find(u => u.id === targetId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const founderUser = users.find(u => (u.email || '').toLowerCase() === ALERT_EMAIL_TO.toLowerCase()) || users[0];
+    const senderId = (founderUser && founderUser.id !== targetId) ? founderUser.id : AI_ASSISTANT_ID;
+    const senderUsername = (founderUser && founderUser.id !== targetId) ? founderUser.username : 'TAMASHA Admin';
+
+    const convo = await getConversationForUsers(senderId, targetId, true);
+    const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const formattedText = `🛡️ [Official Admin Message]: ${text}`;
+    const newMessage = {
+      id: msgId, conversationId: convo.id, senderId,
+      type: 'text', text: formattedText,
+      mediaKey: null, mediaType: null, fileName: null, storageProvider: r2On() ? 'r2' : 'gdrive', duration: null,
+      shortId: null, shortTitle: null, shortOwnerUsername: null,
+      createdAt: new Date().toISOString(), editedAt: null,
+      deletedFor: [], unsent: false, readBy: [senderId]
+    };
+    const messages = await readChatMessages(convo.id);
+    messages.push(newMessage);
+    await writeChatMessages(convo.id, messages);
+
+    const convos = await readConversations();
+    const cRef = convos.find(c => c.id === convo.id);
+    if (cRef) {
+      cRef.updatedAt = newMessage.createdAt;
+      cRef.lastMessage = { senderId, preview: previewForMessage(newMessage), createdAt: newMessage.createdAt };
+      if (cRef.hiddenFor) delete cRef.hiddenFor[targetId];
+      await writeConversations(convos);
+    }
+
+    await notify(targetId, {
+      type: 'message',
+      fromUserId: senderId,
+      fromUsername: senderUsername,
+      conversationId: convo.id,
+      message: `🛡️ Admin sent you a direct message: "${text.slice(0, 60)}"`
+    });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---------- 4. moderation queue ----------
 app.get('/api/admin/moderation', requireAdmin, async (req, res) => {
-  const set = (await storeTryReadJSON('moderation-settings.json')) || {};
-  const films = await readFilms();
-  res.json({ reviewUploads: !!set.reviewUploads, queue: films.filter(f => f.pendingReview).map(f => ({ id: f.id, title: f.title, type: f.type, owner: f.ownerUsername, uploadedAt: f.uploadedAt, videoUrl: null })) });
+  try {
+    const set = (await storeTryReadJSON('moderation-settings.json')) || {};
+    const films = await readFilms();
+    const directUrl = makeDirectUrlCache();
+    const queue = await Promise.all(films.filter(f => f.pendingReview).map(async f => {
+      const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+      const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+      const videoKey = f.videoFile || (slide0 && slide0.mediaType === 'video' ? slide0.key : null);
+      return {
+        id: f.id,
+        title: f.title,
+        description: (f.description || '').slice(0, 200),
+        type: f.type,
+        owner: f.ownerUsername,
+        uploadedAt: f.uploadedAt,
+        posterUrl: posterKey ? await directUrl(posterKey, f.storageProvider) : null,
+        videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
+      };
+    }));
+    res.json({ reviewUploads: !!set.reviewUploads, queue });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/admin/moderation/settings', requireAdmin, async (req, res) => {
   const set = (await storeTryReadJSON('moderation-settings.json')) || {};
