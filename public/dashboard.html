@@ -127,7 +127,7 @@
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
-    <button class="tab" data-t="moderation" onclick="setTab('moderation')">🛡️ Queue</button>
+    <button class="tab" data-t="moderation" id="queueTab" onclick="setTab('moderation')">🛡️ Queue</button>
     <button class="tab" data-t="searches" onclick="setTab('searches')">🔎 Searches</button>
     <button class="tab" data-t="trending" onclick="setTab('trending')">Trending</button>
     <button class="tab" data-t="tools" onclick="setTab('tools')">Tools</button>
@@ -245,6 +245,9 @@ function render(){
   document.getElementById('reportsTab').textContent = pend ? 'Reports (' + pend + ')' : 'Reports';
   const hOpen = H.filter(t => t.status === 'open').length;
   document.getElementById('hdTab').textContent = hOpen ? 'Help Desk (' + hOpen + ')' : 'Help Desk';
+  const qPend = (D.overview && D.overview.pendingModeration) || 0;
+  const qTabEl = document.getElementById('queueTab');
+  if (qTabEl) qTabEl.textContent = qPend ? '🛡️ Queue (' + qPend + ')' : '🛡️ Queue';
   if (tab === 'overview') renderOverview();
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
@@ -597,6 +600,7 @@ function userCard(u){
       <div class="row1">
         <span class="dot ${u.online ? 'on' : ''}"></span>
         <span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>
+        ${u.roleBadge ? `<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">${esc(u.roleBadge)}</span>` : ''}
         ${u.suspended ? '<span class="pill sus">suspended</span>' : ''}
         ${u.google ? '<span class="pill g">google</span>' : ''}
         ${u.reports ? `<span class="pill rep">${u.reports} report${u.reports > 1 ? 's' : ''}</span>` : ''}
@@ -607,6 +611,7 @@ function userCard(u){
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
+        <button class="btn" onclick="setRoleBadge('${u.id}')">🏷️ Role Tag</button>
         <button class="btn" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send DM</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
@@ -795,13 +800,25 @@ async function renderModeration(){
     const res = await fetch('/api/admin/moderation', { headers: { 'x-no-prompt': '1' } });
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || 'Failed');
+    if (D && D.overview) {
+      D.overview.pendingModeration = (d.queue || []).length;
+      const qTabEl = document.getElementById('queueTab');
+      if (qTabEl) qTabEl.textContent = d.queue.length ? '🛡️ Queue (' + d.queue.length + ')' : '🛡️ Queue';
+    }
     v.innerHTML = `
       <div class="card">
-        <b>🛡️ Upload review</b>
-        <div class="meta">When on, new uploads will not be visible to users until you approve them.</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
+        <b>🛡️ Upload review &amp; Auto-approval</b>
+        <div class="meta">When on, new uploads wait in the queue until you approve them. You can also auto-approve Verified (✔) creators.</div>
+        <div class="row1" style="margin-top:10px;gap:10px;">
+          <button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button>
+          <span class="meta" style="margin:0;">Status: <b>${d.reviewUploads ? '✅ ON' : 'OFF'}</b></span>
+          <button class="btn ${d.autoApproveVerified ? 'btn-ok' : ''}" onclick="toggleAutoApproveVerified(${!d.autoApproveVerified})">${d.autoApproveVerified ? '✔ Auto-Approve Verified: ON' : '✔ Auto-Approve Verified: OFF'}</button>
+        </div>
       </div>
-      <h3 class="sec">Queue (${d.queue.length})</h3>
+      <div class="row1" style="margin:16px 0 10px;justify-content:space-between;">
+        <h3 class="sec" style="margin:0;">Queue (${d.queue.length})</h3>
+        ${d.queue.length > 0 ? `<button class="btn btn-ok" onclick="approveAllQueue()">✔ Approve All (${d.queue.length})</button>` : ''}
+      </div>
       ${d.queue.map(f => {
         const mediaPreview = f.videoUrl
           ? `<video src="${esc(f.videoUrl)}" controls playsinline preload="metadata" style="max-width:260px;max-height:220px;border-radius:8px;background:#000;margin-top:8px;display:block;"></video>`
@@ -813,10 +830,11 @@ async function renderModeration(){
           <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
           ${f.description ? `<div class="meta" style="margin-top:4px;">${esc(f.description)}</div>` : ''}
           ${mediaPreview}
-          <div class="row1" style="margin-top:10px;">
+          <div class="row1" style="margin-top:10px;gap:6px;">
             <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${esc(f.id)}" target="_blank" style="text-decoration:none;">↗ Open</a>
-            <button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button>
-            <button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button>
+            <button class="btn btn-ok" onclick="modDecide('${f.id}', true, false)">✔ Approve</button>
+            <button class="btn btn-ok" style="background:rgba(255,190,60,0.2);border-color:#ffcf5c;color:#ffcf5c;" onclick="modDecide('${f.id}', true, true)">🔥 Approve &amp; Boost</button>
+            <button class="btn btn-danger" onclick="modDecide('${f.id}', false, false)">✕ Reject with Reason</button>
           </div>
         </div>`;
       }).join('') || '<div class="empty">The queue is empty.</div>'}`;
@@ -826,9 +844,26 @@ async function toggleReview(on){
   await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ reviewUploads: on }) });
   renderModeration();
 }
-async function modDecide(id, approve){
-  if (!approve && !confirm('Permanently delete this post?')) return;
-  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
+async function toggleAutoApproveVerified(on){
+  await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ autoApproveVerified: on }) });
+  renderModeration();
+}
+async function approveAllQueue(){
+  if (!confirm('Approve all pending uploads in the queue?')) return;
+  await fetch('/api/admin/moderation/approve-all', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+  renderModeration();
+}
+async function modDecide(id, approve, boost){
+  let reason = '';
+  if (!approve) {
+    reason = prompt('Reject reason (sent to user in notifications, e.g. 18+ Content, Copyright, Spam, Low Quality):', 'Violates community guidelines');
+    if (reason === null) return;
+  }
+  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+    body: JSON.stringify({ boost: !!boost, reason: reason || '' })
+  });
   renderModeration();
 }
 let adminPreviewAudio = null, adminPreviewBtn = null;
@@ -1191,9 +1226,12 @@ async function renderTools(){
       <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="saveBanned()">Save</button><span class="meta" id="bannedStatus" style="margin:0;"></span></div>
     </div>
     <div class="card">
-      <b>📥 Users ki list (CSV)</b>
-      <div class="meta">Naam, email, join date, posts, comments, followers — Excel/Sheets me khulega.</div>
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="exportCsv()">⬇️ Download CSV</button></div>
+      <b>📥 Users ki list (CSV) &amp; 💾 Full Database Backup (JSON)</b>
+      <div class="meta">Download user spreadsheet (CSV) or a complete 1-click JSON backup of all users, posts, stories, songs, and settings.</div>
+      <div class="row1" style="margin-top:8px;gap:8px;">
+        <button class="btn" onclick="exportCsv()">⬇️ Download Users CSV</button>
+        <button class="btn btn-ok" onclick="downloadBackupJson()">💾 Download Full Backup (JSON)</button>
+      </div>
     </div>
     <div class="card">
       <b>🚨 Report alert</b>
@@ -1223,6 +1261,38 @@ async function saveBanned(){
     if (!res.ok) throw new Error(data.error || 'Failed');
     status.textContent = '✅ Saved (' + data.words.length + ' shabd)';
   } catch (e) { status.textContent = '❌ ' + e.message; }
+}
+async function downloadBackupJson(){
+  try {
+    const res = await fetch('/api/admin/backup.json');
+    if (!res.ok) throw new Error('Backup failed');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'youseries-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) { alert(e.message); }
+}
+async function setRoleBadge(id){
+  const uObj = (D && D.users && D.users.find(x => x.id === id)) || {};
+  const username = uObj.username || 'user';
+  const currentBadge = uObj.roleBadge || '';
+  const badge = prompt('Set custom Role Badge for @' + username + '\nExamples: 👑 Founder & CEO, ⭐ Star Creator, 🎵 Official Artist, 🛡️ Admin\n(Leave blank to remove badge):', currentBadge || '👑 Founder & CEO');
+  if (badge === null) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/role-badge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ roleBadge: badge.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const u = D.users.find(x => x.id === id);
+    if (u) u.roleBadge = d.roleBadge;
+    render();
+  } catch (e) { alert(e.message); }
 }
 async function exportCsv(){
   try {

@@ -845,6 +845,51 @@
   transition: width 0.15s linear;
 }
 
+
+/* Role Badge Pill & Dual Collab Avatars */
+.role-badge-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: linear-gradient(135deg, rgba(255,190,60,0.22), rgba(124,92,255,0.25));
+  border: 1px solid rgba(255,190,60,0.55); color: #ffdf7e;
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  margin-left: 5px; vertical-align: middle; line-height: 1.3;
+}
+.dual-avatar-wrap {
+  position: relative; width: 46px; height: 36px; flex-shrink: 0; cursor: pointer;
+}
+.dual-avatar-wrap .av-main, .dual-avatar-wrap .av-collab {
+  width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
+  border: 2px solid var(--ink); background: var(--marigold); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 12px; position: absolute; top: 3px; overflow: hidden;
+}
+.dual-avatar-wrap .av-main { left: 0; z-index: 2; }
+.dual-avatar-wrap .av-collab { left: 16px; z-index: 1; }
+
+/* Story Interactive Poll Card */
+.story-poll-card {
+  position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
+  z-index: 6; width: min(86vw, 300px);
+  background: rgba(20, 16, 38, 0.88); backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.24); border-radius: 16px;
+  padding: 12px 14px; color: #fff; box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+}
+.story-poll-q {
+  font-weight: 800; font-size: 14.5px; text-align: center; margin-bottom: 9px; color: #fff;
+}
+.story-poll-btn {
+  position: relative; width: 100%; text-align: left; overflow: hidden;
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; color: #fff;
+  font-weight: 700; font-size: 13.5px; cursor: pointer; display: flex; justify-content: space-between;
+}
+.story-poll-btn.voted { border-color: var(--marigold); }
+.story-poll-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: rgba(124, 92, 255, 0.48); z-index: 0; transition: width 0.25s ease;
+}
+.story-poll-btn span { position: relative; z-index: 1; }
+
 </style>
 <script type="application/ld+json">
 {
@@ -1103,6 +1148,7 @@
     <button type="button" class="se-round" onclick="closeStoryUploadModal()" aria-label="Back">←</button>
     <div class="se-tools">
       <button type="button" class="se-round" onclick="document.getElementById('storyTextOverlay').focus()" aria-label="Text">Aa</button>
+      <button type="button" class="se-round" onclick="pickStoryPoll()" aria-label="Poll" title="Add Poll">📊</button>
       <button type="button" class="se-round" onclick="pickStorySong()" aria-label="Song">🎵</button>
       <button type="button" class="se-round" onclick="document.getElementById('storyFileInput').click()" aria-label="Media">🖼️</button>
     </div>
@@ -1187,6 +1233,7 @@
     <img id="storyViewImg" class="hidden" decoding="async" fetchpriority="high">
     <video id="storyViewVideo" class="hidden" playsinline preload="auto"></video>
     <div class="story-text-overlay" id="storyViewTextOverlay"></div>
+    <div id="storyViewPollBox" class="story-poll-card hidden" onclick="event.stopPropagation()"></div>
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
     <div class="story-tap-zone story-tap-right" onclick="storyGoNext()"></div>
   </div>
@@ -1884,6 +1931,14 @@ async function loadProfile(){
         const pubData = await pubRes.json();
         avatarUrl = pubData.profileImage;
         currentUser.profileImage = avatarUrl;
+        currentUser.roleBadge = pubData.roleBadge || null;
+        if (pubData.verified) {
+          const celKey = 'btCelebrated_' + currentUser.id;
+          if (!localStorage.getItem(celKey)) {
+            localStorage.setItem(celKey, '1');
+            setTimeout(() => showBlueTickCelebration(currentUser.username), 600);
+          }
+        }
       } catch (err) {}
 
       headerRight.innerHTML = `
@@ -2067,7 +2122,7 @@ async function renderOtherProfile(userId, usernameHint){
         <div onclick="openUserList('${userId}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}</div>
+    <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}${roleBadgeHtml(pub.roleBadge)}</div>
     ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${escapeAttr(JSON.stringify(pub.note))})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
     ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
     ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
@@ -2148,10 +2203,15 @@ function openPostSafetyMenu(filmId){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
+  const isCollab = !!(film && currentUser && film.collaboratorId === currentUser.id && film.collabStatus === 'accepted');
   let items = `<div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
-  items += isOwner
-    ? `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`
-    : `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
+  if (isOwner) {
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`;
+  } else if (isCollab) {
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();leaveCollabFromPost('${filmId}')">🚪 Leave Collab</div>`;
+  } else {
+    items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('post','${filmId}')">🚩 Report post</div>`;
+  }
   if (!isOwner && film) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openReportSheet('user','${film.ownerId}')">🚩 Report @${escapeHtml(film.ownerUsername || '')}</div>`;
     items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();confirmBlockFromPost('${film.ownerId}')">🚫 Block @${escapeHtml(film.ownerUsername || '')}</div>`;
@@ -2286,6 +2346,8 @@ function openYourDashboard(){
       <div style="font-weight:700;font-size:14.5px;margin-top:3px;">${escapeHtml(st.topPost.title)}</div>
       <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">${st.topPost.views || 0} views · ${st.topPost.likes || 0} likes · ${(st.topPost.comments || []).length} comments</div>
     </div>` : ''}
+    <div style="font-weight:700;margin:16px 0 6px;">👀 Who Viewed Your Profile (Last 7 Days)</div>
+    <div id="yourDashVisitorsBox" style="background:var(--panel);border:1px solid var(--gold-line);border-radius:12px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--cream-dim);">Loading profile visitors...</div>
     <div style="font-weight:700;margin:16px 0 4px;">Last 30 Days Performance</div>
     ${row('Views (30d)', st.views30d, 'On posts uploaded in the last 30 days')}
     ${row('Likes (30d)', st.likes30d, 'On posts uploaded in the last 30 days')}
@@ -2297,6 +2359,7 @@ function openYourDashboard(){
     ${tool('🗂️ Manage uploads', "document.getElementById('yourDashOverlay').remove();openMyUploadsManager()")}
     ${tool('🆘 Help desk', "document.getElementById('yourDashOverlay').remove();openProfileMenu();setTimeout(()=>{renderSettingsPrivacyMenu();setTimeout(renderHelpDesk,60);},60)")}
   `;
+  loadMyProfileVisitors();
 }
 
 function openOwnAvatarMenu(){
@@ -2376,7 +2439,7 @@ async function renderProfile(){
         <div onclick="openUserList('${currentUser.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)} <span style="font-size:13px;opacity:.7;">▾</span></div>
+    <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge)} <span style="font-size:13px;opacity:.7;">▾</span></div>
     <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Note chhodo (24 ghante)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
@@ -2465,21 +2528,39 @@ function switchProfileGrid(which){
   if (which === 'saved') loadSavedGrid();
 }
 
+let savedGridCache = [];
+let savedGridFilter = 'all';
 async function loadSavedGrid(){
   const el = document.getElementById('profileGridSaved');
   try {
     const res = await fetch('/api/me/saved');
     const data = await res.json();
-    const saved = data.saved || [];
-    el.innerHTML = saved.map(f => {
-      const clickJs = f.type === 'short'
-        ? `openShortAt('${escapeAttr(f.filmId)}')`
-        : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.filmId)}')` : `playFilm('${escapeAttr(f.filmId)}')`);
-      return gridItemHtml(f, clickJs, false);
-    }).join('') || '<p class="comment-empty">No saved posts yet.</p>';
+    savedGridCache = data.saved || [];
+    renderSavedGridFiltered();
   } catch (e) {
     el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
   }
+}
+function setSavedGridFilter(f){
+  savedGridFilter = f;
+  renderSavedGridFiltered();
+}
+function renderSavedGridFiltered(){
+  const el = document.getElementById('profileGridSaved');
+  if (!el) return;
+  const filtered = savedGridCache.filter(x => savedGridFilter === 'all' || x.type === savedGridFilter);
+  const chipsHtml = `<div style="grid-column:1 / -1;display:flex;gap:6px;padding:4px 0 10px;overflow-x:auto;">
+    ${[['all','✨ All'],['film','🎬 Videos'],['short','⚡ Shorts'],['photo','🖼️ Photos']].map(([k, lbl]) =>
+      `<button type="button" class="feed-chip ${savedGridFilter === k ? 'active' : ''}" onclick="setSavedGridFilter('${k}')" style="padding:5px 12px;font-size:12px;">${lbl}</button>`
+    ).join('')}
+  </div>`;
+  const itemsHtml = filtered.map(f => {
+    const clickJs = f.type === 'short'
+      ? `openShortAt('${escapeAttr(f.filmId)}')`
+      : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.filmId)}')` : `playFilm('${escapeAttr(f.filmId)}')`);
+    return gridItemHtml(f, clickJs, false);
+  }).join('') || '<p class="comment-empty" style="grid-column:1 / -1;">No saved posts in this category.</p>';
+  el.innerHTML = chipsHtml + itemsHtml;
 }
 
 function toggleSettings(){
@@ -3073,6 +3154,7 @@ async function submitHelpDesk(){
 function renderActivityMenu(){
   setMenuTitle('Your Activity', true, 'renderProfileMenuMain()');
   document.getElementById('profileMenuBody').innerHTML =
+    menuRow('🕒', 'Story History (Archive)', 'renderStoryHistory()') +
     menuRow('👁️', 'Watch History', 'renderWatchHistory()') +
     menuRow('❤️', 'Liked History', 'renderLikedHistory()') +
     menuRow('💬', 'Comments History', 'renderCommentsHistory()');
@@ -3552,11 +3634,9 @@ function renderHome(films) {
     return `
       <div class="card" id="feed-card-${f.id}">
         <div class="card-header-row">
-          <div class="card-avatar" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">
-            ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
-          </div>
+          ${dualOrSingleAvatarHtml(f)}
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})" title="Tap to play song">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})" title="Tap to play song">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${f.adminBoosted ? `<span style="background:rgba(255,190,60,0.2);color:#ffcf5c;border:1px solid rgba(255,190,60,0.4);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;">📌 Featured</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -3759,7 +3839,7 @@ function renderShorts(shorts){
       <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" onclick="viewProfile('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:4px;" loading="lazy" decoding="async">` : ''}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${dualOrSingleShortAvatarHtml(f)}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
@@ -4005,12 +4085,18 @@ function openMenu(id){
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
     <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
   `;
+  const isCollab = !!(currentUser && film && film.collaboratorId === currentUser.id && film.collabStatus === 'accepted');
   if (isOwner) {
     itemsHtml += `
       <div class="menu-item" onclick="closeMenu();openCollabSheet('${id}')">🤝 Collab</div>
       <div class="menu-item" onclick="closeMenu();openInsights('${id}')">📊 View Insights</div>
       <div class="menu-item" onclick="editCurrentShort()">✏️ Edit</div>
       <div class="menu-item" onclick="deleteCurrentShort()" style="color:#e88a8a;">🗑️ Delete</div>
+    `;
+  } else if (isCollab) {
+    itemsHtml += `
+      <div class="menu-item" onclick="closeMenu();openInsights('${id}')">📊 View Insights</div>
+      <div class="menu-item" style="color:#e88a8a;" onclick="closeMenu();leaveCollabFromPost('${id}')">🚪 Leave Collab</div>
     `;
   } else if (film) {
     itemsHtml += `
@@ -5403,6 +5489,7 @@ function openStoryUploadModal(){
   document.getElementById('storyUploadStatus').textContent = '';
   storyPickedFile = null;
   storyChosenSong = null;
+  storyChosenPoll = null;
   storyAdjust = null;
   const sl = document.getElementById('storySongLabel'); if (sl) sl.textContent = '';
   document.getElementById('storyUploadOverlay').classList.add('open');
@@ -5457,6 +5544,7 @@ async function postStory(){
   fd.append('media', storyPickedFile);
   fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
   if (storyAdjust) fd.append('adjust', JSON.stringify(storyAdjust));
+  if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
   if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
   try {
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
@@ -5593,6 +5681,7 @@ function startStoryPlayback(){
   document.getElementById('storyViewerTime').textContent = storyTimeAgo(story.createdAt);
   const ovEl = document.getElementById('storyViewTextOverlay');
   ovEl.innerHTML = linkifyStoryTags(story.textOverlay || '');
+  renderStoryPollBox(story);
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
   const ownerFoot = document.getElementById('storyOwnerFooter');
@@ -5794,22 +5883,29 @@ function endHighlightHold(){
 }
 
 let highlightPickedStoryIds = [];
-async function openHighlightPicker(){
+async function openHighlightPicker(includeArchive){
   highlightPickedStoryIds = [];
-  document.getElementById('highlightTitleInput').value = '';
+  if (!includeArchive) document.getElementById('highlightTitleInput').value = '';
   const list = document.getElementById('highlightPickerList');
   list.innerHTML = '<p class="comment-empty">Loading...</p>';
   document.getElementById('highlightPickerOverlay').classList.add('open');
   try {
-    const res = await fetch('/api/me/stories');
+    const res = await fetch('/api/me/stories' + (includeArchive ? '?archive=1' : ''));
     const data = await res.json();
     const stories = data.stories || [];
-    if (!stories.length) { list.innerHTML = '<p class="comment-empty">No stories found. Post a story first.</p>'; return; }
-    list.innerHTML = stories.map(s => `
+    if (!stories.length) {
+      list.innerHTML = `<div class="comment-empty" style="padding:18px;text-align:center;">
+        <div>${includeArchive ? 'No stories in your Story History yet.' : 'No active (24h) stories right now.'}</div>
+        ${!includeArchive ? `<button type="button" class="profile-btn" style="margin-top:10px;" onclick="openHighlightPicker(true)">🕒 Pick from Story History (Archive)</button>` : ''}
+      </div>`;
+      return;
+    }
+    list.innerHTML = (!includeArchive ? `<div style="padding:4px 0 8px;text-align:right;"><button type="button" class="feed-chip" onclick="openHighlightPicker(true)" style="font-size:11.5px;padding:4px 10px;">🕒 Show Story History (Archive)</button></div>` : '') +
+      stories.map(s => `
       <label class="highlight-picker-item">
         <input type="checkbox" onchange="toggleHighlightStoryPick('${s.id}', this.checked)">
-        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}" loading="lazy" decoding="async">` : `<img src="${s.mediaUrl}" style="background:#000;" loading="lazy" decoding="async">`}
-        <span style="font-size:13px;color:var(--cream-dim);">${storyTimeAgo(s.createdAt)}${s.highlightId ? ' · already in a highlight' : ''}</span>
+        ${s.mediaType === 'photo' ? `<img src="${s.mediaUrl}" loading="lazy" decoding="async">` : `<video src="${s.mediaUrl}#t=0.5" muted playsinline preload="metadata" style="width:48px;height:68px;object-fit:cover;border-radius:6px;background:#000;"></video>`}
+        <span style="font-size:13px;color:var(--cream-dim);">${storyTimeAgo(s.createdAt)}${s.active === false ? ' · 🕒 Archived' : ' · 🟢 Active (24h)'}${s.highlightId ? ' · ★ In highlight' : ''}</span>
       </label>
     `).join('');
   } catch (e) {
@@ -6264,13 +6360,31 @@ async function openNotifications(){
 function closeNotifications(){ document.getElementById('notifOverlay').classList.remove('open'); }
 
 async function respondCollab(filmId, action, btn){
+  if (btn) btn.disabled = true;
   try {
     const res = await fetch('/api/films/' + filmId + '/collab/' + action, { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { showToast(data.error || 'Something went wrong'); return; }
-    btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:var(--cream-dim);">' + (action === 'accept' ? 'Collab accepted ✓' : 'Declined') + '</span>';
+    if (!res.ok) { if (btn) btn.disabled = false; showToast(data.error || 'Something went wrong'); return; }
+    const row = btn ? btn.closest('[data-type]') : null;
+    if (action === 'decline') {
+      if (row) row.remove();
+      else if (btn && btn.parentElement) btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:var(--cream-dim);">Declined</span>';
+      showToast('Collab invite declined');
+    } else {
+      if (row) row.dataset.type = 'collab_accepted';
+      if (btn && btn.parentElement) btn.parentElement.innerHTML = '<span style="font-size:12.5px;color:#5ad19a;font-weight:700;">🤝 Collab accepted ✓</span>';
+      showToast('Collab accepted! 🤝');
+    }
+    if (chatMessagesCache && chatMessagesCache.length) {
+      chatMessagesCache.forEach(m => {
+        if (m.type === 'collab_invite' && String(m.shortId) === String(filmId)) {
+          m.collabStatus = action === 'accept' ? 'accepted' : 'declined';
+        }
+      });
+      if (document.getElementById('chatConvoOverlay').classList.contains('open')) renderChatMessages();
+    }
     loadFilms();
-  } catch (e) {}
+  } catch (e) { if (btn) btn.disabled = false; }
 }
 
 function handleNotifRowClick(el){
@@ -6792,6 +6906,20 @@ function renderChatBubble(m, mine, showStatus){
     const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
     bubbleInner = `<div>${quoteHtml}<div class="chat-bubble chat-voice-bubble" data-dur="${dur}" onclick="toggleVoicePlay(this,'${m.mediaUrl}')">
       <button class="chat-voice-play">▶</button><div class="chat-voice-wave"><div class="chat-voice-wave-fill"></div></div><span class="chat-voice-duration">${mm}:${ss}</span>
+    </div></div>`;
+  } else if (m.type === 'collab_invite') {
+    const st = m.collabStatus || 'pending';
+    const canAct = !mine && st === 'pending';
+    bubbleInner = `<div>${quoteHtml}<div class="chat-bubble" style="background:linear-gradient(145deg,rgba(124,92,255,0.22),rgba(20,16,38,0.92));border:1px solid var(--marigold);border-radius:14px;padding:12px;max-width:250px;">
+      <div style="font-size:11.5px;font-weight:800;color:var(--marigold);margin-bottom:4px;">🤝 COLLAB INVITE</div>
+      <div style="font-size:13.5px;font-weight:700;color:#fff;margin-bottom:8px;">${escapeHtml(m.shortTitle || m.text || 'Post')}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="profile-btn" style="padding:5px 10px;font-size:11.5px;flex:0 0 auto;" onclick="openSharedShort('${escapeAttr(m.shortId || '')}')">↗ View Post</button>
+        ${canAct ? `
+          <button type="button" class="profile-btn primary" style="padding:5px 12px;font-size:11.5px;flex:0 0 auto;" onclick="respondCollab('${escapeAttr(m.shortId || '')}','accept',this)">✔ Accept</button>
+          <button type="button" class="profile-btn" style="padding:5px 10px;font-size:11.5px;flex:0 0 auto;color:#e88a8a;" onclick="respondCollab('${escapeAttr(m.shortId || '')}','decline',this)">✕ Decline</button>
+        ` : `<span style="font-size:12px;font-weight:700;color:${st === 'accepted' ? '#5ad19a' : 'var(--cream-dim)'};">${st === 'accepted' ? '✔ Accepted' : (st === 'declined' ? '✕ Declined' : '⏳ Invite Pending')}</span>`}
+      </div>
     </div></div>`;
   } else if (m.type === 'short') {
     bubbleInner = `<div>${quoteHtml}<div class="chat-bubble chat-short-bubble" style="cursor:pointer;" onclick="openSharedShort('${escapeAttr(m.shortId)}')">
@@ -8581,6 +8709,226 @@ async function deleteStoryFromMyUploads(storyId){
     renderMyUploadsList();
     loadStories();
   } catch (e) { showToast(e.message); }
+}
+
+
+// ---- Helpers for Role Badge, Dual Collab Avatar, Story Polls, Story History, Profile Visitors & Blue Tick Confetti ----
+function roleBadgeHtml(badge){
+  if (!badge) return '';
+  return `<span class="role-badge-pill">${escapeHtml(badge)}</span>`;
+}
+
+function dualOrSingleAvatarHtml(f){
+  if (f && f.collabStatus === 'accepted' && f.collaboratorId) {
+    const mainInner = f.ownerProfileImage
+      ? `<img src="${escapeAttr(f.ownerProfileImage)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
+      : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase());
+    const colInner = f.collaboratorProfileImage
+      ? `<img src="${escapeAttr(f.collaboratorProfileImage)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async">`
+      : escapeHtml((f.collaboratorUsername || 'C')[0].toUpperCase());
+    return `<div class="dual-avatar-wrap" title="@${escapeAttr(f.ownerUsername)} × @${escapeAttr(f.collaboratorUsername)}">
+      <div class="av-main" onclick="event.stopPropagation();viewProfile('${escapeAttr(f.ownerId)}','${escapeAttr(f.ownerUsername)}')">${mainInner}</div>
+      <div class="av-collab" onclick="event.stopPropagation();goToProfileDirect('${escapeAttr(f.collaboratorId)}','${escapeAttr(f.collaboratorUsername)}')">${colInner}</div>
+    </div>`;
+  }
+  return `<div class="card-avatar" onclick="viewProfile('${escapeAttr(f.ownerId)}','${escapeAttr(f.ownerUsername)}')">
+    ${f.ownerProfileImage ? `<img src="${escapeAttr(f.ownerProfileImage)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
+  </div>`;
+}
+
+function dualOrSingleShortAvatarHtml(f){
+  if (f && f.collabStatus === 'accepted' && f.collaboratorId) {
+    return dualOrSingleAvatarHtml(f);
+  }
+  return f.ownerProfileImage
+    ? `<img src="${escapeAttr(f.ownerProfileImage)}" onclick="viewProfile('${escapeAttr(f.ownerId)}','${escapeAttr(f.ownerUsername)}')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;margin-right:4px;cursor:pointer;" loading="lazy" decoding="async">`
+    : '';
+}
+
+async function leaveCollabFromPost(filmId){
+  if (!confirm('Leave collaboration on this post? It will no longer appear on your profile.')) return;
+  try {
+    const res = await fetch('/api/films/' + filmId + '/collab/decline', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not leave collab');
+    applyCollabToLocal(filmId, {});
+    showToast('You left the collaboration');
+    await loadFilms();
+    if (document.getElementById('profileView') && !document.getElementById('profileView').classList.contains('hidden')) renderProfile();
+  } catch (e) { showToast(e.message); }
+}
+
+let storyChosenPoll = null;
+function pickStoryPoll(){
+  if (!storyPickedFile) { showToast('Choose a photo or video first'); return; }
+  const q = prompt('📊 Story Poll Question (e.g. Kaisa laga naya video?):', (storyChosenPoll && storyChosenPoll.q) || '');
+  if (q === null) return;
+  if (!q.trim()) {
+    storyChosenPoll = null;
+    showToast('Poll removed');
+    return;
+  }
+  const optA = prompt('Option 1:', (storyChosenPoll && storyChosenPoll.optA) || '🔥 Mast');
+  if (!optA || !optA.trim()) return;
+  const optB = prompt('Option 2:', (storyChosenPoll && storyChosenPoll.optB) || '😍 Super');
+  if (!optB || !optB.trim()) return;
+  storyChosenPoll = { q: q.trim().slice(0, 100), optA: optA.trim().slice(0, 40), optB: optB.trim().slice(0, 40) };
+  showToast('📊 Poll attached to story!');
+}
+
+function renderStoryPollBox(story){
+  const box = document.getElementById('storyViewPollBox');
+  if (!box) return;
+  if (!story || !story.poll || !story.poll.q) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  const p = story.poll;
+  const vA = Array.isArray(p.votesA) ? p.votesA : [];
+  const vB = Array.isArray(p.votesB) ? p.votesB : [];
+  const total = vA.length + vB.length;
+  const myId = currentUser ? currentUser.id : null;
+  const myVote = myId ? (vA.includes(myId) ? 'A' : (vB.includes(myId) ? 'B' : null)) : null;
+  const isOwner = !!(currentUser && story.ownerId === currentUser.id);
+  const showPct = !!(myVote || isOwner);
+  const pctA = total > 0 ? Math.round((vA.length / total) * 100) : 0;
+  const pctB = total > 0 ? (100 - pctA) : 0;
+
+  box.innerHTML = `
+    <div class="story-poll-q">📊 ${escapeHtml(p.q)}</div>
+    <button type="button" class="story-poll-btn ${myVote === 'A' ? 'voted' : ''}" onclick="voteStoryPoll('${escapeAttr(story.id)}','A')">
+      ${showPct ? `<div class="story-poll-fill" style="width:${pctA}%;"></div>` : ''}
+      <span>${escapeHtml(p.optA)}${myVote === 'A' ? ' ✔' : ''}</span>
+      ${showPct ? `<span>${pctA}%</span>` : ''}
+    </button>
+    <button type="button" class="story-poll-btn ${myVote === 'B' ? 'voted' : ''}" onclick="voteStoryPoll('${escapeAttr(story.id)}','B')">
+      ${showPct ? `<div class="story-poll-fill" style="width:${pctB}%;"></div>` : ''}
+      <span>${escapeHtml(p.optB)}${myVote === 'B' ? ' ✔' : ''}</span>
+      ${showPct ? `<span>${pctB}%</span>` : ''}
+    </button>
+    <div style="font-size:11px;color:rgba(255,255,255,0.65);text-align:center;margin-top:4px;">${total} ${total === 1 ? 'vote' : 'votes'}</div>
+  `;
+  box.classList.remove('hidden');
+}
+
+async function voteStoryPoll(storyId, choice){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  try {
+    const res = await fetch('/api/stories/' + storyId + '/poll-vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choice })
+    });
+    const d = await res.json();
+    if (!res.ok) return;
+    const g = currentStoryUserQueue[currentStoryGroupIndex];
+    const st = g && g.stories ? g.stories.find(x => x.id === storyId) : null;
+    if (st) {
+      st.poll = d.poll;
+      renderStoryPollBox(st);
+    }
+  } catch (e) {}
+}
+
+async function renderStoryHistory(){
+  setMenuTitle('🕒 Story History (Archive)', true, 'renderActivityMenu()');
+  const bodyEl = document.getElementById('profileMenuBody');
+  bodyEl.innerHTML = '<p class="comment-empty">Loading your story archive...</p>';
+  try {
+    const res = await fetch('/api/me/stories?archive=1');
+    const data = await res.json();
+    const items = data.stories || [];
+    if (!items.length) {
+      bodyEl.innerHTML = '<p class="comment-empty">No stories in your Story History yet.</p>';
+      return;
+    }
+    bodyEl.innerHTML = `<div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Only you can see your past stories after 24 hours (Instagram Archive style).</div>` +
+      items.map(s => `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--gold-line);">
+          <div style="width:52px;height:76px;border-radius:8px;overflow:hidden;background:#000;flex-shrink:0;cursor:pointer;" onclick="openArchivedStoryPreview('${escapeAttr(s.mediaUrl)}','${escapeAttr(s.mediaType)}')">
+            ${s.mediaType === 'video'
+              ? `<video src="${escapeAttr(s.mediaUrl)}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+              : `<img src="${escapeAttr(s.mediaUrl)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13.5px;font-weight:700;color:var(--cream);">${new Date(s.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} ${s.active ? '<span style="color:#5ad19a;font-size:11px;">· 🟢 Active (24h)</span>' : '<span style="color:var(--cream-dim);font-size:11px;">· 🕒 Archived</span>'}</div>
+            ${s.textOverlay ? `<div style="font-size:12px;color:var(--cream-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${escapeHtml(s.textOverlay)}"</div>` : ''}
+            <div style="font-size:11.5px;color:var(--cream-dim);margin-top:3px;">👁️ ${s.viewCount || 0} views · ❤️ ${s.likeCount || 0} likes</div>
+          </div>
+          <button type="button" class="profile-btn" style="flex:0 0 auto;padding:6px 10px;font-size:12px;color:#e88a8a;border-color:rgba(230,57,80,0.4);" onclick="deleteStoryFromHistory('${escapeAttr(s.id)}')">🗑️</button>
+        </div>
+      `).join('');
+  } catch (e) {
+    bodyEl.innerHTML = '<p class="comment-empty">Couldn\'t load story history.</p>';
+  }
+}
+
+function openArchivedStoryPreview(url, mediaType){
+  closeProfileMenu();
+  openChatMediaLightbox(url, mediaType === 'video' ? 'video' : 'photo');
+}
+
+async function deleteStoryFromHistory(storyId){
+  if (!confirm('Permanently delete this story from your Story History and Highlights?')) return;
+  try {
+    const res = await fetch('/api/stories/' + storyId + '/delete', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete');
+    showToast('Story permanently deleted');
+    renderStoryHistory();
+    loadStories();
+  } catch (e) { showToast(e.message); }
+}
+
+async function loadMyProfileVisitors(){
+  const box = document.getElementById('yourDashVisitorsBox');
+  if (!box) return;
+  try {
+    const res = await fetch('/api/me/profile-views');
+    const d = await res.json();
+    if (!res.ok) throw new Error('Failed');
+    const list = d.visitors || [];
+    if (!list.length) {
+      box.innerHTML = 'No profile visitors recorded in the last 7 days yet.';
+      return;
+    }
+    box.innerHTML = `<div style="font-weight:700;color:var(--cream);margin-bottom:8px;">👀 ${d.count7d} profile visit(s) in the last 7 days</div>` +
+      `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">` +
+      list.map(v => `
+        <div onclick="document.getElementById('yourDashOverlay').remove();goToProfileDirect('${escapeAttr(v.userId)}','${escapeAttr(v.username)}')" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid var(--gold-line);border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;flex-shrink:0;">
+          ${v.profileImage ? `<img src="${escapeAttr(v.profileImage)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">` : `<div style="width:24px;height:24px;border-radius:50%;background:var(--marigold);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">${escapeHtml((v.username || 'U')[0].toUpperCase())}</div>`}
+          <span style="font-size:12.5px;color:var(--cream);font-weight:600;">@${escapeHtml(v.username)}</span>
+          <span style="font-size:10.5px;color:var(--cream-dim);">${storyTimeAgo(v.viewedAt)}</span>
+        </div>
+      `).join('') + `</div>`;
+  } catch (e) {
+    box.innerHTML = 'Profile visitor analytics ready.';
+  }
+}
+
+function showBlueTickCelebration(username){
+  const old = document.getElementById('btCelebModal');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'btCelebModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:995;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden;';
+  let confettiHtml = '';
+  const emojis = ['🎉', '✨', '🎊', '💙', '⭐', '🔥'];
+  for (let i = 0; i < 22; i++) {
+    const left = Math.round(Math.random() * 94) + '%';
+    const delay = (Math.random() * 1.2).toFixed(2) + 's';
+    const em = emojis[i % emojis.length];
+    confettiHtml += `<div style="position:absolute;top:-30px;left:${left};font-size:22px;animation:storyHeartFloat 2.4s ease-in ${delay} forwards;pointer-events:none;">${em}</div>`;
+  }
+  ov.innerHTML = `
+    ${confettiHtml}
+    <div style="background:linear-gradient(155deg,#1d1638,#0f0c1d);border:1px solid #7C5CFF;border-radius:22px;padding:26px 22px;max-width:340px;width:100%;text-align:center;color:#fff;box-shadow:0 20px 50px rgba(0,0,0,0.6);position:relative;z-index:2;">
+      <div style="font-size:46px;margin-bottom:8px;">🎉✔</div>
+      <div style="font-family:'Baloo 2',sans-serif;font-size:22px;font-weight:800;color:#fff;">Congratulations @${escapeHtml(username)}!</div>
+      <p style="font-size:13.5px;color:rgba(255,255,255,0.82);line-height:1.5;margin:10px 0 18px;">Your official <b>Verified Blue Tick (✔)</b> badge is now active on YouSeries (TAMASHA)! Your badge will shine across your profile, posts, shorts, and comments.</p>
+      <button type="button" class="profile-btn primary" style="width:100%;padding:11px;font-size:14.5px;" onclick="document.getElementById('btCelebModal').remove()">Awesome! 🚀</button>
+    </div>
+  `;
+  document.body.appendChild(ov);
 }
 
 </script>
