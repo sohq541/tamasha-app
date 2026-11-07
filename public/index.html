@@ -770,6 +770,80 @@
   100% { transform: scale(1); }
 }
 
+
+/* Story Quick Emoji Reactions & Avatar Fallback */
+.story-viewer-avatar-fallback {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--marigold), #E63950);
+  color: #fff; font-weight: 800; font-size: 15px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.story-quick-emojis {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; margin-bottom: 8px;
+}
+.story-quick-emoji-btn {
+  background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 999px; padding: 5px 11px; font-size: 18px; line-height: 1;
+  cursor: pointer; transition: transform 0.15s ease, background 0.15s ease;
+  backdrop-filter: blur(6px);
+}
+.story-quick-emoji-btn:active { transform: scale(1.3); background: rgba(255,255,255,0.28); }
+
+/* Comment Quick Emoji & Reaction Bar */
+.comment-emoji-bar {
+  display: flex; align-items: center; gap: 6px; overflow-x: auto;
+  padding: 6px 2px 8px; scrollbar-width: none;
+}
+.comment-emoji-bar::-webkit-scrollbar { display: none; }
+.comment-emoji-chip {
+  background: rgba(255,255,255,0.07); border: 1px solid var(--gold-line);
+  border-radius: 999px; padding: 4px 10px; font-size: 15px; cursor: pointer;
+  flex-shrink: 0; transition: transform 0.12s ease, background 0.12s ease; color: var(--cream);
+}
+.comment-emoji-chip:active { transform: scale(1.18); background: rgba(124,92,255,0.22); }
+
+/* DM Quoted Reply & Seen Status & Recording Controls */
+.chat-reply-preview {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 14px; background: rgba(124,92,255,0.12);
+  border-top: 1px solid var(--gold-line); border-left: 3px solid var(--marigold);
+}
+.chat-quoted-box {
+  background: rgba(0,0,0,0.22); border-left: 3px solid rgba(255,255,255,0.65);
+  border-radius: 6px; padding: 5px 9px; margin-bottom: 5px; font-size: 12px;
+  cursor: pointer; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-msg-row.theirs .chat-quoted-box {
+  background: rgba(255,255,255,0.08); border-left-color: var(--marigold);
+}
+.chat-msg-status {
+  font-size: 11px; margin-top: 2px; color: var(--cream-dim); font-weight: 600;
+}
+.chat-msg-status.seen {
+  color: #5ce1e6; font-weight: 700;
+}
+.chat-recording-wave {
+  display: flex; align-items: center; gap: 3px; flex: 1; justify-content: center; height: 20px;
+}
+.chat-recording-wave i {
+  display: inline-block; width: 3px; height: 8px; border-radius: 2px;
+  background: #ff5c77; animation: recWave 0.7s infinite ease-in-out alternate;
+}
+.chat-recording-wave i:nth-child(2){ animation-delay: 0.15s; height: 14px; }
+.chat-recording-wave i:nth-child(3){ animation-delay: 0.3s; height: 18px; }
+.chat-recording-wave i:nth-child(4){ animation-delay: 0.45s; height: 12px; }
+.chat-recording-wave i:nth-child(5){ animation-delay: 0.2s; height: 16px; }
+@keyframes recWave { from { transform: scaleY(0.45); } to { transform: scaleY(1.25); } }
+.chat-voice-wave {
+  position: relative; overflow: hidden;
+}
+.chat-voice-wave-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+  background: rgba(255,255,255,0.38); border-radius: 4px; pointer-events: none;
+  transition: width 0.15s linear;
+}
+
 </style>
 <script type="application/ld+json">
 {
@@ -832,7 +906,6 @@
       "operatingSystem": "Web, Android, iOS",
       "applicationCategory": "SocialNetworkingApplication",
       "url": "https://www.tamasha.qd.je/",
-      "downloadUrl": "https://github.com/sohq541/tamasha-app/releases/download/v1.0/Youseries.apk",
       "author": {
         "@id": "https://www.tamasha.qd.je/#founder"
       },
@@ -959,6 +1032,16 @@
         <div class="yt-cmt-preview" id="ytCmtPreview"></div>
       </div>
       <div class="comments-section hidden" id="legacyCommentsSection">
+        <div class="comment-emoji-bar">
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','🔥')">🔥</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','❤️')">❤️</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','😂')">😂</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','😍')">😍</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','👏')">👏</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','💯')">💯</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','🙌')">🙌</button>
+          <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('commentText','🎉')">🎉</button>
+        </div>
         <form class="comment-form" id="commentForm">
           <textarea id="commentText" placeholder="Add a comment..." maxlength="500" required></textarea>
           <button type="submit">Post</button>
@@ -973,6 +1056,16 @@
 <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSheet()">
   <div class="sheet">
     <div class="sheet-header"><h3>Comments</h3><button class="sheet-close" onclick="closeSheet()">✕</button></div>
+    <div class="comment-emoji-bar">
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','🔥')">🔥</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','❤️')">❤️</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','😂')">😂</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','😍')">😍</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','👏')">👏</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','💯')">💯</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','🙌')">🙌</button>
+      <button type="button" class="comment-emoji-chip" onclick="insertCommentEmoji('sheetCommentText','🎉')">🎉</button>
+    </div>
     <form class="comment-form" id="sheetCommentForm">
       <textarea id="sheetCommentText" placeholder="Add a comment..." maxlength="500" required></textarea>
       <button type="submit">Post</button>
@@ -1081,6 +1174,7 @@
   <div class="story-progress-row" id="storyProgressRow"></div>
   <div class="story-viewer-header">
     <img class="story-viewer-avatar" id="storyViewerAvatar" src="" loading="lazy" decoding="async">
+    <div class="story-viewer-avatar-fallback hidden" id="storyViewerAvatarFallback">U</div>
     <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
@@ -1104,9 +1198,19 @@
         💬 <span id="storyCommentCountLabel">0</span> Replies
       </button>
     </div>
-    <div id="storyViewerReplyRow" style="width:100%;display:flex;align-items:center;gap:10px;">
-      <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Send reply..." onkeydown="if(event.key==='Enter'){postStoryComment();}">
-      <button type="button" class="story-heart-btn" id="storyLikeBtn" onclick="toggleStoryLike(event)" title="Like story">🤍</button>
+    <div id="storyViewerReplyRow" style="width:100%;display:flex;flex-direction:column;gap:4px;">
+      <div class="story-quick-emojis" id="storyQuickEmojisRow">
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('🔥', event)">🔥</button>
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('😍', event)">😍</button>
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('😂', event)">😂</button>
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('👏', event)">👏</button>
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('😢', event)">😢</button>
+        <button type="button" class="story-quick-emoji-btn" onclick="sendStoryQuickReaction('🎉', event)">🎉</button>
+      </div>
+      <div style="width:100%;display:flex;align-items:center;gap:10px;">
+        <input type="text" class="story-comment-input" id="storyCommentInput" placeholder="Send reply..." onfocus="pauseStoryProgress()" onblur="resumeStoryProgress()" onkeydown="if(event.key==='Enter'){postStoryComment();}">
+        <button type="button" class="story-heart-btn" id="storyLikeBtn" onclick="toggleStoryLike(event)" title="Like story">🤍</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1145,12 +1249,16 @@
     <button class="chat-header-back" onclick="closeChatInbox()">←</button>
     <span class="chat-header-name">Messages</span>
   </div>
+  <div style="padding:8px 14px 4px;">
+    <input type="text" id="chatInboxSearchInput" placeholder="🔍 Search messages or start a new chat..." oninput="onChatInboxSearch(this.value)" style="width:100%;padding:9px 14px;border-radius:999px;border:1px solid var(--gold-line);background:rgba(255,255,255,0.06);color:var(--cream);font-family:'Mukta',sans-serif;font-size:13.5px;box-sizing:border-box;outline:none;">
+  </div>
+  <div id="chatInboxSearchResults" class="hidden" style="max-height:220px;overflow-y:auto;border-bottom:1px solid var(--gold-line);padding:4px 10px;"></div>
   <div class="notes-strip" id="notesStrip"></div>
   <div class="chat-inbox-list" id="chatInboxList"></div>
 </div>
 
 <!-- ===== MESSAGES: CONVERSATION ===== -->
-<div class="chat-full-overlay" id="chatConvoOverlay">
+<div class="chat-full-overlay" id="chatConvoOverlay" style="z-index:126;">
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeChatConvo()">←</button>
     <div style="position:relative;">
@@ -1162,11 +1270,25 @@
       <div class="chat-typing-text hidden" id="chatConvoTypingText"><span class="tdots"><span></span><span></span><span></span></span></div>
     </div>
     <button class="chat-header-icon hidden" id="aiClearBtn" onclick="clearAiChat()" title="Clear Ask AI chat" style="font-size:13px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 10px;">🧹 Clear</button>
+    <button class="chat-header-icon hidden" id="chatDeleteConvoBtn" onclick="deleteCurrentConversation()" title="Delete conversation" style="font-size:13px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 10px;color:#e88a8a;">🗑️ Delete</button>
   </div>
   <div class="chat-messages" id="chatMessagesArea"></div>
+  <div class="chat-reply-preview hidden" id="chatReplyPreview">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:11.5px;font-weight:700;color:var(--marigold);" id="chatReplySenderLabel">Replying to</div>
+      <div style="font-size:12.5px;color:var(--cream-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="chatReplyTextLabel"></div>
+    </div>
+    <button type="button" class="chat-attach-cancel" onclick="clearChatReplyTarget()">✕</button>
+  </div>
   <div class="chat-attach-preview hidden" id="chatAttachPreview"></div>
-  <div class="chat-recording-row hidden" id="chatRecordingRow">
-    <span class="chat-recording-dot"></span> Recording... <span id="chatRecordingTime">0:00</span>
+  <div class="chat-recording-row hidden" id="chatRecordingRow" style="justify-content:space-between;padding:10px 14px;">
+    <button type="button" onclick="stopVoiceRecording(true)" style="background:rgba(230,57,80,0.18);color:#ff6b81;border:1px solid rgba(230,57,80,0.4);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;">🗑️ Cancel</button>
+    <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;">
+      <span class="chat-recording-dot"></span>
+      <span id="chatRecordingTime" style="font-weight:700;font-size:13.5px;min-width:34px;">0:00</span>
+      <div class="chat-recording-wave"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <button type="button" onclick="stopVoiceRecording(false)" style="background:var(--marigold);color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;">➤ Send</button>
   </div>
   <div class="chat-input-bar" id="chatInputBar">
     <input type="file" id="chatMediaInput" accept="image/*,video/*" style="display:none;" onchange="onChatMediaPicked(event)">
@@ -1221,6 +1343,27 @@
 <div class="sheet-overlay" id="reactionPickerOverlay" onclick="if(event.target===this) closeReactionPicker()">
   <div class="sheet">
     <div class="reaction-picker-row" id="reactionPickerRow"></div>
+  </div>
+</div>
+
+<!-- ===== PROFILE QR CODE & SHAREABLE CARD ===== -->
+<div class="sheet-overlay" id="profileQrOverlay" onclick="if(event.target===this) closeProfileQr()">
+  <div class="sheet" style="text-align:center;max-width:360px;margin:0 auto;">
+    <div class="sheet-header"><h3>🔳 Profile QR Card</h3><button class="sheet-close" onclick="closeProfileQr()">✕</button></div>
+    <div id="profileQrCardBox" style="background:linear-gradient(145deg,#1b1630,#0f0c1d);border:1px solid var(--gold-line);border-radius:18px;padding:20px 16px;margin:8px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,0.45);">
+      <div id="profileQrAvatarWrap" style="margin:0 auto 8px;width:54px;height:54px;border-radius:50%;overflow:hidden;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#fff;"></div>
+      <div id="profileQrUsername" style="font-family:'Baloo 2',sans-serif;font-size:19px;font-weight:800;color:#fff;"></div>
+      <div style="font-size:11.5px;color:var(--cream-dim);margin-bottom:14px;">Scan to view profile on YouSeries (TAMASHA)</div>
+      <div style="background:#fff;padding:12px;border-radius:14px;display:inline-block;">
+        <canvas id="profileQrCanvas" width="180" height="180" style="width:180px;height:180px;display:block;"></canvas>
+      </div>
+      <div id="profileQrUrlText" style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:10px;word-break:break-all;"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;">
+      <button type="button" class="profile-btn primary" onclick="shareProfileFromQr()">↗ Share</button>
+      <button type="button" class="profile-btn" onclick="copyProfileQrLink()">🔗 Copy Link</button>
+      <button type="button" class="profile-btn" onclick="downloadProfileQrPng()">⬇️ Save QR</button>
+    </div>
   </div>
 </div>
 
@@ -1355,6 +1498,9 @@ function setFeedFilter(f){
   else if (f === 'trending') list = list.sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3));
   else if (f === 'film') list = list.filter(x => x.type === 'film');
   else if (f === 'photo') list = list.filter(x => x.type === 'photo');
+  if (f !== 'trending') {
+    list.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0));
+  }
   renderHome(list);
 }
 let currentFilm = null;
@@ -1579,7 +1725,7 @@ function closeAllOverlays(){
     otherProfileOverlay: closeOtherProfile,
     reactionPickerOverlay: closeReactionPicker, insightsOverlay: closeInsights, highlightPickerOverlay: closeHighlightPicker,
     profileSafetyOverlay: closeProfileSafetyMenu, postSafetyOverlay: closePostSafetyMenu, reportOverlay: closeReportSheet,
-    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet, profilePhotoFeedOverlay: closeProfilePhotoFeed
+    hashtagFeedOverlay: closeHashtagFeed, collabOverlay: closeCollabSheet, profilePhotoFeedOverlay: closeProfilePhotoFeed, profileQrOverlay: closeProfileQr
   };
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
@@ -1886,6 +2032,7 @@ async function renderOtherProfile(userId, usernameHint){
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
       <button class="profile-btn" onclick="copyProfileLink('${userId}')">Share Profile</button>
+      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})" style="flex:0 0 auto;padding:9px 12px;" title="Profile QR Code">🔳 QR</button>
     </div>
     <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
@@ -2192,6 +2339,7 @@ async function renderProfile(){
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
       <button class="profile-btn" onclick="copyProfileLink('${currentUser.id}')">Share Profile</button>
+      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})" style="flex:0 0 auto;padding:9px 12px;" title="My QR Code">🔳 QR</button>
       <button class="profile-btn" onclick="openYourDashboard()">Dashboard</button>
     </div>
 
@@ -3146,6 +3294,7 @@ async function loadFilms() {
     allFilms = [];
     showToast('Could not load content: ' + err.message);
   }
+  allFilms.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0));
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
@@ -3158,7 +3307,12 @@ async function loadFilms() {
 
   const chatUserId = params.get('chat');
 
-  if (sharedId) playFilm(sharedId);
+  if (sharedId) {
+    const sf = allFilms.find(x => x.id === sharedId);
+    if (sf && sf.type === 'photo') openProfilePhotoFeed(sf.ownerId, sf.id);
+    else if (sf && sf.type === 'short') openShortAt(sf.id);
+    else playFilm(sharedId);
+  }
   if (shortId) openShortAt(shortId);
   if (profileId) {
     const f = allFilms.find(x => x.ownerId === profileId);
@@ -3175,7 +3329,9 @@ function renderShortsGrid(shorts){
   if (!grid) return;
   grid.innerHTML = shorts.map(f => `
     <div class="shorts-grid-item" onclick="openShortAt('${f.id}')">
-      ${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}
+      ${f.posterUrl
+        ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">`
+        : (f.videoUrl ? `<video src="${f.videoUrl}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;"></video>` : '')}
       <div class="shorts-grid-play">▶</div>
       <div class="shorts-grid-views">▶ ${f.views || 0}</div>
     </div>
@@ -3354,7 +3510,7 @@ function renderHome(films) {
           </div>
           <div>
             <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})" title="Tap to play song">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
-            ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}
+            ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${f.adminBoosted ? `<span style="background:rgba(255,190,60,0.2);color:#ffcf5c;border:1px solid rgba(255,190,60,0.4);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;">📌 Featured</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
           <button class="feed-act-btn" style="margin-left:auto;font-size:18px;" onclick="event.stopPropagation();openPostSafetyMenu('${f.id}')">⋮</button>
@@ -4227,6 +4383,14 @@ async function playFilm(id){
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
   if (!res.ok) { showToast(f.error || 'This content is no longer available'); return; }
+  if (f.type === 'photo') {
+    if (!allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
+    return openProfilePhotoFeed(f.ownerId, f.id);
+  }
+  if (f.type === 'short') {
+    if (!allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
+    return openShortAt(f.id);
+  }
   currentFilm = f;
   renderUpNext(f);
   if (f.song && f.type !== 'photo' && f.type !== 'short') {
@@ -5361,7 +5525,20 @@ function startStoryPlayback(){
   const story = group.stories[currentStoryIndex];
   if (!story) { storyAdvanceUser(1); return; }
 
-  document.getElementById('storyViewerAvatar').src = group.ownerProfileImage || '';
+  const stAvImg = document.getElementById('storyViewerAvatar');
+  const stAvFb = document.getElementById('storyViewerAvatarFallback');
+  if (group.ownerProfileImage) {
+    stAvImg.src = group.ownerProfileImage;
+    stAvImg.classList.remove('hidden');
+    if (stAvFb) stAvFb.classList.add('hidden');
+  } else {
+    stAvImg.removeAttribute('src');
+    stAvImg.classList.add('hidden');
+    if (stAvFb) {
+      stAvFb.textContent = (group.ownerUsername || 'U')[0].toUpperCase();
+      stAvFb.classList.remove('hidden');
+    }
+  }
   document.getElementById('storyViewerUsername').textContent = '@' + group.ownerUsername;
   document.getElementById('storyViewerTime').textContent = storyTimeAgo(story.createdAt);
   const ovEl = document.getElementById('storyViewTextOverlay');
@@ -5616,6 +5793,7 @@ async function openHighlightViewer(highlightId){
     if (!res.ok) return;
     const h = await res.json();
     if (!h.stories || !h.stories.length) return;
+    pauseFeedMedia();
     const group = {
       ownerId: h.ownerId, ownerUsername: h.ownerUsername, ownerProfileImage: h.ownerProfileImage,
       stories: h.stories, highlightId: h.id, highlightTitle: h.title
@@ -5816,9 +5994,22 @@ async function deleteStoryCommentFromViews(commentId){
     const res = await fetch(`/api/stories/${currentStoryId}/comments/${commentId}/delete`, { method: 'POST' });
     if (!res.ok) throw new Error('Could not delete');
     storyViewsCache.comments = (storyViewsCache.comments || []).filter(c => c.id !== commentId);
+    const remainingByUser = new Map();
+    storyViewsCache.comments.forEach(c => {
+      if (!c || !c.userId || !c.text || c.text.trim() === '❤️') return;
+      if (!remainingByUser.has(c.userId)) remainingByUser.set(c.userId, []);
+      remainingByUser.get(c.userId).push(c.text);
+    });
+    (storyViewsCache.viewers || []).forEach(v => {
+      const rem = remainingByUser.get(v.userId) || [];
+      v.comments = rem;
+      v.comment = rem.length ? rem[rem.length - 1] : null;
+      v.commentCount = rem.length;
+    });
     document.getElementById('svTabCommentsCount').textContent = storyViewsCache.comments.length;
     document.getElementById('storyCommentCountLabel').textContent = storyViewsCache.comments.length;
     renderStoryCommentsInViews();
+    renderStoryViewersList();
   } catch (e) { showToast(e.message); }
 }
 
@@ -5878,6 +6069,48 @@ async function toggleStoryLike(event){
   }
 }
 
+function triggerStoryEmojiAnimation(sourceBtn, emoji){
+  const footer = document.getElementById('storyViewerFooter');
+  if (!footer || !sourceBtn) return;
+  const count = 5;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.className = 'floating-story-heart';
+    el.textContent = emoji;
+    const offsetX = (Math.random() * 50 - 25);
+    const targetX = (Math.random() * 90 - 45);
+    const rot = (Math.random() * 40 - 20) + 'deg';
+    const rect = sourceBtn.getBoundingClientRect();
+    const footRect = footer.getBoundingClientRect();
+    el.style.left = (rect.left - footRect.left + 8 + offsetX) + 'px';
+    el.style.bottom = '46px';
+    el.style.setProperty('--tx', targetX + 'px');
+    el.style.setProperty('--rot', rot);
+    el.style.animationDelay = (i * 0.07) + 's';
+    footer.appendChild(el);
+    setTimeout(() => el.remove(), 1200 + (i * 80));
+  }
+}
+
+async function sendStoryQuickReaction(emoji, event){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (!currentStoryId || !emoji) return;
+  const btn = event ? event.currentTarget : null;
+  if (btn) triggerStoryEmojiAnimation(btn, emoji);
+  const group = currentStoryUserQueue[currentStoryGroupIndex];
+  const story = group && group.stories ? group.stories[currentStoryIndex] : null;
+  try {
+    const res = await fetch(`/api/stories/${currentStoryId}/comments`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: emoji })
+    });
+    if (!res.ok) throw new Error('Failed');
+    if (story) story.commentCount = (story.commentCount || 0) + 1;
+    const lbl = document.getElementById('storyCommentCountLabel');
+    if (lbl && story) lbl.textContent = story.commentCount;
+    showToast('Reacted ' + emoji);
+  } catch (e) { showToast('Reaction failed'); }
+}
+
 async function postStoryComment(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   const input = document.getElementById('storyCommentInput');
@@ -5886,12 +6119,16 @@ async function postStoryComment(){
   input.value = '';
   input.blur();
   const group = currentStoryUserQueue[currentStoryGroupIndex];
+  const story = group && group.stories ? group.stories[currentStoryIndex] : null;
   try {
     const res = await fetch(`/api/stories/${currentStoryId}/comments`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
     });
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || 'Failed');
+    if (story) story.commentCount = (story.commentCount || 0) + 1;
+    const lbl = document.getElementById('storyCommentCountLabel');
+    if (lbl && story) lbl.textContent = story.commentCount;
     showToast('Reply sent to @' + (group ? group.ownerUsername : 'user'));
   } catch (e) { showToast('Reply failed to send'); }
 }
@@ -5919,7 +6156,7 @@ async function pollNotificationCount(){
 function notifIcon(type){
   if (type === 'follow') return '👤';
   if (type === 'film_comment' || type === 'story_comment') return '💬';
-  if (type === 'comment_like') return '❤️';
+  if (type === 'comment_like' || type === 'story_like') return '❤️';
   if (type === 'comment_pin') return '📌';
   if (type === 'message' || type === 'message_reaction') return '✉️';
   if (type === 'mention') return '@';
@@ -6050,15 +6287,20 @@ async function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type,
     return;
   }
 
-  // 2. Story notification (story_comment or comment_like on a story)
+  // 2. Story notification (story_comment, story_like, or comment_like on a story)
   if (storyId) {
     const wantComments = (type === 'story_comment' || type === 'comment_like');
-    // For story_comment on your own story, YOU are the story owner (currentUser.id), not fromUserId!
-    const targetOwnerId = storyOwnerHint || (type === 'story_comment' && currentUser ? currentUser.id : null);
+    const isStoryActivityOnMine = (type === 'story_comment' || type === 'story_like');
+    const targetOwnerId = storyOwnerHint || (isStoryActivityOnMine && currentUser ? currentUser.id : null);
     if (!storyGroups.length || !storyGroups.some(g => (g.stories || []).some(s => s.id === storyId))) {
       await loadStories();
     }
-    if (openStoryViewer(targetOwnerId, storyId, wantComments)) return;
+    if (openStoryViewer(targetOwnerId, storyId, wantComments)) {
+      if (type === 'story_like') {
+        setTimeout(() => { openStoryViewsSheet('views'); filterStoryViewers('liked'); }, 260);
+      }
+      return;
+    }
     showToast('Ye story expire ho chuki hai (24h)');
     return;
   }
@@ -6124,8 +6366,53 @@ function chatDayLabel(iso){
   return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
 }
 
+let chatInboxSearchTimer = null;
+async function onChatInboxSearch(query){
+  const q = (query || '').trim().toLowerCase();
+  const resBox = document.getElementById('chatInboxSearchResults');
+  const rows = document.querySelectorAll('#chatInboxList .chat-inbox-row');
+  rows.forEach(r => {
+    const txt = (r.textContent || '').toLowerCase();
+    r.style.display = (!q || txt.includes(q)) ? '' : 'none';
+  });
+  if (!resBox) return;
+  clearTimeout(chatInboxSearchTimer);
+  if (!q) {
+    resBox.classList.add('hidden');
+    resBox.innerHTML = '';
+    return;
+  }
+  chatInboxSearchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/users/search?q=' + encodeURIComponent(q.replace(/^@/, '')));
+      const d = await r.json();
+      const users = (d.users || []).filter(u => currentUser && u.id !== currentUser.id);
+      if (!users.length) {
+        resBox.classList.add('hidden');
+        resBox.innerHTML = '';
+        return;
+      }
+      resBox.innerHTML = '<div style="font-size:11px;color:var(--cream-dim);padding:4px 6px;font-weight:700;">Start chat with:</div>' +
+        users.map(u => `
+          <div class="chat-inbox-row" style="padding:8px 6px;" onclick="document.getElementById('chatInboxSearchInput').value='';onChatInboxSearch('');openChatConvo('${escapeAttr(u.id)}','${escapeAttr(u.username)}')">
+            ${avatarOrFallback(u.profileImage, u.username, 'chat-inbox-avatar', 'chat-inbox-avatar-fallback')}
+            <div class="chat-inbox-info">
+              <div class="chat-inbox-name">@${escapeHtml(u.username)}${u.verified ? ' <span class="vbadge">✔</span>' : ''}</div>
+              <div class="chat-inbox-preview">Tap to message</div>
+            </div>
+          </div>
+        `).join('');
+      resBox.classList.remove('hidden');
+    } catch (e) {}
+  }, 220);
+}
+
 async function openChatInbox(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  const sIn = document.getElementById('chatInboxSearchInput');
+  if (sIn) sIn.value = '';
+  const sRes = document.getElementById('chatInboxSearchResults');
+  if (sRes) { sRes.classList.add('hidden'); sRes.innerHTML = ''; }
   document.getElementById('chatInboxOverlay').classList.add('open');
   await loadChatInbox();
 }
@@ -6151,10 +6438,13 @@ async function loadChatInbox(){
         </div>
         <div class="chat-inbox-info">
           <div class="chat-inbox-name">@${escapeHtml(c.otherUser.username)}</div>
-          <div class="chat-inbox-preview ${c.unreadCount > 0 ? 'unread' : ''}">${escapeHtml(c.lastMessage ? c.lastMessage.preview : '')}</div>
+          <div class="chat-inbox-preview ${c.unreadCount > 0 ? 'unread' : ''}">${escapeHtml(c.lastMessage ? c.lastMessage.preview : 'Say hi 👋')}</div>
         </div>
-        <div class="chat-inbox-meta">
-          <div class="chat-inbox-time">${c.updatedAt ? storyTimeAgo(c.updatedAt) : ''}</div>
+        <div class="chat-inbox-meta" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="chat-inbox-time">${c.updatedAt ? storyTimeAgo(c.updatedAt) : ''}</div>
+            ${c.otherUser.id !== 'ai-assistant' ? `<button type="button" onclick="event.stopPropagation();deleteConversationFromInbox('${escapeAttr(c.id)}','${escapeAttr(c.otherUser.username)}')" style="background:none;border:none;color:var(--cream-dim);font-size:13px;padding:2px 4px;cursor:pointer;" title="Delete chat">🗑️</button>` : ''}
+          </div>
           ${c.unreadCount > 0 ? `<span class="chat-inbox-badge">${c.unreadCount > 99 ? '99+' : c.unreadCount}</span>` : ''}
         </div>
       </div>
@@ -6164,12 +6454,55 @@ async function loadChatInbox(){
   }
 }
 
+async function deleteConversationFromInbox(convoId, username){
+  if (!convoId) return;
+  if (!confirm(`Delete full chat with @${username} from your inbox?`)) return;
+  try {
+    const res = await fetch('/api/conversations/' + convoId + '/clear', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete chat');
+    showToast('Chat deleted');
+    loadChatInbox();
+    pollMessagesCount();
+  } catch (e) { showToast(e.message); }
+}
+
+async function deleteCurrentConversation(){
+  if (!chatConvoId || !chatOtherUser || chatOtherUser.id === 'ai-assistant') return;
+  if (!confirm(`Delete all messages with @${chatOtherUser.username} from your chat?`)) return;
+  try {
+    const res = await fetch('/api/conversations/' + chatConvoId + '/clear', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete chat');
+    showToast('Chat deleted');
+    closeChatConvo();
+    pollMessagesCount();
+  } catch (e) { showToast(e.message); }
+}
+
+let chatReplyTarget = null;
+function setChatReplyTarget(messageId){
+  const m = chatMessagesCache.find(x => x.id === messageId);
+  closeChatMsgMenu();
+  if (!m || m.unsent) return;
+  const senderName = m.senderId === currentUser.id ? currentUser.username : (chatOtherUser ? chatOtherUser.username : 'User');
+  const previewText = m.type === 'photo' ? '📷 Photo' : m.type === 'video' ? '🎬 Video' : m.type === 'voice' ? '🎤 Voice message' : m.type === 'short' ? '🎬 Shared a short' : (m.text || '');
+  chatReplyTarget = { id: m.id, senderName, text: previewText };
+  document.getElementById('chatReplySenderLabel').textContent = '↩️ Replying to @' + senderName;
+  document.getElementById('chatReplyTextLabel').textContent = previewText;
+  document.getElementById('chatReplyPreview').classList.remove('hidden');
+  document.getElementById('chatTextInput').focus();
+}
+function clearChatReplyTarget(){
+  chatReplyTarget = null;
+  const el = document.getElementById('chatReplyPreview');
+  if (el) el.classList.add('hidden');
+}
+
 async function openChatConvo(userId, usernameHint){
   if (!currentUser) { window.location.href = '/login.html'; return; }
-  if (document.getElementById('chatInboxOverlay').classList.contains('open')) closeChatInbox();
   if (document.getElementById('otherProfileOverlay').classList.contains('open')) closeOtherProfile();
   stopVoiceRecording(true);
   clearChatAttachPreview();
+  clearChatReplyTarget();
   document.getElementById('chatTextInput').value = '';
   chatConvoId = null;
   chatOtherUser = { id: userId, username: usernameHint || '...' };
@@ -6191,6 +6524,8 @@ async function openChatConvo(userId, usernameHint){
     document.getElementById('chatConvoHeaderName').textContent = '@' + data.otherUser.username;
     const clrBtn = document.getElementById('aiClearBtn');
     if (clrBtn) clrBtn.classList.toggle('hidden', data.otherUser.id !== 'ai-assistant');
+    const delBtn = document.getElementById('chatDeleteConvoBtn');
+    if (delBtn) delBtn.classList.toggle('hidden', data.otherUser.id === 'ai-assistant');
     document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(data.otherUser.profileImage, data.otherUser.username, 'chat-header-avatar', 'chat-header-avatar-fallback');
     chatMessagesCache = data.messages || [];
     chatLastFetchAt = new Date().toISOString();
@@ -6199,7 +6534,7 @@ async function openChatConvo(userId, usernameHint){
     markChatRead();
     document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherUser.online);
     if (chatPollHandle) clearInterval(chatPollHandle);
-    chatPollHandle = setInterval(pollChatMessages, 5000);
+    chatPollHandle = setInterval(pollChatMessages, 4000);
     pingAiPresence();
   } catch (err) {
     document.getElementById('chatMessagesArea').innerHTML = `<div class="chat-empty">${escapeHtml(err.message)}</div>`;
@@ -6210,7 +6545,12 @@ function closeChatConvo(){
   document.getElementById('chatConvoOverlay').classList.remove('open');
   if (chatPollHandle) { clearInterval(chatPollHandle); chatPollHandle = null; }
   stopVoiceRecording(true);
+  if (activeChatVoiceAudio && !activeChatVoiceAudio.paused) {
+    activeChatVoiceAudio.pause();
+    activeChatVoiceAudio = null;
+  }
   clearChatAttachPreview();
+  clearChatReplyTarget();
   chatConvoId = null;
   chatOtherUser = null;
   chatMessagesCache = [];
@@ -6222,8 +6562,13 @@ function closeChatConvo(){
 
 function chatOpenOtherProfile(){
   if (!chatOtherUser) return;
+  if (chatOtherUser.id === 'ai-assistant') {
+    showToast('🤖 Ask AI — Built-in assistant of YouSeries (TAMASHA), founded by Sohail Parvez');
+    return;
+  }
   const id = chatOtherUser.id, username = chatOtherUser.username;
   closeChatConvo();
+  closeChatInbox();
   goToProfileDirect(id, username);
 }
 
@@ -6355,32 +6700,49 @@ function sendAiQuick(q){
   sendChatMessage();
 }
 
+function scrollToChatMessage(msgId){
+  const el = document.getElementById('chat-msg-' + msgId);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.transition = 'background 0.3s ease';
+  el.style.background = 'rgba(255,190,60,0.18)';
+  setTimeout(() => { el.style.background = ''; }, 1200);
+}
+
 function renderChatBubble(m, mine, showStatus){
   const rowCls = 'chat-msg-row ' + (mine ? 'mine' : 'theirs') + (m.unsent ? ' chat-msg-unsent' : '');
+  const replyBtn = !m.unsent ? `<button class="chat-input-icon-btn" style="font-size:12px;padding:2px 5px;opacity:0.75;" title="Reply" onclick='setChatReplyTarget(${JSON.stringify(m.id)})'>↩️</button>` : '';
   const menuBtn = `<button class="chat-input-icon-btn" style="font-size:13px;padding:2px 6px;" onclick='openChatMsgMenu(${JSON.stringify(m.id)})'>⋮</button>`;
   let bubbleInner = '';
 
   if (m.unsent) {
     bubbleInner = `<div class="chat-bubble">${m.type === 'short' ? 'Short unsent' : 'Message unsent'}</div>`;
-    return `<div class="${rowCls}"><div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${bubbleInner}</div></div>`;
+    return `<div class="${rowCls}" id="chat-msg-${escapeAttr(m.id)}"><div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}">${bubbleInner}</div></div>`;
   }
 
+  const quoteHtml = (m.replyTo && m.replyTo.text)
+    ? `<div class="chat-quoted-box" onclick="event.stopPropagation();scrollToChatMessage('${escapeAttr(m.replyTo.id || '')}')">
+        <div style="font-weight:700;font-size:11px;opacity:0.9;">@${escapeHtml(m.replyTo.senderName || 'User')}</div>
+        <div style="opacity:0.85;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(m.replyTo.text)}</div>
+      </div>`
+    : '';
+
   if (m.type === 'text' && m.senderId === 'ai-assistant') {
-    bubbleInner = `<div class="ai-card">${aiFormat(m.text || '')}</div>`;
+    bubbleInner = `<div class="ai-card">${quoteHtml}${aiFormat(m.text || '')}</div>`;
   } else if (m.type === 'text') {
-    bubbleInner = `<div class="chat-bubble">${linkifyText(m.text || '')}</div>`;
+    bubbleInner = `<div class="chat-bubble">${quoteHtml}${linkifyText(m.text || '')}</div>`;
   } else if (m.type === 'photo') {
-    bubbleInner = `<div><div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
+    bubbleInner = `<div>${quoteHtml}<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else if (m.type === 'video') {
-    bubbleInner = `<div><div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
+    bubbleInner = `<div>${quoteHtml}<div class="chat-bubble media-bubble"><video class="chat-media-video" src="${m.mediaUrl}" playsinline muted onclick="openChatMediaLightbox('${m.mediaUrl}','video')"></video></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else if (m.type === 'voice') {
     const dur = m.duration ? Math.round(m.duration) : 0;
     const mm = Math.floor(dur / 60), ss = String(dur % 60).padStart(2, '0');
-    bubbleInner = `<div class="chat-bubble chat-voice-bubble" onclick="toggleVoicePlay(this,'${m.mediaUrl}')">
-      <button class="chat-voice-play">▶</button><div class="chat-voice-wave"></div><span class="chat-voice-duration">${mm}:${ss}</span>
-    </div>`;
+    bubbleInner = `<div>${quoteHtml}<div class="chat-bubble chat-voice-bubble" data-dur="${dur}" onclick="toggleVoicePlay(this,'${m.mediaUrl}')">
+      <button class="chat-voice-play">▶</button><div class="chat-voice-wave"><div class="chat-voice-wave-fill"></div></div><span class="chat-voice-duration">${mm}:${ss}</span>
+    </div></div>`;
   } else if (m.type === 'short') {
-    bubbleInner = `<div><div class="chat-bubble chat-short-bubble" style="cursor:pointer;" onclick="openSharedShort('${escapeAttr(m.shortId)}')">
+    bubbleInner = `<div>${quoteHtml}<div class="chat-bubble chat-short-bubble" style="cursor:pointer;" onclick="openSharedShort('${escapeAttr(m.shortId)}')">
       <div style="position:relative;width:100%;aspect-ratio:9/14;background:#111;display:flex;align-items:center;justify-content:center;overflow:hidden;">
         <img src="${escapeAttr(m.shortThumb || '')}" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block';" loading="lazy" decoding="async">
         ${m.shortVideoUrl ? `<video src="${escapeAttr(m.shortVideoUrl)}" muted playsinline preload="metadata" style="display:none;width:100%;height:100%;object-fit:cover;"></video>` : ''}
@@ -6392,28 +6754,61 @@ function renderChatBubble(m, mine, showStatus){
       </div>
     </div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else {
-    bubbleInner = `<div class="chat-bubble">${escapeHtml(m.text || '')}</div>`;
+    bubbleInner = `<div class="chat-bubble">${quoteHtml}${escapeHtml(m.text || '')}</div>`;
   }
 
-  return `<div class="${rowCls}">
-    <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}" onpointerdown='startBubbleHold(event,${JSON.stringify(m.id)})' onpointerup="endBubbleHold(event)" onpointerleave="endBubbleHold(event)" onpointercancel="endBubbleHold(event)" oncontextmenu="event.preventDefault();return false;">${menuBtn}${bubbleInner}</div>
+  const isSeen = (m.readBy || []).some(id => id !== currentUser.id);
+  const statusHtml = mine
+    ? (showStatus
+        ? `<div class="chat-msg-status ${isSeen ? 'seen' : ''}">${isSeen ? '✓✓ Seen' : '✓ Sent'}</div>`
+        : `<span style="font-size:10.5px;margin-left:4px;color:${isSeen ? '#5ce1e6' : 'var(--cream-dim)'};">${isSeen ? '✓✓' : '✓'}</span>`)
+    : '';
+
+  return `<div class="${rowCls}" id="chat-msg-${escapeAttr(m.id)}">
+    <div class="chat-msg-outer" style="display:flex;align-items:flex-end;gap:4px;${mine ? 'flex-direction:row-reverse;' : ''}" onpointerdown='startBubbleHold(event,${JSON.stringify(m.id)})' onpointerup="endBubbleHold(event)" onpointerleave="endBubbleHold(event)" onpointercancel="endBubbleHold(event)" oncontextmenu="event.preventDefault();return false;">${menuBtn}${replyBtn}${bubbleInner}</div>
     ${renderReactionPills(m.reactions) ? `<div style="display:flex;${mine ? 'justify-content:flex-end;' : ''}">${renderReactionPills(m.reactions)}</div>` : ''}
-    <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}</div>
-    ${showStatus ? `<div class="chat-msg-status">${(m.readBy || []).some(id => id !== currentUser.id) ? 'Seen ✓✓' : 'Sent ✓'}</div>` : ''}
+    <div class="chat-msg-time">${chatTimeShort(m.createdAt)}${m.editedAt ? '<span class="chat-msg-edited">(edited)</span>' : ''}${!showStatus ? statusHtml : ''}</div>
+    ${showStatus ? statusHtml : ''}
   </div>`;
 }
 
+let activeChatVoiceAudio = null;
 function toggleVoicePlay(bubbleEl, url){
+  stopSong();
   let audio = bubbleEl._audioEl;
+  const btn = bubbleEl.querySelector('.chat-voice-play');
+  const fill = bubbleEl.querySelector('.chat-voice-wave-fill');
+  const durEl = bubbleEl.querySelector('.chat-voice-duration');
+  const baseDur = Number(bubbleEl.dataset.dur || 0);
+  const fmtSec = s => { const sec = Math.max(0, Math.round(s || 0)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+
   if (!audio) {
     audio = new Audio(url);
     bubbleEl._audioEl = audio;
-    const btn = bubbleEl.querySelector('.chat-voice-play');
-    audio.addEventListener('ended', () => { btn.textContent = '▶'; });
+    audio.addEventListener('ended', () => {
+      btn.textContent = '▶';
+      if (fill) fill.style.width = '0%';
+      if (durEl) durEl.textContent = fmtSec(baseDur || audio.duration || 0);
+      if (activeChatVoiceAudio === audio) activeChatVoiceAudio = null;
+    });
     audio.addEventListener('play', () => { btn.textContent = '⏸'; });
     audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+    audio.addEventListener('timeupdate', () => {
+      const total = (isFinite(audio.duration) && audio.duration > 0) ? audio.duration : (baseDur || 1);
+      const pct = Math.min(100, (audio.currentTime / total) * 100);
+      if (fill) fill.style.width = pct.toFixed(1) + '%';
+      if (durEl) durEl.textContent = fmtSec(Math.max(0, total - audio.currentTime));
+    });
   }
-  if (audio.paused) audio.play().catch(() => showToast('Could not play voice message')); else audio.pause();
+  if (activeChatVoiceAudio && activeChatVoiceAudio !== audio && !activeChatVoiceAudio.paused) {
+    activeChatVoiceAudio.pause();
+  }
+  if (audio.paused) {
+    activeChatVoiceAudio = audio;
+    audio.play().catch(() => showToast('Could not play voice message'));
+  } else {
+    audio.pause();
+  }
 }
 
 function scrollChatToBottom(){
@@ -6464,6 +6859,10 @@ async function sendChatMessage(){
     const fd = new FormData();
     if (text) fd.append('text', text);
     if (chatPickedMediaFile) fd.append('media', chatPickedMediaFile);
+    if (chatReplyTarget && chatReplyTarget.id) {
+      fd.append('replyToId', chatReplyTarget.id);
+      fd.append('replyToSender', chatReplyTarget.senderName || '');
+    }
     const res = await fetch('/api/conversations/' + chatConvoId + '/messages', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not send');
@@ -6475,6 +6874,7 @@ async function sendChatMessage(){
     textEl.value = '';
     textEl.style.height = 'auto';
     clearChatAttachPreview();
+    clearChatReplyTarget();
     loadChatInbox().catch(() => {});
   } catch (err) {
     showToast(err.message);
@@ -6533,16 +6933,25 @@ async function openSharedShort(filmId){
 async function toggleVoiceRecording(){
   if (chatIsRecording) { stopVoiceRecording(false); return; }
   try {
+    stopSong();
+    if (activeChatVoiceAudio && !activeChatVoiceAudio.paused) activeChatVoiceAudio.pause();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     chatRecordedChunks = [];
-    chatMediaRecorder = new MediaRecorder(stream);
-    chatMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chatRecordedChunks.push(e.data); };
+    let mimeOpts = {};
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeOpts = { mimeType: 'audio/webm;codecs=opus' };
+      else if (MediaRecorder.isTypeSupported('audio/webm')) mimeOpts = { mimeType: 'audio/webm' };
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeOpts = { mimeType: 'audio/mp4' };
+    }
+    chatMediaRecorder = new MediaRecorder(stream, mimeOpts);
+    chatMediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chatRecordedChunks.push(e.data); };
     chatMediaRecorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
     };
     chatMediaRecorder.start();
     chatIsRecording = true;
     chatRecordingSeconds = 0;
+    document.getElementById('chatRecordingTime').textContent = '0:00';
     document.getElementById('chatMicBtn').classList.add('recording');
     document.getElementById('chatMicBtn').textContent = '⏹';
     document.getElementById('chatRecordingRow').classList.remove('hidden');
@@ -6565,20 +6974,28 @@ function stopVoiceRecording(discard){
   document.getElementById('chatRecordingRow').classList.add('hidden');
   document.getElementById('chatInputBar').classList.remove('hidden');
   if (chatRecordingTimerHandle) { clearInterval(chatRecordingTimerHandle); chatRecordingTimerHandle = null; }
-  const seconds = chatRecordingSeconds;
+  const seconds = Math.max(1, chatRecordingSeconds);
+  const tooShort = chatRecordingSeconds < 1 && ! chatRecordedChunks.length;
   chatRecordingSeconds = 0;
 
   if (!chatMediaRecorder) return;
   const recorder = chatMediaRecorder;
   chatMediaRecorder = null;
   recorder.onstop = async () => {
-    recorder.stream.getTracks().forEach(t => t.stop());
-    if (discard || seconds < 1) return;
-    const blob = new Blob(chatRecordedChunks, { type: 'audio/webm' });
+    try { recorder.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    if (discard || tooShort || !chatConvoId) return;
+    const recMime = (recorder.mimeType && recorder.mimeType.includes('mp4')) ? 'audio/mp4' : 'audio/webm';
+    const recExt = recMime.includes('mp4') ? 'm4a' : 'webm';
+    const blob = new Blob(chatRecordedChunks, { type: recMime });
+    if (!blob.size) return;
     const fd = new FormData();
-    fd.append('media', blob, 'voice.webm');
+    fd.append('media', blob, 'voice.' + recExt);
     fd.append('isVoice', 'true');
     fd.append('duration', String(seconds));
+    if (chatReplyTarget && chatReplyTarget.id) {
+      fd.append('replyToId', chatReplyTarget.id);
+      fd.append('replyToSender', chatReplyTarget.senderName || '');
+    }
     try {
       const res = await fetch('/api/conversations/' + chatConvoId + '/messages', { method: 'POST', body: fd });
       const data = await res.json();
@@ -6586,15 +7003,16 @@ function stopVoiceRecording(discard){
       chatMessagesCache.push(data);
       chatLastFetchAt = new Date().toISOString();
       if (chatOtherUser && chatOtherUser.id === 'ai-assistant') aiThinkingSince = Date.now();
+      clearChatReplyTarget();
       renderChatMessages();
       scrollChatToBottom();
       loadChatInbox().catch(() => {});
     } catch (err) { showToast(err.message); }
   };
-  recorder.stop();
+  try { recorder.stop(); } catch (e) {}
 }
 
-// ---- Message actions (edit / delete) ----
+// ---- Message actions (reply / copy / edit / delete) ----
 function openChatMsgMenu(messageId){
   const m = chatMessagesCache.find(x => x.id === messageId);
   if (!m) return;
@@ -6606,11 +7024,19 @@ function openChatMsgMenu(messageId){
     document.getElementById('chatMsgMenuOverlay').classList.add('open');
     return;
   }
+  items += menuRow('↩️', 'Reply to message', `setChatReplyTarget('${escapeAttr(m.id)}')`);
+  if (m.text) items += menuRow('📋', 'Copy text', 'chatMsgMenuCopy()');
   if (mine && m.type === 'text') items += menuRow('✏️', 'Edit', 'chatMsgMenuEdit()');
   if (mine) items += menuRow('🗑️', m.type === 'short' ? 'Unsend' : 'Delete for everyone', 'chatMsgMenuDelete(\'everyone\')', true);
   items += menuRow('🗑️', 'Delete for me', 'chatMsgMenuDelete(\'me\')', true);
   document.getElementById('chatMsgMenuItems').innerHTML = items;
   document.getElementById('chatMsgMenuOverlay').classList.add('open');
+}
+function chatMsgMenuCopy(){
+  if (!chatMsgMenuTarget || !chatMsgMenuTarget.text) return;
+  const txt = chatMsgMenuTarget.text;
+  closeChatMsgMenu();
+  navigator.clipboard.writeText(txt).then(() => showToast('Message copied!')).catch(() => {});
 }
 function closeChatMsgMenu(){ document.getElementById('chatMsgMenuOverlay').classList.remove('open'); }
 
@@ -7397,7 +7823,7 @@ window.UploadMgr = (function(){
     'chatInboxOverlay','chatConvoOverlay','chatMsgMenuOverlay','chatEditOverlay','chatMediaLightbox',
     'sendToOverlay','userListOverlay','uploadModalOverlay','otherProfileOverlay',
     'reactionPickerOverlay','insightsOverlay','highlightPickerOverlay',
-    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay','profilePhotoFeedOverlay'
+    'profileSafetyOverlay','postSafetyOverlay','reportOverlay','hashtagFeedOverlay','collabOverlay','profilePhotoFeedOverlay','profileQrOverlay'
   ];
   const CLOSERS = {
     profileMenuOverlay: () => closeProfileMenu(),
@@ -7427,7 +7853,8 @@ window.UploadMgr = (function(){
     reportOverlay: () => closeReportSheet(),
     hashtagFeedOverlay: () => closeHashtagFeed(),
     collabOverlay: () => closeCollabSheet(),
-    profilePhotoFeedOverlay: () => closeProfilePhotoFeed()
+    profilePhotoFeedOverlay: () => closeProfilePhotoFeed(),
+    profileQrOverlay: () => closeProfileQr()
   };
 
   let navStack = [];            // ids currently pushed into browser history, in open order
@@ -7616,6 +8043,126 @@ function shareCurrentFilmById(id, title) {
   document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest(blocked)) e.preventDefault(); });
   document.addEventListener('selectstart', e => { if (e.target.closest && e.target.closest('.tab-btn,.card-username,.profile-username,#accountsSheet')) e.preventDefault(); });
 })();
+
+// ---- Comment Quick Emoji Bar & Profile QR Code Card ----
+function insertCommentEmoji(inputId, emoji){
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  const start = el.selectionStart != null ? el.selectionStart : el.value.length;
+  const end = el.selectionEnd != null ? el.selectionEnd : el.value.length;
+  el.value = el.value.slice(0, start) + emoji + el.value.slice(end);
+  el.focus();
+  try { el.selectionStart = el.selectionEnd = start + emoji.length; } catch (e) {}
+}
+
+let currentQrProfile = null;
+function drawStylizedQrOnCanvas(canvas, text, username){
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const size = 180;
+  canvas.width = size; canvas.height = size;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 6, 6, size - 12, size - 12);
+  };
+  img.onerror = () => {
+    // Offline/CSP deterministic matrix fallback
+    const cells = 21;
+    const cellSize = Math.floor((size - 16) / cells);
+    const pad = Math.floor((size - cells * cellSize) / 2);
+    ctx.fillStyle = '#141026';
+    const drawFinder = (rx, ry) => {
+      for (let y = 0; y < 7; y++) {
+        for (let x = 0; x < 7; x++) {
+          if (x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4)) {
+            ctx.fillRect(pad + (rx + x) * cellSize, pad + (ry + y) * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+    };
+    drawFinder(0, 0); drawFinder(cells - 7, 0); drawFinder(0, cells - 7);
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    for (let y = 0; y < cells; y++) {
+      for (let x = 0; x < cells; x++) {
+        if ((x < 8 && y < 8) || (x >= cells - 8 && y < 8) || (x < 8 && y >= cells - 8)) continue;
+        hash ^= (x * 37 + y * 101);
+        hash = Math.imul(hash, 16777619);
+        if ((Math.abs(hash) % 10) < 5) {
+          ctx.fillRect(pad + x * cellSize, pad + y * cellSize, cellSize - 0.5, cellSize - 0.5);
+        }
+      }
+    }
+  };
+  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=4&data=' + encodeURIComponent(text);
+}
+
+function openProfileQr(userId, username, avatarUrl, verified){
+  const url = location.origin + '/?profile=' + encodeURIComponent(userId);
+  currentQrProfile = { userId, username, url };
+  const avWrap = document.getElementById('profileQrAvatarWrap');
+  if (avWrap) {
+    avWrap.innerHTML = avatarUrl
+      ? `<img src="${escapeAttr(avatarUrl)}" style="width:100%;height:100%;object-fit:cover;">`
+      : escapeHtml((username || 'U')[0].toUpperCase());
+  }
+  const unameEl = document.getElementById('profileQrUsername');
+  if (unameEl) unameEl.innerHTML = '@' + escapeHtml(username) + (verified ? ' <span class="vbadge">✔</span>' : '');
+  const urlEl = document.getElementById('profileQrUrlText');
+  if (urlEl) urlEl.textContent = url;
+  drawStylizedQrOnCanvas(document.getElementById('profileQrCanvas'), url, username);
+  document.getElementById('profileQrOverlay').classList.add('open');
+}
+
+function closeProfileQr(){
+  const el = document.getElementById('profileQrOverlay');
+  if (el) el.classList.remove('open');
+}
+
+function copyProfileQrLink(){
+  if (!currentQrProfile) return;
+  navigator.clipboard.writeText(currentQrProfile.url).then(() => showToast('Profile link copied!')).catch(() => {});
+}
+
+function shareProfileFromQr(){
+  if (!currentQrProfile) return;
+  if (navigator.share) {
+    navigator.share({
+      title: '@' + currentQrProfile.username + ' on YouSeries (TAMASHA)',
+      text: 'Check out @' + currentQrProfile.username + ' on YouSeries (TAMASHA)!',
+      url: currentQrProfile.url
+    }).catch(() => {});
+  } else {
+    copyProfileQrLink();
+  }
+}
+
+function downloadProfileQrPng(){
+  if (!currentQrProfile) return;
+  const canvas = document.getElementById('profileQrCanvas');
+  if (!canvas) return;
+  try {
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'tamasha-qr-' + (currentQrProfile.username || 'profile') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast('QR Code saved!');
+  } catch (e) {
+    window.open('https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=10&data=' + encodeURIComponent(currentQrProfile.url), '_blank');
+  }
+}
+
 </script>
 </body>
 </html>

@@ -123,6 +123,7 @@
     <button class="tab" data-t="datahub" onclick="setTab('datahub')">🛰️ Data Hub</button>
     <button class="tab" data-t="songs" onclick="setTab('songs')">🎵 Songs</button>
     <button class="tab" data-t="content" onclick="setTab('content')">🎬 Content</button>
+  <button class="tab" data-t="stories" onclick="setTab('stories')">🔵 Stories Manager</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
@@ -255,6 +256,7 @@ function render(){
   else if (tab === 'trending') renderTrending();
   else if (tab === 'tools') renderTools();
   else if (tab === 'content') renderContentManager();
+  else if (tab === 'stories') renderAdminStories();
   else if (tab === 'users') renderUsers();
   else renderActivity();
 }
@@ -345,20 +347,68 @@ function drawContentList(){
   if (!box) return;
   const q = cmQuery.trim().toLowerCase();
   const rows = CM_LIST.filter(f => (cmType === 'all' || f.type === cmType) && (!q || (f.title || '').toLowerCase().includes(q) || (f.ownerUsername || '').toLowerCase().includes(q)));
-  box.innerHTML = rows.map(f => `
-    <div class="card" id="cm-${f.id}" style="display:flex;gap:12px;align-items:center;">
-      ${f.posterUrl ? `<img src="${f.posterUrl}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;" loading="lazy">` : `<div style="width:60px;height:60px;border-radius:8px;background:var(--field);display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎬</div>`}
-      <div style="flex:1;min-width:0;">
-        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span>${f.pendingReview ? '<span class="pill rep">pending</span>' : ''}${f.isSensitive ? '<span class="pill sus">18+/sensitive</span>' : ''}</div>
+  box.innerHTML = rows.map(f => {
+    const thumbHtml = f.posterUrl
+      ? `<img src="${esc(f.posterUrl)}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;" loading="lazy">`
+      : (f.videoUrl
+          ? `<video src="${esc(f.videoUrl)}#t=0.5" muted playsinline preload="metadata" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;"></video>`
+          : `<div style="width:64px;height:64px;border-radius:8px;background:var(--field);display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎬</div>`);
+    return `
+    <div class="card" id="cm-${f.id}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      ${thumbHtml}
+      <div style="flex:1;min-width:180px;">
+        <div class="row1">
+          <span class="name">${esc(f.title)}</span>
+          <span class="pill g">${esc(f.type)}</span>
+          ${f.adminBoosted ? '<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">📌 Boosted</span>' : ''}
+          ${f.pendingReview ? '<span class="pill rep">pending</span>' : ''}
+          ${f.isSensitive ? '<span class="pill sus">18+/sensitive</span>' : ''}
+        </div>
         <div class="meta">@${esc(f.ownerUsername)} · ${ago(f.uploadedAt)}</div>
+        ${f.description ? `<div class="meta" style="font-size:12px;opacity:0.85;">${esc(f.description.slice(0, 100))}</div>` : ''}
         <div class="nums"><span><b>${f.views}</b> views</span><span><b>${f.likes}</b> likes</span><span><b>${f.comments}</b> comments</span></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${f.id}" target="_blank" style="text-align:center;text-decoration:none;">↗ Open</a>
+        <button class="btn" onclick="adminEditPost('${f.id}')">✏️ Edit</button>
+        <button class="btn ${f.adminBoosted ? 'btn-ok' : ''}" onclick="adminBoostPost('${f.id}')">${f.adminBoosted ? '📌 Unboost' : '📌 Pin/Boost'}</button>
         <button class="btn btn-danger" onclick="adminDeletePost('${f.id}')">🗑️ Delete</button>
       </div>
-    </div>
-  `).join('') || '<div class="empty">No matching posts found.</div>';
+    </div>`;
+  }).join('') || '<div class="empty">No matching posts found.</div>';
+}
+async function adminEditPost(id){
+  const f = CM_LIST.find(x => x.id === id);
+  if (!f) return;
+  const title = prompt('Edit post title:', f.title || '');
+  if (title === null) return;
+  const description = prompt('Edit post description / hashtags:', f.description || '');
+  if (description === null) return;
+  const isSensitive = confirm('Mark this post as 18+ / Sensitive content?\n(Click OK for 18+ Sensitive, Cancel for Normal)');
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ title: title.trim() || f.title, description, isSensitive })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Edit failed');
+    f.title = d.title;
+    f.description = d.description;
+    f.isSensitive = d.isSensitive;
+    drawContentList();
+  } catch (e) { alert(e.message); }
+}
+async function adminBoostPost(id){
+  const f = CM_LIST.find(x => x.id === id);
+  if (!f) return;
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/boost', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Boost failed');
+    f.adminBoosted = d.adminBoosted;
+    drawContentList();
+  } catch (e) { alert(e.message); }
 }
 async function adminDeletePost(id){
   if (!confirm('Permanently delete this post and its media from R2?')) return;
@@ -440,11 +490,12 @@ function drawAdminSongs(){
     </div>
     <div class="meta">${esc(x.artist || 'Unknown artist')}</div>
     <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
-    <div class="row1" style="margin-top:8px;">
-      <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove trending' : '🔥 Trending'}</button>
-      <button class="btn" onclick="editSongPrompt('${x.id}')">✏️ Edit</button>
-      <button class="btn btn-danger" onclick="deleteSong('${x.id}')">🗑️ Delete</button>
-    </div>
+      <div class="row1" style="margin-top:8px;">
+        ${x.url ? `<button class="btn admin-song-play-btn" onclick="toggleAdminSongPreview('${esc(x.url)}', this)">▶ Play Preview</button>` : ''}
+        <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove trending' : '🔥 Trending'}</button>
+        <button class="btn" onclick="editSongPrompt('${x.id}')">✏️ Edit</button>
+        <button class="btn btn-danger" onclick="deleteSong('${x.id}')">🗑️ Delete</button>
+      </div>
   </div>`).join('') || '<div class="empty">No matching songs.</div>';
 }
 async function editSongPrompt(id){
@@ -556,6 +607,7 @@ function userCard(u){
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
+        <button class="btn" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send DM</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
       </div>
@@ -582,11 +634,14 @@ function reportCard(r){
       ${r.targetPreview ? `<div class="meta">"${esc(String(r.targetPreview).slice(0, 200))}"</div>` : ''}
       <div class="meta">Report kiya: @${esc(r.reporterUsername || 'unknown')}${r.note ? ' · ' + esc(r.note) : ''}</div>
       ${target ? `<div class="meta">Reported user: <b>@${esc(target.username)}</b>${target.suspended ? ' (suspended)' : ''}</div>` : ''}
-      ${pending ? `<div class="row1" style="margin-top:10px;">
-        <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
-        ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
-        ${target ? `<button class="btn ${target.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${target.id}')">${target.suspended ? 'Unsuspend user' : 'Suspend user'}</button>` : ''}
-      </div>` : ''}
+      <div class="row1" style="margin-top:10px;">
+        ${r.filmId ? `<a class="btn" href="/?${r.filmType === 'short' ? 'short=' : 'film='}${esc(r.filmId)}" target="_blank" style="text-decoration:none;">↗ View Post</a>` : ''}
+        ${pending ? `
+          <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
+          ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
+          ${target ? `<button class="btn ${target.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${target.id}')">${target.suspended ? 'Unsuspend user' : 'Suspend user'}</button>` : ''}
+        ` : ''}
+      </div>
     </div>`;
 }
 function renderReports(){
@@ -747,11 +802,24 @@ async function renderModeration(){
         <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
       </div>
       <h3 class="sec">Queue (${d.queue.length})</h3>
-      ${d.queue.map(f => `<div class="card">
-        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
-        <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button><button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button></div>
-      </div>`).join('') || '<div class="empty">The queue is empty.</div>'}`;
+      ${d.queue.map(f => {
+        const mediaPreview = f.videoUrl
+          ? `<video src="${esc(f.videoUrl)}" controls playsinline preload="metadata" style="max-width:260px;max-height:220px;border-radius:8px;background:#000;margin-top:8px;display:block;"></video>`
+          : (f.posterUrl
+              ? `<a href="${esc(f.posterUrl)}" target="_blank"><img src="${esc(f.posterUrl)}" style="max-width:220px;max-height:220px;border-radius:8px;object-fit:contain;background:#000;margin-top:8px;display:block;" loading="lazy"></a>`
+              : '');
+        return `<div class="card">
+          <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
+          <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
+          ${f.description ? `<div class="meta" style="margin-top:4px;">${esc(f.description)}</div>` : ''}
+          ${mediaPreview}
+          <div class="row1" style="margin-top:10px;">
+            <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${esc(f.id)}" target="_blank" style="text-decoration:none;">↗ Open</a>
+            <button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button>
+            <button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button>
+          </div>
+        </div>`;
+      }).join('') || '<div class="empty">The queue is empty.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 async function toggleReview(on){
@@ -763,15 +831,114 @@ async function modDecide(id, approve){
   await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
   renderModeration();
 }
+let adminPreviewAudio = null, adminPreviewBtn = null;
+function toggleAdminSongPreview(url, btn){
+  if (adminPreviewAudio && adminPreviewAudio.src.endsWith(url) && !adminPreviewAudio.paused) {
+    adminPreviewAudio.pause();
+    btn.textContent = '▶ Play Preview';
+    return;
+  }
+  if (adminPreviewAudio) {
+    adminPreviewAudio.pause();
+    if (adminPreviewBtn) adminPreviewBtn.textContent = '▶ Play Preview';
+  }
+  adminPreviewAudio = new Audio(url);
+  adminPreviewBtn = btn;
+  btn.textContent = '⏸ Pause';
+  adminPreviewAudio.onended = () => { if (adminPreviewBtn) adminPreviewBtn.textContent = '▶ Play Preview'; };
+  adminPreviewAudio.play().catch(e => { alert('Could not play song preview'); btn.textContent = '▶ Play Preview'; });
+}
+
+async function renderAdminStories(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading active stories…</div>';
+  try {
+    const res = await fetch('/api/admin/stories', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const stories = d.stories || [];
+    v.innerHTML = `
+      <div class="card">
+        <b>🔵 Active User Stories (24h) — (${stories.length})</b>
+        <div class="meta">Inspect and delete any inappropriate story uploaded by users.</div>
+      </div>
+      ${stories.map(s => `
+        <div class="card" id="adm-st-${s.id}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          ${s.mediaUrl
+            ? (s.mediaType === 'video'
+                ? `<video src="${esc(s.mediaUrl)}" controls muted playsinline preload="metadata" style="width:72px;height:110px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;"></video>`
+                : `<a href="${esc(s.mediaUrl)}" target="_blank"><img src="${esc(s.mediaUrl)}" style="width:72px;height:110px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;" loading="lazy"></a>`)
+            : `<div style="width:72px;height:110px;border-radius:8px;background:var(--field);display:flex;align-items:center;justify-content:center;">🔵</div>`}
+          <div style="flex:1;min-width:180px;">
+            <div class="row1"><span class="name">@${esc(s.ownerUsername)}</span><span class="pill g">${esc(s.mediaType)}</span></div>
+            <div class="meta">Posted: ${ago(s.createdAt)}</div>
+            ${s.textOverlay ? `<div class="meta" style="color:var(--cream);margin-top:4px;">"${esc(s.textOverlay)}"</div>` : ''}
+            <div class="nums"><span>👁️ <b>${s.viewCount}</b> views</span><span>❤️ <b>${s.likeCount}</b> likes</span><span>💬 <b>${s.commentCount}</b> replies</span></div>
+          </div>
+          <div>
+            <button class="btn btn-danger" onclick="adminDeleteStory('${s.id}')">🗑️ Delete Story</button>
+          </div>
+        </div>
+      `).join('') || '<div class="empty">No active stories right now.</div>'}
+    `;
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+
+async function adminDeleteStory(id){
+  if (!confirm('Permanently delete this user story?')) return;
+  try {
+    const res = await fetch('/api/admin/stories/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Delete failed');
+    renderAdminStories();
+  } catch (e) { alert(e.message); }
+}
+
 async function renderSearches(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
   try {
     const res = await fetch('/api/admin/search-terms', { headers: { 'x-no-prompt': '1' } });
     const d = await res.json();
-    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">What users are searching for. Useful for content ideas.</div></div>` +
-      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">No searches yet.</div>');
+    const terms = d.terms || [];
+    v.innerHTML = `
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <b>🔎 Top search terms (${terms.length})</b>
+          <div class="meta">What users are searching for. Remove spam terms or clear old history anytime.</div>
+        </div>
+        ${terms.length ? `<button class="btn btn-danger" onclick="clearAllSearchTerms()">🗑️ Clear All</button>` : ''}
+      </div>` +
+      (terms.map((t, i) => `
+        <div class="ev" style="align-items:center;">
+          <div class="ic">#${i + 1}</div>
+          <div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" onclick="deleteSearchTerm(decodeURIComponent('${encodeURIComponent(t.term)}'))">✕ Delete</button>
+        </div>`).join('') || '<div class="empty">No searches yet.</div>');
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+
+async function deleteSearchTerm(term){
+  try {
+    await fetch('/api/admin/search-terms/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ term })
+    });
+    renderSearches();
+  } catch (e) { alert(e.message); }
+}
+
+async function clearAllSearchTerms(){
+  if (!confirm('Clear all recorded search terms?')) return;
+  try {
+    await fetch('/api/admin/search-terms/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ clearAll: true })
+    });
+    renderSearches();
+  } catch (e) { alert(e.message); }
 }
 async function showUserDetail(id){
   const v = document.getElementById('view');
@@ -783,7 +950,7 @@ async function showUserDetail(id){
     const u = d.user;
     v.innerHTML = `
       <div class="card">
-        <button class="btn" onclick="setTab('users')">← Users</button>
+        <div class="row1"><button class="btn" onclick="setTab('users')">← Users</button><button class="btn btn-ok" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send Official DM</button></div>
         <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
         <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
         <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
@@ -1066,6 +1233,20 @@ async function exportCsv(){
     a.href = URL.createObjectURL(blob); a.download = 'youseries-users.csv';
     document.body.appendChild(a); a.click(); a.remove();
   } catch (e) { alert(e.message); }
+}
+async function adminDmUser(id, username){
+  const msg = prompt('Send official Admin DM / Warning to @' + username + ':');
+  if (!msg || !msg.trim()) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ message: msg.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not send DM');
+    alert('✅ Official DM sent to @' + username + '!');
+  } catch (e) { alert('❌ ' + e.message); }
 }
 async function toggleVerify(id){
   const u = D.users.find(x => x.id === id);
