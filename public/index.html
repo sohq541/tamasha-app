@@ -1231,9 +1231,9 @@
 <div class="story-viewer-overlay" id="storyViewerOverlay">
   <div class="story-progress-row" id="storyProgressRow"></div>
   <div class="story-viewer-header">
-    <img class="story-viewer-avatar" id="storyViewerAvatar" src="" loading="lazy" decoding="async">
-    <div class="story-viewer-avatar-fallback hidden" id="storyViewerAvatarFallback">U</div>
-    <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
+    <img class="story-viewer-avatar" id="storyViewerAvatar" src="" loading="lazy" decoding="async" onclick="openStoryOwnerProfile(event)" style="cursor:pointer;">
+    <div class="story-viewer-avatar-fallback hidden" id="storyViewerAvatarFallback" onclick="openStoryOwnerProfile(event)" style="cursor:pointer;">U</div>
+    <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername" onclick="openStoryOwnerProfile(event)" style="cursor:pointer;"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
     <span class="story-viewer-time" id="storyViewerTime"></span>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
     <button class="story-viewer-close hidden" id="storyHighlightDeleteBtn" onclick="deleteHighlight(currentStoryUserQueue[currentStoryGroupIndex] && currentStoryUserQueue[currentStoryGroupIndex].highlightId)" style="font-size:13px;" title="Delete highlight">⭐🗑️</button>
@@ -2161,8 +2161,11 @@ async function renderOtherProfile(userId, usernameHint){
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
       <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})">Share Profile</button>
-      ${pub.channelId ? `<button class="profile-btn primary" style="background:linear-gradient(135deg,#7C5CFF,#FF9D6C);border:none;" onclick="openConvoById('${escapeAttr(pub.channelId)}')">📢 Join Channel (${pub.channelMembersCount || 0})</button>` : ''}
     </div>
+    ${pub.channelId ? `<div onclick="openOtherChannel('${escapeAttr(pub.channelId)}','${escapeAttr(pub.channelTitle || (pub.username + ' channel'))}',${pub.channelMembersCount || 0})" style="cursor:pointer;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--gold-line);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="min-width:0;"><div style="font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 ${escapeHtml(pub.channelTitle || (pub.username + ' channel'))}</div>
+      <div class="meta" style="font-size:12px;">${pub.channelMembersCount || 0} subscribers</div></div>
+      <span style="color:var(--cream-dim);font-size:18px;">›</span></div>` : ''}
     <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
       <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;max-width:none;font-size:13px;">🎬 Videos (${theirLongVideos.length})</button>
@@ -5855,6 +5858,34 @@ function pauseFeedMedia(){
   });
   stopSong();
 }
+// Channel sheet opened from a profile: subscribe, or open the channel
+function openOtherChannel(channelId, title, count){
+  const old = document.getElementById('channelSheet'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'channelSheet';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:20px;width:100%;max-width:360px;color:var(--cream);text-align:center;">
+    <div style="font-size:34px;">📢</div>
+    <div style="font-weight:800;font-size:17px;margin:6px 0 2px;">${escapeHtml(title)}</div>
+    <div class="meta" style="margin-bottom:14px;">${count} subscribers</div>
+    <button type="button" id="chanSubBtn" onclick="subscribeChannel('${escapeAttr(channelId)}', this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#7C5CFF,#FF9D6C);color:#fff;font-weight:700;cursor:pointer;">Subscribe</button>
+    <button type="button" onclick="document.getElementById('channelSheet').remove();openConvoById('${escapeAttr(channelId)}')" style="width:100%;margin-top:10px;padding:12px;border-radius:12px;border:1px solid var(--gold-line);background:none;color:var(--cream);font-weight:600;cursor:pointer;">Open channel</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function subscribeChannel(channelId, btn){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/channels/' + channelId + '/join', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Could not subscribe');
+    btn.textContent = 'Subscribed ✓';
+    if (typeof showToast === 'function') showToast('Subscribed to channel 📢');
+  } catch (e) { btn.disabled = false; alert(e.message); }
+}
+
 function openStoryViewer(ownerId, targetStoryId, openComments){
   if (!storyGroups.length) return false;
   pauseFeedMedia();
@@ -5884,6 +5915,13 @@ function toggleStoryCommentsDrawer(){
   if (d) d.classList.toggle('open');
 }
 
+function openStoryOwnerProfile(e){
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const g = currentStoryUserQueue[currentStoryGroupIndex];
+  if (!g || !g.ownerId) return;
+  closeStoryViewer();
+  goToProfileDirect(g.ownerId, g.ownerUsername);
+}
 function closeStoryViewer(){
   stopSong();
   clearStoryTimer();
