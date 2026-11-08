@@ -1362,7 +1362,8 @@
   </div>
   <div class="chat-input-bar" id="chatInputBar">
     <input type="file" id="chatMediaInput" accept="image/*,video/*" style="display:none;" onchange="onChatMediaPicked(event)">
-    <button class="chat-input-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo/Video">📎</button>
+    <button type="button" class="chat-input-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo/Video">📎</button>
+    <button type="button" class="chat-input-icon-btn" onclick="openSharePostInChatModal()" title="Share Post or Reel" style="font-size:16px;">🎬</button>
     <button type="button" class="chat-input-icon-btn" onclick="openCreatePollModal()" title="Create Interactive Poll" style="font-size:16px;">📊</button>
     <textarea class="chat-text-input" id="chatTextInput" rows="1" placeholder="Message..." oninput="onChatTextInput(this)" onkeydown="onChatInputKeydown(event)"></textarea>
     <button class="chat-input-icon-btn" id="chatMicBtn" onclick="toggleVoiceRecording()" title="Voice message">🎤</button>
@@ -1584,14 +1585,16 @@
       <input type="text" id="qCollab" placeholder="type a username — tap one from the list" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
       <div class="collab-popup hidden" id="qCollabPopup"></div>
 
-      ${(currentUser && (currentUser.verified || currentUser.isAdmin)) ? `
-        <div style="background:rgba(124,92,255,0.08);border:1px solid var(--marigold);border-radius:10px;padding:10px 12px;margin-top:12px;">
-          <div style="font-size:12.5px;font-weight:700;color:var(--marigold);">⚡ Fast-Track Verified Publishing Active</div>
-          <label style="display:block;font-size:12px;color:var(--cream);margin-top:6px;font-weight:600;">🔗 Custom Link Button on Post (Verified Only)</label>
-          <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;">
-          <input type="text" id="qCustomLinkTitle" placeholder="Button text (e.g. Visit Website, Watch Full Video)" maxlength="40" style="width:100%;margin-top:6px;">
-        </div>
-      ` : ''}
+      <div id="qVipFields" class="hidden" style="background:rgba(124,92,255,0.08);border:1px solid var(--marigold);border-radius:10px;padding:10px 12px;margin-top:12px;">
+        <div style="font-size:12.5px;font-weight:700;color:var(--marigold);">⚡ Fast-Track Verified Publishing Active</div>
+        <label style="display:block;font-size:12px;color:var(--cream);margin-top:6px;font-weight:600;">🔗 Custom Link Button on Post (Verified Only)</label>
+        <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;background:var(--field);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
+        <input type="text" id="qCustomLinkTitle" placeholder="Button text (e.g. Visit Website, Watch Full Video)" maxlength="40" style="width:100%;margin-top:6px;">
+      </div>
+      <div id="qVipLockedBox" class="hidden" style="background:var(--field);border:1px dashed var(--gold-line);border-radius:10px;padding:10px 12px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span style="font-size:12px;color:var(--cream-dim);">🔒 Custom Link Button &amp; Fast-Track (Verified Only)</span>
+        <button type="button" onclick="closeUploadModal();openBlueTick()" style="background:var(--marigold);color:#fff;border:none;border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">Get Blue Tick ✔</button>
+      </div>
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
         <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won’t show in the feed of people who've turned this off)</span>
@@ -1614,11 +1617,11 @@ function setFeedFilter(f){
   document.querySelectorAll('#feedFilters .feed-chip').forEach(b => b.classList.toggle('active', b.dataset.f === f));
   let list = allFilms.slice();
   if (f === 'following') list = list.filter(x => x.isFollowing || (currentUser && x.ownerId === currentUser.id));
-  else if (f === 'trending') list = list.sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3));
+  else if (f === 'trending') list = list.sort((a, b) => (((b.views || 0) + (b.likes || 0) * 3) * (b.ownerVerified ? 1.5 : 1)) - (((a.views || 0) + (a.likes || 0) * 3) * (a.ownerVerified ? 1.5 : 1)));
   else if (f === 'film') list = list.filter(x => x.type === 'film');
   else if (f === 'photo') list = list.filter(x => x.type === 'photo');
   if (f !== 'trending') {
-    list.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0));
+    list.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0) || (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
   }
   renderHome(list);
 }
@@ -1963,6 +1966,9 @@ async function loadProfile(){
         avatarUrl = pubData.profileImage;
         currentUser.profileImage = avatarUrl;
         currentUser.roleBadge = pubData.roleBadge || null;
+        currentUser.verified = !!(currentUser.verified || pubData.verified);
+        currentUser.isAdmin = !!(currentUser.isAdmin || (pubData.roleBadge && pubData.roleBadge.includes('Founder')));
+        currentUser.vipRing = pubData.vipRing || currentUser.vipRing || 'none';
         if (pubData.verified) {
           const celKey = 'btCelebrated_' + currentUser.id;
           if (!localStorage.getItem(celKey)) {
@@ -2356,6 +2362,7 @@ function myDashStats(){
 }
 function openYourDashboard(){
   if (!currentUser) return;
+  pauseFeedMedia();
   const st = myDashStats();
   const row = (label, val, note) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--gold-line);">
       <div><div style="color:var(--cream);font-size:14.5px;">${label}</div>${note ? `<div class="meta" style="font-size:12px;">${note}</div>` : ''}</div>
@@ -2462,7 +2469,7 @@ async function renderProfile(){
     <button onclick="openProfileMenu()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 10px;">⋮</button>
     <div class="profile-top-row">
       <div style="position:relative;width:84px;height:84px;flex-shrink:0;">
-        <div class="profile-avatar" id="ownProfileAvatarWrap" onclick="openOwnAvatarMenu()" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
+        <div class="profile-avatar ${mine.vipRing && mine.vipRing !== 'none' && !hasOwnStory ? 'vip-ring-' + mine.vipRing : ''}" id="ownProfileAvatarWrap" onclick="openOwnAvatarMenu()" style="${hasOwnStory ? 'box-shadow:0 0 0 3px var(--ink),0 0 0 6px #7C5CFF;' : ''}">
           ${mine.profileImage ? `<img src="${mine.profileImage}" decoding="async">` : escapeHtml(currentUser.username[0].toUpperCase())}
         </div>
         <div class="story-add-badge" style="background:var(--marigold);width:26px;height:26px;font-size:13px;bottom:0;right:0;z-index:3;cursor:pointer;" onclick="event.stopPropagation();document.getElementById('avatarFileInput').click()" title="Change profile photo">📷</div>
@@ -2483,6 +2490,10 @@ async function renderProfile(){
       <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})">Share Profile</button>
       <button class="profile-btn" onclick="openYourDashboard()">Dashboard</button>
     </div>
+    ${mine.channelId ? `<div onclick="openConvoById('${escapeAttr(mine.channelId)}')" style="cursor:pointer;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--gold-line);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);">
+      <div style="min-width:0;"><div style="font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 ${escapeHtml(mine.channelTitle || (currentUser.username + ' channel'))}</div>
+      <div class="meta" style="font-size:12px;">${mine.channelMembersCount || 0} subscribers · Tap to open your channel</div></div>
+      <span style="color:var(--cream-dim);font-size:18px;">›</span></div>` : ''}
 
     <div class="highlights-bar" id="myHighlightsBar"></div>
 
@@ -2507,7 +2518,12 @@ async function renderProfile(){
           <option value="gold" ${mine.vipRing === 'gold' ? 'selected' : ''}>🟡 Gold VIP Glow</option>
           <option value="neon" ${mine.vipRing === 'neon' ? 'selected' : ''}>🔵 Neon Cyan Glow</option>
         </select>
-      ` : ''}
+      ` : `
+        <div style="background:var(--field);border:1px dashed var(--gold-line);border-radius:10px;padding:10px 12px;margin:10px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span style="font-size:12px;color:var(--cream-dim);">🔒 VIP Avatar Glow Ring (Purple / Gold / Neon)</span>
+          <button type="button" onclick="openBlueTick()" style="background:var(--marigold);color:#fff;border:none;border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">Get Blue Tick ✔</button>
+        </div>
+      `}
       <button class="settings-save-btn" onclick="saveBio()">Save profile</button>
       <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
 
@@ -2762,6 +2778,7 @@ function openVerifiedTrustModal(){
 
 async function openBlueTick(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   closeProfileMenu && closeProfileMenu();
   const old = document.getElementById('blueOverlay'); if (old) old.remove();
   const el = document.createElement('div');
@@ -3483,7 +3500,7 @@ async function loadFilms() {
     allFilms = [];
     showToast('Could not load content: ' + err.message);
   }
-  allFilms.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0));
+  allFilms.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0) || (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
@@ -3633,6 +3650,8 @@ function doSearchResults(query){
 }
 
 function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches){
+  userMatches = (userMatches || []).slice().sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
+  matches = (matches || []).slice().sort((a, b) => (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
   if (matches.length === 0 && userMatches.length === 0 && tagMatches.length === 0) {
     resultsEl.innerHTML = '<p class="comment-empty">No matches found.</p>';
     return;
@@ -3729,6 +3748,7 @@ function renderHome(films) {
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
           ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
+          ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
         </div>
       </div>
     `;
@@ -3782,11 +3802,19 @@ function isAnyModalOrOverlayOpen(){
   const checkIds = [
     'overlay', 'chatInboxOverlay', 'chatConvoOverlay', 'chatMediaLightbox',
     'storyViewerOverlay', 'storyUploadOverlay', 'uploadModalOverlay',
-    'otherProfileOverlay', 'profilePhotoFeedOverlay', 'hashtagFeedOverlay'
+    'otherProfileOverlay', 'profilePhotoFeedOverlay', 'hashtagFeedOverlay',
+    'sheetOverlay', 'editSheetOverlay', 'menuOverlay', 'profileMenuOverlay',
+    'notifOverlay', 'sendToOverlay', 'userListOverlay', 'insightsOverlay',
+    'highlightPickerOverlay', 'collabOverlay', 'profileQrOverlay', 'myUploadsOverlay',
+    'postSafetyOverlay', 'profileSafetyOverlay', 'reportOverlay'
   ];
   for (let i = 0; i < checkIds.length; i++) {
     const el = document.getElementById(checkIds[i]);
     if (el && el.classList.contains('open')) return true;
+  }
+  const dynIds = ['blueOverlay', 'yourDashOverlay', 'newGroupModal', 'newChannelModal', 'convoInfoSheet', 'pollModal', 'addMemberModal', 'sharePostChatModal', 'songPicker', 'cropOverlay', 'noteOverlay'];
+  for (let j = 0; j < dynIds.length; j++) {
+    if (document.getElementById(dynIds[j])) return true;
   }
   const sh = document.getElementById('shortsView');
   if (sh && sh.classList.contains('active')) return true;
@@ -3903,6 +3931,7 @@ function renderShorts(shorts){
         ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
+        ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn" style="padding:5px 12px;font-size:12px;">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
       </div>
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" id="short-like-btn-${f.id}" onclick="likeShort('${f.id}', this)">${isLiked ? '❤️' : '🤍'}</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
@@ -4854,6 +4883,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
           ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
+          ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
         </div>
       </div>
     `;
@@ -6508,7 +6538,15 @@ async function handleNotifClick(filmId, storyId, fromUserId, fromUsername, type,
   if (type === 'report_alert') { window.location.href = '/dashboard.html'; return; }
   if (type === 'helpdesk_reply') { openProfileMenu(); setTimeout(() => { renderSettingsPrivacyMenu(); setTimeout(renderHelpDesk, 60); }, 60); return; }
   if (type === 'bluetick') { openBlueTick(); return; }
-  if (type === 'message' || type === 'message_reaction') { openChatConvo(fromUserId, fromUsername); return; }
+  if (type === 'message' || type === 'message_reaction') {
+    if (conversationId && (conversationId.startsWith('grp_') || conversationId.startsWith('ch_'))) {
+      openChatInbox();
+      setTimeout(() => openConvoById(conversationId), 80);
+      return;
+    }
+    openChatConvo(fromUserId, fromUsername);
+    return;
+  }
 
   // 1. Post / Video / Short / Photo notification
   if (filmId) {
@@ -6714,6 +6752,13 @@ function renderFilteredInbox(){
   if (currentInboxFilter === 'dm') list = list.filter(c => c.type === 'dm' || !c.type);
   else if (currentInboxFilter === 'group') list = list.filter(c => c.type === 'group');
   else if (currentInboxFilter === 'channel') list = list.filter(c => c.type === 'channel');
+
+  list.sort((a, b) => {
+    const aVerUnread = (a.unreadCount > 0 && a.otherUser && a.otherUser.verified) ? 1 : 0;
+    const bVerUnread = (b.unreadCount > 0 && b.otherUser && b.otherUser.verified) ? 1 : 0;
+    if (bVerUnread !== aVerUnread) return bVerUnread - aVerUnread;
+    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+  });
 
   if (!list.length) {
     if (currentInboxFilter === 'channel') {
@@ -6963,6 +7008,7 @@ function openGroupOrChannelInfo(){
   const c = chatConvoData;
   const isOwner = c.ownerId === currentUser.id;
   const isAdmin = isOwner || (c.admins && c.admins.includes(currentUser.id));
+  const canPost = (c.type !== 'channel' && !c.onlyAdminsCanPost) || isAdmin;
 
   const el = document.createElement('div');
   el.id = 'convoInfoSheet';
@@ -6970,7 +7016,7 @@ function openGroupOrChannelInfo(){
   el.onclick = e => { if (e.target === el) el.remove(); };
 
   el.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:20px;width:100%;max-width:390px;max-height:88vh;overflow-y:auto;color:var(--cream);box-sizing:border-box;">
+    <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:20px;width:100%;max-width:395px;max-height:88vh;overflow-y:auto;color:var(--cream);box-sizing:border-box;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <h3 style="margin:0;font-size:17px;">${c.type === 'channel' ? '📢 Channel Info' : '👥 Group Info'}</h3>
         <button type="button" onclick="document.getElementById('convoInfoSheet').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
@@ -6982,10 +7028,15 @@ function openGroupOrChannelInfo(){
         <div style="font-size:12px;color:var(--marigold);margin-top:4px;font-weight:600;">${(c.members || []).length} members</div>
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
         <button type="button" class="profile-btn" style="flex:1;padding:8px;font-size:12.5px;" onclick="toggleMuteConvo('${c.id}')">${c.isMuted ? '🔔 Unmute' : '🔕 Mute'}</button>
-        ${isAdmin ? `<button type="button" class="profile-btn primary" style="flex:1;padding:8px;font-size:12.5px;" onclick="openAddMemberPrompt('${c.id}')">＋ Add Member</button>` : ''}
+        ${isAdmin ? `<button type="button" class="profile-btn primary" style="flex:1;padding:8px;font-size:12.5px;" onclick="openAddMemberModal('${c.id}')">＋ Add Followers</button>` : ''}
       </div>
+      ${canPost ? `
+        <div style="margin-bottom:14px;">
+          <button type="button" class="profile-btn" style="width:100%;padding:9px;font-size:12.5px;border-color:var(--marigold);color:var(--cream);font-weight:700;" onclick="document.getElementById('convoInfoSheet').remove();openSharePostInChatModal()">🎬 Share Post or Reel in ${c.type === 'channel' ? 'Channel' : 'Group'}</button>
+        </div>
+      ` : ''}
 
       ${c.type === 'group' && isAdmin ? `
         <label style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--gold-line);border-bottom:1px solid var(--gold-line);font-size:13px;cursor:pointer;">
@@ -6994,7 +7045,7 @@ function openGroupOrChannelInfo(){
         </label>
       ` : ''}
 
-      <div style="font-weight:700;font-size:13px;margin:14px 0 8px;">Members</div>
+      <div style="font-weight:700;font-size:13px;margin:14px 0 8px;">Members (${(c.members || []).length})</div>
       <div style="max-height:220px;overflow-y:auto;">
         ${(c.members || []).map(m => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gold-line);">
@@ -7015,8 +7066,12 @@ function openGroupOrChannelInfo(){
         `).join('')}
       </div>
 
-      <div style="margin-top:16px;border-top:1px solid var(--gold-line);padding-top:12px;">
-        <button type="button" class="profile-btn" style="width:100%;color:#e88a8a;border-color:#E63950;padding:9px;" onclick="leaveConvo('${c.id}', '${c.type}')">🚪 Leave ${c.type === 'channel' ? 'Channel' : 'Group'}</button>
+      <div style="margin-top:16px;border-top:1px solid var(--gold-line);padding-top:12px;display:flex;flex-direction:column;gap:8px;">
+        ${isOwner ? `
+          <button type="button" class="profile-btn" style="width:100%;color:#e88a8a;border-color:#E63950;padding:9px;" onclick="deleteGroupOrChannel('${c.id}', '${c.type}', '${escapeAttr(c.title)}')">🗑️ Delete ${c.type === 'channel' ? 'Channel' : 'Group'}</button>
+        ` : `
+          <button type="button" class="profile-btn" style="width:100%;color:#e88a8a;border-color:#E63950;padding:9px;" onclick="leaveConvo('${c.id}', '${c.type}')">🚪 Leave ${c.type === 'channel' ? 'Channel' : 'Group'}</button>
+        `}
       </div>
     </div>
   `;
@@ -7085,26 +7140,122 @@ async function leaveConvo(convoId, type){
   } catch (e) { showToast(e.message); }
 }
 
+async function deleteGroupOrChannel(convoId, type, title){
+  if (!confirm(`Permanently delete ${type === 'channel' ? 'channel' : 'group'} "${title}" for all members?`)) return;
+  try {
+    const res = await fetch('/api/conversations/' + convoId + '/delete-chat', { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not delete');
+    const sheet = document.getElementById('convoInfoSheet');
+    if (sheet) sheet.remove();
+    closeChatConvo();
+    loadChatInbox();
+    showToast(`${type === 'channel' ? 'Channel' : 'Group'} deleted`);
+  } catch (e) { showToast(e.message); }
+}
+
+let addMemberFollowersCache = [];
+let addMemberSelectedIds = new Set();
+
 function openAddMemberPrompt(convoId){
-  const uname = prompt('Enter username to add:');
-  if (!uname || !uname.trim()) return;
-  fetch('/api/users/lookup/' + encodeURIComponent(uname.trim().replace(/^@/, '')))
-    .then(r => r.json())
-    .then(u => {
-      if (!u || !u.id) throw new Error('User not found');
-      return fetch('/api/groups/' + convoId + '/members', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: u.id })
-      });
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.error) throw new Error(d.error);
-      showToast('Member added! 🤝');
-      openConvoById(convoId);
-      setTimeout(openGroupOrChannelInfo, 300);
-    })
-    .catch(e => showToast(e.message));
+  openAddMemberModal(convoId);
+}
+
+async function openAddMemberModal(convoId){
+  if (!currentUser) return;
+  pauseFeedMedia();
+  const old = document.getElementById('addMemberModal');
+  if (old) old.remove();
+  addMemberSelectedIds = new Set();
+  addMemberFollowersCache = [];
+
+  const el = document.createElement('div');
+  el.id = 'addMemberModal';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:990;display:flex;align-items:center;justify-content:center;padding:16px;';
+  el.onclick = e => { if (e.target === el) el.remove(); };
+
+  el.innerHTML = `
+    <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:18px;width:100%;max-width:390px;max-height:86vh;display:flex;flex-direction:column;color:var(--cream);box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;font-size:16.5px;">👥 Add Followers</h3>
+        <button type="button" onclick="document.getElementById('addMemberModal').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Search and select from your followers to add them directly.</div>
+      <input type="text" id="addMemberSearchInput" placeholder="🔍 Search your followers..." oninput="renderAddMemberFollowersList(this.value)" style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+      <div id="addMemberFollowersBox" style="flex:1;min-height:160px;max-height:280px;overflow-y:auto;border:1px solid var(--gold-line);border-radius:10px;padding:6px;background:var(--field);margin-bottom:12px;">
+        <div style="padding:18px;text-align:center;font-size:12.5px;color:var(--cream-dim);">Loading your followers...</div>
+      </div>
+      <button type="button" id="addMemberSubmitBtn" class="profile-btn primary" style="width:100%;padding:11px;font-size:14px;font-weight:700;" onclick="submitAddSelectedFollowers('${convoId}')">Add Selected Followers (0)</button>
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  try {
+    const res = await fetch('/api/users/' + currentUser.id + '/followers');
+    const data = await res.json();
+    const existingIds = new Set(((chatConvoData && chatConvoData.members) || []).map(m => m.id));
+    addMemberFollowersCache = (data.users || []).filter(u => !existingIds.has(u.id));
+    renderAddMemberFollowersList('');
+  } catch (e) {
+    const box = document.getElementById('addMemberFollowersBox');
+    if (box) box.innerHTML = '<div style="padding:14px;text-align:center;font-size:12.5px;color:#e88a8a;">Could not load followers.</div>';
+  }
+}
+
+function renderAddMemberFollowersList(query){
+  const box = document.getElementById('addMemberFollowersBox');
+  if (!box) return;
+  const q = (query || '').trim().toLowerCase();
+  const filtered = q ? addMemberFollowersCache.filter(u => (u.username || '').toLowerCase().includes(q)) : addMemberFollowersCache;
+  if (!filtered.length) {
+    box.innerHTML = `<div style="padding:18px 10px;text-align:center;font-size:12.5px;color:var(--cream-dim);">${addMemberFollowersCache.length ? 'No matching followers found.' : 'All your followers are already in this chat (or you have no followers yet).'}</div>`;
+    return;
+  }
+  box.innerHTML = filtered.map(u => {
+    const checked = addMemberSelectedIds.has(u.id) ? 'checked' : '';
+    const av = u.profileImage
+      ? `<img src="${escapeAttr(u.profileImage)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+      : `<div style="width:32px;height:32px;border-radius:50%;background:var(--marigold);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${escapeHtml((u.username || 'U')[0].toUpperCase())}</div>`;
+    return `
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px;cursor:pointer;border-bottom:1px solid var(--gold-line);">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          ${av}
+          <span style="font-size:13.5px;color:var(--cream);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${escapeHtml(u.username)}${vb(u.verified)}</span>
+        </div>
+        <input type="checkbox" value="${escapeAttr(u.id)}" ${checked} onchange="toggleAddMemberFollowerPick('${escapeAttr(u.id)}', this.checked)" style="width:17px;height:17px;accent-color:var(--marigold);flex-shrink:0;">
+      </label>
+    `;
+  }).join('');
+}
+
+function toggleAddMemberFollowerPick(userId, checked){
+  if (checked) addMemberSelectedIds.add(userId);
+  else addMemberSelectedIds.delete(userId);
+  const btn = document.getElementById('addMemberSubmitBtn');
+  if (btn) btn.textContent = `Add Selected Followers (${addMemberSelectedIds.size})`;
+}
+
+async function submitAddSelectedFollowers(convoId){
+  if (!addMemberSelectedIds.size) { showToast('Select at least 1 follower'); return; }
+  const btn = document.getElementById('addMemberSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding...'; }
+  try {
+    const res = await fetch('/api/groups/' + convoId + '/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userIds: [...addMemberSelectedIds] })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not add followers');
+    const modal = document.getElementById('addMemberModal');
+    if (modal) modal.remove();
+    showToast(`Added ${d.addedCount || addMemberSelectedIds.size} follower(s)! 🤝`);
+    await openConvoById(convoId);
+    setTimeout(openGroupOrChannelInfo, 250);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = `Add Selected Followers (${addMemberSelectedIds.size})`; }
+    showToast(e.message);
+  }
 }
 
 function openNewChannelModal(){
@@ -7175,6 +7326,7 @@ async function submitNewChannel(){
 
 function openNewGroupModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   const old = document.getElementById('newGroupModal');
   if (old) old.remove();
 
@@ -7193,9 +7345,13 @@ function openNewGroupModal(){
         <label style="display:block;font-size:12.5px;color:var(--cream-dim);margin-bottom:6px;">Group Name *</label>
         <input type="text" id="ngTitle" required placeholder="e.g. Friends & Creators" maxlength="50" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;margin-bottom:12px;">
 
-        <label style="display:block;font-size:12.5px;color:var(--cream-dim);margin-bottom:6px;">Select Members</label>
-        <div id="ngMembersBox" style="max-height:180px;overflow-y:auto;border:1px solid var(--gold-line);border-radius:8px;padding:8px;margin-bottom:14px;background:var(--field);">
-          Loading following list...
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label style="font-size:12.5px;color:var(--cream-dim);">Select Followers to Add *</label>
+          <span id="ngSelectedCount" style="font-size:11.5px;color:var(--marigold);font-weight:700;">0 selected</span>
+        </div>
+        <input type="text" id="ngSearchInput" placeholder="🔍 Search your followers..." oninput="filterGroupCandidates(this.value)" style="width:100%;padding:8px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;box-sizing:border-box;margin-bottom:8px;">
+        <div id="ngMembersBox" style="max-height:200px;overflow-y:auto;border:1px solid var(--gold-line);border-radius:8px;padding:6px;margin-bottom:14px;background:var(--field);">
+          Loading followers...
         </div>
 
         <button type="submit" id="ngBtn" class="profile-btn primary" style="width:100%;padding:11px;font-size:14px;font-weight:700;">Create Group 👥</button>
@@ -7207,25 +7363,51 @@ function openNewGroupModal(){
 }
 
 let selectedGroupMemberIds = [];
+let groupCandidateFollowers = [];
 async function loadGroupCandidates(){
   const box = document.getElementById('ngMembersBox');
   if (!box) return;
   try {
-    const res = await fetch('/api/users/' + currentUser.id + '/following');
+    const res = await fetch('/api/users/' + currentUser.id + '/followers');
     const data = await res.json();
-    const list = data.users || data.following || [];   // the server returns { users: [...] }
+    groupCandidateFollowers = data.users || [];
     selectedGroupMemberIds = [];
-    if (!list.length) {
-      box.innerHTML = '<div style="font-size:12.5px;color:var(--cream-dim);">Follow creators first to add them to a group!</div>';
-      return;
-    }
-    box.innerHTML = list.map(u => `
-      <label style="display:flex;align-items:center;gap:10px;padding:6px 4px;cursor:pointer;border-bottom:1px solid var(--gold-line);">
-        <input type="checkbox" value="${u.id}" onchange="toggleGroupMemberPick('${u.id}', this.checked)">
-        <span style="font-size:13.5px;color:var(--cream);font-weight:600;">@${escapeHtml(u.username)}${vb(u.verified)}</span>
+    renderGroupCandidateList('');
+  } catch (e) { box.innerHTML = 'Could not load followers.'; }
+}
+
+function filterGroupCandidates(query){
+  renderGroupCandidateList(query);
+}
+
+function renderGroupCandidateList(query){
+  const box = document.getElementById('ngMembersBox');
+  if (!box) return;
+  if (!groupCandidateFollowers.length) {
+    box.innerHTML = '<div style="padding:12px;font-size:12.5px;color:var(--cream-dim);text-align:center;">You need at least 1 follower to add members to a group!</div>';
+    return;
+  }
+  const q = (query || '').trim().toLowerCase();
+  const list = q ? groupCandidateFollowers.filter(u => (u.username || '').toLowerCase().includes(q)) : groupCandidateFollowers;
+  if (!list.length) {
+    box.innerHTML = '<div style="padding:12px;font-size:12.5px;color:var(--cream-dim);text-align:center;">No follower matches your search.</div>';
+    return;
+  }
+  box.innerHTML = list.map(u => {
+    const isChecked = selectedGroupMemberIds.includes(u.id) ? 'checked' : '';
+    const av = u.profileImage
+      ? `<img src="${escapeAttr(u.profileImage)}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+      : `<div style="width:30px;height:30px;border-radius:50%;background:var(--marigold);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">${escapeHtml((u.username || 'U')[0].toUpperCase())}</div>`;
+    return `
+      <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 6px;cursor:pointer;border-bottom:1px solid var(--gold-line);">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          ${av}
+          <span style="font-size:13.5px;color:var(--cream);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${escapeHtml(u.username)}${vb(u.verified)}</span>
+        </div>
+        <input type="checkbox" value="${escapeAttr(u.id)}" ${isChecked} onchange="toggleGroupMemberPick('${escapeAttr(u.id)}', this.checked)" style="width:17px;height:17px;accent-color:var(--marigold);flex-shrink:0;">
       </label>
-    `).join('');
-  } catch (e) { box.innerHTML = 'Could not load users.'; }
+    `;
+  }).join('');
 }
 
 function toggleGroupMemberPick(userId, checked){
@@ -7234,6 +7416,8 @@ function toggleGroupMemberPick(userId, checked){
   } else {
     selectedGroupMemberIds = selectedGroupMemberIds.filter(id => id !== userId);
   }
+  const cnt = document.getElementById('ngSelectedCount');
+  if (cnt) cnt.textContent = selectedGroupMemberIds.length + ' selected';
 }
 
 async function submitNewGroup(){
@@ -7318,6 +7502,102 @@ async function submitChatPoll(){
     document.getElementById('pollModal').remove();
     pollChatMessages();
   } catch (e) { showToast(e.message); }
+}
+
+let shareChatPostTab = 'mine';
+function openSharePostInChatModal(){
+  if (!currentUser || !chatConvoId) return;
+  pauseFeedMedia();
+  const old = document.getElementById('sharePostChatModal');
+  if (old) old.remove();
+  shareChatPostTab = 'mine';
+
+  const el = document.createElement('div');
+  el.id = 'sharePostChatModal';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:990;display:flex;align-items:center;justify-content:center;padding:16px;';
+  el.onclick = e => { if (e.target === el) el.remove(); };
+
+  el.innerHTML = `
+    <div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:18px;width:100%;max-width:410px;max-height:86vh;display:flex;flex-direction:column;color:var(--cream);box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;font-size:16.5px;">🎬 Share Post or Reel in Chat</h3>
+        <button type="button" onclick="document.getElementById('sharePostChatModal').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button type="button" id="spcTabMine" class="feed-chip active" style="flex:1;" onclick="switchShareChatPostTab('mine')">My Posts & Reels</button>
+        <button type="button" id="spcTabAll" class="feed-chip" style="flex:1;" onclick="switchShareChatPostTab('all')">All Posts & Reels</button>
+      </div>
+      <input type="text" id="spcSearchInput" placeholder="🔍 Search by title or @creator..." oninput="renderShareChatPostList()" style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+      <input type="text" id="spcCaptionInput" placeholder="Optional message / caption with post..." maxlength="300" style="width:100%;padding:8px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;box-sizing:border-box;margin-bottom:10px;">
+      <div id="spcListBox" style="flex:1;min-height:180px;max-height:320px;overflow-y:auto;border:1px solid var(--gold-line);border-radius:10px;padding:6px;background:var(--field);"></div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  renderShareChatPostList();
+}
+
+function switchShareChatPostTab(tab){
+  shareChatPostTab = tab;
+  const bMine = document.getElementById('spcTabMine');
+  const bAll = document.getElementById('spcTabAll');
+  if (bMine) bMine.classList.toggle('active', tab === 'mine');
+  if (bAll) bAll.classList.toggle('active', tab === 'all');
+  renderShareChatPostList();
+}
+
+function renderShareChatPostList(){
+  const box = document.getElementById('spcListBox');
+  if (!box) return;
+  const q = ((document.getElementById('spcSearchInput') || {}).value || '').trim().toLowerCase();
+  let list = (allFilms || []).slice();
+  if (shareChatPostTab === 'mine') {
+    const mine = list.filter(f => currentUser && isMyPost(f, currentUser.id));
+    if (mine.length) list = mine;
+  }
+  if (q) {
+    list = list.filter(f => ((f.title || '') + ' ' + (f.ownerUsername || '')).toLowerCase().includes(q));
+  }
+  if (!list.length) {
+    box.innerHTML = `<div style="padding:20px;text-align:center;font-size:12.5px;color:var(--cream-dim);">No posts or reels found.</div>`;
+    return;
+  }
+  box.innerHTML = list.slice(0, 60).map(f => {
+    const badge = f.type === 'short' ? '⚡ Reel/Short' : (f.type === 'photo' ? '📷 Photo' : '🎬 Video');
+    const thumb = f.posterUrl
+      ? `<img src="${escapeAttr(f.posterUrl)}" style="width:46px;height:46px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+      : (f.videoUrl
+          ? `<video src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="metadata" style="width:46px;height:46px;border-radius:8px;object-fit:cover;flex-shrink:0;"></video>`
+          : `<div style="width:46px;height:46px;border-radius:8px;background:#000;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🎬</div>`);
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 6px;border-bottom:1px solid var(--gold-line);">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;">
+          ${thumb}
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:13px;font-weight:700;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.title || 'Untitled')}</div>
+            <div style="font-size:11px;color:var(--cream-dim);">@${escapeHtml(f.ownerUsername || 'user')} · <span style="color:var(--marigold);font-weight:600;">${badge}</span></div>
+          </div>
+        </div>
+        <button type="button" class="profile-btn primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px;" onclick="sendPostIntoCurrentChat('${escapeAttr(f.id)}', this)">Send ↗</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function sendPostIntoCurrentChat(filmId, btn){
+  if (!chatConvoId || !filmId) return;
+  const caption = ((document.getElementById('spcCaptionInput') || {}).value || '').trim();
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  try {
+    await sendShortMessage(chatConvoId, filmId, caption);
+    fetch('/api/films/' + filmId + '/share', { method: 'POST' }).catch(() => {});
+    const modal = document.getElementById('sharePostChatModal');
+    if (modal) modal.remove();
+    showToast('Shared in chat! 🎬');
+    if (chatPollHandle) pollChatMessages();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send ↗'; }
+    showToast(e.message || 'Could not share post');
+  }
 }
 
 async function voteChatPoll(convoId, messageId, optionIndex){
@@ -8012,29 +8292,57 @@ async function chatMsgMenuDelete(scope){
   } catch (err) { showToast(err.message); }
 }
 
-// ---- Send To (share a short into chat) ----
+// ---- Send To (share a post/reel/short into DM, Group, or Channel) ----
 let sendToPeople = [];
 
 async function openSendTo(shortId){
+  pauseFeedMedia();
   sendToShortId = shortId;
   sendToPeople = [];
+  sendToSelected = new Set();
+  updateSendToBar();
   document.getElementById('sendToSearch').value = '';
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
   listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
   if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
   try {
-    const [convRes, followRes] = await Promise.all([
-      fetch('/api/conversations'), fetch('/api/users/' + currentUser.id + '/following')
+    const [convRes, followRes, followersRes] = await Promise.all([
+      fetch('/api/conversations'),
+      fetch('/api/users/' + currentUser.id + '/following'),
+      fetch('/api/users/' + currentUser.id + '/followers')
     ]);
     const convData = await convRes.json();
     const followData = await followRes.json();
+    const followersData = await followersRes.json();
     const seen = new Set();
-    (convData.conversations || []).forEach(c => { if (!seen.has(c.otherUser.id)) { seen.add(c.otherUser.id); sendToPeople.push(c.otherUser); } });
-    (followData.users || []).forEach(u => { if (!seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
+
+    // First include Groups and Channels where currentUser is allowed to post
+    (convData.conversations || []).forEach(c => {
+      if (c.type === 'group' || c.type === 'channel') {
+        const isAdmin = c.ownerId === currentUser.id || (Array.isArray(c.admins) && c.admins.includes(currentUser.id));
+        const canPost = (c.type === 'group' && !c.onlyAdminsCanPost) || isAdmin;
+        if (canPost && !seen.has('convo:' + c.id)) {
+          seen.add('convo:' + c.id);
+          sendToPeople.push({
+            id: 'convo:' + c.id,
+            convoId: c.id,
+            isConvo: true,
+            convoType: c.type,
+            username: c.title || (c.type === 'channel' ? 'Channel' : 'Group'),
+            profileImage: c.avatarUrl || null
+          });
+        }
+      } else if (c.otherUser && c.otherUser.id && !seen.has(c.otherUser.id)) {
+        seen.add(c.otherUser.id);
+        sendToPeople.push(c.otherUser);
+      }
+    });
+    (followData.users || []).forEach(u => { if (u && u.id && !seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
+    (followersData.users || []).forEach(u => { if (u && u.id && !seen.has(u.id)) { seen.add(u.id); sendToPeople.push(u); } });
 
     if (!sendToPeople.length) {
-      listEl.innerHTML = '<div class="chat-empty">Follow someone first so you can message them.</div>';
+      listEl.innerHTML = '<div class="chat-empty">Follow someone or create a group/channel first so you can share posts.</div>';
       return;
     }
     renderSendToGrid(sendToPeople);
@@ -8046,28 +8354,43 @@ async function openSendTo(shortId){
 function renderSendToGrid(people){
   const listEl = document.getElementById('sendToList');
   if (!people.length) { listEl.innerHTML = '<p class="comment-empty">No results.</p>'; return; }
-  listEl.innerHTML = people.map(u => `
-    <button class="sendto-grid-item" id="sendToItem-${u.id}" onclick="doSendShortTo('${u.id}')">
-      ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
-      <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
-    </button>
-  `).join('');
+  listEl.innerHTML = people.map(u => {
+    const sel = sendToSelected.has(u.id) ? 'selected' : '';
+    if (u.isConvo) {
+      const icon = u.convoType === 'channel' ? '📢' : '👥';
+      const avHtml = u.profileImage
+        ? `<img src="${escapeAttr(u.profileImage)}" class="sendto-grid-avatar" loading="lazy">`
+        : `<div class="sendto-grid-avatar-fallback" style="background:${u.convoType === 'channel' ? 'linear-gradient(135deg,#7C5CFF,#FF9D6C)' : 'linear-gradient(135deg,#5ad19a,#2e7d32)'};font-size:20px;">${icon}</div>`;
+      return `
+        <button class="sendto-grid-item ${sel}" id="sendToItem-${escapeAttr(u.id)}" onclick="doSendShortTo('${escapeAttr(u.id)}')">
+          ${avHtml}
+          <span class="sendto-grid-name">${icon} ${escapeHtml(u.username)}</span>
+        </button>
+      `;
+    }
+    return `
+      <button class="sendto-grid-item ${sel}" id="sendToItem-${escapeAttr(u.id)}" onclick="doSendShortTo('${escapeAttr(u.id)}')">
+        ${avatarOrFallback(u.profileImage, u.username, 'sendto-grid-avatar', 'sendto-grid-avatar-fallback')}
+        <span class="sendto-grid-name">@${escapeHtml(u.username)}</span>
+      </button>
+    `;
+  }).join('');
 }
 
 function filterSendToGrid(query){
   const q = query.trim().toLowerCase();
-  renderSendToGrid(q ? sendToPeople.filter(u => u.username.toLowerCase().includes(q)) : sendToPeople);
+  renderSendToGrid(q ? sendToPeople.filter(u => (u.username || '').toLowerCase().includes(q)) : sendToPeople);
 }
 
 function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; sendToSelected = new Set(); const t = document.getElementById('sendToText'); if (t) t.value = ''; }
 
 let sendToSelected = new Set();
-// Tap a person to select (tick). Nothing is sent until "Send" is pressed.
-function doSendShortTo(userId){
+// Tap a person or group/channel to select (tick). Nothing is sent until "Send" is pressed.
+function doSendShortTo(targetId){
   if (!sendToShortId) return;
-  if (sendToSelected.has(userId)) sendToSelected.delete(userId); else sendToSelected.add(userId);
-  const item = document.getElementById('sendToItem-' + userId);
-  if (item) item.classList.toggle('selected', sendToSelected.has(userId));
+  if (sendToSelected.has(targetId)) sendToSelected.delete(targetId); else sendToSelected.add(targetId);
+  const item = document.getElementById('sendToItem-' + targetId);
+  if (item) item.classList.toggle('selected', sendToSelected.has(targetId));
   updateSendToBar();
 }
 function updateSendToBar(){
@@ -8081,13 +8404,19 @@ async function sendSelectedTo(){
   const btn = document.getElementById('sendToGo');
   btn.disabled = true; btn.textContent = 'Sending...';
   let ok = 0;
-  for (const userId of ids) {
+  for (const targetId of ids) {
     try {
-      const convRes = await fetch('/api/conversations/with/' + userId);
-      const convData = await convRes.json();
-      if (!convRes.ok) throw new Error(convData.error || 'Could not send');
-      await sendShortMessage(convData.id, sendToShortId, text.trim());
-      ok++;
+      if (String(targetId).startsWith('convo:')) {
+        const convoId = String(targetId).slice(6);
+        await sendShortMessage(convoId, sendToShortId, text.trim());
+        ok++;
+      } else {
+        const convRes = await fetch('/api/conversations/with/' + targetId);
+        const convData = await convRes.json();
+        if (!convRes.ok) throw new Error(convData.error || 'Could not send');
+        await sendShortMessage(convData.id, sendToShortId, text.trim());
+        ok++;
+      }
     } catch (err) { showToast(err.message); }
   }
   if (ok) { fetch('/api/films/' + sendToShortId + '/share', { method: 'POST' }).catch(() => {}); loadChatInbox().catch(() => {}); showToast('Sent to ' + ok); }
@@ -8351,7 +8680,17 @@ function onCarouselPicked(input){
 
 function openUploadModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
+  pauseFeedMedia();
   clearUploadCollab();
+  const isVip = !!(currentUser && (currentUser.verified || currentUser.isAdmin));
+  const vipFields = document.getElementById('qVipFields');
+  const vipLocked = document.getElementById('qVipLockedBox');
+  if (vipFields) vipFields.classList.toggle('hidden', !isVip);
+  if (vipLocked) vipLocked.classList.toggle('hidden', isVip);
+  const cl = document.getElementById('qCustomLink');
+  const clt = document.getElementById('qCustomLinkTitle');
+  if (cl) cl.value = '';
+  if (clt) clt.value = '';
   document.getElementById('uploadModalOverlay').classList.add('open');
 }
 function closeUploadModal(){
@@ -8778,6 +9117,7 @@ window.UploadMgr = (function(){
       const nowOpen = el.classList.contains('open');
       if (nowOpen === wasOpen) return;
       if (nowOpen) {
+        try { pauseFeedMedia(); } catch (e) {}
         navStack.push(id);
         history.pushState({ ui: navStack.slice() }, '', location.pathname);
       } else {
@@ -9459,7 +9799,7 @@ function dualOrSingleAvatarHtml(f){
       <div class="av-collab" onclick="event.stopPropagation();goToProfileDirect('${escapeAttr(f.collaboratorId)}','${escapeAttr(f.collaboratorUsername)}')">${colInner}</div>
     </div>`;
   }
-  return `<div class="card-avatar" onclick="viewProfile('${escapeAttr(f.ownerId)}','${escapeAttr(f.ownerUsername)}')">
+  return `<div class="card-avatar ${f.ownerVipRing && f.ownerVipRing !== 'none' ? 'vip-ring-' + f.ownerVipRing : ''}" onclick="viewProfile('${escapeAttr(f.ownerId)}','${escapeAttr(f.ownerUsername)}')">
     ${f.ownerProfileImage ? `<img src="${escapeAttr(f.ownerProfileImage)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
   </div>`;
 }
