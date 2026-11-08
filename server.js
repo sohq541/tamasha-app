@@ -3779,6 +3779,7 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     if (currentUser.id === req.params.userId) return res.status(400).json({ error: "You can't message yourself" });
 
     const directUrl = makeDirectUrlCache();
+    const users = await readUsers();
 
     if (req.params.userId === AI_ASSISTANT_ID) {
       const convo = await ensureAiConversation(currentUser.id);
@@ -3786,8 +3787,6 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
       const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl, users)));
       return res.json({ id: convo.id, otherUser: AI_ASSISTANT_USER, messages });
     }
-
-    const users = await readUsers();
     const me = users.find(u => u.id === currentUser.id);
     const target = users.find(u => u.id === req.params.userId);
     if (!target) return res.status(404).json({ error: 'User not found' });
@@ -4201,6 +4200,7 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
 
     const since = req.query.since ? new Date(req.query.since).getTime() : 0;
     const directUrl = makeDirectUrlCache();
+    const users = await readUsers();
     let raw = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
     if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since) || (m.reactedAt && new Date(m.reactedAt).getTime() > since) || (m.readAt && new Date(m.readAt).getTime() > since));
     const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl, users)));
@@ -4208,7 +4208,6 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     const otherId = convo.participants.find(p => p !== currentUser.id);
     let otherOnline = false;
     if (otherId && otherId !== AI_ASSISTANT_ID) {
-      const users = await readUsers();
       otherOnline = isUserOnline(users.find(u => u.id === otherId));
     }
     res.json({ messages, otherTyping: otherId ? isOtherTyping(convo.id, otherId) : false, otherOnline });
@@ -4344,7 +4343,8 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     }
 
     const directUrl = makeDirectUrlCache();
-    res.status(201).json(await enrichMessage(newMessage, directUrl));
+    const allUsersForEnrich = await readUsers();
+    res.status(201).json(await enrichMessage(newMessage, directUrl, allUsersForEnrich));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
