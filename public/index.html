@@ -7175,7 +7175,7 @@ async function loadGroupCandidates(){
   try {
     const res = await fetch('/api/users/' + currentUser.id + '/following');
     const data = await res.json();
-    const list = data.following || [];
+    const list = data.users || data.following || [];   // the server returns { users: [...] }
     selectedGroupMemberIds = [];
     if (!list.length) {
       box.innerHTML = '<div style="font-size:12.5px;color:var(--cream-dim);">Follow creators first to add them to a group!</div>';
