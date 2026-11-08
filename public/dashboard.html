@@ -125,6 +125,7 @@
     <button class="tab" data-t="content" onclick="setTab('content')">🎬 Content</button>
   <button class="tab" data-t="stories" onclick="setTab('stories')">🔵 Stories Manager</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
+    <button class="tab" data-t="channels" onclick="setTab('channels')">📢 Channels &amp; Groups</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
     <button class="tab" data-t="moderation" id="queueTab" onclick="setTab('moderation')">🛡️ Queue</button>
@@ -261,6 +262,7 @@ function render(){
   else if (tab === 'content') renderContentManager();
   else if (tab === 'stories') renderAdminStories();
   else if (tab === 'users') renderUsers();
+  else if (tab === 'channels') renderAdminChannels();
   else renderActivity();
 }
 
@@ -1380,6 +1382,72 @@ async function toggleSuspend(id){
     u.suspended = data.suspended;
     D.overview.suspended += data.suspended ? 1 : -1;
     render();
+  } catch (e) { alert(e.message); }
+}
+
+
+let adminChannelsData = [];
+async function loadAdminChannels(){
+  try {
+    const res = await fetch('/api/admin/channels-groups');
+    const data = await res.json();
+    adminChannelsData = data.items || [];
+    if (tab === 'channels') renderAdminChannels();
+  } catch (e) {}
+}
+
+function renderAdminChannels(){
+  if (!adminChannelsData.length) {
+    loadAdminChannels();
+    document.getElementById('view').innerHTML = '<div class="card"><h3>📢 Broadcast Channels &amp; Groups</h3><p class="meta">Loading channels and groups...</p></div>';
+    return;
+  }
+  const chs = adminChannelsData.filter(x => x.type === 'channel');
+  const grps = adminChannelsData.filter(x => x.type === 'group');
+
+  document.getElementById('view').innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;">📢 Broadcast Channels &amp; Groups Hub</h3>
+        <button class="btn" onclick="loadAdminChannels()">🔄 Refresh</button>
+      </div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:14px;">
+          <h4 style="margin:0 0 10px;color:#7C5CFF;font-size:15px;">📢 Broadcast Channels (${chs.length})</h4>
+          ${!chs.length ? '<p class="meta">No broadcast channels created yet.</p>' : chs.map(c => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div>
+                <div style="font-weight:700;font-size:14px;">${esc(c.title)}</div>
+                <div class="meta" style="font-size:12px;">Creator: @${esc(c.ownerUsername)} · ${c.memberCount} member(s)</div>
+              </div>
+              <button class="btn btn-bad" style="padding:4px 8px;font-size:12px;" onclick="adminDeleteConvo('${c.id}','${esc(c.title)}')">Delete</button>
+            </div>
+          `).join('')}
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:14px;">
+          <h4 style="margin:0 0 10px;color:#5ad19a;font-size:15px;">👥 Group Chats (${grps.length})</h4>
+          ${!grps.length ? '<p class="meta">No group chats created yet.</p>' : grps.map(g => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div>
+                <div style="font-weight:700;font-size:14px;">${esc(g.title)}</div>
+                <div class="meta" style="font-size:12px;">Created by @${esc(g.ownerUsername)} · ${g.memberCount} member(s)</div>
+              </div>
+              <button class="btn btn-bad" style="padding:4px 8px;font-size:12px;" onclick="adminDeleteConvo('${g.id}','${esc(g.title)}')">Delete</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function adminDeleteConvo(id, title){
+  if (!confirm(`Delete "${title}"? All messages inside will be permanently removed.`)) return;
+  try {
+    const res = await fetch('/api/admin/conversations/' + id + '/delete', { method: 'POST' });
+    if (!res.ok) throw new Error('Could not delete');
+    alert('Deleted successfully');
+    loadAdminChannels();
   } catch (e) { alert(e.message); }
 }
 
