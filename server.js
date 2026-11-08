@@ -920,7 +920,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
   }
 });
 
-app.get('/api/me', (req, res) => {
+app.get('/api/me', async (req, res) => {
   let u = getUserFromReq(req);
   // If active token cookie was missing (e.g. returning from /login.html after stashing), restore the first valid saved account
   if (!u) {
@@ -932,6 +932,16 @@ app.get('/api/me', (req, res) => {
       res.cookie('token', validSaved, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
       u = payloadOf(validSaved);
     }
+  }
+  // the token only holds id and username: add the blue tick status so the app knows this user is verified
+  if (u && u.id) {
+    try {
+      const me = (await readUsers()).find(x => x.id === u.id);
+      if (me) {
+        const active = !!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil);
+        u = { ...u, verified: active, blueFree: !!me.blueFree, blueUntil: me.blueUntil || null };
+      }
+    } catch (e) { /* keep the token data */ }
   }
   res.json(u);
 });
