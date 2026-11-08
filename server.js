@@ -250,6 +250,15 @@ async function decorateNewFilm(newFilm, body, currentUser) {
       newFilm.collabStatus = 'pending';
     }
   }
+  const me = currentUser ? users.find(u => u.id === currentUser.id) : null;
+  const isVip = !!(me && (me.verified || me.isAdmin));
+  if (isVip && body && body.customLink) {
+    const cl = String(body.customLink).trim();
+    if (cl && /^https?:\/\//i.test(cl)) {
+      newFilm.customLink = cl;
+      newFilm.customLinkTitle = String(body.customLinkTitle || 'Visit Link').trim().slice(0, 40) || 'Visit Link';
+    }
+  }
 }
 function getFilmHashtags(f) {
   const base = (f.hashtags && f.hashtags.length) ? f.hashtags : extractHashtags((f.title || '') + ' ' + (f.description || ''));
@@ -1018,9 +1027,15 @@ app.get('/api/users/:id/public', async (req, res) => {
     const followingCount = user.following ? user.following.length : 0;
     const defaultRole = ((user.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null;
 
+    const convosForChan = await readConversations();
+    const userChan = convosForChan.find(c => c.type === 'channel' && c.ownerId === user.id);
     res.json({
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
       verified: !!user.verified,
+      vipRing: user.vipRing || 'none',
+      channelId: userChan ? userChan.id : null,
+      channelTitle: userChan ? userChan.title : null,
+      channelMembersCount: userChan ? (userChan.participants || []).length : 0,
       roleBadge: user.roleBadge || defaultRole,
       note: activeNote(user),
       pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
@@ -1046,17 +1061,21 @@ app.get('/api/me/profile-views', async (req, res) => {
     const directUrl = makeDirectUrlCache();
     const now = Date.now(), d7 = 7 * 24 * 60 * 60 * 1000;
     const recent = (me.profileViews || []).filter(v => v && v.viewedAt && (now - new Date(v.viewedAt).getTime() < d7)).slice().reverse();
-    const visitors = await Promise.all(recent.slice(0, 30).map(async v => {
-      const u = users.find(x => x.id === v.userId);
-      return {
-        userId: v.userId,
-        username: u ? u.username : (v.username || 'user'),
-        verified: !!(u && u.verified),
-        profileImage: (u && u.profileImage) ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
-        viewedAt: v.viewedAt
-      };
-    }));
-    res.json({ count7d: recent.length, visitors });
+    const isVip = !!(me.verified || me.isAdmin);
+    let visitors = [];
+    if (isVip) {
+      visitors = await Promise.all(recent.slice(0, 30).map(async v => {
+        const u = users.find(x => x.id === v.userId);
+        return {
+          userId: v.userId,
+          username: u ? u.username : (v.username || 'user'),
+          verified: !!(u && u.verified),
+          profileImage: (u && u.profileImage) ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+          viewedAt: v.viewedAt
+        };
+      }));
+    }
+    res.json({ count7d: recent.length, isLocked: !isVip, visitors });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1211,8 +1230,12 @@ app.put('/api/me/bio', async (req, res) => {
 
     user.bio = (bio || '').slice(0, 150);
     user.website = (website || '').slice(0, 100);
+    const { vipRing } = req.body;
+    if ((user.verified || user.isAdmin) && ['none', 'purple', 'gold', 'neon'].includes(vipRing)) {
+      user.vipRing = vipRing;
+    }
     await writeUsers(users);
-    res.json({ bio: user.bio, website: user.website });
+    res.json({ bio: user.bio, website: user.website, vipRing: user.vipRing || 'none' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3097,18 +3120,33 @@ function previewForMessage(m) {
   if (m.type === 'video') return '🎬 Video';
   if (m.type === 'voice') return '🎤 Voice message';
   if (m.type === 'short') return '🎬 Shared a short';
-  return (m.text || '').slice(0, 80);
+  if (m.type === 'collab_invite') return '🤝 Collab invite: ' + (m.shortTitle || 'Post');
+  if (m.type === 'poll') return '📊 Poll: ' + (m.poll ? m.poll.question : 'Poll');
+  return (m.text || '')
+    .replace(/\*\*/g, '')
+    .replace(/__/g, '')
+    .replace(/`/g, '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
 }
-async function enrichMessage(m, directUrl) {
+async function enrichMessage(m, directUrl, usersList) {
+  const sender = (usersList || []).find(u => u.id === m.senderId);
   const out = {
     id: m.id, conversationId: m.conversationId, senderId: m.senderId,
+    senderUsername: sender ? sender.username : null,
+    senderVerified: !!(sender && sender.verified),
+    senderRoleBadge: sender ? (sender.roleBadge || (((sender.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null)) : null,
+    senderAvatar: (sender && sender.profileImage) ? await directUrl(sender.profileImage, sender.avatarStorageProvider) : null,
     type: m.type, text: m.unsent ? null : (m.text || null),
     createdAt: m.createdAt, editedAt: m.editedAt || null,
     unsent: !!m.unsent, readBy: m.readBy || [], readAt: m.readAt || null,
     mediaUrl: null, duration: m.duration || null,
     shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null,
     replyTo: m.unsent ? null : (m.replyTo || null),
-    reactions: m.reactions || {}
+    reactions: m.reactions || {},
+    poll: m.poll || null
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'gdrive');
@@ -3641,32 +3679,74 @@ app.get('/api/conversations', async (req, res) => {
     const outRaw = await Promise.all(list
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       .map(async c => {
-        const otherId = c.participants.find(p => p !== currentUser.id);
         const allMessages = await readChatMessages(c.id);
         const visibleMessages = allMessages.filter(m => !(m.deletedFor || []).includes(currentUser.id));
         const lastVisible = visibleMessages.length ? visibleMessages[visibleMessages.length - 1] : null;
         const dynamicLastMessage = lastVisible
           ? { senderId: lastVisible.senderId, preview: previewForMessage(lastVisible), createdAt: lastVisible.createdAt }
           : null;
+        const unreadCount = visibleMessages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
+          !(m.readBy || []).includes(currentUser.id)).length;
 
+        // Group Chat
+        if (c.type === 'group') {
+          return {
+            id: c.id,
+            type: 'group',
+            title: c.title || 'Group Chat',
+            description: c.description || '',
+            avatarUrl: c.avatarKey ? await directUrl(c.avatarKey, c.storageProvider || 'gdrive') : null,
+            ownerId: c.ownerId,
+            admins: c.admins || [c.ownerId],
+            memberCount: (c.participants || []).length,
+            onlyAdminsCanPost: !!c.onlyAdminsCanPost,
+            isMuted: !!(c.mutedFor && c.mutedFor.includes(currentUser.id)),
+            lastMessage: dynamicLastMessage || c.lastMessage,
+            updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt,
+            unreadCount
+          };
+        }
+
+        // Broadcast Channel
+        if (c.type === 'channel') {
+          const owner = users.find(u => u.id === c.ownerId);
+          return {
+            id: c.id,
+            type: 'channel',
+            title: c.title || 'Broadcast Channel',
+            description: c.description || '',
+            avatarUrl: c.avatarKey ? await directUrl(c.avatarKey, c.storageProvider || 'gdrive') : (owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null),
+            ownerId: c.ownerId,
+            ownerUsername: owner ? owner.username : 'Creator',
+            ownerVerified: !!(owner && owner.verified),
+            admins: c.admins || [c.ownerId],
+            memberCount: (c.participants || []).length,
+            pinnedMessage: c.pinnedMessage || null,
+            isMuted: !!(c.mutedFor && c.mutedFor.includes(currentUser.id)),
+            lastMessage: dynamicLastMessage || c.lastMessage,
+            updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt,
+            unreadCount
+          };
+        }
+
+        // Direct Message (1-on-1)
+        const otherId = c.participants.find(p => p !== currentUser.id);
         if (otherId === AI_ASSISTANT_ID) {
-          const unreadCount = visibleMessages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
-            !(m.readBy || []).includes(currentUser.id)).length;
-          return { id: c.id, otherUser: AI_ASSISTANT_USER, lastMessage: dynamicLastMessage || c.lastMessage, updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt, unreadCount };
+          return { id: c.id, type: 'dm', otherUser: AI_ASSISTANT_USER, lastMessage: dynamicLastMessage || c.lastMessage, updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt, unreadCount };
         }
         if (c.hiddenFor && c.hiddenFor[currentUser.id] && !visibleMessages.length) {
           return null;
         }
         const other = users.find(u => u.id === otherId);
-        const unreadCount = visibleMessages.filter(m => m.senderId !== currentUser.id && !m.unsent &&
-          !(m.readBy || []).includes(currentUser.id)).length;
         return {
           id: c.id,
+          type: 'dm',
           otherUser: other ? {
             id: other.id, username: other.username,
+            verified: !!other.verified,
             profileImage: other.profileImage ? await directUrl(other.profileImage, other.avatarStorageProvider) : null,
             online: isUserOnline(other)
-          } : { id: otherId, username: 'Unknown user', profileImage: null, online: false },
+          } : { id: otherId, username: 'Unknown user', verified: false, profileImage: null, online: false },
           lastMessage: dynamicLastMessage,
           updatedAt: (lastVisible && lastVisible.createdAt) || c.updatedAt,
           unreadCount
@@ -3703,7 +3783,7 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     if (req.params.userId === AI_ASSISTANT_ID) {
       const convo = await ensureAiConversation(currentUser.id);
       const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
-      const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl)));
+      const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl, users)));
       return res.json({ id: convo.id, otherUser: AI_ASSISTANT_USER, messages });
     }
 
@@ -3723,7 +3803,7 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     }
 
     const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
-    const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl)));
+    const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl, users)));
 
     res.json({
       id: convo.id,
@@ -3734,6 +3814,380 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
       },
       messages
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+app.get('/api/conversations/:id/details', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id);
+    if (!c) return res.status(404).json({ error: 'Conversation not found' });
+    if (!c.participants.includes(currentUser.id) && c.type !== 'channel') {
+      return res.status(403).json({ error: 'Not a member of this chat' });
+    }
+    const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
+
+    const members = await Promise.all((c.participants || []).map(async uid => {
+      const u = users.find(x => x.id === uid);
+      return {
+        id: uid,
+        username: u ? u.username : 'User',
+        verified: !!(u && u.verified),
+        isAdmin: (c.admins || []).includes(uid),
+        isOwner: c.ownerId === uid,
+        profileImage: (u && u.profileImage) ? await directUrl(u.profileImage, u.avatarStorageProvider) : null
+      };
+    }));
+
+    let avatarUrl = null;
+    if (c.avatarKey) avatarUrl = await directUrl(c.avatarKey, c.storageProvider || 'gdrive');
+    else if (c.type === 'channel') {
+      const owner = users.find(u => u.id === c.ownerId);
+      if (owner && owner.profileImage) avatarUrl = await directUrl(owner.profileImage, owner.avatarStorageProvider);
+    }
+
+    res.json({
+      id: c.id,
+      type: c.type || 'dm',
+      title: c.title || (c.type === 'channel' ? 'Broadcast Channel' : 'Group Chat'),
+      description: c.description || '',
+      avatarUrl,
+      ownerId: c.ownerId,
+      admins: c.admins || [c.ownerId],
+      participants: c.participants || [],
+      members,
+      onlyAdminsCanPost: !!c.onlyAdminsCanPost,
+      pinnedMessage: c.pinnedMessage || null,
+      isMuted: !!(c.mutedFor && c.mutedFor.includes(currentUser.id)),
+      isMember: c.participants.includes(currentUser.id)
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Discover Public Channels
+app.get('/api/channels/discover', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    const convos = await readConversations();
+    const channels = convos.filter(c => c.type === 'channel');
+    const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
+
+    const out = await Promise.all(channels.map(async c => {
+      const owner = users.find(u => u.id === c.ownerId);
+      return {
+        id: c.id,
+        title: c.title || 'Channel',
+        description: c.description || '',
+        avatarUrl: c.avatarKey ? await directUrl(c.avatarKey, c.storageProvider || 'gdrive') : (owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null),
+        ownerId: c.ownerId,
+        ownerUsername: owner ? owner.username : 'Creator',
+        ownerVerified: !!(owner && owner.verified),
+        memberCount: (c.participants || []).length,
+        isMember: currentUser ? (c.participants || []).includes(currentUser.id) : false,
+        updatedAt: c.updatedAt
+      };
+    }));
+    out.sort((a, b) => b.memberCount - a.memberCount);
+    res.json({ channels: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create Broadcast Channel (Verified / Admin Only)
+app.post('/api/channels', upload.single('avatar'), async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    if (!me.verified && !me.isAdmin) {
+      return res.status(403).json({ error: 'Broadcast Channels are exclusive to Verified creators. Get a Blue Tick to unlock!' });
+    }
+
+    const { title, description } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Channel name is required' });
+
+    const convos = await readConversations();
+    const existing = convos.find(c => c.type === 'channel' && c.ownerId === currentUser.id);
+    if (existing) {
+      return res.status(400).json({ error: 'You already have an active Broadcast Channel' });
+    }
+
+    const id = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let avatarKey = null;
+    if (req.file) {
+      avatarKey = `channels/${id}${path.extname(req.file.originalname) || '.jpg'}`;
+      await storePutBuffer(readFileAsBuffer(req.file.path), avatarKey, req.file.mimetype);
+    }
+
+    const newChannel = {
+      id,
+      type: 'channel',
+      title: title.trim().slice(0, 50),
+      description: (description || '').trim().slice(0, 200),
+      avatarKey,
+      storageProvider: r2On() ? 'r2' : 'gdrive',
+      ownerId: currentUser.id,
+      admins: [currentUser.id],
+      participants: [currentUser.id],
+      pinnedMessage: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastMessage: { senderId: currentUser.id, preview: 'Welcome to the channel! 📢', createdAt: new Date().toISOString() }
+    };
+
+    convos.push(newChannel);
+    await writeConversations(convos);
+
+    // Initial welcome message in channel
+    const welcomeMsg = {
+      id: Date.now().toString(36) + 'init',
+      conversationId: id,
+      senderId: currentUser.id,
+      type: 'text',
+      text: `Welcome to ${newChannel.title}! 📢 Updates, announcements and polls will be posted here.`,
+      createdAt: newChannel.createdAt,
+      readBy: [currentUser.id],
+      deletedFor: []
+    };
+    await writeChatMessages(id, [welcomeMsg]);
+
+    res.status(201).json({ ok: true, channel: newChannel });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Join / Leave Channel
+app.post('/api/channels/:id/join', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && x.type === 'channel');
+    if (!c) return res.status(404).json({ error: 'Channel not found' });
+    if (!c.participants.includes(currentUser.id)) {
+      c.participants.push(currentUser.id);
+      c.updatedAt = new Date().toISOString();
+      await writeConversations(convos);
+    }
+    res.json({ ok: true, joined: true, memberCount: c.participants.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/channels/:id/leave', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && x.type === 'channel');
+    if (!c) return res.status(404).json({ error: 'Channel not found' });
+    if (c.ownerId === currentUser.id) return res.status(400).json({ error: 'Channel owner cannot leave. Delete the channel instead.' });
+    c.participants = (c.participants || []).filter(p => p !== currentUser.id);
+    c.admins = (c.admins || []).filter(a => a !== currentUser.id);
+    await writeConversations(convos);
+    res.json({ ok: true, joined: false, memberCount: c.participants.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create Group Chat
+app.post('/api/groups', upload.single('avatar'), async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+
+    const { title, description } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Group name is required' });
+
+    let memberIds = [];
+    try {
+      memberIds = JSON.parse(req.body.memberIds || '[]');
+    } catch (e) { memberIds = []; }
+
+    const participants = [...new Set([currentUser.id, ...memberIds.filter(Boolean)])];
+    if (participants.length < 2) return res.status(400).json({ error: 'Select at least 1 other user to create a group' });
+
+    const id = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let avatarKey = null;
+    if (req.file) {
+      avatarKey = `groups/${id}${path.extname(req.file.originalname) || '.jpg'}`;
+      await storePutBuffer(readFileAsBuffer(req.file.path), avatarKey, req.file.mimetype);
+    }
+
+    const convos = await readConversations();
+    const newGroup = {
+      id,
+      type: 'group',
+      title: title.trim().slice(0, 50),
+      description: (description || '').trim().slice(0, 200),
+      avatarKey,
+      storageProvider: r2On() ? 'r2' : 'gdrive',
+      ownerId: currentUser.id,
+      admins: [currentUser.id],
+      participants,
+      onlyAdminsCanPost: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastMessage: { senderId: currentUser.id, preview: `@${currentUser.username} created group "${title.trim()}"`, createdAt: new Date().toISOString() }
+    };
+
+    convos.push(newGroup);
+    await writeConversations(convos);
+
+    const initMsg = {
+      id: Date.now().toString(36) + 'init',
+      conversationId: id,
+      senderId: currentUser.id,
+      type: 'text',
+      text: `@${currentUser.username} created group "${newGroup.title}" 👥`,
+      createdAt: newGroup.createdAt,
+      readBy: [currentUser.id],
+      deletedFor: []
+    };
+    await writeChatMessages(id, [initMsg]);
+
+    res.status(201).json({ ok: true, group: newGroup });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Group Admin Actions: Add / Remove Member, Make Admin, Toggle Admin-Only Posting, Leave
+app.post('/api/groups/:id/members', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
+    if (!c) return res.status(404).json({ error: 'Chat not found' });
+    if (!c.admins.includes(currentUser.id) && c.ownerId !== currentUser.id) {
+      return res.status(403).json({ error: 'Only admins can add members' });
+    }
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'User ID is required' });
+    if (!c.participants.includes(userId)) {
+      c.participants.push(userId);
+      c.updatedAt = new Date().toISOString();
+      await writeConversations(convos);
+    }
+    res.json({ ok: true, memberCount: c.participants.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/groups/:id/remove-member', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
+    if (!c) return res.status(404).json({ error: 'Chat not found' });
+    if (!c.admins.includes(currentUser.id) && c.ownerId !== currentUser.id) {
+      return res.status(403).json({ error: 'Only admins can remove members' });
+    }
+    const { userId } = req.body;
+    if (userId === c.ownerId) return res.status(400).json({ error: 'Cannot remove chat owner' });
+    c.participants = (c.participants || []).filter(p => p !== userId);
+    c.admins = (c.admins || []).filter(a => a !== userId);
+    await writeConversations(convos);
+    res.json({ ok: true, memberCount: c.participants.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/groups/:id/toggle-admin', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
+    if (!c) return res.status(404).json({ error: 'Chat not found' });
+    if (c.ownerId !== currentUser.id) return res.status(403).json({ error: 'Only owner can assign admins' });
+    const { userId } = req.body;
+    if (userId === c.ownerId) return res.json({ ok: true });
+    if ((c.admins || []).includes(userId)) {
+      c.admins = c.admins.filter(a => a !== userId);
+    } else {
+      if (!c.admins) c.admins = [c.ownerId];
+      c.admins.push(userId);
+    }
+    await writeConversations(convos);
+    res.json({ ok: true, admins: c.admins });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/groups/:id/toggle-admin-only', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id && x.type === 'group');
+    if (!c) return res.status(404).json({ error: 'Group not found' });
+    if (!c.admins.includes(currentUser.id) && c.ownerId !== currentUser.id) {
+      return res.status(403).json({ error: 'Only admins can change settings' });
+    }
+    c.onlyAdminsCanPost = !c.onlyAdminsCanPost;
+    await writeConversations(convos);
+    res.json({ ok: true, onlyAdminsCanPost: c.onlyAdminsCanPost });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/mute', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id);
+    if (!c) return res.status(404).json({ error: 'Conversation not found' });
+    if (!c.mutedFor) c.mutedFor = [];
+    const isMuted = c.mutedFor.includes(currentUser.id);
+    if (isMuted) c.mutedFor = c.mutedFor.filter(u => u !== currentUser.id);
+    else c.mutedFor.push(currentUser.id);
+    await writeConversations(convos);
+    res.json({ ok: true, muted: !isMuted });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/pin-message', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id);
+    if (!c) return res.status(404).json({ error: 'Conversation not found' });
+    if (c.type === 'channel' && c.ownerId !== currentUser.id && !(c.admins || []).includes(currentUser.id)) {
+      return res.status(403).json({ error: 'Only admins can pin messages' });
+    }
+    const { messageId, text } = req.body;
+    c.pinnedMessage = messageId ? { messageId, text: String(text || '').slice(0, 100) } : null;
+    await writeConversations(convos);
+    res.json({ ok: true, pinnedMessage: c.pinnedMessage });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Poll Vote inside Group / Channel
+app.post('/api/conversations/:id/messages/:messageId/poll-vote', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const { optionIndex } = req.body;
+    const messages = await readChatMessages(req.params.id);
+    const msg = messages.find(m => m.id === req.params.messageId && m.type === 'poll');
+    if (!msg || !msg.poll || !msg.poll.options) return res.status(404).json({ error: 'Poll not found' });
+
+    const idx = parseInt(optionIndex, 10);
+    if (isNaN(idx) || idx < 0 || idx >= msg.poll.options.length) {
+      return res.status(400).json({ error: 'Invalid option' });
+    }
+
+    // Toggle or cast vote
+    msg.poll.options.forEach((opt, i) => {
+      if (!Array.isArray(opt.votes)) opt.votes = [];
+      opt.votes = opt.votes.filter(uid => uid !== currentUser.id);
+      if (i === idx) opt.votes.push(currentUser.id);
+    });
+
+    await writeChatMessages(req.params.id, messages);
+    res.json({ ok: true, poll: msg.poll });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3749,7 +4203,7 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     const directUrl = makeDirectUrlCache();
     let raw = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
     if (since) raw = raw.filter(m => new Date(m.createdAt).getTime() > since || (m.editedAt && new Date(m.editedAt).getTime() > since) || (m.reactedAt && new Date(m.reactedAt).getTime() > since) || (m.readAt && new Date(m.readAt).getTime() > since));
-    const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl)));
+    const messages = await Promise.all(raw.map(m => enrichMessage(m, directUrl, users)));
 
     const otherId = convo.participants.find(p => p !== currentUser.id);
     let otherOnline = false;
@@ -3771,13 +4225,31 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const convo = convos.find(c => c.id === req.params.id);
     if (!convo || !convo.participants.includes(req.currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
 
-    const otherParticipantId = convo.participants.find(p => p !== req.currentUser.id);
-    if (otherParticipantId && otherParticipantId !== AI_ASSISTANT_ID) {
-      const users = await readUsers();
-      const me = users.find(u => u.id === req.currentUser.id);
-      const other = users.find(u => u.id === otherParticipantId);
-      if ((me && me.blockedUsers && me.blockedUsers.includes(otherParticipantId)) || (other && other.blockedUsers && other.blockedUsers.includes(req.currentUser.id))) {
-        return res.status(403).json({ error: 'You can\'t message this user' });
+    // Channel Posting Permission: Only Admins can post in broadcast channel
+    if (convo.type === 'channel') {
+      const isAdminOrOwner = convo.ownerId === req.currentUser.id || (convo.admins && convo.admins.includes(req.currentUser.id));
+      if (!isAdminOrOwner) {
+        return res.status(403).json({ error: 'Only channel admins can post updates. You can react to messages.' });
+      }
+    }
+
+    // Group Posting Permission: If onlyAdminsCanPost is enabled
+    if (convo.type === 'group' && convo.onlyAdminsCanPost) {
+      const isAdminOrOwner = convo.ownerId === req.currentUser.id || (convo.admins && convo.admins.includes(req.currentUser.id));
+      if (!isAdminOrOwner) {
+        return res.status(403).json({ error: 'Only group admins can send messages right now.' });
+      }
+    }
+
+    if (convo.type === 'dm' || !convo.type) {
+      const otherParticipantId = convo.participants.find(p => p !== req.currentUser.id);
+      if (otherParticipantId && otherParticipantId !== AI_ASSISTANT_ID) {
+        const users = await readUsers();
+        const me = users.find(u => u.id === req.currentUser.id);
+        const other = users.find(u => u.id === otherParticipantId);
+        if ((me && me.blockedUsers && me.blockedUsers.includes(otherParticipantId)) || (other && other.blockedUsers && other.blockedUsers.includes(req.currentUser.id))) {
+          return res.status(403).json({ error: 'You can\'t message this user' });
+        }
       }
     }
 
@@ -3791,6 +4263,19 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     let type = 'text', mediaKey = null, mediaType = null, duration = null, fileName = null;
     let shortTitle = null, shortOwnerUsername = null;
+    let pollData = null;
+
+    if (req.body.isPoll && req.body.pollQuestion) {
+      type = 'poll';
+      let opts = [];
+      try {
+        opts = JSON.parse(req.body.pollOptions || '[]');
+      } catch (e) { opts = []; }
+      pollData = {
+        question: String(req.body.pollQuestion).trim().slice(0, 150),
+        options: opts.slice(0, 6).map(o => ({ text: String(o).trim().slice(0, 80), votes: [] }))
+      };
+    }
 
     if (mediaFile) {
       const isVideo = mediaFile.mimetype.startsWith('video') && !isVoice;
@@ -3831,6 +4316,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       type, text: text || null,
       mediaKey, mediaType, fileName, storageProvider: r2On() ? 'r2' : 'gdrive', duration,
       shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
+      poll: pollData,
       replyTo,
       createdAt: new Date().toISOString(), editedAt: null,
       deletedFor: [], unsent: false, readBy: [req.currentUser.id]
@@ -4902,7 +5388,8 @@ app.get('/api/notes', async (req, res) => {
       text: u.note.text, createdAt: u.note.createdAt, song: u.note.song || null
     })));
     notes.sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || new Date(b.createdAt) - new Date(a.createdAt));
-    res.json({ notes });
+    const myProfileImage = me.profileImage ? await directUrl(me.profileImage, me.avatarStorageProvider) : null;
+    res.json({ notes, myProfileImage });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4921,6 +5408,43 @@ app.get('/api/announcements', async (req, res) => {
   try { const list = await readAnnouncements(); res.json({ announcements: list.slice(-5).reverse() }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// Admin Channels & Groups Monitoring
+app.get('/api/admin/channels-groups', requireAdmin, async (req, res) => {
+  try {
+    const convos = await readConversations();
+    const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
+    const list = await Promise.all(convos.filter(c => c.type === 'channel' || c.type === 'group').map(async c => {
+      const owner = users.find(u => u.id === c.ownerId);
+      return {
+        id: c.id,
+        type: c.type,
+        title: c.title,
+        description: c.description || '',
+        ownerId: c.ownerId,
+        ownerUsername: owner ? owner.username : 'User',
+        memberCount: (c.participants || []).length,
+        avatarUrl: c.avatarKey ? await directUrl(c.avatarKey, c.storageProvider || 'gdrive') : null,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt
+      };
+    }));
+    res.json({ items: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/conversations/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const convos = await readConversations();
+    const idx = convos.findIndex(c => c.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Conversation not found' });
+    convos.splice(idx, 1);
+    await writeConversations(convos);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/admin/announcements', requireAdmin, async (req, res) => {
   try { res.json({ announcements: (await readAnnouncements()).slice().reverse() }); }
   catch (err) { res.status(500).json({ error: err.message }); }
