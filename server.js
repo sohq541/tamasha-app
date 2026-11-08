@@ -5106,11 +5106,10 @@ app.post('/api/admin/users/:id/dm', requireAdmin, async (req, res) => {
     const target = users.find(u => u.id === targetId);
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    const founderUser = users.find(u => (u.email || '').toLowerCase() === ALERT_EMAIL_TO.toLowerCase()) || users[0];
-    const senderId = (founderUser && founderUser.id !== targetId) ? founderUser.id : AI_ASSISTANT_ID;
-    const senderUsername = (founderUser && founderUser.id !== targetId) ? founderUser.username : 'TAMASHA Admin';
+    const senderId = AI_ASSISTANT_ID;
+    const senderUsername = AI_ASSISTANT_USERNAME;
 
-    const convo = await getConversationForUsers(senderId, targetId, true);
+    const convo = await ensureAiConversation(targetId);
     const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const formattedText = `🛡️ [Official Admin Message]: ${text}`;
     const newMessage = {
