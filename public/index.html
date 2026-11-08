@@ -1307,12 +1307,12 @@
   <div class="chat-header">
     <button class="chat-header-back" onclick="closeChatInbox()">←</button>
     <span class="chat-header-name">Messages</span>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <button type="button" class="profile-btn" style="padding:5px 10px;font-size:12px;" onclick="openNewGroupModal()" title="New Group Chat">👥 Group</button>
-      <button type="button" class="profile-btn primary" style="padding:5px 10px;font-size:12px;" onclick="openNewChannelModal()" title="New Broadcast Channel">📢 Channel</button>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+      <button type="button" class="profile-btn" style="padding:6px 11px;font-size:12.5px;white-space:nowrap;flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;" onclick="openNewGroupModal()" title="New Group Chat">👥 Group</button>
+      <button type="button" class="profile-btn primary" style="padding:6px 11px;font-size:12.5px;white-space:nowrap;flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;" onclick="openNewChannelModal()" title="New Broadcast Channel">📢 Channel</button>
     </div>
   </div>
-  <div style="display:flex;gap:8px;padding:8px 14px 2px;overflow-x:auto;">
+  <div style="display:flex;gap:8px;padding:8px 14px 2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
     <button class="inbox-filter-tab active" data-f="all" onclick="setInboxFilter('all', this)">All</button>
     <button class="inbox-filter-tab" data-f="dm" onclick="setInboxFilter('dm', this)">Direct</button>
     <button class="inbox-filter-tab" data-f="group" onclick="setInboxFilter('group', this)">Groups 👥</button>
@@ -1377,7 +1377,7 @@
     <input type="text" class="sendto-search" id="sendToSearch" placeholder="Search" oninput="filterSendToGrid(this.value)">
     <div class="sendto-grid" id="sendToList"></div>
     <div style="display:flex;gap:8px;margin:10px 0;">
-      <input type="text" id="sendToText" placeholder="Message likho (optional)" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
+      <input type="text" id="sendToText" placeholder="Write a message (optional)" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
       <button id="sendToGo" onclick="sendSelectedTo()" style="background:var(--marigold);color:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:600;cursor:pointer;">Select</button>
     </div>
     <div class="sendto-actions">
@@ -1566,7 +1566,7 @@
         <input type="file" id="qPhoto" accept="image/*">
       </div>
       <div id="qCarouselFields" class="hidden">
-        <label>Photos / videos * (2 se 10, pehli wali cover banegi)</label>
+        <label>Photos / videos * (2 to 10, first one will be cover)</label>
         <input type="file" id="qCarousel" accept="image/*,video/*" multiple onchange="onCarouselPicked(this)">
         <div id="qCarouselInfo" style="font-size:12.5px;color:var(--cream-dim);margin-top:6px;"></div>
       </div>
@@ -2472,7 +2472,7 @@ async function renderProfile(){
       </div>
     </div>
     <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge)} <span style="font-size:13px;opacity:.7;">▾</span></div>
-    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Note chhodo (24 ghante)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
+    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Leave a note (24h)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
     <div class="profile-btn-row">
@@ -2495,7 +2495,7 @@ async function renderProfile(){
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 8px;">Bio & link <span id="bioCounter" style="font-size:12px;color:var(--cream-dim);font-weight:400;">(${(mine.bio || '').length}/150)</span></h3>
       <textarea id="bioInput" maxlength="150" oninput="const c=document.getElementById('bioCounter');if(c)c.textContent='('+this.value.length+'/150)';" placeholder="Write something about yourself...">${escapeHtml(mine.bio)}</textarea>
-      <input type="text" id="websiteInput" maxlength="100" placeholder="Website ya social link" value="${escapeHtml(mine.website)}">
+      <input type="text" id="websiteInput" maxlength="100" placeholder="Website or social link" value="${escapeHtml(mine.website)}">
       ${(mine.verified || (currentUser && currentUser.isAdmin)) ? `
         <label style="display:block;font-size:12.5px;color:var(--cream);font-weight:700;margin-top:12px;">✨ Exclusive VIP Avatar Glow Ring (Verified Only)</label>
         <select id="vipRingSelect" style="width:100%;margin-top:4px;padding:9px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
@@ -2515,7 +2515,7 @@ async function renderProfile(){
 
       <h3 class="section-title" style="text-align:left;margin:22px 0 14px;">Change / Set password</h3>
       <input type="password" id="currentPasswordInput" placeholder="Current password (leave blank if Google login)">
-      <input type="password" id="newPasswordInput" placeholder="Naya password (kam se kam 6 characters)">
+      <input type="password" id="newPasswordInput" placeholder="New password (at least 6 characters)">
       <button class="settings-save-btn" onclick="changePassword()">Save password</button>
       <div id="passwordStatus" style="margin-top:8px;font-size:13px;"></div>
 
@@ -2801,7 +2801,7 @@ async function renderBlueTick(){
       html += `<div style="padding:14px;background:rgba(90,209,154,0.12);border:1px solid #5ad19a;border-radius:12px;margin-bottom:12px;text-align:center;">
         <div style="color:var(--ok);font-size:24px;">✔</div>
         <div style="color:var(--ok);font-weight:700;font-size:15px;margin-top:4px;">Permanent Free Blue Tick Active</div>
-        <div style="font-size:12px;color:var(--cream-dim);margin-top:4px;">Aapne creator requirements poore kiye hain. Ye badge hamesha active rahega.</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:4px;">You have met all creator requirements. Your verified badge is permanently active.</div>
       </div>`;
     } else if (d.verified) {
       const until = d.verifiedUntil ? new Date(d.verifiedUntil).toLocaleDateString() : '';
@@ -2824,7 +2824,7 @@ async function renderBlueTick(){
 
     if (d.latest && d.latest.status === 'rejected') {
       html += `<div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(230,57,80,0.12);border:1px solid var(--bad);color:var(--bad);font-size:13px;">
-        ❌ Last request rejected${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. Aap dobara request bhej sakte hain.
+        ❌ Last request rejected${d.latest.reason ? ': ' + escapeHtml(d.latest.reason) : ''}. You may submit a new request.
       </div>`;
     }
 
@@ -2832,7 +2832,7 @@ async function renderBlueTick(){
       html += `<div style="padding:14px;border-radius:12px;background:rgba(255,180,0,0.12);border:1px solid #ffcf5c;color:#ffe3a0;text-align:center;">
         <div style="font-size:22px;">⏳</div>
         <div style="font-weight:700;margin-top:4px;">Verification Request Under Review</div>
-        <div style="font-size:12.5px;margin-top:4px;">Admin aapka UTR aur receipt verify kar rahe hain. Approve hote hi Blue Tick notification mil jayegi.</div>
+        <div style="font-size:12.5px;margin-top:4px;">Admin is verifying your UTR and receipt. You will receive a notification once approved.</div>
       </div>`;
     } else if (d.free) {
       // Nothing more needed
@@ -4967,7 +4967,7 @@ async function saveNote(clear){
     if (!res.ok) throw new Error(data.error || 'Failed');
     window.myNote = data.note;
     const o = document.getElementById('noteOverlay'); if (o) o.remove();
-    showToast(data.note ? 'Note laga diya 📝' : 'Note removed');
+    showToast(data.note ? 'Note posted 📝' : 'Note removed');
     if (document.getElementById('chatInboxOverlay').classList.contains('open')) loadNotesStrip();
     try { renderProfile(); } catch (e) {}
   } catch (e) { showToast(e.message); }
@@ -4984,7 +4984,7 @@ async function loadNotesStrip(){
     const myAvUrl = (mine && mine.profileImage) || data.myProfileImage || currentUser.profileImage || null;
     if (myAvUrl && currentUser) currentUser.profileImage = myAvUrl;
     const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}" loading="lazy" decoding="async">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
-    const first = `<div class="note-item" onclick="${mine && mine.song ? `playNoteSong(${escapeAttr(JSON.stringify(mine))});` : ''}openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) + (mine.song ? ' 🎵' : '') : '＋ Note'}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">Tumhara note</div></div>`;
+    const first = `<div class="note-item" onclick="${mine && mine.song ? `playNoteSong(${escapeAttr(JSON.stringify(mine))});` : ''}openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) + (mine.song ? ' 🎵' : '') : '＋ Note'}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">Your note</div></div>`;
     const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="${n.song ? `playNoteSong(${escapeAttr(JSON.stringify(n))})` : `closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')`}"><div class="note-bubble">${escapeHtml(n.text)}${n.song ? ' 🎵' : ''}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
     el.innerHTML = first + others;
   } catch (e) {}
@@ -7306,9 +7306,22 @@ async function openChatConvo(userId, usernameHint){
   clearChatReplyTarget();
   document.getElementById('chatTextInput').value = '';
   chatConvoId = null;
+  chatConvoData = null;
   chatOtherUser = { id: userId, username: usernameHint || '...' };
   chatMessagesCache = [];
   chatLastFetchAt = null;
+  const inputBar = document.querySelector('.chat-input-bar');
+  if (inputBar) inputBar.style.display = 'flex';
+  const oldBanner = document.getElementById('channelReadOnlyBanner');
+  if (oldBanner) oldBanner.remove();
+  const clrBtnInit = document.getElementById('aiClearBtn');
+  if (clrBtnInit) clrBtnInit.classList.toggle('hidden', userId !== 'ai-assistant');
+  const delBtnInit = document.getElementById('chatDeleteConvoBtn');
+  if (delBtnInit) {
+    delBtnInit.classList.toggle('hidden', userId === 'ai-assistant');
+    delBtnInit.textContent = '🗑️ Delete';
+    delBtnInit.onclick = () => deleteCurrentConversation();
+  }
   document.getElementById('chatConvoHeaderName').textContent = '@' + (usernameHint || '');
   document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(null, usernameHint, 'chat-header-avatar', 'chat-header-avatar-fallback');
   document.getElementById('chatConvoOnlineDot').classList.remove('on');
@@ -7326,7 +7339,11 @@ async function openChatConvo(userId, usernameHint){
     const clrBtn = document.getElementById('aiClearBtn');
     if (clrBtn) clrBtn.classList.toggle('hidden', data.otherUser.id !== 'ai-assistant');
     const delBtn = document.getElementById('chatDeleteConvoBtn');
-    if (delBtn) delBtn.classList.toggle('hidden', data.otherUser.id === 'ai-assistant');
+    if (delBtn) {
+      delBtn.classList.toggle('hidden', data.otherUser.id === 'ai-assistant');
+      delBtn.textContent = '🗑️ Delete';
+      delBtn.onclick = () => deleteCurrentConversation();
+    }
     document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(data.otherUser.profileImage, data.otherUser.username, 'chat-header-avatar', 'chat-header-avatar-fallback');
     chatMessagesCache = data.messages || [];
     chatLastFetchAt = new Date().toISOString();
@@ -7362,6 +7379,10 @@ function closeChatConvo(){
 }
 
 function chatOpenOtherProfile(){
+  if (chatConvoData && (chatConvoData.type === 'group' || chatConvoData.type === 'channel')) {
+    openGroupOrChannelInfo();
+    return;
+  }
   if (!chatOtherUser) return;
   if (chatOtherUser.id === 'ai-assistant') {
     showToast('🤖 Ask AI — Built-in assistant of YouSeries (TAMASHA), founded by Sohail Parvez');
