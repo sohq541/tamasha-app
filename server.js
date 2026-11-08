@@ -938,8 +938,9 @@ app.get('/api/me', async (req, res) => {
     try {
       const me = (await readUsers()).find(x => x.id === u.id);
       if (me) {
-        const active = !!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil);
-        u = { ...u, verified: active, blueFree: !!me.blueFree, blueUntil: me.blueUntil || null };
+        const isFounder = (me.email || '').toLowerCase() === 'sohailp541@gmail.com';
+        const active = (!!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil)) || isFounder;
+        u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null };
       }
     } catch (e) { /* keep the token data */ }
   }
@@ -1334,7 +1335,7 @@ app.get('/api/users/:id/following', async (req, res) => {
       const u = users.find(x => x.id === uid);
       if (!u) return null;
       return {
-        id: u.id, username: u.username,
+        id: u.id, username: u.username, verified: !!u.verified,
         profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
         isFollowing: !!(me && me.following && me.following.includes(u.id)),
         isMe: !!(currentUser && currentUser.id === u.id)
@@ -1354,7 +1355,7 @@ app.get('/api/users/:id/followers', async (req, res) => {
     const directUrl = makeDirectUrlCache();
     const followers = users.filter(u => u.following && u.following.includes(target.id));
     const list = await Promise.all(followers.slice().reverse().map(async u => ({
-      id: u.id, username: u.username,
+      id: u.id, username: u.username, verified: !!u.verified,
       profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
       isFollowing: !!(me && me.following && me.following.includes(u.id)),
       isMe: !!(currentUser && currentUser.id === u.id)
@@ -1468,6 +1469,7 @@ app.get('/api/films', async (req, res) => {
           videoUrl, posterUrl,
           slideUrls: await buildSlideUrls(f, directUrl),
           ownerVerified: !!(owner && owner.verified),
+          ownerVipRing: (owner && owner.vipRing) || 'none',
           ownerRoleBadge: (owner && owner.roleBadge) || ownerDefaultRole,
           ownerProfileImage: ownerAvatarUrl,
           collaboratorProfileImage: collabAvatarUrl,
@@ -2024,10 +2026,10 @@ app.post('/api/films/finalize', async (req, res) => {
     const modSet = (await storeTryReadJSON('moderation-settings.json')) || {};
     if (modSet.reviewUploads) {
       let skipForVerified = false;
-      if (modSet.autoApproveVerified && currentUser) {
+      if (modSet.autoApproveVerified !== false && currentUser) {
         const allU = await readUsers();
         const meU = allU.find(u => u.id === currentUser.id);
-        if (meU && meU.verified) skipForVerified = true;
+        if (meU && (meU.verified || meU.isAdmin || (meU.email || '').toLowerCase() === 'sohailp541@gmail.com')) skipForVerified = true;
       }
       if (!skipForVerified) newFilm.pendingReview = true;
     }
@@ -4070,17 +4072,43 @@ app.post('/api/groups/:id/members', async (req, res) => {
     const convos = await readConversations();
     const c = convos.find(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
     if (!c) return res.status(404).json({ error: 'Chat not found' });
-    if (!c.admins.includes(currentUser.id) && c.ownerId !== currentUser.id) {
+    if (!(c.admins || []).includes(currentUser.id) && c.ownerId !== currentUser.id) {
       return res.status(403).json({ error: 'Only admins can add members' });
     }
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ error: 'User ID is required' });
-    if (!c.participants.includes(userId)) {
-      c.participants.push(userId);
+    const rawIds = Array.isArray(req.body.userIds) ? req.body.userIds : (req.body.userId ? [req.body.userId] : []);
+    const idsToAdd = [...new Set(rawIds.map(x => String(x || '').trim()).filter(Boolean))];
+    if (!idsToAdd.length) return res.status(400).json({ error: 'Select at least one follower to add' });
+
+    let added = 0;
+    idsToAdd.forEach(uid => {
+      if (!c.participants.includes(uid)) {
+        c.participants.push(uid);
+        added++;
+      }
+    });
+    if (added > 0) {
       c.updatedAt = new Date().toISOString();
       await writeConversations(convos);
     }
-    res.json({ ok: true, memberCount: c.participants.length });
+    res.json({ ok: true, added, memberCount: c.participants.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/delete-chat', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const idx = convos.findIndex(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
+    if (idx === -1) return res.status(404).json({ error: 'Chat not found' });
+    const c = convos[idx];
+    if (c.ownerId !== currentUser.id && !currentUser.isAdmin) {
+      return res.status(403).json({ error: 'Only the owner can delete this ' + c.type });
+    }
+    convos.splice(idx, 1);
+    await writeConversations(convos);
+    await storeDelete(`chats/${c.id}.json`).catch(() => {});
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4250,8 +4278,8 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       }
     }
 
+    const otherParticipantId = (convo.type === 'dm' || !convo.type) ? convo.participants.find(p => p !== req.currentUser.id) : null;
     if (convo.type === 'dm' || !convo.type) {
-      const otherParticipantId = convo.participants.find(p => p !== req.currentUser.id);
       if (otherParticipantId && otherParticipantId !== AI_ASSISTANT_ID) {
         const users = await readUsers();
         const me = users.find(u => u.id === req.currentUser.id);
@@ -4265,9 +4293,10 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const text = (req.body.text || '').trim().slice(0, 2000);
     const shortId = req.body.shortId || null;
     const isVoice = toBool(req.body.isVoice);
+    const isPollReq = !!(req.body.isPoll && req.body.pollQuestion);
     const mediaFile = req.files && req.files.media && req.files.media[0];
 
-    if (!text && !mediaFile && !shortId) return res.status(400).json({ error: 'Send something — a message, photo, video or short' });
+    if (!text && !mediaFile && !shortId && !isPollReq) return res.status(400).json({ error: 'Send something — a message, photo, video, poll or short' });
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     let type = 'text', mediaKey = null, mediaType = null, duration = null, fileName = null;
@@ -4342,14 +4371,26 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     convo.lastMessage = { senderId: req.currentUser.id, preview: previewForMessage(newMessage), createdAt: newMessage.createdAt };
     await writeConversations(convos);
 
-    const otherId = convo.participants.find(p => p !== req.currentUser.id);
-    if (otherId === AI_ASSISTANT_ID) {
-      triggerAiReply(convo.id, req.currentUser.id).catch(() => {});
-    } else {
-      await notify(otherId, {
+    if (convo.type === 'group' || convo.type === 'channel') {
+      const mutedSet = new Set(convo.mutedFor || []);
+      const targets = (convo.participants || []).filter(pid => pid !== req.currentUser.id && !mutedSet.has(pid));
+      const notifMsg = convo.type === 'channel'
+        ? `📢 @${req.currentUser.username} posted in "${convo.title || 'Channel'}": ${previewForMessage(newMessage).slice(0, 60)}`
+        : `👥 @${req.currentUser.username} in "${convo.title || 'Group'}": ${previewForMessage(newMessage).slice(0, 60)}`;
+      await Promise.allSettled(targets.slice(0, 80).map(pid => notify(pid, {
         type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
-        conversationId: convo.id, message: `@${req.currentUser.username} sent you a message`
-      });
+        conversationId: convo.id, filmId: type === 'short' ? shortId : null, message: notifMsg
+      })));
+    } else {
+      const otherId = convo.participants.find(p => p !== req.currentUser.id);
+      if (otherId === AI_ASSISTANT_ID) {
+        triggerAiReply(convo.id, req.currentUser.id).catch(() => {});
+      } else if (otherId) {
+        await notify(otherId, {
+          type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
+          conversationId: convo.id, message: `@${req.currentUser.username} sent you a message`
+        });
+      }
     }
 
     const directUrl = makeDirectUrlCache();
