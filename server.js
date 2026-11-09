@@ -971,8 +971,8 @@ app.get('/api/me', async (req, res) => {
     try {
       const me = (await readUsers()).find(x => x.id === u.id);
       if (me) {
+        const active = !!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil);
         const isFounder = (me.email || '').toLowerCase() === 'sohailp541@gmail.com';
-        const active = (!!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil)) || isFounder;
         u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null };
       }
     } catch (e) { /* keep the token data */ }
@@ -1001,18 +1001,37 @@ function activateAccountToken(req, res, newUserId, newToken) {
   writeSaved(res, list);
   res.cookie('token', newToken, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
 }
-app.get('/api/accounts', (req, res) => {
-  const cur = getUserFromReq(req);
-  const out = [];
-  if (cur) out.push({ id: cur.id, username: cur.username, current: true });
-  const seen = new Set(cur ? [cur.id] : []);
-  for (const t of savedTokens(req)) {
-    const p = payloadOf(t);
-    if (!p || !p.id || seen.has(p.id) || suspendedIds.has(p.id)) continue;
-    seen.add(p.id);
-    out.push({ id: p.id, username: p.username, current: false });
+app.get('/api/accounts', async (req, res) => {
+  try {
+    const cur = getUserFromReq(req);
+    const users = await readUsers();
+    const directUrl = makeDirectUrlCache();
+    const buildAcc = async (id, fallbackUsername, isCurrent) => {
+      const u = users.find(x => x.id === id);
+      const avatarUrl = (u && u.profileImage) ? await directUrl(u.profileImage, u.avatarStorageProvider) : null;
+      return {
+        id,
+        username: (u && u.username) || fallbackUsername || 'user',
+        current: !!isCurrent,
+        profileImage: avatarUrl || null,
+        verified: !!(u && u.verified),
+        roleBadge: (u && u.roleBadge) || null,
+        vipRing: (u && u.vipRing) || 'none'
+      };
+    };
+    const out = [];
+    if (cur) out.push(await buildAcc(cur.id, cur.username, true));
+    const seen = new Set(cur ? [cur.id] : []);
+    for (const t of savedTokens(req)) {
+      const p = payloadOf(t);
+      if (!p || !p.id || seen.has(p.id) || suspendedIds.has(p.id)) continue;
+      seen.add(p.id);
+      out.push(await buildAcc(p.id, p.username, false));
+    }
+    res.json({ accounts: out });
+  } catch (e) {
+    res.json({ accounts: [] });
   }
-  res.json({ accounts: out });
 });
 // Backs up the current login in saved_accounts WITHOUT clearing the active token cookie,
 // so pressing Back from /login.html never logs out the first account!
@@ -1080,6 +1099,7 @@ app.get('/api/users/:id/public', async (req, res) => {
       channelId: userChan ? userChan.id : null,
       channelTitle: userChan ? userChan.title : null,
       channelMembersCount: userChan ? (userChan.participants || []).length : 0,
+      channelIsMember: !!(userChan && currentUser && (userChan.participants || []).includes(currentUser.id)),
       roleBadge: user.roleBadge || defaultRole,
       note: activeNote(user),
       pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
@@ -1368,7 +1388,8 @@ app.get('/api/users/:id/following', async (req, res) => {
       const u = users.find(x => x.id === uid);
       if (!u) return null;
       return {
-        id: u.id, username: u.username, verified: !!u.verified,
+        id: u.id, username: u.username,
+        verified: !!u.verified,
         profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
         isFollowing: !!(me && me.following && me.following.includes(u.id)),
         isMe: !!(currentUser && currentUser.id === u.id)
@@ -1388,7 +1409,8 @@ app.get('/api/users/:id/followers', async (req, res) => {
     const directUrl = makeDirectUrlCache();
     const followers = users.filter(u => u.following && u.following.includes(target.id));
     const list = await Promise.all(followers.slice().reverse().map(async u => ({
-      id: u.id, username: u.username, verified: !!u.verified,
+      id: u.id, username: u.username,
+      verified: !!u.verified,
       profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
       isFollowing: !!(me && me.following && me.following.includes(u.id)),
       isMe: !!(currentUser && currentUser.id === u.id)
@@ -1653,10 +1675,15 @@ app.get('/api/hashtags/:tag', async (req, res) => {
     const myBlocked = (me && me.blockedUsers) || [];
     const directUrl = makeDirectUrlCache();
 
-    const matches = films.filter(f => getFilmHashtags(f).includes(tag) && !myBlocked.includes(f.ownerId));
+    const nowMs = Date.now();
+    const matches = films
+      .filter(f => !(f.pendingReview && !(currentUser && f.ownerId === currentUser.id)))
+      .filter(f => !(f.publishAt && new Date(f.publishAt).getTime() > nowMs))
+      .filter(f => getFilmHashtags(f).includes(tag) && !myBlocked.includes(f.ownerId));
     const out = await Promise.all(matches.map(async f => ({
-      id: f.id, title: f.title, type: f.type,
+      id: f.id, title: f.title, type: f.type, ownerId: f.ownerId,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
+      videoUrl: f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null,
       isCarousel: Array.isArray(f.slides) && f.slides.length > 1,
       views: f.views || 0, likes: f.likes || 0
     })));
@@ -1695,6 +1722,7 @@ app.get('/api/films/:id', async (req, res) => {
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
       slideUrls: await buildSlideUrls(f, directUrl),
       ownerVerified: !!(owner && owner.verified),
+      ownerVipRing: (owner && owner.vipRing) || 'none',
       ownerRoleBadge: (owner && owner.roleBadge) || ((owner && (owner.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null),
       ownerProfileImage: ownerAvatarUrl,
       collaboratorProfileImage: (f.collabStatus === 'accepted' && f.collaboratorId) ? (await (async () => { const cu = users.find(u => u.id === f.collaboratorId); return (cu && cu.profileImage) ? await directUrl(cu.profileImage, cu.avatarStorageProvider) : null; })()) : null,
@@ -2062,7 +2090,7 @@ app.post('/api/films/finalize', async (req, res) => {
       if (modSet.autoApproveVerified !== false && currentUser) {
         const allU = await readUsers();
         const meU = allU.find(u => u.id === currentUser.id);
-        if (meU && (meU.verified || meU.isAdmin || (meU.email || '').toLowerCase() === 'sohailp541@gmail.com')) skipForVerified = true;
+        if (meU && (meU.verified || meU.isAdmin)) skipForVerified = true;
       }
       if (!skipForVerified) newFilm.pendingReview = true;
     }
@@ -2545,7 +2573,26 @@ app.post('/api/stories', (req, res, next) => {
     let storyAdjust = null;
     try {
       const a = JSON.parse(req.body.adjust || 'null');
-      if (a && isFinite(a.s) && isFinite(a.x) && isFinite(a.y)) storyAdjust = { s: Math.min(4, Math.max(1, a.s)), x: Math.min(1, Math.max(-1, a.x)), y: Math.min(1, Math.max(-1, a.y)) };
+      if (a && typeof a === 'object') {
+        storyAdjust = {};
+        if (isFinite(a.s) && isFinite(a.x) && isFinite(a.y)) {
+          storyAdjust.s = Math.min(4, Math.max(1, Number(a.s)));
+          storyAdjust.x = Math.min(1, Math.max(-1, Number(a.x)));
+          storyAdjust.y = Math.min(1, Math.max(-1, Number(a.y)));
+        }
+        if (a.filter) storyAdjust.filter = String(a.filter).slice(0, 40);
+        if (a.textStyle) storyAdjust.textStyle = String(a.textStyle).slice(0, 30);
+        if (a.textColor) storyAdjust.textColor = String(a.textColor).slice(0, 24);
+        if (a.textPos) storyAdjust.textPos = String(a.textPos).slice(0, 20);
+        if (a.sticker) storyAdjust.sticker = String(a.sticker).slice(0, 80);
+        if (a.location) storyAdjust.location = String(a.location).slice(0, 60);
+        if (a.mention) storyAdjust.mention = String(a.mention).replace(/^@/, '').slice(0, 50);
+        if (a.linkUrl) storyAdjust.linkUrl = String(a.linkUrl).slice(0, 240);
+        if (a.linkLabel) storyAdjust.linkLabel = String(a.linkLabel).slice(0, 45);
+        if (a.isTextStory) storyAdjust.isTextStory = true;
+        if (a.bgIndex != null) storyAdjust.bgIndex = Number(a.bgIndex) || 0;
+        if (!Object.keys(storyAdjust).length) storyAdjust = null;
+      }
     } catch (e) {}
     if (storyAdjust) newStory.adjust = storyAdjust;
     if (req.body.poll) {
@@ -2601,6 +2648,34 @@ app.post('/api/stories/from-film', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+function extractUniqueEmojis(str) {
+  if (!str) return [];
+  const s = String(str).trim();
+  const matches = s.match(/(?:\p{RI}\p{RI}|\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?(?:\u200D\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?)*|[❤️♥️🔥😍😂👏😢🎉😘🥰👍🙏💯✨💔])/gu) || [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of matches) {
+    // Normalize heart variant ♥️ -> ❤️ only if ❤️ already exists, or keep distinct symbols deduplicated
+    const norm = raw.replace(/\uFE0E/g, '');
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      out.push(raw);
+    }
+  }
+  return out;
+}
+
+function isPureEmojiReaction(str) {
+  if (!str) return false;
+  const s = String(str).trim();
+  if (!s || s.length > 36) return false;
+  if (/[\p{L}\p{N}]/u.test(s)) return false;
+  const emojis = extractUniqueEmojis(s);
+  if (!emojis.length) return false;
+  const stripped = s.replace(/(?:\p{RI}\p{RI}|\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?(?:\u200D\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?)*|[\uFE0E\uFE0F\u200D\u20E3\s❤️♥️🔥😍😂👏😢🎉😘🥰👍🙏💯✨💔])/gu, '');
+  return stripped.length === 0;
+}
+
 app.get('/api/stories', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
@@ -2627,7 +2702,7 @@ app.get('/api/stories', async (req, res) => {
           viewCount: (s.views || []).length,
           likeCount: likesArr.length,
           likedByMe: isLikedByMe,
-          commentCount: (s.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️').length,
+          commentCount: (s.comments || []).filter(c => c && c.text && !isPureEmojiReaction(c.text)).length,
           viewedByMe: !!(currentUser && (s.views || []).some(v => v.userId === currentUser.id))
         };
       }));
@@ -2708,12 +2783,36 @@ app.get('/api/stories/:id/views', async (req, res) => {
     const userMap = new Map(users.map(u => [u.id, u]));
 
     const likesSet = new Set(s.likes || []);
+    const userEmojisMap = new Map();
+    const addEmojiForUser = (uid, em) => {
+      if (!uid || !em) return;
+      if (!userEmojisMap.has(uid)) userEmojisMap.set(uid, []);
+      const arr = userEmojisMap.get(uid);
+      if (!arr.includes(em)) arr.push(em);
+    };
+
+    // 1. Collect stored reactions from s.reactions
+    if (s.reactions && typeof s.reactions === 'object') {
+      Object.entries(s.reactions).forEach(([uid, emList]) => {
+        if (Array.isArray(emList)) {
+          emList.forEach(em => extractUniqueEmojis(em).forEach(x => addEmojiForUser(uid, x)));
+        }
+      });
+    }
+
+    // 2. Also collect any pure-emoji entries from s.comments (deduplicated per user!) and exclude them from text Replies & Comments
     (s.comments || []).forEach(c => {
-      if (c && c.text && c.text.trim() === '❤️') likesSet.add(c.userId);
+      if (!c || !c.text) return;
+      if (c.text.trim() === '❤️') {
+        likesSet.add(c.userId);
+        addEmojiForUser(c.userId, '❤️');
+      } else if (isPureEmojiReaction(c.text)) {
+        extractUniqueEmojis(c.text).forEach(em => addEmojiForUser(c.userId, em));
+      }
     });
 
     const userCommentsMap = new Map();
-    const rawComments = (s.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️');
+    const rawComments = (s.comments || []).filter(c => c && c.text && !isPureEmojiReaction(c.text));
     rawComments.forEach(c => {
       if (!c || !c.userId) return;
       if (!userCommentsMap.has(c.userId)) userCommentsMap.set(c.userId, []);
@@ -2722,10 +2821,18 @@ app.get('/api/stories/:id/views', async (req, res) => {
 
     const viewsList = (s.views || []).slice();
     const viewsUserIds = new Set(viewsList.map(v => v.userId));
-    rawComments.forEach(c => {
-      if (c.userId && !viewsUserIds.has(c.userId)) {
+    // Ensure anyone who reacted, liked, or commented is in the Viewers list
+    (s.comments || []).forEach(c => {
+      if (c && c.userId && !viewsUserIds.has(c.userId)) {
         viewsUserIds.add(c.userId);
         viewsList.push({ userId: c.userId, username: c.name || 'viewer', viewedAt: c.createdAt || new Date().toISOString() });
+      }
+    });
+    userEmojisMap.forEach((_, uid) => {
+      if (uid && !viewsUserIds.has(uid)) {
+        viewsUserIds.add(uid);
+        const u = userMap.get(uid);
+        viewsList.push({ userId: uid, username: u ? u.username : 'viewer', viewedAt: new Date().toISOString() });
       }
     });
     likesSet.forEach(uid => {
@@ -2740,12 +2847,14 @@ app.get('/api/stories/:id/views', async (req, res) => {
       const u = userMap.get(v.userId);
       const avatarUrl = u && u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null;
       const cmts = userCommentsMap.get(v.userId) || [];
+      const emojis = userEmojisMap.get(v.userId) || [];
       return {
         userId: v.userId,
         username: u ? u.username : v.username,
         profileImage: avatarUrl,
         viewedAt: v.viewedAt,
         liked: likesSet.has(v.userId),
+        emojis,
         comment: cmts.length ? cmts[cmts.length - 1] : null,
         comments: cmts,
         commentCount: cmts.length
@@ -2808,12 +2917,60 @@ app.post('/api/stories/:id/comments', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Please log in to comment' });
-    const { text } = req.body;
+    const { text, isReaction } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ error: 'Please write a comment' });
 
     const stories = await readStories();
     const s = stories.find(x => x.id === req.params.id);
     if (!s) return res.status(404).json({ error: 'Story not found' });
+
+    // If this is a quick emoji reaction OR pure emoji text, store deduplicated per-user emojis in s.reactions (NOT in s.comments!)
+    if (isReaction || isPureEmojiReaction(text)) {
+      if (!s.reactions || typeof s.reactions !== 'object') s.reactions = {};
+      if (!Array.isArray(s.reactions[currentUser.id])) s.reactions[currentUser.id] = [];
+
+      // Also migrate any old pure-emoji comments from this user into s.reactions[currentUser.id] and clean them out of s.comments
+      if (Array.isArray(s.comments)) {
+        const kept = [];
+        for (const c of s.comments) {
+          if (c && c.userId === currentUser.id && isPureEmojiReaction(c.text)) {
+            extractUniqueEmojis(c.text).forEach(em => {
+              if (!s.reactions[currentUser.id].includes(em)) s.reactions[currentUser.id].push(em);
+            });
+          } else {
+            kept.push(c);
+          }
+        }
+        s.comments = kept;
+      }
+
+      const incoming = extractUniqueEmojis(text);
+      let addedNew = false;
+      incoming.forEach(em => {
+        if (!s.reactions[currentUser.id].includes(em)) {
+          s.reactions[currentUser.id].push(em);
+          addedNew = true;
+        }
+      });
+
+      // Ensure user is also in s.views so they show up in Viewers tab with their emojis below their username
+      if (!Array.isArray(s.views)) s.views = [];
+      if (!s.views.some(v => v.userId === currentUser.id)) {
+        s.views.push({ userId: currentUser.id, username: currentUser.username, viewedAt: new Date().toISOString() });
+      }
+
+      await writeStories(stories);
+      if (addedNew && s.ownerId !== currentUser.id) {
+        await notify(s.ownerId, {
+          type: 'story_like',
+          fromUserId: currentUser.id,
+          fromUsername: currentUser.username,
+          storyId: s.id,
+          message: `@${currentUser.username} reacted ${incoming.join('')} to your story`
+        });
+      }
+      return res.status(200).json({ ok: true, isReaction: true, emojis: s.reactions[currentUser.id] });
+    }
 
     if (!s.comments) s.comments = [];
     const comment = {
@@ -2823,8 +2980,7 @@ app.post('/api/stories/:id/comments', async (req, res) => {
     };
     s.comments.push(comment);
     await writeStories(stories);
-    await notify(s.ownerId, { type: 'story_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} commented on your story` });
-    const cUser = currentUser;
+    await notify(s.ownerId, { type: 'story_comment', fromUserId: currentUser.id, fromUsername: currentUser.username, storyId: s.id, message: `@${currentUser.username} replied to your story` });
     res.status(201).json({ ...comment, profileImage: null });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2925,7 +3081,7 @@ app.get('/api/me/stories', async (req, res) => {
       mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
       viewCount: (s.views || []).length,
       likeCount: (s.likes || []).length,
-      commentCount: (s.comments || []).length,
+      commentCount: (s.comments || []).filter(c => c && c.text && !isPureEmojiReaction(c.text)).length,
       active: isStoryActive(s), highlightId: s.highlightId || null
     })));
     res.json({ stories: out });
@@ -3001,9 +3157,11 @@ app.get('/api/users/:id/highlights', async (req, res) => {
     const stories = await readStories();
     const directUrl = makeDirectUrlCache();
     const out = await Promise.all(highlights.map(async h => {
-      const cover = stories.find(s => s.id === h.storyIds[0]);
+      const validStories = (h.storyIds || []).map(id => stories.find(s => s.id === id)).filter(Boolean);
+      const cover = validStories[0] || null;
       return {
-        id: h.id, title: h.title, storyCount: h.storyIds.length,
+        id: h.id, title: h.title, storyCount: validStories.length,
+        coverMediaType: cover ? (cover.mediaType || 'photo') : 'photo',
         coverUrl: cover ? await directUrl(cover.mediaFile, cover.storageProvider) : null
       };
     }));
@@ -3021,14 +3179,19 @@ app.get('/api/highlights/:id', async (req, res) => {
     const owner = users.find(u => u.id === h.ownerId);
     const directUrl = makeDirectUrlCache();
     const ownerAvatarUrl = owner && owner.profileImage ? await directUrl(owner.profileImage, owner.avatarStorageProvider) : null;
+    const currentUser = getUserFromReq(req);
     const enrichedStories = await Promise.all(h.storyIds.map(async id => {
       const s = stories.find(x => x.id === id);
       if (!s) return null;
+      const likesArr = Array.isArray(s.likes) ? s.likes : [];
       return {
         id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-        mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, createdAt: s.createdAt,
+        mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, poll: s.poll || null, createdAt: s.createdAt,
         mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
-        viewCount: (s.views || []).length, commentCount: (s.comments || []).length
+        viewCount: (s.views || []).length,
+        likeCount: likesArr.length,
+        likedByMe: !!(currentUser && likesArr.includes(currentUser.id)),
+        commentCount: (s.comments || []).filter(c => c && c.text && !isPureEmojiReaction(c.text)).length
       };
     }));
     res.json({
@@ -4109,21 +4272,20 @@ app.post('/api/groups/:id/members', async (req, res) => {
       return res.status(403).json({ error: 'Only admins can add members' });
     }
     const rawIds = Array.isArray(req.body.userIds) ? req.body.userIds : (req.body.userId ? [req.body.userId] : []);
-    const idsToAdd = [...new Set(rawIds.map(x => String(x || '').trim()).filter(Boolean))];
-    if (!idsToAdd.length) return res.status(400).json({ error: 'Select at least one follower to add' });
-
-    let added = 0;
-    idsToAdd.forEach(uid => {
+    const cleanIds = [...new Set(rawIds.map(x => String(x || '').trim()).filter(Boolean))];
+    if (!cleanIds.length) return res.status(400).json({ error: 'Select at least 1 follower to add' });
+    let addedCount = 0;
+    cleanIds.forEach(uid => {
       if (!c.participants.includes(uid)) {
         c.participants.push(uid);
-        added++;
+        addedCount++;
       }
     });
-    if (added > 0) {
+    if (addedCount > 0) {
       c.updatedAt = new Date().toISOString();
       await writeConversations(convos);
     }
-    res.json({ ok: true, added, memberCount: c.participants.length });
+    res.json({ ok: true, addedCount, memberCount: c.participants.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4131,16 +4293,15 @@ app.post('/api/conversations/:id/delete-chat', async (req, res) => {
   try {
     const currentUser = getUserFromReq(req);
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
-    const convos = await readConversations();
-    const idx = convos.findIndex(x => x.id === req.params.id && (x.type === 'group' || x.type === 'channel'));
-    if (idx === -1) return res.status(404).json({ error: 'Chat not found' });
-    const c = convos[idx];
+    let convos = await readConversations();
+    const c = convos.find(x => x.id === req.params.id);
+    if (!c) return res.status(404).json({ error: 'Chat not found' });
     if (c.ownerId !== currentUser.id && !currentUser.isAdmin) {
-      return res.status(403).json({ error: 'Only the owner can delete this ' + c.type });
+      return res.status(403).json({ error: 'Only the owner can delete this group or channel' });
     }
-    convos.splice(idx, 1);
+    convos = convos.filter(x => x.id !== req.params.id);
     await writeConversations(convos);
-    await storeDelete(`chats/${c.id}.json`).catch(() => {});
+    await storeDelete('chat_' + req.params.id + '.json').catch(() => {});
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4267,7 +4428,7 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     if (!currentUser) return res.status(401).json({ error: 'Login required' });
     const convos = await readConversations();
     const convo = convos.find(c => c.id === req.params.id);
-    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+    if (!convo || (!convo.participants.includes(currentUser.id) && convo.type !== 'channel')) return res.status(403).json({ error: 'Not allowed' });
 
     const since = req.query.since ? new Date(req.query.since).getTime() : 0;
     const directUrl = makeDirectUrlCache();
@@ -4311,7 +4472,10 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       }
     }
 
-    const otherParticipantId = (convo.type === 'dm' || !convo.type) ? convo.participants.find(p => p !== req.currentUser.id) : null;
+    const otherParticipantId = (convo.type === 'dm' || !convo.type)
+      ? convo.participants.find(p => p !== req.currentUser.id)
+      : null;
+
     if (convo.type === 'dm' || !convo.type) {
       if (otherParticipantId && otherParticipantId !== AI_ASSISTANT_ID) {
         const users = await readUsers();
@@ -4326,7 +4490,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
     const text = (req.body.text || '').trim().slice(0, 2000);
     const shortId = req.body.shortId || null;
     const isVoice = toBool(req.body.isVoice);
-    const isPollReq = !!(req.body.isPoll && req.body.pollQuestion);
+    const isPollReq = toBool(req.body.isPoll) && String(req.body.pollQuestion || '').trim().length > 0;
     const mediaFile = req.files && req.files.media && req.files.media[0];
 
     if (!text && !mediaFile && !shortId && !isPollReq) return res.status(400).json({ error: 'Send something — a message, photo, video, poll or short' });
@@ -4406,14 +4570,16 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
 
     if (convo.type === 'group' || convo.type === 'channel') {
       const mutedSet = new Set(convo.mutedFor || []);
-      const targets = (convo.participants || []).filter(pid => pid !== req.currentUser.id && !mutedSet.has(pid));
-      const notifMsg = convo.type === 'channel'
-        ? `📢 @${req.currentUser.username} posted in "${convo.title || 'Channel'}": ${previewForMessage(newMessage).slice(0, 60)}`
-        : `👥 @${req.currentUser.username} in "${convo.title || 'Group'}": ${previewForMessage(newMessage).slice(0, 60)}`;
-      await Promise.allSettled(targets.slice(0, 80).map(pid => notify(pid, {
-        type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
-        conversationId: convo.id, filmId: type === 'short' ? shortId : null, message: notifMsg
-      })));
+      const recipients = (convo.participants || []).filter(uid => uid !== req.currentUser.id && !mutedSet.has(uid));
+      const label = convo.type === 'channel'
+        ? `📢 New update in ${convo.title || 'Channel'}`
+        : `👥 @${req.currentUser.username} in ${convo.title || 'Group'}`;
+      for (const uid of recipients) {
+        notify(uid, {
+          type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
+          conversationId: convo.id, message: label
+        }).catch(() => {});
+      }
     } else {
       const otherId = convo.participants.find(p => p !== req.currentUser.id);
       if (otherId === AI_ASSISTANT_ID) {
@@ -4460,7 +4626,8 @@ app.put('/api/conversations/:id/messages/:messageId', async (req, res) => {
     }
 
     const directUrl = makeDirectUrlCache();
-    res.json(await enrichMessage(m, directUrl));
+    const allUsers = await readUsers();
+    res.json(await enrichMessage(m, directUrl, allUsers));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
