@@ -743,7 +743,7 @@ app.use((req, res, next) => {
     const cached = gzStatic.get(file);
     const send = buf => {
       res.type(path.extname(file));
-      res.set({ 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding', 'Cache-Control': 'no-cache', 'Content-Length': buf.length });
+      res.set({ 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding', 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Content-Length': buf.length });
       res.end(buf);
     };
     if (cached && cached.mtime === st.mtimeMs) return send(cached.buf);
@@ -757,7 +757,40 @@ app.use((req, res, next) => {
     });
   });
 });
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve a network-first, cache-busting Service Worker so updates to index.html are always live immediately
+app.get('/sw.js', (req, res) => {
+  res.set({
+    'Content-Type': 'application/javascript; charset=utf-8',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  res.send(`
+const CACHE_NAME = 'tamasha-v-live-' + Date.now();
+self.addEventListener('install', event => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => self.clients.claim())
+  );
+});
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
+  );
+});
+`.trim());
+});
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (/\.(html|js|css)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  }
+}));
 
 // ===================== AUTH ROUTES =====================
 
