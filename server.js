@@ -2025,7 +2025,10 @@ async function pickSong(body, kind) {
   if (!x) return null;
   const start = Math.max(0, Math.min(3600, Number(body.songStart) || 0));
   const want = (kind === 'story' || kind === 'note') ? 15 : kind === 'photo' ? 15 : Math.max(1, Math.min(600, Number(body.songDuration) || 15));
-  return { id: x.id, url: r2PublicUrl(x.key), title: x.title, artist: x.artist || '', Category: x.category || '', start, duration: want };
+  const r2Url = r2PublicUrl(x.key);
+  const fallbackUrl = `/media/song/${x.id}`;
+  const finalUrl = (process.env.R2_PUBLIC_URL && !r2Url.startsWith('/songs/')) ? r2Url : fallbackUrl;
+  return { id: x.id, url: finalUrl, title: x.title, artist: x.artist || '', category: x.category || '', start, duration: want };
 }
 app.post('/api/films/finalize', async (req, res) => {
   try {
@@ -2752,6 +2755,38 @@ app.get('/media/story/:id', async (req, res) => {
     const s = stories.find(x => x.id === req.params.id);
     if (!s || !s.mediaFile) return res.status(404).send('Not found');
     return storeStream(s.mediaFile, req, res);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/media/song/:id', async (req, res) => {
+  try {
+    const songs = await readSongs();
+    const s = songs.find(x => x.id === req.params.id);
+    if (!s || !s.key) return res.status(404).send('Song not found');
+    if (process.env.R2_PUBLIC_URL) {
+      return res.redirect(302, r2PublicUrl(s.key));
+    }
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const r2res = await getR2().send(new GetObjectCommand({ Bucket: r2Bucket(), Key: s.key }));
+    res.setHeader('Content-Type', r2res.ContentType || 'audio/mpeg');
+    if (r2res.ContentLength) res.setHeader('Content-Length', r2res.ContentLength);
+    res.setHeader('Accept-Ranges', 'bytes');
+    return r2res.Body.pipe(res);
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/songs/:filename', async (req, res) => {
+  try {
+    const key = 'songs/' + req.params.filename;
+    if (process.env.R2_PUBLIC_URL) {
+      return res.redirect(302, r2PublicUrl(key));
+    }
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const r2res = await getR2().send(new GetObjectCommand({ Bucket: r2Bucket(), Key: key }));
+    res.setHeader('Content-Type', r2res.ContentType || 'audio/mpeg');
+    if (r2res.ContentLength) res.setHeader('Content-Length', r2res.ContentLength);
+    res.setHeader('Accept-Ranges', 'bytes');
+    return r2res.Body.pipe(res);
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -6375,8 +6410,10 @@ app.get('/api/songs', async (req, res) => {
   if (!getUserFromReq(req) && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login required' });
   const [list, usageMap] = await Promise.all([readSongs(), computeSongUsageMap()]);
   const out = list.map(x => {
-    const url = r2PublicUrl(x.key);
-    const useCount = (usageMap[x.id] || 0) + (usageMap[url] || 0);
+    const r2Url = r2PublicUrl(x.key);
+    const streamUrl = `/media/song/${x.id}`;
+    const url = (process.env.R2_PUBLIC_URL && !r2Url.startsWith('/songs/')) ? r2Url : streamUrl;
+    const useCount = (usageMap[x.id] || 0) + (usageMap[url] || 0) + (usageMap[r2Url] || 0);
     return {
       id: x.id,
       title: x.title,
