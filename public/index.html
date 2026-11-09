@@ -656,6 +656,7 @@
 .ai-card .chat-link{color:#5B8CFF;}
 
 .action-btn.liked,html[data-theme="light"] .action-btn.liked{background:#E0245E !important;border-color:#E0245E !important;color:#fff !important;}
+.toast{z-index:99999 !important;}
 #playerFsBtn{display:none;}
 /* ===== YouTube Landscape & Custom Player HUD (Matches YouTube Mobile Landscape 1:1) ===== */
 #playerMediaWrap{
@@ -670,44 +671,19 @@
 }
 #ytVideoStage video#player{
   width:100%;height:100%;max-height:72vh;object-fit:contain;background:#000;display:block;
-}
-/* Fullscreen & Landscape mode states */
-#playerMediaWrap:fullscreen,
-#playerMediaWrap:-webkit-full-screen,
-#playerMediaWrap.yt-landscape-mode{
-  position:fixed !important;inset:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;
-  max-height:none !important;z-index:9990 !important;background:#000 !important;
-}
-#playerMediaWrap:fullscreen #ytVideoStage,
-#playerMediaWrap:-webkit-full-screen #ytVideoStage,
-#playerMediaWrap.yt-landscape-mode #ytVideoStage{
-  max-height:none !important;height:100% !important;
-}
-#playerMediaWrap:fullscreen #ytVideoStage video#player,
-#playerMediaWrap:-webkit-full-screen #ytVideoStage video#player,
-#playerMediaWrap.yt-landscape-mode #ytVideoStage video#player{
-  max-height:none !important;width:100% !important;height:100% !important;object-fit:contain !important;
-}
-/* When phone is held in portrait and user taps Landscape Fullscreen, rotate container 90deg so it is always true Landscape */
-#playerMediaWrap.yt-landscape-mode.yt-portrait-rotated{
-  top:0 !important;left:0 !important;right:auto !important;bottom:auto !important;
-  width:100vh !important;width:100dvh !important;
-  height:100vw !important;
-  transform-origin:top left !important;
-  transform:rotate(90deg) translateY(-100%) !important;
-}
-/* Video Zoom to Fill Screen vs Original Video Size */
-#ytVideoStage video#player{
   transition:transform .2s ease;transform-origin:center center;
 }
+/* Video Zoom to Fill Screen vs Original Video Size */
 #ytVideoStage.zoom-fill video#player{
-  width:100% !important;height:100% !important;object-fit:cover !important;transform:scale(1.04);
+  width:100% !important;height:100% !important;max-height:none !important;aspect-ratio:auto !important;
+  object-fit:cover !important;transform:scale(1.05);
 }
 #ytVideoStage.zoom-cinema video#player{
-  width:100% !important;height:100% !important;object-fit:cover !important;transform:scale(1.34);
+  width:100% !important;height:100% !important;max-height:none !important;aspect-ratio:auto !important;
+  object-fit:cover !important;transform:scale(1.35);
 }
 #ytZoomIndicatorPill{
-  position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:32;
+  position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:32;
   background:rgba(0,0,0,0.78);color:#fff;padding:6px 16px;border-radius:999px;
   font-size:12.5px;font-weight:700;pointer-events:none;opacity:0;transition:opacity .2s ease;
   border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(6px);white-space:nowrap;
@@ -723,6 +699,31 @@
   background:rgba(255,0,51,0.82);border-color:#ff2c7d;color:#fff;
 }
 
+/* Fullscreen & Landscape mode states */
+#playerMediaWrap:fullscreen,
+#playerMediaWrap:-webkit-full-screen,
+#playerMediaWrap.yt-landscape-mode{
+  position:fixed !important;inset:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;
+  max-height:none !important;z-index:9990 !important;background:#000 !important;
+}
+#playerMediaWrap:fullscreen #ytVideoStage,
+#playerMediaWrap:-webkit-full-screen #ytVideoStage,
+#playerMediaWrap.yt-landscape-mode #ytVideoStage{
+  max-height:none !important;height:100% !important;
+}
+#playerMediaWrap:fullscreen #ytVideoStage video#player,
+#playerMediaWrap:-webkit-full-screen #ytVideoStage video#player,
+#playerMediaWrap.yt-landscape-mode #ytVideoStage video#player{
+  max-height:none !important;width:100% !important;height:100% !important;aspect-ratio:auto !important;
+}
+/* When phone is held in portrait and user taps Landscape Fullscreen, rotate container 90deg so it is always true Landscape */
+#playerMediaWrap.yt-landscape-mode.yt-portrait-rotated{
+  top:0 !important;left:0 !important;right:auto !important;bottom:auto !important;
+  width:100vh !important;width:100dvh !important;
+  height:100vw !important;
+  transform-origin:top left !important;
+  transform:rotate(90deg) translateY(-100%) !important;
+}
 /* Split-screen when Right-Side Drawer (Description / Comments / More Videos) is open */
 #playerMediaWrap.drawer-open #ytVideoStage{
   flex:0 0 58%;width:58%;
@@ -756,19 +757,19 @@
   position:absolute;inset:0;z-index:22;display:flex;flex-direction:column;justify-content:space-between;
   background:linear-gradient(180deg,rgba(0,0,0,0.68) 0%,rgba(0,0,0,0.12) 28%,rgba(0,0,0,0.12) 68%,rgba(0,0,0,0.82) 100%);
   opacity:1;transition:opacity .22s ease;pointer-events:auto;
-  padding:12px 16px 12px;box-sizing:border-box;
+  padding:10px 14px 10px;box-sizing:border-box;
 }
 #ytCustomHud.hud-hidden{
   opacity:0;pointer-events:none;
 }
 .yt-hud-top{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;z-index:3;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;z-index:3;
 }
 .yt-hud-top-left{
-  display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1;
+  display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;
 }
 .yt-hud-icon-btn{
-  background:none;border:none;color:#fff;padding:6px;border-radius:50%;cursor:pointer;
+  background:none;border:none;color:#fff;padding:5px;border-radius:50%;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
   transition:background .15s;
 }
@@ -778,7 +779,7 @@
 }
 .yt-hud-title-wrap:active{background:rgba(255,255,255,0.12);}
 #ytHudTitleText{
-  font-family:'Mukta',sans-serif;font-size:15.5px;font-weight:700;color:#fff;
+  font-family:'Mukta',sans-serif;font-size:15px;font-weight:700;color:#fff;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25;
   display:flex;align-items:center;gap:4px;
 }
@@ -787,7 +788,7 @@
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;
 }
 .yt-hud-top-right{
-  display:flex;align-items:center;gap:12px;flex-shrink:0;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
 }
 /* Autoplay pill switch (exact YouTube style) */
 .yt-autoplay-switch{
@@ -806,7 +807,7 @@
 }
 /* Center Prev / Play-Pause / Next controls */
 .yt-hud-center{
-  display:flex;align-items:center;justify-content:center;gap:38px;z-index:3;
+  display:flex;align-items:center;justify-content:center;gap:34px;z-index:3;
   pointer-events:none;
 }
 .yt-center-btn{
@@ -816,8 +817,8 @@
   transition:transform .12s ease,background .15s ease;
 }
 .yt-center-btn:active{transform:scale(0.92);background:rgba(0,0,0,0.68);}
-.yt-center-btn.sm{width:46px;height:46px;}
-.yt-center-btn.lg{width:64px;height:64px;}
+.yt-center-btn.sm{width:44px;height:44px;}
+.yt-center-btn.lg{width:60px;height:60px;}
 
 /* Double-tap 10s ripple indicators */
 .yt-dtap-ripple{
@@ -832,7 +833,7 @@
 
 /* Bottom Seekbar + Timestamp + Fullscreen + Action Pills */
 .yt-hud-bottom{
-  display:flex;flex-direction:column;gap:8px;width:100%;z-index:3;
+  display:flex;flex-direction:column;gap:7px;width:100%;z-index:3;
 }
 .yt-time-fs-row{
   display:flex;align-items:center;justify-content:space-between;width:100%;
@@ -846,23 +847,20 @@
   border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;
 }
 .yt-seek-row{
-  position:relative;width:100%;height:18px;display:flex;align-items:center;
+  position:relative;width:100%;height:20px;display:flex;align-items:center;cursor:pointer;touch-action:none;
 }
 .yt-seek-track{
   width:100%;height:4px;background:rgba(255,255,255,0.32);border-radius:999px;
-  position:relative;overflow:visible;
+  position:relative;overflow:visible;pointer-events:none;
 }
 .yt-seek-fill{
   height:100%;width:0%;background:linear-gradient(90deg,#ff0033,#ff2c7d);
-  border-radius:999px;position:relative;
+  border-radius:999px;position:relative;pointer-events:none;
 }
 .yt-seek-thumb{
   width:13px;height:13px;border-radius:50%;background:#ff0033;
   position:absolute;right:-6.5px;top:50%;transform:translateY(-50%);
-  box-shadow:0 0 6px rgba(255,0,51,0.8);
-}
-#ytSeekRangeInput{
-  position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;z-index:5;
+  box-shadow:0 0 6px rgba(255,0,51,0.8);pointer-events:none;
 }
 /* Bottom Pills Row (Like, Dislike, Comment, Save, Share, AI, More + More Videos) */
 .yt-bottom-pills-row{
@@ -894,7 +892,6 @@
 .yt-more-videos-thumb img,.yt-more-videos-thumb video{
   width:100%;height:100%;object-fit:cover;display:block;
 }
-/* In portrait non-fullscreen mode, hide the extra bottom pill bar if space is tight, or keep it compact */
 #playerMediaWrap:not(.yt-landscape-mode):not(:fullscreen):not(:-webkit-full-screen) .yt-bottom-pills-row{
   display:none;
 }
@@ -905,7 +902,7 @@
   }
   #overlay.open:not(.p2p-mini-mode) #playerMediaWrap #ytVideoStage,
   #overlay.open:not(.p2p-mini-mode) #playerMediaWrap #ytVideoStage video#player{
-    max-height:none !important;height:100% !important;
+    max-height:none !important;height:100% !important;aspect-ratio:auto !important;
   }
   #overlay.open:not(.p2p-mini-mode) #playerMediaWrap .yt-bottom-pills-row{
     display:flex !important;
@@ -914,7 +911,7 @@
 
 /* Settings Popover inside Player */
 #ytSettingsPopover{
-  position:absolute;top:50px;right:16px;z-index:30;width:250px;
+  position:absolute;top:46px;right:14px;z-index:30;width:250px;
   background:rgba(24,24,24,0.96);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.14);
   border-radius:14px;padding:8px 0;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,0.65);
 }
@@ -969,25 +966,54 @@
 .song-title-line{font-size:12px;color:var(--cream-dim);font-weight:500;margin-top:2px;}
 .story-song-chip{font-size:12px;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:10px;display:inline-block;margin-top:4px;}
 
-/* ===== Story editor (full screen, like Instagram) ===== */
-#storyUploadOverlay{position:fixed;inset:0;background:var(--ink);z-index:960;display:none;flex-direction:column;color:var(--cream);transition:none;}
+/* ===== Story editor (Pro Instagram-style Story Studio - Always Rich Dark UI) ===== */
+#storyUploadOverlay{position:fixed;inset:0;background:radial-gradient(circle at 50% 0%,#1f183d 0%,#0b0816 65%,#05040a 100%) !important;z-index:960;display:none;flex-direction:column;color:#fff !important;transition:none;overflow:hidden;}
 #storyUploadOverlay.open{display:flex;}
-#storyUploadOverlay .se-top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 0;}
-#storyUploadOverlay .se-round{width:44px;height:44px;border-radius:50%;border:none;background:var(--panel);color:var(--cream);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-#storyUploadOverlay .se-tools{display:flex;flex-direction:column;gap:12px;}
-#storyUploadOverlay .se-pick{margin:auto;padding:40px 16px;text-align:center;color:var(--cream-dim);border:2px dashed var(--gold-line);border-radius:14px;cursor:pointer;}
-#storyUploadOverlay .se-media-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;min-height:0;}
-#storyUploadOverlay .story-upload-preview{width:100%;max-width:420px;max-height:100%;display:flex;align-items:center;justify-content:center;}
-#storyUploadOverlay #storyPreviewImg,#storyUploadOverlay #storyPreviewVideo{width:100%;max-height:68vh;object-fit:contain;border-radius:16px;background:var(--panel);}
-#storyUploadOverlay .se-song{text-align:center;font-size:13px;color:var(--cream);padding:0 16px 6px;min-height:18px;}
-#storyUploadOverlay .se-bottom{padding:10px 14px 16px;display:flex;flex-direction:column;gap:10px;}
-#storyUploadOverlay .se-caption{width:100%;box-sizing:border-box;background:var(--field);border:1px solid var(--gold-line);border-radius:20px;padding:12px 16px;color:var(--cream);font-size:15px;outline:none;}
-#storyUploadOverlay .se-caption::placeholder{color:var(--cream-dim);}
+#storyUploadOverlay .se-top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 14px 6px;z-index:12;position:relative;}
+#storyUploadOverlay .se-round{width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,0.18);background:rgba(20,16,38,0.72);backdrop-filter:blur(12px);color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.35);transition:transform .15s,background .15s,border-color .15s;}
+#storyUploadOverlay .se-round:active{transform:scale(0.92);}
+#storyUploadOverlay .se-round.active{background:linear-gradient(135deg,#7C5CFF,#E63950);border-color:#ff85a1;box-shadow:0 0 14px rgba(124,92,255,0.55);}
+#storyUploadOverlay .se-tools{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:82%;}
+#storyUploadOverlay .se-stage-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 14px;min-height:0;position:relative;}
+#storyUploadOverlay .se-pick-card{width:100%;max-width:360px;background:rgba(255,255,255,0.06);backdrop-filter:blur(16px);border:1.5px dashed rgba(124,92,255,0.55);border-radius:24px;padding:28px 20px;text-align:center;color:#fff;box-shadow:0 18px 44px rgba(0,0,0,0.45);display:flex;flex-direction:column;align-items:center;gap:14px;}
+#storyUploadOverlay .se-pick-icon{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,rgba(124,92,255,0.28),rgba(230,57,80,0.28));border:1px solid rgba(255,255,255,0.22);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 8px 24px rgba(124,92,255,0.35);}
+#storyUploadOverlay .se-pick-btn-row{display:flex;gap:10px;width:100%;margin-top:4px;}
+#storyUploadOverlay .se-pick-btn{flex:1;padding:12px 14px;border-radius:14px;border:none;font-weight:700;font-size:13.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;color:#fff;}
+#storyUploadOverlay .se-pick-btn.primary{background:linear-gradient(135deg,#7C5CFF,#E63950);box-shadow:0 6px 20px rgba(124,92,255,0.4);}
+#storyUploadOverlay .se-pick-btn.secondary{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);}
+#storyUploadOverlay .story-upload-preview{position:relative;width:100%;max-width:380px;height:100%;max-height:62vh;aspect-ratio:9/16;border-radius:22px;overflow:hidden;background:#120e24;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.14);}
+#storyUploadOverlay #storyPreviewImg,#storyUploadOverlay #storyPreviewVideo{width:100%;height:100%;object-fit:cover;border-radius:22px;background:#000;}
+#storyUploadOverlay #storyTextCanvasCard{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center;user-select:none;}
+#storyUploadOverlay .se-live-overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:16px 14px;box-sizing:border-box;z-index:5;}
+#storyUploadOverlay .se-live-badges{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto;}
+#storyUploadOverlay .se-badge-pill{background:rgba(0,0,0,0.62);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.24);color:#fff;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.35);}
+#storyUploadOverlay .se-subbar{display:flex;align-items:center;gap:7px;overflow-x:auto;padding:6px 14px;scrollbar-width:none;z-index:11;}
+#storyUploadOverlay .se-subbar::-webkit-scrollbar{display:none;}
+#storyUploadOverlay .se-chip{flex-shrink:0;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);color:#fff;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;}
+#storyUploadOverlay .se-chip.active{background:linear-gradient(135deg,#7C5CFF,#E63950);border-color:#ff85a1;font-weight:700;}
+#storyUploadOverlay .se-color-dot{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,0.45);cursor:pointer;flex-shrink:0;transition:transform .12s;}
+#storyUploadOverlay .se-color-dot.active{transform:scale(1.22);border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,0.8);}
+#storyUploadOverlay .se-song{text-align:center;font-size:12.5px;color:#ffd166;padding:2px 16px;min-height:18px;font-weight:600;}
+#storyUploadOverlay .se-bottom{padding:8px 14px 16px;display:flex;flex-direction:column;gap:9px;z-index:12;background:linear-gradient(to top,rgba(5,4,10,0.95),rgba(5,4,10,0.4) 85%,transparent);}
+#storyUploadOverlay .se-caption{width:100%;box-sizing:border-box;background:rgba(255,255,255,0.1);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:11px 16px;color:#fff;font-size:14.5px;outline:none;}
+#storyUploadOverlay .se-caption::placeholder{color:rgba(255,255,255,0.6);}
+#storyUploadOverlay .se-caption:focus{border-color:#7C5CFF;background:rgba(255,255,255,0.15);}
 #storyUploadOverlay .se-share{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-#storyUploadOverlay .se-target{flex:1;background:var(--field);border-radius:22px;padding:12px 16px;font-size:14px;color:var(--cream);}
-#storyUploadOverlay .se-go{width:50px;height:50px;border-radius:50%;border:none;background:var(--marigold);color:#fff;font-size:22px;font-weight:700;cursor:pointer;}
-#storyUploadOverlay .se-status{font-size:13px;color:var(--cream-dim);min-height:16px;text-align:center;}
+#storyUploadOverlay .se-target{flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.16);border-radius:999px;padding:7px 14px 7px 8px;font-size:13.5px;font-weight:700;color:#fff;display:flex;align-items:center;gap:9px;}
+#storyUploadOverlay .se-target-av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7C5CFF,#E63950);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;overflow:hidden;flex-shrink:0;border:1.5px solid #fff;}
+#storyUploadOverlay .se-target-av img{width:100%;height:100%;object-fit:cover;}
+#storyUploadOverlay .se-go{height:44px;padding:0 20px;border-radius:999px;border:none;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;font-size:14.5px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 6px 20px rgba(230,57,80,0.45);flex-shrink:0;}
+#storyUploadOverlay .se-go:disabled{opacity:0.45;cursor:not-allowed;}
+#storyUploadOverlay .se-status{font-size:12.5px;color:rgba(255,255,255,0.75);min-height:16px;text-align:center;}
 #storyUploadOverlay .hidden{display:none !important;}
+/* Story Viewer Stickers & Enhanced Text Styles */
+.story-sticker-cluster{position:absolute;top:68px;left:12px;right:12px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto;}
+.story-viewer-badge{background:rgba(0,0,0,0.62);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.28);color:#fff;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:5px;box-shadow:0 4px 14px rgba(0,0,0,0.4);text-decoration:none;cursor:pointer;}
+.story-text-overlay.style-neon{background:rgba(0,0,0,0.35) !important;text-shadow:0 0 10px currentColor,0 0 22px currentColor !important;font-weight:800 !important;letter-spacing:0.4px;}
+.story-text-overlay.style-bold{background:linear-gradient(135deg,rgba(124,92,255,0.92),rgba(230,57,80,0.92)) !important;font-weight:900 !important;text-transform:uppercase;letter-spacing:0.8px;border:1px solid rgba(255,255,255,0.35);}
+.story-text-overlay.style-typewriter{background:rgba(15,15,20,0.88) !important;font-family:monospace !important;border:1px solid rgba(255,255,255,0.28);letter-spacing:0.5px;}
+.story-text-overlay.pos-top{bottom:auto !important;top:115px !important;}
+.story-text-overlay.pos-center{bottom:auto !important;top:50% !important;transform:translate(-50%,-50%) !important;}
 
 .story-viewer-who{display:flex;flex-direction:column;min-width:0;flex:1;}
 .story-song-line{color:#fff;font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-top:2px;}
@@ -1374,7 +1400,7 @@
           <div id="ytRippleRightTxt">10 seconds</div>
         </div>
 
-        <!-- Optional CC Subtitles / Caption Banner -->
+        <!-- Optional CC Subtitles / Caption Banner & Zoom Indicator -->
         <div id="ytCcBanner" class="hidden"></div>
         <div id="ytZoomIndicatorPill">Original video size</div>
 
@@ -1461,7 +1487,7 @@
             </button>
           </div>
 
-          <!-- Bottom Bar: Timestamp, Fullscreen Toggle, Red-Pink Seekbar, Action Pills & More Videos -->
+          <!-- Bottom Bar: Timestamp, Zoom Button, Fullscreen Toggle, Red-Pink Seekbar, Action Pills & More Videos -->
           <div class="yt-hud-bottom" onclick="event.stopPropagation()">
             <div class="yt-time-fs-row">
               <div class="yt-time-pill" id="ytTimePill">0:00 / 0:00</div>
@@ -1476,13 +1502,12 @@
               <button type="button" id="playerFsBtn" onclick="fullscreenPlayer()" aria-label="Fullscreen" style="display:none;">⛶</button>
             </div>
 
-            <div class="yt-seek-row">
+            <div class="yt-seek-row" id="ytSeekRow" onpointerdown="onYtSeekPointerDown(event)">
               <div class="yt-seek-track">
                 <div class="yt-seek-fill" id="ytSeekFill">
                   <div class="yt-seek-thumb"></div>
                 </div>
               </div>
-              <input type="range" id="ytSeekRangeInput" min="0" max="1000" value="0" step="1" oninput="onYtSeekInput(this.value)" onchange="onYtSeekCommit(this.value)">
             </div>
 
             <!-- 5 & 7. Bottom Left Action Pill (Like, Dislike, Comment, Save, Share, AI, More) + Right More Videos Pill -->
@@ -1522,7 +1547,7 @@
         </div>
       </div>
 
-      <!-- 2. Right-Side Split Panel for Description/Likes/Views/Upload Hours, Comments & More Videos (Matches Screenshot 2) -->
+      <!-- 2. Right-Side Split Panel for Description/Likes/Views/Upload Hours, Comments & More Full Videos Only -->
       <div id="ytSidePanel" onclick="event.stopPropagation()">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.08);">
           <div id="ytSidePanelHeaderTitle" style="font-family:'Baloo 2','Mukta',sans-serif;font-size:17.5px;font-weight:800;line-height:1.26;color:#0f0f0f;flex:1;"></div>
@@ -1629,31 +1654,97 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- ===== STORY UPLOAD MODAL ===== -->
+<!-- ===== STORY UPLOAD MODAL (Enhanced Story Studio) ===== -->
 <div id="storyUploadOverlay" class="story-editor" aria-label="Story editor">
   <div class="se-top">
     <button type="button" class="se-round" onclick="closeStoryUploadModal()" aria-label="Back">←</button>
     <div class="se-tools">
-      <button type="button" class="se-round" onclick="document.getElementById('storyTextOverlay').focus()" aria-label="Text">Aa</button>
-      <button type="button" class="se-round" onclick="pickStoryPoll()" aria-label="Poll" title="Add Poll">📊</button>
-      <button type="button" class="se-round" onclick="pickStorySong()" aria-label="Song">🎵</button>
-      <button type="button" class="se-round" onclick="document.getElementById('storyFileInput').click()" aria-label="Media">🖼️</button>
+      <button type="button" class="se-round" id="seToolTextBtn" onclick="toggleStoryStudioPanel('text')" title="Text Style & Color">Aa</button>
+      <button type="button" class="se-round" id="seToolFilterBtn" onclick="toggleStoryStudioPanel('filter')" title="Visual Filters">✨</button>
+      <button type="button" class="se-round" id="seToolStickerBtn" onclick="toggleStoryStudioPanel('sticker')" title="Stickers, Location, Mention & Link">🏷️</button>
+      <button type="button" class="se-round" id="seToolBgBtn" onclick="startTextStoryMode(true)" title="Text / Gradient Story">🎨</button>
+      <button type="button" class="se-round" id="seToolPollBtn" onclick="pickStoryPoll()" title="Interactive Poll">📊</button>
+      <button type="button" class="se-round" id="seToolSongBtn" onclick="pickStorySong()" title="Add Music">🎵</button>
+      <button type="button" class="se-round" onclick="document.getElementById('storyFileInput').click()" title="Choose Photo/Video">🖼️</button>
     </div>
   </div>
   <input type="file" id="storyFileInput" accept="image/*,video/*" style="display:none;" onchange="onStoryFilePicked(event)">
-  <div id="storyPickArea" class="se-pick" onclick="document.getElementById('storyFileInput').click()">📷 Choose a photo or video</div>
-  <div class="se-media-wrap">
+
+  <!-- Studio Sub-Panels: Text Style/Color, Filters, Stickers -->
+  <div id="sePanelText" class="se-subbar hidden">
+    <button type="button" class="se-chip active" data-style="classic" onclick="setStoryTextStyle('classic')">Classic</button>
+    <button type="button" class="se-chip" data-style="neon" onclick="setStoryTextStyle('neon')">✨ Neon</button>
+    <button type="button" class="se-chip" data-style="bold" onclick="setStoryTextStyle('bold')">🔥 Bold</button>
+    <button type="button" class="se-chip" data-style="typewriter" onclick="setStoryTextStyle('typewriter')">⌨️ Type</button>
+    <button type="button" class="se-chip" id="seTextPosBtn" onclick="cycleStoryTextPos()">↕ Bottom</button>
+    <span class="se-color-dot active" style="background:#ffffff;" data-col="#ffffff" onclick="setStoryTextColor('#ffffff')"></span>
+    <span class="se-color-dot" style="background:#FFD166;" data-col="#FFD166" onclick="setStoryTextColor('#FFD166')"></span>
+    <span class="se-color-dot" style="background:#FF2C7D;" data-col="#FF2C7D" onclick="setStoryTextColor('#FF2C7D')"></span>
+    <span class="se-color-dot" style="background:#00F5D4;" data-col="#00F5D4" onclick="setStoryTextColor('#00F5D4')"></span>
+    <span class="se-color-dot" style="background:#9B5DE5;" data-col="#9B5DE5" onclick="setStoryTextColor('#9B5DE5')"></span>
+    <span class="se-color-dot" style="background:#00F566;" data-col="#00F566" onclick="setStoryTextColor('#00F566')"></span>
+  </div>
+
+  <div id="sePanelFilter" class="se-subbar hidden">
+    <button type="button" class="se-chip active" data-filt="none" onclick="setStoryMediaFilter('none')">Normal</button>
+    <button type="button" class="se-chip" data-filt="vivid" onclick="setStoryMediaFilter('vivid')">🌈 Vivid</button>
+    <button type="button" class="se-chip" data-filt="warm" onclick="setStoryMediaFilter('warm')">☀️ Warm</button>
+    <button type="button" class="se-chip" data-filt="cool" onclick="setStoryMediaFilter('cool')">❄️ Cool</button>
+    <button type="button" class="se-chip" data-filt="vintage" onclick="setStoryMediaFilter('vintage')">🎞️ Vintage</button>
+    <button type="button" class="se-chip" data-filt="bw" onclick="setStoryMediaFilter('bw')">🖤 B&amp;W</button>
+    <button type="button" class="se-chip" data-filt="cinema" onclick="setStoryMediaFilter('cinema')">🎬 Cinema</button>
+  </div>
+
+  <div id="sePanelSticker" class="se-subbar hidden">
+    <button type="button" class="se-chip" onclick="pickStoryLocation()">📍 Location</button>
+    <button type="button" class="se-chip" onclick="pickStoryMention()">@ Mention</button>
+    <button type="button" class="se-chip" onclick="pickStoryLink()">🔗 Add Link</button>
+    <button type="button" class="se-chip" onclick="setStoryMoodSticker('🔥 Lit Vibes')">🔥 Lit Vibes</button>
+    <button type="button" class="se-chip" onclick="setStoryMoodSticker('✨ Good Vibes Only')">✨ Good Vibes</button>
+    <button type="button" class="se-chip" onclick="setStoryMoodSticker('🚀 New Post Out!')">🚀 New Post</button>
+    <button type="button" class="se-chip" onclick="setStoryMoodSticker('❤️ Feeling Blessed')">❤️ Blessed</button>
+    <button type="button" class="se-chip" onclick="setStoryMoodSticker('🎉 Party Mode')">🎉 Party</button>
+  </div>
+
+  <div class="se-stage-area">
+    <div id="storyPickArea" class="se-pick-card">
+      <div class="se-pick-icon">📸</div>
+      <div>
+        <div style="font-family:'Baloo 2',sans-serif;font-size:20px;font-weight:800;color:#fff;">Create Your Story</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.68);margin-top:3px;">Share a photo, 15s video, or stylized text story with music, polls &amp; stickers</div>
+      </div>
+      <div class="se-pick-btn-row">
+        <button type="button" class="se-pick-btn primary" onclick="document.getElementById('storyFileInput').click()">📷 Photo / Video</button>
+        <button type="button" class="se-pick-btn secondary" onclick="startTextStoryMode(false)">🎨 Text Story</button>
+      </div>
+    </div>
+
     <div class="story-upload-preview hidden" id="storyPreviewArea">
       <img id="storyPreviewImg" class="hidden" alt="" loading="lazy" decoding="async">
-      <video id="storyPreviewVideo" class="hidden" muted playsinline controls></video>
+      <video id="storyPreviewVideo" class="hidden" muted playsinline loop autoplay></video>
+      <div id="storyTextCanvasCard" class="hidden" onclick="document.getElementById('storyTextOverlay').focus()">
+        <div id="storyTextCanvasInner" style="font-family:'Baloo 2',sans-serif;font-size:26px;font-weight:800;line-height:1.3;color:#fff;word-break:break-word;max-width:90%;text-shadow:0 4px 18px rgba(0,0,0,0.35);">Tap below to type your story…</div>
+      </div>
+      <!-- Live Stickers & Caption Preview Overlay -->
+      <div class="se-live-overlay">
+        <div class="se-live-badges" id="storyLiveBadgesRow"></div>
+        <div id="storyLiveCaptionPreview" class="story-text-overlay hidden" style="position:absolute;left:50%;transform:translateX(-50%);bottom:18px;max-width:88%;pointer-events:none;"></div>
+      </div>
     </div>
   </div>
+
   <div id="storySongLabel" class="se-song"></div>
   <div class="se-bottom">
-    <input type="text" id="storyTextOverlay" class="se-caption" placeholder="Add a caption..." maxlength="200">
+    <input type="text" id="storyTextOverlay" class="se-caption" placeholder="Add a caption or #hashtag..." maxlength="200" oninput="updateStoryStudioLivePreview()">
     <div class="se-share">
-      <span class="se-target">Your story</span>
-      <button type="button" id="storyPostBtn" class="se-go hidden" onclick="postStory()" aria-label="Share">➜</button>
+      <div class="se-target" onclick="if(storyPickedFile || storyIsTextMode) postStory(); else document.getElementById('storyFileInput').click();" style="cursor:pointer;">
+        <div class="se-target-av" id="storyEditorMyAvatar">Y</div>
+        <div style="display:flex;flex-direction:column;line-height:1.2;">
+          <span>Your story</span>
+          <span style="font-size:11px;color:rgba(255,255,255,0.65);font-weight:500;">Visible for 24h · Archive enabled</span>
+        </div>
+      </div>
+      <button type="button" id="storyPostBtn" class="se-go hidden" onclick="postStory()" aria-label="Share">Share ➜</button>
     </div>
     <div id="storyUploadStatus" class="se-status"></div>
   </div>
@@ -1719,6 +1810,7 @@
     <div id="storyLoadingSpinner" class="hidden" style="position:absolute;z-index:3;color:#fff;font-size:13px;background:rgba(0,0,0,0.5);padding:8px 14px;border-radius:999px;">Loading story…</div>
     <img id="storyViewImg" class="hidden" decoding="async" fetchpriority="high">
     <video id="storyViewVideo" class="hidden" playsinline preload="auto"></video>
+    <div class="story-sticker-cluster" id="storyViewStickersRow"></div>
     <div class="story-text-overlay" id="storyViewTextOverlay"></div>
     <div id="storyViewPollBox" class="story-poll-card hidden" onclick="event.stopPropagation()"></div>
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
@@ -1838,8 +1930,8 @@
   </div>
   <div class="chat-input-bar" id="chatInputBar">
     <input type="file" id="chatMediaInput" accept="image/*,video/*" style="display:none;" onchange="onChatMediaPicked(event)">
-    <button type="button" class="chat-input-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo/Video">📎</button>
-    <button type="button" class="chat-input-icon-btn" onclick="openSharePostInChatModal()" title="Share Post or Reel" style="font-size:16px;">🎬</button>
+    <button class="chat-input-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo/Video">📎</button>
+    <button type="button" class="chat-input-icon-btn" id="chatSharePostBtn" onclick="openSharePostInChatModal()" title="Share Post or Reel in Chat" style="font-size:16px;">🎬</button>
     <button type="button" class="chat-input-icon-btn" onclick="openCreatePollModal()" title="Create Interactive Poll" style="font-size:16px;">📊</button>
     <textarea class="chat-text-input" id="chatTextInput" rows="1" placeholder="Message..." oninput="onChatTextInput(this)" onkeydown="onChatInputKeydown(event)"></textarea>
     <button class="chat-input-icon-btn" id="chatMicBtn" onclick="toggleVoiceRecording()" title="Voice message">🎤</button>
@@ -2064,12 +2156,12 @@
       <div id="qVipFields" class="hidden" style="background:rgba(124,92,255,0.08);border:1px solid var(--marigold);border-radius:10px;padding:10px 12px;margin-top:12px;">
         <div style="font-size:12.5px;font-weight:700;color:var(--marigold);">⚡ Fast-Track Verified Publishing Active</div>
         <label style="display:block;font-size:12px;color:var(--cream);margin-top:6px;font-weight:600;">🔗 Custom Link Button on Post (Verified Only)</label>
-        <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;background:var(--field);border:1px solid var(--gold-line);border-radius:8px;padding:9px 12px;color:var(--cream);font-family:'Mukta',sans-serif;font-size:14px;">
+        <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;">
         <input type="text" id="qCustomLinkTitle" placeholder="Button text (e.g. Visit Website, Watch Full Video)" maxlength="40" style="width:100%;margin-top:6px;">
       </div>
-      <div id="qVipLockedBox" class="hidden" style="background:var(--field);border:1px dashed var(--gold-line);border-radius:10px;padding:10px 12px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div id="qVipLockedBox" class="hidden" style="background:rgba(255,255,255,0.03);border:1px dashed var(--gold-line);border-radius:10px;padding:9px 12px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <span style="font-size:12px;color:var(--cream-dim);">🔒 Custom Link Button &amp; Fast-Track (Verified Only)</span>
-        <button type="button" onclick="closeUploadModal();openBlueTick()" style="background:var(--marigold);color:#fff;border:none;border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">Get Blue Tick ✔</button>
+        <button type="button" class="profile-btn" style="padding:4px 10px;font-size:11.5px;flex:0 0 auto;" onclick="closeUploadModal();openBlueTick();">Get Blue Tick ✔</button>
       </div>
       <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
         <input type="checkbox" id="qSensitive" style="width:auto;">
@@ -2093,11 +2185,16 @@ function setFeedFilter(f){
   document.querySelectorAll('#feedFilters .feed-chip').forEach(b => b.classList.toggle('active', b.dataset.f === f));
   let list = allFilms.slice();
   if (f === 'following') list = list.filter(x => x.isFollowing || (currentUser && x.ownerId === currentUser.id));
-  else if (f === 'trending') list = list.sort((a, b) => (((b.views || 0) + (b.likes || 0) * 3) * (b.ownerVerified ? 1.5 : 1)) - (((a.views || 0) + (a.likes || 0) * 3) * (a.ownerVerified ? 1.5 : 1)));
+  else if (f === 'trending') list = list.sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3));
   else if (f === 'film') list = list.filter(x => x.type === 'film');
   else if (f === 'photo') list = list.filter(x => x.type === 'photo');
   if (f !== 'trending') {
-    list.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0) || (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
+    list.sort((a, b) => {
+      if (!!b.adminBoosted !== !!a.adminBoosted) return (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0);
+      const score = x => ((x.views || 0) + (x.likes || 0) * 3 + ((x.comments || []).length) * 4 + 10) * (x.ownerVerified ? 1.5 : 1.0);
+      if (f === 'all') return score(b) - score(a);
+      return 0;
+    });
   }
   renderHome(list);
 }
@@ -2244,10 +2341,13 @@ function linkifyHashtags(text){
 }
 
 async function openHashtagFeed(tag){
+  pauseHomeFeedMedia();
   document.getElementById('hashtagFeedTitle').textContent = '#' + tag;
   const contentEl = document.getElementById('hashtagFeedContent');
   contentEl.innerHTML = '<p class="comment-empty" style="text-align:center;padding:40px 0;font-size:15px;">Loading…</p>';
-  document.getElementById('hashtagFeedOverlay').classList.add('open');
+  const ovEl = document.getElementById('hashtagFeedOverlay');
+  bumpOverlayZ(ovEl);
+  ovEl.classList.add('open');
   try {
     const res = await fetch('/api/hashtags/' + encodeURIComponent(tag));
     if (!res.ok) throw new Error('bad response');
@@ -2260,7 +2360,7 @@ async function openHashtagFeed(tag){
     contentEl.innerHTML = `
       <p style="color:var(--cream-dim);font-size:13px;margin:0 0 12px;">${films.length} post${films.length === 1 ? '' : 's'}</p>
       <div class="profile-mygrid">
-        ${films.map(f => `<div class="profile-mygrid-item" onclick="${f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`}">${f.posterUrl ? `<img src="${f.posterUrl}" loading="lazy" decoding="async">` : ''}</div>`).join('')}
+        ${films.map(f => gridItemHtml(f, f.type === 'short' ? `closeHashtagFeed();openShortAt('${f.id}')` : (f.type === 'photo' ? `closeHashtagFeed();openProfilePhotoFeed('${f.ownerId || ''}','${f.id}')` : `closeHashtagFeed();playFilm('${f.id}')`), false)).join('')}
       </div>
     `;
   } catch (e) {
@@ -2407,6 +2507,25 @@ function renderLoginWall(){
       <div style="margin-top:22px;font-size:11px;color:#8e8e8e;">YouSeries · Video &amp; Shorts Streaming</div>
     </div>`;
   document.body.appendChild(w);
+  fetch('/api/accounts').then(r => r.json()).then(d => {
+    const accs = (d && d.accounts) || [];
+    if (!accs.length) return;
+    const formEl = document.getElementById('wallForm');
+    if (!formEl) return;
+    const box = document.createElement('div');
+    box.style.cssText = 'width:100%;max-width:340px;margin-top:18px;background:#f7f7f9;border:1px solid #e2e2e8;border-radius:14px;padding:10px 12px;box-sizing:border-box;';
+    box.innerHTML = `<div style="font-size:11.5px;font-weight:700;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px;">Saved Accounts · Tap to Log In</div>` +
+      accs.map(a => `
+        <div onclick="switchAccount('${escapeAttr(a.id)}')" style="display:flex;align-items:center;gap:10px;padding:7px 6px;cursor:pointer;border-radius:10px;">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:2px solid #7C5CFF;">
+            ${a.profileImage ? `<img src="${escapeAttr(a.profileImage)}" style="width:100%;height:100%;object-fit:cover;">` : escapeHtml((a.username || 'U')[0].toUpperCase())}
+          </div>
+          <div style="flex:1;font-weight:700;font-size:14px;color:#1c1c1e;">@${escapeHtml(a.username || 'user')}${vb(a.verified)}</div>
+          <span style="font-size:12px;font-weight:700;color:#0095f6;">Log in ›</span>
+        </div>
+      `).join('');
+    formEl.parentNode.insertBefore(box, formEl);
+  }).catch(() => {});
   setTimeout(() => { const e = document.getElementById('wallEmail'); if (e) e.focus(); }, 50);
 }
 async function wallLogin(){
@@ -2442,9 +2561,8 @@ async function loadProfile(){
         avatarUrl = pubData.profileImage;
         currentUser.profileImage = avatarUrl;
         currentUser.roleBadge = pubData.roleBadge || null;
-        currentUser.verified = !!(currentUser.verified || pubData.verified);
-        currentUser.isAdmin = !!(currentUser.isAdmin || (pubData.roleBadge && pubData.roleBadge.includes('Founder')));
-        currentUser.vipRing = pubData.vipRing || currentUser.vipRing || 'none';
+        if (typeof pubData.verified === 'boolean') currentUser.verified = pubData.verified;
+        if (pubData.vipRing) currentUser.vipRing = pubData.vipRing;
         if (pubData.verified) {
           const celKey = 'btCelebrated_' + currentUser.id;
           if (!localStorage.getItem(celKey)) {
@@ -2510,19 +2628,40 @@ function goToProfileDirect(userId, username){
   openOtherProfile(userId, username);
 }
 
-// ---- Account switcher (tap the profile icon at the bottom) ----
+// ---- Account switcher (tap @username ▾ or hold the profile icon at the bottom) ----
 async function openAccountsSheet(){
   if (!currentUser) { goToMyProfile(); return; }
   let data = { accounts: [] };
   try { const r = await fetch('/api/accounts'); data = await r.json(); } catch (e) {}
+  if (!Array.isArray(data.accounts) || !data.accounts.length) {
+    data.accounts = [{
+      id: currentUser.id,
+      username: currentUser.username,
+      current: true,
+      profileImage: (window.myProfileData && window.myProfileData.profileImage) || currentUser.profileImage || null,
+      verified: !!(currentUser.verified || (window.myProfileData && window.myProfileData.verified)),
+      roleBadge: (window.myProfileData && window.myProfileData.roleBadge) || currentUser.roleBadge || null
+    }];
+  }
   let ov = document.getElementById('accountsSheet');
   if (!ov) { ov = document.createElement('div'); ov.id = 'accountsSheet'; document.body.appendChild(ov); }
   const initial = u => escapeHtml(String(u || '?').charAt(0).toUpperCase());
-  const row = a => `<div onclick="${a.current ? 'closeAccountsSheet()' : `switchAccount('${a.id}')`}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;">
-      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7C5CFF,#4f6bff);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">${initial(a.username)}</div>
-      <div style="flex:1;color:#fff;font-size:15px;">@${escapeHtml(a.username || 'user')}</div>
-      ${a.current ? '<span style="width:24px;height:24px;border-radius:50%;background:#0a84ff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;">✓</span>' : ''}
+  const row = a => {
+    const avUrl = a.profileImage || (a.current && ((window.myProfileData && window.myProfileData.profileImage) || (currentUser && currentUser.profileImage))) || null;
+    const isVer = !!(a.verified || (a.current && (currentUser.verified || (window.myProfileData && window.myProfileData.verified))));
+    const rBadge = a.roleBadge || (a.current && ((window.myProfileData && window.myProfileData.roleBadge) || currentUser.roleBadge)) || null;
+    const avHtml = avUrl
+      ? `<img src="${escapeAttr(avUrl)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;" onerror="this.style.display='none';this.parentNode.textContent='${initial(a.username)}';">`
+      : initial(a.username);
+    return `<div onclick="${a.current ? 'closeAccountsSheet()' : `switchAccount('${escapeAttr(a.id)}')`}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#7C5CFF,#4f6bff);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:17px;flex-shrink:0;overflow:hidden;border:2px solid ${a.current ? '#7C5CFF' : 'rgba(255,255,255,0.2)'};box-shadow:0 2px 10px rgba(0,0,0,0.35);">${avHtml}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">@${escapeHtml(a.username || 'user')}${vb(isVer)}${roleBadgeHtml(rBadge)}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.58);margin-top:1px;">${a.current ? 'Active account' : 'Tap to switch account'}</div>
+      </div>
+      ${a.current ? '<span style="width:24px;height:24px;border-radius:50%;background:#0a84ff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">✓</span>' : ''}
     </div>`;
+  };
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1200;display:flex;align-items:flex-end;justify-content:center;';
   ov.onclick = e => { if (e.target === ov) closeAccountsSheet(); };
   ov.innerHTML = `<div style="width:100%;max-width:520px;background:#1c1c1e;border-radius:22px 22px 0 0;padding:14px 14px 18px;color:#fff;">
@@ -2580,6 +2719,7 @@ async function openOtherProfile(userId, username){
   pauseFeedMedia();
   otherProfileUserId = userId;
   document.getElementById('otherProfileHeaderName').textContent = '@' + (username || '');
+  bumpOverlayZ('otherProfileOverlay');
   document.getElementById('otherProfileOverlay').classList.add('open');
   await renderOtherProfile(userId, username);
 }
@@ -2838,7 +2978,6 @@ function myDashStats(){
 }
 function openYourDashboard(){
   if (!currentUser) return;
-  pauseFeedMedia();
   const st = myDashStats();
   const row = (label, val, note) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--gold-line);">
       <div><div style="color:var(--cream);font-size:14.5px;">${label}</div>${note ? `<div class="meta" style="font-size:12px;">${note}</div>` : ''}</div>
@@ -2934,6 +3073,11 @@ async function renderProfile(){
   window.myNote = mine.note || null;
   window.myPinned = mine.pinnedFilmIds || [];
   window.myProfileData = mine;
+  if (currentUser && mine.profileImage) {
+    currentUser.profileImage = mine.profileImage;
+    const tp = document.getElementById('tabProfile');
+    if (tp) tp.innerHTML = `<img class="mini-avatar" src="${escapeAttr(mine.profileImage)}" loading="lazy" decoding="async">`;
+  }
 
   const myFilms = allFilms.filter(f => isMyPost(f, currentUser.id));
   const myLongVideos = myFilms.filter(f => f.type === 'film');
@@ -2966,10 +3110,12 @@ async function renderProfile(){
       <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})">Share Profile</button>
       <button class="profile-btn" onclick="openYourDashboard()">Dashboard</button>
     </div>
-    ${mine.channelId ? `<div onclick="openConvoById('${escapeAttr(mine.channelId)}')" style="cursor:pointer;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--gold-line);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel);">
+    ${mine.channelId ? `<div onclick="openChatInbox();setTimeout(()=>openConvoById('${escapeAttr(mine.channelId)}'),60)" style="cursor:pointer;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--gold-line);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(124,92,255,0.08);">
       <div style="min-width:0;"><div style="font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 ${escapeHtml(mine.channelTitle || (currentUser.username + ' channel'))}</div>
-      <div class="meta" style="font-size:12px;">${mine.channelMembersCount || 0} subscribers · Tap to open your channel</div></div>
-      <span style="color:var(--cream-dim);font-size:18px;">›</span></div>` : ''}
+      <div class="meta" style="font-size:12px;">${mine.channelMembersCount || 0} subscribers · Tap to post update</div></div>
+      <span style="color:var(--cream-dim);font-size:18px;">›</span></div>` : ((mine.verified || currentUser.isAdmin) ? `<div onclick="openChatInbox();setTimeout(()=>openNewChannelModal(),80)" style="cursor:pointer;margin:10px 0 4px;padding:10px 14px;border:1px dashed var(--marigold);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="font-size:13px;font-weight:700;color:var(--marigold);">📢 Create Your Official Broadcast Channel (VIP)</div>
+      <span style="color:var(--marigold);font-size:16px;">＋</span></div>` : '')}
 
     <div class="highlights-bar" id="myHighlightsBar"></div>
 
@@ -2994,12 +3140,7 @@ async function renderProfile(){
           <option value="gold" ${mine.vipRing === 'gold' ? 'selected' : ''}>🟡 Gold VIP Glow</option>
           <option value="neon" ${mine.vipRing === 'neon' ? 'selected' : ''}>🔵 Neon Cyan Glow</option>
         </select>
-      ` : `
-        <div style="background:var(--field);border:1px dashed var(--gold-line);border-radius:10px;padding:10px 12px;margin:10px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span style="font-size:12px;color:var(--cream-dim);">🔒 VIP Avatar Glow Ring (Purple / Gold / Neon)</span>
-          <button type="button" onclick="openBlueTick()" style="background:var(--marigold);color:#fff;border:none;border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">Get Blue Tick ✔</button>
-        </div>
-      `}
+      ` : ''}
       <button class="settings-save-btn" onclick="saveBio()">Save profile</button>
       <div id="bioStatus" style="margin-top:8px;font-size:13px;"></div>
 
@@ -3209,11 +3350,12 @@ const NOTIF_LABELS = { like: '❤️ Likes', comment: '💬 Comments', follow: '
 async function openNotifPrefs(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   closeProfileMenu && closeProfileMenu();
-  const old = document.getElementById('notifOverlay'); if (old) old.remove();
+  const old = document.getElementById('notifPrefsModal'); if (old) old.remove();
   const el = document.createElement('div');
-  el.id = 'notifOverlay';
-  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:18px;';
-  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">🔔 Notifications</div><div id="notifBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div><button type="button" onclick="document.getElementById(\'notifOverlay\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Close</button></div>';
+  el.id = 'notifPrefsModal';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:980;display:flex;align-items:center;justify-content:center;padding:18px;';
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;"><div style="font-weight:700;font-size:17px;margin-bottom:10px;">🔔 Notification Settings</div><div id="notifBody" style="font-size:13.5px;color:var(--cream-dim);">Loading…</div><button type="button" onclick="document.getElementById(\'notifPrefsModal\').remove()" style="margin-top:14px;width:100%;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;cursor:pointer;">Close</button></div>';
   document.body.appendChild(el);
   try {
     const res = await fetch('/api/me/notif-prefs');
@@ -3254,7 +3396,6 @@ function openVerifiedTrustModal(){
 
 async function openBlueTick(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
-  pauseFeedMedia();
   closeProfileMenu && closeProfileMenu();
   const old = document.getElementById('blueOverlay'); if (old) old.remove();
   const el = document.createElement('div');
@@ -3976,7 +4117,7 @@ async function loadFilms() {
     allFilms = [];
     showToast('Could not load content: ' + err.message);
   }
-  allFilms.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0) || (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
+  allFilms.sort((a, b) => (b.adminBoosted ? 1 : 0) - (a.adminBoosted ? 1 : 0));
   const shorts = allFilms.filter(f => f.type === 'short');
   renderHome(allFilms);
   renderShortsGrid(shorts);
@@ -4023,14 +4164,15 @@ function renderShortsGrid(shorts){
 async function openShortAt(id, openCommentsAfter){
   if (!document.querySelector('.short-item[data-id="' + id + '"]')) {
     try {
-      const r = await fetch('/api/films/' + id);
-      if (r.ok) {
-        const f = await r.json();
-        if (f && f.id && !allFilms.some(x => x.id === f.id)) {
-          allFilms.unshift(f);
-          renderShorts(allFilms.filter(x => x.type === 'short'));
+      let f = (allFilms || []).find(x => x.id === id);
+      if (!f) {
+        const r = await fetch('/api/films/' + id);
+        if (r.ok) {
+          f = await r.json();
+          if (f && f.id && !allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
         }
       }
+      renderShorts(allFilms.filter(x => x.type === 'short'));
     } catch (e) {}
   }
   window._skipFirstShortAuto = true;
@@ -4126,8 +4268,6 @@ function doSearchResults(query){
 }
 
 function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matches){
-  userMatches = (userMatches || []).slice().sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
-  matches = (matches || []).slice().sort((a, b) => (b.ownerVerified ? 1 : 0) - (a.ownerVerified ? 1 : 0));
   if (matches.length === 0 && userMatches.length === 0 && tagMatches.length === 0) {
     resultsEl.innerHTML = '<p class="comment-empty">No matches found.</p>';
     return;
@@ -4157,7 +4297,7 @@ function renderSearchResults(resultsEl, tagMatches, tagCounts, userMatches, matc
 
   const filmHtml = matches.map(f => `
     <div class="search-result-item" onclick="${f.type === 'short' ? `openShortAt('${f.id}')` : (f.type === 'photo' ? `openProfilePhotoFeed('${f.ownerId}','${f.id}')` : `playFilm('${f.id}')`)}">
-      <img class="search-result-thumb" src="${f.posterUrl || ''}" loading="lazy" decoding="async">
+      ${f.posterUrl ? `<img class="search-result-thumb" src="${escapeAttr(f.posterUrl)}" loading="lazy" decoding="async">` : (f.videoUrl ? `<video class="search-result-thumb" src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="metadata" style="object-fit:cover;background:#000;"></video>` : `<div class="search-result-thumb" style="display:flex;align-items:center;justify-content:center;background:#1a1733;">🎬</div>`)}
       <div class="search-result-info">
         <span class="search-result-title">${escapeHtml(f.title)}</span>
         <span class="search-result-tag">${f.type === 'short' ? 'Short' : f.type === 'photo' ? 'Photo' : 'Film'}</span>
@@ -4224,7 +4364,7 @@ function renderHome(films) {
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
           ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
-          ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
+          ${f.customLink ? `<div style="margin-top:8px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
         </div>
       </div>
     `;
@@ -4288,7 +4428,7 @@ function isAnyModalOrOverlayOpen(){
     const el = document.getElementById(checkIds[i]);
     if (el && el.classList.contains('open')) return true;
   }
-  const dynIds = ['blueOverlay', 'yourDashOverlay', 'newGroupModal', 'newChannelModal', 'convoInfoSheet', 'pollModal', 'addMemberModal', 'sharePostChatModal', 'songPicker', 'cropOverlay', 'noteOverlay'];
+  const dynIds = ['blueOverlay', 'yourDashOverlay', 'newGroupModal', 'newChannelModal', 'convoInfoSheet', 'pollModal', 'addMemberModal', 'sharePostChatModal', 'songPicker', 'cropOverlay', 'noteOverlay', 'notifPrefsModal'];
   for (let j = 0; j < dynIds.length; j++) {
     if (document.getElementById(dynIds[j])) return true;
   }
@@ -4407,7 +4547,7 @@ function renderShorts(shorts){
         ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
-        ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn" style="padding:5px 12px;font-size:12px;">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
+        ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" style="padding:5px 12px;font-size:12px;" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
       </div>
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" id="short-like-btn-${f.id}" onclick="likeShort('${f.id}', this)">${isLiked ? '❤️' : '🤍'}</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
@@ -4778,6 +4918,7 @@ function openSheet(id){
   currentShortId = id;
   const film = allFilms.find(f => f.id === id);
   renderCommentListInto('sheetCommentList', film ? film.comments : [], id);
+  bumpOverlayZ('sheetOverlay');
   document.getElementById('sheetOverlay').classList.add('open');
 }
 function closeSheet(){ document.getElementById('sheetOverlay').classList.remove('open'); }
@@ -5217,8 +5358,10 @@ async function playFilm(id){
   saveBtn.classList.toggle('liked', alreadySaved);
 
   renderCommentListInto('commentList', f.comments, f.id);
-  document.getElementById('overlay').classList.remove('p2p-mini-mode');
-  document.getElementById('overlay').classList.add('open');
+  const ovEl = document.getElementById('overlay');
+  ovEl.classList.remove('p2p-mini-mode');
+  bumpOverlayZ(ovEl);
+  ovEl.classList.add('open');
   document.body.style.overflow = 'hidden';
   syncYtCustomHud(f);
   try {
@@ -5386,7 +5529,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
           ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
-          ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="post-cta-btn">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
+          ${f.customLink ? `<div style="margin-top:8px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
         </div>
       </div>
     `;
@@ -5577,7 +5720,7 @@ let ytRippleTimerLeft = null;
 let ytRippleTimerRight = null;
 let ytCcEnabled = false;
 let ytSidePanelMode = 'desc';
-let ytZoomMode = 'original'; // 'original' | 'fill' | 'cinema' | 'custom'
+let ytZoomMode = 'original';
 let ytCustomZoomScale = 1;
 let ytPinchStartDist = 0;
 let ytPinchStartScale = 1;
@@ -5623,8 +5766,8 @@ function applyYtVideoZoom(mode, customScale){
     stage.classList.add('zoom-cinema');
     if (btn) btn.classList.add('active');
     if (lbl) lbl.textContent = '🖼️ Original';
-    if (setVal) setVal.textContent = 'Max Full (1.34x)';
-    showYtZoomIndicator('🔍 Max Full Screen (1.34x)');
+    if (setVal) setVal.textContent = 'Max Full (1.35x)';
+    showYtZoomIndicator('🔍 Max Full Screen (1.35x)');
   } else if (ytZoomMode === 'custom') {
     const sc = Math.min(2.2, Math.max(1, Number(customScale) || 1));
     ytCustomZoomScale = sc;
@@ -5668,7 +5811,7 @@ function bindYtPinchToZoom(){
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       ytPinchStartDist = Math.hypot(dx, dy);
-      ytPinchStartScale = ytZoomMode === 'cinema' ? 1.34 : (ytZoomMode === 'fill' ? 1.12 : (ytCustomZoomScale || 1));
+      ytPinchStartScale = ytZoomMode === 'cinema' ? 1.35 : (ytZoomMode === 'fill' ? 1.12 : (ytCustomZoomScale || 1));
     }
   }, { passive: true });
 
@@ -5731,7 +5874,6 @@ function updateLandscapeOrientationClass(){
   if (!wrap) return;
   const isFs = !!(document.fullscreenElement === wrap || document.webkitFullscreenElement === wrap);
   const isLandMode = wrap.classList.contains('yt-landscape-mode') || isFs;
-  // Always rotate via CSS if the viewport is still portrait (e.g. phone auto-rotate is locked), even inside fullscreen!
   if (isLandMode && window.innerWidth < window.innerHeight) {
     wrap.classList.add('yt-portrait-rotated');
   } else {
@@ -6016,7 +6158,7 @@ function playAdjacentFilm(dir){
   playFilm(target.id);
 }
 
-// Play / Pause & Seekbar sync
+// Play / Pause & Rotation-Aware Seekbar Scrubber
 function toggleYtPlayPause(ev){
   if (ev) ev.stopPropagation();
   const p = document.getElementById('player');
@@ -6046,34 +6188,57 @@ function updateYtSeekUi(){
   if (!ytSeekDragging) {
     const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
     const fill = document.getElementById('ytSeekFill');
-    const range = document.getElementById('ytSeekRangeInput');
     if (fill) fill.style.width = pct.toFixed(2) + '%';
-    if (range) range.value = Math.round(pct * 10);
   }
 }
 
-function onYtSeekInput(val){
-  ytSeekDragging = true;
+function computeYtSeekRatioFromEvent(ev){
+  const row = document.getElementById('ytSeekRow');
+  const wrap = document.getElementById('playerMediaWrap');
+  if (!row) return 0;
+  const rect = row.getBoundingClientRect();
+  const isRotated = !!(wrap && wrap.classList.contains('yt-portrait-rotated'));
+  const raw = isRotated
+    ? (ev.clientY - rect.top) / Math.max(1, rect.height)
+    : (ev.clientX - rect.left) / Math.max(1, rect.width);
+  return Math.min(1, Math.max(0, raw));
+}
+
+function onYtSeekPointerDown(ev){
+  if (ev) ev.stopPropagation();
   const p = document.getElementById('player');
-  const pct = Math.min(100, Math.max(0, Number(val) / 10));
-  const fill = document.getElementById('ytSeekFill');
-  if (fill) fill.style.width = pct.toFixed(2) + '%';
-  if (p && isFinite(p.duration) && p.duration > 0) {
-    const targetSec = (pct / 100) * p.duration;
+  if (!p || !isFinite(p.duration) || p.duration <= 0) return;
+  ytSeekDragging = true;
+  const applyFromEv = (e) => {
+    const ratio = computeYtSeekRatioFromEvent(e);
+    const fill = document.getElementById('ytSeekFill');
+    if (fill) fill.style.width = (ratio * 100).toFixed(2) + '%';
+    const targetSec = ratio * p.duration;
     const pill = document.getElementById('ytTimePill');
     if (pill) pill.textContent = fmtYtDuration(targetSec) + ' / ' + fmtYtDuration(p.duration);
-  }
+    return targetSec;
+  };
+  applyFromEv(ev);
   showYtHudTemporarily();
-}
 
-function onYtSeekCommit(val){
-  const p = document.getElementById('player');
-  const pct = Math.min(100, Math.max(0, Number(val) / 10));
-  if (p && isFinite(p.duration) && p.duration > 0) {
-    p.currentTime = (pct / 100) * p.duration;
-  }
-  ytSeekDragging = false;
-  updateYtSeekUi();
+  const onMove = (e) => {
+    if (!ytSeekDragging) return;
+    applyFromEv(e);
+    showYtHudTemporarily();
+  };
+  const onUp = (e) => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    if (!ytSeekDragging) return;
+    const targetSec = applyFromEv(e);
+    p.currentTime = targetSec;
+    ytSeekDragging = false;
+    updateYtSeekUi();
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
 }
 
 // 6. Left and right side double tap to 10s aage / 10s piche + clean single-tap HUD toggle
@@ -6301,7 +6466,6 @@ function renderYtSidePanelContent(mode){
   const footer = document.getElementById('ytSidePanelFooter');
   if (!hdrTitle || !body || !footer) return;
 
-  // Header always shows the video title (just like Description in Screenshot 2!)
   hdrTitle.textContent = f.title || 'Untitled';
 
   if (mode === 'comments') {
@@ -6347,7 +6511,6 @@ function renderYtSidePanelContent(mode){
   }
 
   if (mode === 'more') {
-    // Strictly Full Videos Only (exclude shorts and photos!)
     const pool = getVideoPoolForQueue().filter(x => x.id !== f.id);
     body.innerHTML = `
       ${renderYtSidePanelCreatorAndTabs(f, 'more')}
@@ -6396,7 +6559,7 @@ function renderYtSidePanelContent(mode){
     return;
   }
 
-  // Default mode === 'desc' (Matches Screenshot 2 1000512004.jpg 1:1!)
+  // Default mode === 'desc'
   const metaPills = [f.year, f.language, f.genre].filter(Boolean).join(' · ');
 
   body.innerHTML = `
@@ -6848,13 +7011,37 @@ function linkifyStoryTags(text){
   return escapeHtml(String(text || '')).replace(/#([A-Za-z0-9_\u0900-\u097F]{1,60})/g, (m, tag) =>
     `<span class="story-tag" onclick="event.stopPropagation();closeStoryViewer();openHashtagFeed('${tag}')" style="color:#fff;font-weight:700;text-decoration:underline;cursor:pointer;">#${tag}</span>`);
 }
-// Story zoom/position (saved from the adjust screen): applied to the photo or video in the viewer
+const STORY_FILTER_CSS = {
+  none: 'none',
+  vivid: 'saturate(1.48) contrast(1.1)',
+  warm: 'sepia(0.28) saturate(1.35) brightness(1.04)',
+  cool: 'hue-rotate(14deg) saturate(1.15) brightness(1.03)',
+  vintage: 'sepia(0.45) contrast(1.08) brightness(0.95)',
+  bw: 'grayscale(1) contrast(1.18)',
+  cinema: 'contrast(1.22) saturate(0.88) brightness(0.96)'
+};
+
+const STORY_BG_GRADIENTS = [
+  { name: 'Sunset Glow', css: 'linear-gradient(145deg, #FF512F 0%, #DD2476 55%, #7C5CFF 100%)', stops: ['#FF512F', '#DD2476', '#7C5CFF'] },
+  { name: 'Royal Purple', css: 'linear-gradient(145deg, #240b36 0%, #7C5CFF 52%, #c31432 100%)', stops: ['#240b36', '#7C5CFF', '#c31432'] },
+  { name: 'Cyber Neon', css: 'linear-gradient(145deg, #0f0c29 0%, #302b63 50%, #00F5D4 100%)', stops: ['#0f0c29', '#302b63', '#00F5D4'] },
+  { name: 'Ocean Breeze', css: 'linear-gradient(145deg, #1A2980 0%, #26D0CE 100%)', stops: ['#1A2980', '#1E7DA7', '#26D0CE'] },
+  { name: 'Crimson Fire', css: 'linear-gradient(145deg, #8E0E00 0%, #E63950 55%, #F7971E 100%)', stops: ['#8E0E00', '#E63950', '#F7971E'] },
+  { name: 'Emerald Luxe', css: 'linear-gradient(145deg, #093028 0%, #11998e 55%, #38ef7d 100%)', stops: ['#093028', '#11998e', '#38ef7d'] },
+  { name: 'Midnight Gold', css: 'linear-gradient(145deg, #141E30 0%, #243B55 55%, #F0B849 100%)', stops: ['#141E30', '#243B55', '#F0B849'] },
+  { name: 'Cotton Candy', css: 'linear-gradient(145deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%)', stops: ['#833ab4', '#fd1d1d', '#fcb045'] }
+];
+
+// Story zoom/position & filter (saved from the Story Studio): applied to the photo or video in the viewer
 function applyStoryAdjust(st){
+  const a = (st && st.adjust) || {};
+  const filtCss = STORY_FILTER_CSS[a.filter || 'none'] || 'none';
   ['storyViewImg','storyViewVideo'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
-    const a = st && st.adjust;
     el.style.objectFit = 'cover';
-    el.style.transform = a ? `translate(${(a.x * 50).toFixed(2)}%, ${(a.y * 50).toFixed(2)}%) scale(${a.s})` : '';
+    const hasTransform = isFinite(a.s) && isFinite(a.x) && isFinite(a.y);
+    el.style.transform = hasTransform ? `translate(${(a.x * 50).toFixed(2)}%, ${(a.y * 50).toFixed(2)}%) scale(${a.s})` : '';
+    el.style.filter = filtCss !== 'none' ? filtCss : '';
   });
 }
 function playStorySong(){
@@ -6870,13 +7057,24 @@ function playStorySong(){
 let storyPickedFile = null;
 let storyAdjust = null;
 let storyChosenSong = null;
+let storyIsTextMode = false;
+let storyBgIndex = 0;
+let storyMediaFilter = 'none';
+let storyTextStyle = 'classic';
+let storyTextColor = '#ffffff';
+let storyTextPos = 'bottom';
+let storyMoodSticker = '';
+let storyLocationTag = '';
+let storyMentionTag = '';
+let storyLinkObj = null;
+
 async function pickStorySong(){
-  if (!storyPickedFile) { showToast('Choose a photo or video first'); return; }
   const pick = await openSongPicker('story', 15);
   if (pick === 'cancel') return;
   storyChosenSong = pick;
   const lbl = document.getElementById('storySongLabel');
   if (lbl) lbl.textContent = pick ? ('🎵 ' + (pick.title || 'Song') + ' (' + fmtClipSec(pick.songStart) + ' – ' + fmtClipSec((pick.songStart || 0) + (pick.songDuration || 15)) + ')') : '';
+  updateStoryStudioLivePreview();
 }
 let storyPickedType = null;
 
@@ -6952,7 +7150,7 @@ function renderStoriesBar(){
   bar.classList.toggle('hidden', !html);
 }
 
-// ---- Upload ----
+// ---- Upload (Enhanced Story Studio) ----
 function openStoryUploadModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   pauseFeedMedia();
@@ -6962,18 +7160,282 @@ function openStoryUploadModal(){
   document.getElementById('storyPostBtn').classList.add('hidden');
   document.getElementById('storyTextOverlay').value = '';
   document.getElementById('storyUploadStatus').textContent = '';
+  const tc = document.getElementById('storyTextCanvasCard');
+  if (tc) tc.classList.add('hidden');
+  ['sePanelText','sePanelFilter','sePanelSticker'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.classList.add('hidden');
+  });
+  ['seToolTextBtn','seToolFilterBtn','seToolStickerBtn','seToolBgBtn'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.classList.remove('active');
+  });
   storyPickedFile = null;
+  storyPickedType = null;
   storyChosenSong = null;
   storyChosenPoll = null;
   storyAdjust = null;
+  storyIsTextMode = false;
+  storyBgIndex = 0;
+  storyMediaFilter = 'none';
+  storyTextStyle = 'classic';
+  storyTextColor = '#ffffff';
+  storyTextPos = 'bottom';
+  storyMoodSticker = '';
+  storyLocationTag = '';
+  storyMentionTag = '';
+  storyLinkObj = null;
+  setStoryMediaFilter('none');
+  setStoryTextStyle('classic');
+  setStoryTextColor('#ffffff');
+  const posBtn = document.getElementById('seTextPosBtn');
+  if (posBtn) posBtn.textContent = '↕ Bottom';
   const sl = document.getElementById('storySongLabel'); if (sl) sl.textContent = '';
+  // Populate logged-in user's profile photo inside "Your story" share pill
+  const myAvEl = document.getElementById('storyEditorMyAvatar');
+  if (myAvEl) {
+    const avUrl = (window.myProfileData && window.myProfileData.profileImage) || (currentUser && currentUser.profileImage) || null;
+    myAvEl.innerHTML = avUrl
+      ? `<img src="${escapeAttr(avUrl)}" alt="">`
+      : escapeHtml(((currentUser && currentUser.username) || 'Y')[0].toUpperCase());
+  }
+  updateStoryStudioLivePreview();
+  bumpOverlayZ('storyUploadOverlay');
   document.getElementById('storyUploadOverlay').classList.add('open');
 }
-function closeStoryUploadModal(){ document.getElementById('storyUploadOverlay').classList.remove('open'); }
+function closeStoryUploadModal(){
+  const vidEl = document.getElementById('storyPreviewVideo');
+  if (vidEl) { vidEl.pause(); vidEl.src = ''; }
+  document.getElementById('storyUploadOverlay').classList.remove('open');
+}
+
+function toggleStoryStudioPanel(which){
+  const map = {
+    text: ['sePanelText', 'seToolTextBtn'],
+    filter: ['sePanelFilter', 'seToolFilterBtn'],
+    sticker: ['sePanelSticker', 'seToolStickerBtn']
+  };
+  Object.keys(map).forEach(k => {
+    const [pId, bId] = map[k];
+    const pEl = document.getElementById(pId);
+    const bEl = document.getElementById(bId);
+    if (!pEl || !bEl) return;
+    if (k === which) {
+      const willOpen = pEl.classList.contains('hidden');
+      pEl.classList.toggle('hidden', !willOpen);
+      bEl.classList.toggle('active', willOpen);
+      if (which === 'text' && willOpen) {
+        const inp = document.getElementById('storyTextOverlay');
+        if (inp) inp.focus();
+      }
+    } else {
+      pEl.classList.add('hidden');
+      bEl.classList.remove('active');
+    }
+  });
+}
+
+function startTextStoryMode(cycleIfAlreadyActive){
+  if (storyIsTextMode && cycleIfAlreadyActive) {
+    storyBgIndex = (storyBgIndex + 1) % STORY_BG_GRADIENTS.length;
+  } else {
+    storyIsTextMode = true;
+    storyPickedFile = null;
+    storyPickedType = 'photo';
+  }
+  const bg = STORY_BG_GRADIENTS[storyBgIndex] || STORY_BG_GRADIENTS[0];
+  const imgEl = document.getElementById('storyPreviewImg');
+  const vidEl = document.getElementById('storyPreviewVideo');
+  const cardEl = document.getElementById('storyTextCanvasCard');
+  if (imgEl) { imgEl.classList.add('hidden'); imgEl.src = ''; }
+  if (vidEl) { vidEl.pause(); vidEl.classList.add('hidden'); vidEl.src = ''; }
+  if (cardEl) {
+    cardEl.style.background = bg.css;
+    cardEl.classList.remove('hidden');
+  }
+  const bgBtn = document.getElementById('seToolBgBtn');
+  if (bgBtn) bgBtn.classList.add('active');
+  document.getElementById('storyPickArea').classList.add('hidden');
+  document.getElementById('storyPreviewArea').classList.remove('hidden');
+  document.getElementById('storyPostBtn').classList.remove('hidden');
+  updateStoryStudioLivePreview();
+  showToast('🎨 ' + bg.name + ' (Tap 🎨 to switch background)');
+}
+
+function setStoryMediaFilter(f){
+  storyMediaFilter = f || 'none';
+  const css = STORY_FILTER_CSS[storyMediaFilter] || 'none';
+  ['storyPreviewImg','storyPreviewVideo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.filter = css !== 'none' ? css : '';
+  });
+  document.querySelectorAll('#sePanelFilter .se-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filt === storyMediaFilter);
+  });
+}
+
+function setStoryTextStyle(st){
+  storyTextStyle = st || 'classic';
+  document.querySelectorAll('#sePanelText .se-chip[data-style]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.style === storyTextStyle);
+  });
+  updateStoryStudioLivePreview();
+}
+
+function setStoryTextColor(col){
+  storyTextColor = col || '#ffffff';
+  document.querySelectorAll('#sePanelText .se-color-dot').forEach(dot => {
+    dot.classList.toggle('active', dot.dataset.col === storyTextColor);
+  });
+  updateStoryStudioLivePreview();
+}
+
+function cycleStoryTextPos(){
+  const order = ['bottom', 'center', 'top'];
+  const labels = { bottom: '↕ Bottom', center: '↕ Center', top: '↕ Top' };
+  storyTextPos = order[(order.indexOf(storyTextPos) + 1) % order.length];
+  const btn = document.getElementById('seTextPosBtn');
+  if (btn) btn.textContent = labels[storyTextPos];
+  updateStoryStudioLivePreview();
+}
+
+function setStoryMoodSticker(s){
+  storyMoodSticker = (storyMoodSticker === s) ? '' : s;
+  updateStoryStudioLivePreview();
+  if (storyMoodSticker) showToast('Sticker added: ' + storyMoodSticker);
+}
+
+function pickStoryLocation(){
+  const loc = prompt('📍 Enter Location for your Story (e.g. Mumbai, India):', storyLocationTag || '');
+  if (loc === null) return;
+  storyLocationTag = loc.trim().slice(0, 50);
+  updateStoryStudioLivePreview();
+}
+
+function pickStoryMention(){
+  const m = prompt('@ Mention a user in your Story (username):', storyMentionTag || '');
+  if (m === null) return;
+  storyMentionTag = m.trim().replace(/^@/, '').slice(0, 40);
+  updateStoryStudioLivePreview();
+}
+
+function pickStoryLink(){
+  const u = prompt('🔗 Add a clickable Link URL (e.g. https://tamasha.qd.je):', (storyLinkObj && storyLinkObj.url) || '');
+  if (u === null) return;
+  if (!u.trim()) { storyLinkObj = null; updateStoryStudioLivePreview(); return; }
+  const lbl = prompt('Link Button Label:', (storyLinkObj && storyLinkObj.label) || 'Visit Link ↗') || 'Visit Link ↗';
+  storyLinkObj = { url: normalizeUrl(u.trim()), label: lbl.trim().slice(0, 36) };
+  updateStoryStudioLivePreview();
+}
+
+function applyStoryCaptionStyling(el, text, style, color, pos){
+  if (!el) return;
+  el.className = 'story-text-overlay';
+  if (style && style !== 'classic') el.classList.add('style-' + style);
+  if (pos && pos !== 'bottom') el.classList.add('pos-' + pos);
+  el.style.color = color || '#ffffff';
+  el.innerHTML = linkifyStoryTags(text || '');
+}
+
+function updateStoryStudioLivePreview(){
+  const txt = (document.getElementById('storyTextOverlay') && document.getElementById('storyTextOverlay').value) || '';
+  const capEl = document.getElementById('storyLiveCaptionPreview');
+  const innerCard = document.getElementById('storyTextCanvasInner');
+  if (storyIsTextMode) {
+    if (capEl) capEl.classList.add('hidden');
+    if (innerCard) {
+      innerCard.textContent = txt.trim() || 'Tap below to type your story…';
+      innerCard.style.color = storyTextColor || '#ffffff';
+      innerCard.style.fontFamily = storyTextStyle === 'typewriter' ? 'monospace' : "'Baloo 2',sans-serif";
+      innerCard.style.textShadow = storyTextStyle === 'neon'
+        ? `0 0 12px ${storyTextColor || '#fff'}, 0 0 28px ${storyTextColor || '#fff'}`
+        : '0 4px 18px rgba(0,0,0,0.4)';
+    }
+  } else {
+    if (capEl) {
+      if (txt.trim()) {
+        applyStoryCaptionStyling(capEl, txt.trim(), storyTextStyle, storyTextColor, storyTextPos);
+        capEl.classList.remove('hidden');
+      } else {
+        capEl.classList.add('hidden');
+      }
+    }
+  }
+
+  const badgesRow = document.getElementById('storyLiveBadgesRow');
+  if (badgesRow) {
+    const pills = [];
+    if (storyLocationTag) pills.push(`<span class="se-badge-pill" onclick="pickStoryLocation()" title="Tap to edit">📍 ${escapeHtml(storyLocationTag)} ✕</span>`);
+    if (storyMentionTag) pills.push(`<span class="se-badge-pill" onclick="pickStoryMention()" title="Tap to edit">@${escapeHtml(storyMentionTag)} ✕</span>`);
+    if (storyMoodSticker) pills.push(`<span class="se-badge-pill" onclick="setStoryMoodSticker('${escapeAttr(storyMoodSticker)}')" title="Tap to remove">${escapeHtml(storyMoodSticker)} ✕</span>`);
+    if (storyLinkObj && storyLinkObj.url) pills.push(`<span class="se-badge-pill" onclick="pickStoryLink()" title="Tap to edit">🔗 ${escapeHtml(storyLinkObj.label || 'Link')} ✕</span>`);
+    if (storyChosenPoll && storyChosenPoll.q) pills.push(`<span class="se-badge-pill" onclick="pickStoryPoll()" title="Tap to edit">📊 ${escapeHtml(storyChosenPoll.q)} ✕</span>`);
+    badgesRow.innerHTML = pills.join('');
+  }
+}
+
+async function generateTextStoryFile(){
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext('2d');
+  const bg = STORY_BG_GRADIENTS[storyBgIndex] || STORY_BG_GRADIENTS[0];
+  const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
+  grad.addColorStop(0, bg.stops[0]);
+  grad.addColorStop(0.52, bg.stops[1]);
+  grad.addColorStop(1, bg.stops[2]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  // Subtle decorative glow circles
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.beginPath(); ctx.arc(180, 320, 280, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(920, 1580, 340, 0, Math.PI * 2); ctx.fill();
+
+  const rawText = (document.getElementById('storyTextOverlay').value || '').trim() || (storyMoodSticker || '✨ YouSeries Story');
+  ctx.save();
+  ctx.fillStyle = storyTextColor || '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fontFam = storyTextStyle === 'typewriter' ? 'monospace' : 'sans-serif';
+  ctx.font = `800 68px ${fontFam}`;
+  ctx.shadowColor = storyTextStyle === 'neon' ? (storyTextColor || '#ffffff') : 'rgba(0,0,0,0.42)';
+  ctx.shadowBlur = storyTextStyle === 'neon' ? 32 : 18;
+
+  // Word wrap text centered on canvas
+  const words = rawText.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? (cur + ' ' + w) : w;
+    if (ctx.measureText(test).width > 860 && cur) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  const lineH = 92;
+  const startY = 960 - ((lines.length - 1) * lineH) / 2;
+  lines.forEach((ln, idx) => {
+    ctx.fillText(ln, 540, startY + idx * lineH);
+  });
+  ctx.restore();
+
+  return new Promise(resolve => {
+    canvas.toBlob(blob => {
+      resolve(new File([blob], 'text-story-' + Date.now() + '.png', { type: 'image/png' }));
+    }, 'image/png', 0.92);
+  });
+}
 
 async function onStoryFilePicked(e){
   let file = e.target.files[0];
   if (!file) return;
+  storyIsTextMode = false;
+  const bgBtn = document.getElementById('seToolBgBtn');
+  if (bgBtn) bgBtn.classList.remove('active');
+  const tc = document.getElementById('storyTextCanvasCard');
+  if (tc) tc.classList.add('hidden');
   storyAdjust = null;
   if (file.type.startsWith('image/')) {
     file = await openCropper(file, 9 / 16, 1080, 'Adjust story');
@@ -6989,15 +7451,18 @@ async function onStoryFilePicked(e){
   const imgEl = document.getElementById('storyPreviewImg');
   const vidEl = document.getElementById('storyPreviewVideo');
   if (storyPickedType === 'photo') {
-    vidEl.classList.add('hidden'); vidEl.src = '';
+    vidEl.pause(); vidEl.classList.add('hidden'); vidEl.src = '';
     imgEl.src = url; imgEl.classList.remove('hidden');
   } else {
     imgEl.classList.add('hidden'); imgEl.src = '';
     vidEl.src = url; vidEl.classList.remove('hidden');
+    vidEl.play().catch(() => {});
   }
+  setStoryMediaFilter(storyMediaFilter);
   document.getElementById('storyPickArea').classList.add('hidden');
   document.getElementById('storyPreviewArea').classList.remove('hidden');
   document.getElementById('storyPostBtn').classList.remove('hidden');
+  updateStoryStudioLivePreview();
 }
 
 let uploadSongChoice = null;
@@ -7012,25 +7477,60 @@ async function pickUploadSong(){
   if (lbl) lbl.textContent = uploadSongChoice ? ('🎵 ' + (uploadSongChoice.title || 'Song') + ' (' + fmtClipSec(uploadSongChoice.songStart) + ' – ' + fmtClipSec((uploadSongChoice.songStart || 0) + (uploadSongChoice.songDuration || 15)) + ')') : '';
 }
 async function postStory(){
-  if (!storyPickedFile) return;
+  if (!storyPickedFile && !storyIsTextMode) {
+    showToast('Choose a photo/video or tap Text Story first');
+    return;
+  }
   const statusEl = document.getElementById('storyUploadStatus');
-  statusEl.textContent = 'Uploading...';
-  const fd = new FormData();
-  fd.append('media', storyPickedFile);
-  fd.append('textOverlay', document.getElementById('storyTextOverlay').value.trim());
-  if (storyAdjust) fd.append('adjust', JSON.stringify(storyAdjust));
-  if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
-  if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
+  const postBtn = document.getElementById('storyPostBtn');
+  if (postBtn) postBtn.disabled = true;
+  statusEl.textContent = 'Sharing to your story...';
   try {
+    let mediaFileToUpload = storyPickedFile;
+    if (storyIsTextMode) {
+      mediaFileToUpload = await generateTextStoryFile();
+    }
+    const fd = new FormData();
+    fd.append('media', mediaFileToUpload);
+    // For text mode, the text is already rendered on the HD gradient canvas, so only set textOverlay if not text mode
+    const rawCaption = document.getElementById('storyTextOverlay').value.trim();
+    fd.append('textOverlay', storyIsTextMode ? '' : rawCaption);
+    const fullAdjust = Object.assign({}, storyAdjust || {});
+    if (storyMediaFilter && storyMediaFilter !== 'none') fullAdjust.filter = storyMediaFilter;
+    if (storyTextStyle && storyTextStyle !== 'classic') fullAdjust.textStyle = storyTextStyle;
+    if (storyTextColor && storyTextColor !== '#ffffff') fullAdjust.textColor = storyTextColor;
+    if (storyTextPos && storyTextPos !== 'bottom') fullAdjust.textPos = storyTextPos;
+    if (storyMoodSticker) fullAdjust.sticker = storyMoodSticker;
+    if (storyLocationTag) fullAdjust.location = storyLocationTag;
+    if (storyMentionTag) fullAdjust.mention = storyMentionTag;
+    if (storyLinkObj && storyLinkObj.url) {
+      fullAdjust.linkUrl = storyLinkObj.url;
+      fullAdjust.linkLabel = storyLinkObj.label || 'Visit Link ↗';
+    }
+    if (storyIsTextMode) {
+      fullAdjust.isTextStory = true;
+      fullAdjust.bgIndex = storyBgIndex;
+    }
+    if (Object.keys(fullAdjust).length) fd.append('adjust', JSON.stringify(fullAdjust));
+    if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
+    if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
     const data = await res.json();
-    if (!res.ok) { statusEl.textContent = data.error || 'Something went wrong'; return; }
+    if (!res.ok) {
+      statusEl.textContent = data.error || 'Something went wrong';
+      if (postBtn) postBtn.disabled = false;
+      return;
+    }
     statusEl.textContent = '';
+    if (postBtn) postBtn.disabled = false;
     closeStoryUploadModal();
-    showToast('Story posted!');
+    showToast('Story posted! ✨');
     loadStories();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  } catch (e) { statusEl.textContent = 'Upload failed'; }
+  } catch (e) {
+    statusEl.textContent = 'Upload failed';
+    if (postBtn) postBtn.disabled = false;
+  }
 }
 
 // ---- Viewer ----
@@ -7155,7 +7655,9 @@ function startStoryPlayback(){
   document.getElementById('storyViewerUsername').textContent = '@' + group.ownerUsername;
   document.getElementById('storyViewerTime').textContent = storyTimeAgo(story.createdAt);
   const ovEl = document.getElementById('storyViewTextOverlay');
-  ovEl.innerHTML = linkifyStoryTags(story.textOverlay || '');
+  const stAdj = story.adjust || {};
+  applyStoryCaptionStyling(ovEl, story.textOverlay || '', stAdj.textStyle || 'classic', stAdj.textColor || '#ffffff', stAdj.textPos || 'bottom');
+  renderStoryViewerStickers(story);
   renderStoryPollBox(story);
 
   const isOwner = currentUser && currentUser.id === group.ownerId;
@@ -7264,6 +7766,24 @@ function storyAdvanceUser(direction){
 }
 
 // Opening a story silences the home feed: its videos are paused and its song is stopped
+let topOverlayZIndex = 200;
+function bumpOverlayZ(el){
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return;
+  topOverlayZIndex++;
+  el.style.zIndex = String(topOverlayZIndex);
+}
+function pauseHomeFeedMedia(){
+  document.querySelectorAll('#grid video, #profilePhotoFeedList video').forEach(v => {
+    try { if (!v.paused) v.pause(); } catch (e) {}
+  });
+  const ovOpen = document.getElementById('overlay') && document.getElementById('overlay').classList.contains('open');
+  const stOpen = document.getElementById('storyViewerOverlay') && document.getElementById('storyViewerOverlay').classList.contains('open');
+  const shOpen = document.getElementById('shortsView') && document.getElementById('shortsView').classList.contains('active');
+  if (!ovOpen && !stOpen && !shOpen) {
+    stopSong();
+  }
+}
 function pauseFeedMedia(){
   document.querySelectorAll('video').forEach(v => {
     if (!v.closest('#storyViewerOverlay') && !v.paused) v.pause();
@@ -7372,7 +7892,7 @@ async function loadUserHighlights(userId, elId, isOwn){
     html += `
       <div class="story-avatar-wrap" onclick="openHighlightViewer('${h.id}')" ${isOwn ? `onpointerdown='startHighlightHold(event,${JSON.stringify(h.id)})' onpointerup="endHighlightHold()" onpointerleave="endHighlightHold()" onpointercancel="endHighlightHold()" oncontextmenu="event.preventDefault();return false;"` : ''}>
         <div class="story-ring seen">
-          <div class="story-avatar-inner">${h.coverUrl ? `<img src="${h.coverUrl}" loading="lazy" decoding="async">` : '<span>★</span>'}</div>
+          <div class="story-avatar-inner">${h.coverUrl ? ((h.coverMediaType === 'video' || /\.(mp4|webm|mov)(\?|$)/i.test(h.coverUrl)) ? `<video src="${escapeAttr(h.coverUrl)}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></video>` : `<img src="${escapeAttr(h.coverUrl)}" loading="lazy" decoding="async">`) : '<span>★</span>'}</div>
         </div>
         <div class="highlight-title">${escapeHtml(h.title)}</div>
       </div>
@@ -7554,40 +8074,119 @@ function filterStoryViewers(f){
   renderStoryViewersList();
 }
 
+function extractUniqueEmojisClient(str){
+  if (!str) return [];
+  const s = String(str).trim();
+  let matches = [];
+  try {
+    matches = s.match(/(?:\p{RI}\p{RI}|\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?(?:\u200D\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?)*|[❤️♥️🔥😍😂👏😢🎉😘🥰👍🙏💯✨💔])/gu) || [];
+  } catch (e) {
+    matches = s.match(/[❤️♥️🔥😍😂👏😢🎉😘🥰👍🙏💯✨💔]/g) || [];
+  }
+  const seen = new Set();
+  const out = [];
+  for (const raw of matches) {
+    const norm = raw.replace(/\uFE0E/g, '');
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      out.push(raw);
+    }
+  }
+  return out;
+}
+
+function isPureEmojiClient(str){
+  if (!str) return false;
+  const s = String(str).trim();
+  if (!s || s.length > 36) return false;
+  try {
+    if (/[\p{L}\p{N}]/u.test(s)) return false;
+  } catch (e) {
+    if (/[a-zA-Z0-9]/.test(s)) return false;
+  }
+  const emojis = extractUniqueEmojisClient(s);
+  if (!emojis.length) return false;
+  try {
+    const stripped = s.replace(/(?:\p{RI}\p{RI}|\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?(?:\u200D\p{Extended_Pictographic}(?:\p{EMod}|\uFE0F|\u20E3)?)*|[\uFE0E\uFE0F\u200D\u20E3\s❤️♥️🔥😍😂👏😢🎉😘🥰👍🙏💯✨💔])/gu, '');
+    return stripped.length === 0;
+  } catch (e) {
+    return true;
+  }
+}
+
 function renderStoryViewersList(){
   const listEl = document.getElementById('storyViewsList');
   if (!listEl) return;
   const rawList = storyViewsCache.viewers || [];
-  const commentsList = (storyViewsCache.comments || []).filter(c => c && c.text && c.text.trim() !== '❤️');
+  const allRawComments = storyViewsCache.comments || [];
+
+  // Deduplicate any emoji-only items per user (even if server sent legacy emoji comments) and keep only real text replies in userCommentsMap
+  const extraUserEmojisMap = new Map();
+  const addEmojiForU = (uid, em) => {
+    if (!uid || !em) return;
+    if (!extraUserEmojisMap.has(uid)) extraUserEmojisMap.set(uid, []);
+    const arr = extraUserEmojisMap.get(uid);
+    if (!arr.includes(em)) arr.push(em);
+  };
 
   const userCommentsMap = new Map();
-  commentsList.forEach(c => {
-    if (!c || !c.userId) return;
-    if (!userCommentsMap.has(c.userId)) userCommentsMap.set(c.userId, []);
-    userCommentsMap.get(c.userId).push(c);
+  allRawComments.forEach(c => {
+    if (!c || !c.userId || !c.text) return;
+    if (isPureEmojiClient(c.text)) {
+      extractUniqueEmojisClient(c.text).forEach(em => addEmojiForU(c.userId, em));
+    } else {
+      if (!userCommentsMap.has(c.userId)) userCommentsMap.set(c.userId, []);
+      userCommentsMap.get(c.userId).push(c);
+    }
   });
 
+  // Update tab badge so Replies & Comments count only shows real text replies
+  const realTextRepliesCount = allRawComments.filter(c => c && c.text && !isPureEmojiClient(c.text)).length;
+  const tabCmtEl = document.getElementById('svTabCommentsCount');
+  if (tabCmtEl) tabCmtEl.textContent = realTextRepliesCount;
+  const footCmtEl = document.getElementById('storyCommentCountLabel');
+  if (footCmtEl) footCmtEl.textContent = realTextRepliesCount;
+
   const list = rawList.filter(v => {
-    if (storyViewsFilter === 'liked') return !!v.liked;
+    const mergedEmojis = [...new Set([...(v.emojis || []), ...(extraUserEmojisMap.get(v.userId) || [])])];
+    if (storyViewsFilter === 'liked') return !!(v.liked || mergedEmojis.length > 0);
     if (storyViewsFilter === 'commented') {
       const cmts = userCommentsMap.get(v.userId) || [];
-      return (v.comment && v.comment.trim()) || cmts.length > 0;
+      const realVComment = (v.comment && !isPureEmojiClient(v.comment)) ? v.comment : null;
+      return !!(realVComment || cmts.length > 0);
     }
     return true;
   });
 
   if (!list.length) {
     let emptyMsg = 'No views yet.';
-    if (storyViewsFilter === 'liked') emptyMsg = 'No likes on this story yet.';
-    else if (storyViewsFilter === 'commented') emptyMsg = 'No comments or replies from viewers yet.';
+    if (storyViewsFilter === 'liked') emptyMsg = 'No likes or emoji reactions on this story yet.';
+    else if (storyViewsFilter === 'commented') emptyMsg = 'No text replies from viewers yet.';
     listEl.innerHTML = `<p class="comment-empty" style="padding:24px 16px;">${emptyMsg}</p>`;
     return;
   }
 
   listEl.innerHTML = list.map(v => {
     const userCmts = userCommentsMap.get(v.userId) || [];
-    const displayComment = v.comment || (userCmts.length ? userCmts[userCmts.length - 1].text : null);
-    const cmtCount = (v.comments && v.comments.length) || userCmts.length;
+    const realVComments = (v.comments || []).filter(txt => txt && !isPureEmojiClient(txt));
+    const displayComment = (v.comment && !isPureEmojiClient(v.comment))
+      ? v.comment
+      : (realVComments.length ? realVComments[realVComments.length - 1] : (userCmts.length ? userCmts[userCmts.length - 1].text : null));
+    const cmtCount = realVComments.length || userCmts.length;
+
+    // Combine server-returned v.emojis + any legacy emoji comments from this user, strictly deduplicated (each emoji shown only ONCE!)
+    const rawEmojiPool = [...(v.emojis || []), ...(extraUserEmojisMap.get(v.userId) || [])];
+    const uniqueEmojis = [];
+    const seenEm = new Set();
+    rawEmojiPool.forEach(item => {
+      extractUniqueEmojisClient(item).forEach(em => {
+        const norm = em.replace(/\uFE0E/g, '');
+        if (!seenEm.has(norm)) {
+          seenEm.add(norm);
+          uniqueEmojis.push(em);
+        }
+      });
+    });
 
     return `
       <div class="story-viewer-row">
@@ -7601,11 +8200,16 @@ function renderStoryViewersList(){
         </div>
         <div style="flex:1;min-width:0;padding-top:2px;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-            <span class="story-viewer-row-name" style="font-weight:600;cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${v.userId}','${escapeHtml(v.username)}')">@${escapeHtml(v.username)}</span>
+            <span class="story-viewer-row-name" style="font-weight:600;color:#fff;cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${v.userId}','${escapeHtml(v.username)}')">@${escapeHtml(v.username)}</span>
             <span style="font-size:11px;color:rgba(255,255,255,0.5);flex-shrink:0;">${storyTimeAgo(v.viewedAt)}</span>
           </div>
+          ${uniqueEmojis.length ? `
+            <div style="display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:4px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);border-radius:999px;padding:2px 9px;font-size:15px;line-height:1.3;">
+              ${uniqueEmojis.map(em => `<span>${escapeHtml(em)}</span>`).join('')}
+            </div>
+          ` : ''}
           ${displayComment ? `
-            <div class="story-viewer-comment-preview">
+            <div class="story-viewer-comment-preview" style="margin-top:4px;">
               <span style="font-size:11px;opacity:0.85;flex-shrink:0;margin-top:1px;">💬</span>
               <div style="flex:1;min-width:0;">
                 <span style="color:#fff;">${escapeHtml(displayComment)}</span>
@@ -7622,20 +8226,21 @@ function renderStoryViewersList(){
 function renderStoryCommentsInViews(){
   const listEl = document.getElementById('svCommentsList');
   if (!listEl) return;
-  const list = storyViewsCache.comments || [];
+  // Filter out pure-emoji reactions so Replies & Comments only shows actual text replies!
+  const list = (storyViewsCache.comments || []).filter(c => c && c.text && !isPureEmojiClient(c.text));
   if (!list.length) {
-    listEl.innerHTML = '<p class="comment-empty" style="padding:24px 16px;">No replies or comments on this story yet.</p>';
+    listEl.innerHTML = '<p class="comment-empty" style="padding:24px 16px;">No text replies or comments on this story yet. (Emoji reactions appear under each user in Viewers!)</p>';
     return;
   }
   listEl.innerHTML = list.map(c => `
-    <div class="comment-item" style="background:var(--field);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
+    <div class="comment-item" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:12px 14px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="closeStoryViewsSheet();closeStoryViewer();goToProfileDirect('${c.userId}','${escapeHtml(c.name)}')">
           ${c.profileImage ? `<img src="${c.profileImage}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" loading="lazy">` : `<div style="width:26px;height:26px;border-radius:50%;background:var(--marigold);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">${escapeHtml((c.name || 'U')[0].toUpperCase())}</div>`}
           <span style="font-weight:700;color:#fff;font-size:13.5px;">@${escapeHtml(c.name)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:11.5px;color:rgba(255,255,255,0.55);">${storyTimeAgo(c.createdAt)}</span>
+          <span style="font-size:11.5px;color:rgba(255,255,255,0.65);">${storyTimeAgo(c.createdAt)}</span>
           <button type="button" onclick="deleteStoryCommentFromViews('${c.id}')" style="background:none;border:none;color:#e88a8a;font-size:13px;cursor:pointer;" title="Delete reply">🗑️</button>
         </div>
       </div>
@@ -7753,16 +8358,13 @@ async function sendStoryQuickReaction(emoji, event){
   if (!currentStoryId || !emoji) return;
   const btn = event ? event.currentTarget : null;
   if (btn) triggerStoryEmojiAnimation(btn, emoji);
-  const group = currentStoryUserQueue[currentStoryGroupIndex];
-  const story = group && group.stories ? group.stories[currentStoryIndex] : null;
   try {
     const res = await fetch(`/api/stories/${currentStoryId}/comments`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: emoji })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: emoji, isReaction: true })
     });
     if (!res.ok) throw new Error('Failed');
-    if (story) story.commentCount = (story.commentCount || 0) + 1;
-    const lbl = document.getElementById('storyCommentCountLabel');
-    if (lbl && story) lbl.textContent = story.commentCount;
     showToast('Reacted ' + emoji);
   } catch (e) { showToast('Reaction failed'); }
 }
@@ -7774,19 +8376,27 @@ async function postStoryComment(){
   if (!text || !currentStoryId) return;
   input.value = '';
   input.blur();
+  const isEmojiOnly = isPureEmojiClient(text);
   const group = currentStoryUserQueue[currentStoryGroupIndex];
   const story = group && group.stories ? group.stories[currentStoryIndex] : null;
   try {
     const res = await fetch(`/api/stories/${currentStoryId}/comments`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, isReaction: isEmojiOnly })
     });
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || 'Failed');
-    if (story) story.commentCount = (story.commentCount || 0) + 1;
-    const lbl = document.getElementById('storyCommentCountLabel');
-    if (lbl && story) lbl.textContent = story.commentCount;
-    showToast('Reply sent to @' + (group ? group.ownerUsername : 'user'));
-  } catch (e) { showToast('Reply failed to send'); }
+    if (!isEmojiOnly && !d.isReaction) {
+      if (story) story.commentCount = (story.commentCount || 0) + 1;
+      const lbl = document.getElementById('storyCommentCountLabel');
+      if (lbl && story) lbl.textContent = story.commentCount;
+      showToast('Reply sent to @' + (group ? group.ownerUsername : 'user'));
+    } else {
+      showToast('Reacted ' + extractUniqueEmojisClient(text).join(''));
+    }
+    resumeStoryProgress();
+  } catch (e) { showToast('Reply failed to send'); resumeStoryProgress(); }
 }
 
 let notifPollInterval = null;
@@ -8362,8 +8972,10 @@ async function openConvoById(convoId){
     if (!canPost) {
       const banner = document.createElement('div');
       banner.id = 'channelReadOnlyBanner';
-      banner.style.cssText = 'padding:14px;background:var(--panel);border-top:1px solid var(--gold-line);text-align:center;font-size:13px;color:var(--cream-dim);';
-      banner.innerHTML = '📢 Only admins can post in this channel. You can react with emojis to any update!';
+      banner.style.cssText = 'padding:14px;background:var(--panel);border-top:1px solid var(--gold-line);text-align:center;font-size:13px;color:var(--cream-dim);display:flex;flex-direction:column;align-items:center;gap:8px;';
+      banner.innerHTML = data.isMember
+        ? '<span>📢 Only admins can post in this channel. Hold any message to react with emojis!</span>'
+        : `<span>📢 Join this broadcast channel to receive updates in your inbox!</span><button type="button" class="profile-btn primary" style="padding:8px 22px;font-size:13px;font-weight:700;" onclick="joinChannelFromBanner('${escapeAttr(convoId)}', this)">＋ Join Channel 📢</button>`;
       document.getElementById('chatConvoOverlay').appendChild(banner);
     }
 
@@ -8379,6 +8991,22 @@ async function openConvoById(convoId){
     chatPollHandle = setInterval(pollChatMessages, 4000);
   } catch (err) {
     document.getElementById('chatMessagesArea').innerHTML = `<div class="chat-empty">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function joinChannelFromBanner(channelId, btn){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Joining...'; }
+  try {
+    const res = await fetch('/api/channels/' + channelId + '/join', { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not join');
+    showToast('Joined channel! 📢');
+    loadChatInbox();
+    openConvoById(channelId);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '＋ Join Channel 📢'; }
+    showToast(e.message);
   }
 }
 
@@ -8545,7 +9173,7 @@ function openAddMemberPrompt(convoId){
 
 async function openAddMemberModal(convoId){
   if (!currentUser) return;
-  pauseFeedMedia();
+  pauseHomeFeedMedia();
   const old = document.getElementById('addMemberModal');
   if (old) old.remove();
   addMemberSelectedIds = new Set();
@@ -8708,7 +9336,7 @@ async function submitNewChannel(){
 
 function openNewGroupModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
-  pauseFeedMedia();
+  pauseHomeFeedMedia();
   const old = document.getElementById('newGroupModal');
   if (old) old.remove();
 
@@ -8889,7 +9517,7 @@ async function submitChatPoll(){
 let shareChatPostTab = 'mine';
 function openSharePostInChatModal(){
   if (!currentUser || !chatConvoId) return;
-  pauseFeedMedia();
+  pauseHomeFeedMedia();
   const old = document.getElementById('sharePostChatModal');
   if (old) old.remove();
   shareChatPostTab = 'mine';
@@ -9465,8 +10093,15 @@ function exitShorts(){
   const target = shortsReturnTo;
   shortsReturnTo = null;
   switchTab('home');
-  if (target && target.type === 'chat') openChatConvo(target.userId, target.username);
-  else if (target && target.type === 'otherProfile') openOtherProfile(target.userId, target.username);
+  if (target && target.type === 'convo' && target.convoId) {
+    openChatInbox();
+    setTimeout(() => openConvoById(target.convoId), 60);
+  } else if (target && target.type === 'chat') {
+    openChatInbox();
+    setTimeout(() => openChatConvo(target.userId, target.username), 60);
+  } else if (target && target.type === 'otherProfile') {
+    openOtherProfile(target.userId, target.username);
+  }
 }
 
 function openShortFromProfile(filmId, userId, username){
@@ -9480,20 +10115,26 @@ async function openSharedShort(filmId){
   try {
     const r = await fetch('/api/films/' + encodeURIComponent(filmId));
     const f = await r.json();
-    if (!r.ok || !f || f.error) { showToast((f && f.error) || 'Ye post ab available nahi hai'); return; }
+    if (!r.ok || !f || f.error) { showToast((f && f.error) || 'This post is no longer available'); return; }
     if (!allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
     if (f.type === 'photo') {
       await openProfilePhotoFeed(f.ownerId, f.id);
       return;
     }
     if (f.type === 'short') {
-      shortsReturnTo = chatOtherUser ? { type: 'chat', userId: chatOtherUser.id, username: chatOtherUser.username } : null;
+      if (chatConvoData && (chatConvoData.type === 'group' || chatConvoData.type === 'channel')) {
+        shortsReturnTo = { type: 'convo', convoId: chatConvoData.id };
+      } else if (chatOtherUser) {
+        shortsReturnTo = { type: 'chat', userId: chatOtherUser.id, username: chatOtherUser.username };
+      }
+      closeChatConvo();
+      closeChatInbox();
       await openShortAt(f.id);
       return;
     }
     await playFilm(f.id);
   } catch (e) {
-    showToast('Post open karne me problem aayi');
+    showToast('Could not open post');
   }
 }
 
@@ -9678,12 +10319,13 @@ async function chatMsgMenuDelete(scope){
 let sendToPeople = [];
 
 async function openSendTo(shortId){
-  pauseFeedMedia();
+  pauseHomeFeedMedia();
   sendToShortId = shortId;
   sendToPeople = [];
   sendToSelected = new Set();
   updateSendToBar();
   document.getElementById('sendToSearch').value = '';
+  bumpOverlayZ('sendToOverlay');
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
   listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
@@ -9699,7 +10341,6 @@ async function openSendTo(shortId){
     const followersData = await followersRes.json();
     const seen = new Set();
 
-    // First include Groups and Channels where currentUser is allowed to post
     (convData.conversations || []).forEach(c => {
       if (c.type === 'group' || c.type === 'channel') {
         const isAdmin = c.ownerId === currentUser.id || (Array.isArray(c.admins) && c.admins.includes(currentUser.id));
@@ -9767,7 +10408,6 @@ function filterSendToGrid(query){
 function closeSendTo(){ document.getElementById('sendToOverlay').classList.remove('open'); sendToShortId = null; sendToPeople = []; sendToSelected = new Set(); const t = document.getElementById('sendToText'); if (t) t.value = ''; }
 
 let sendToSelected = new Set();
-// Tap a person or group/channel to select (tick). Nothing is sent until "Send" is pressed.
 function doSendShortTo(targetId){
   if (!sendToShortId) return;
   if (sendToSelected.has(targetId)) sendToSelected.delete(targetId); else sendToSelected.add(targetId);
@@ -10073,6 +10713,7 @@ function openUploadModal(){
   const clt = document.getElementById('qCustomLinkTitle');
   if (cl) cl.value = '';
   if (clt) clt.value = '';
+  bumpOverlayZ('uploadModalOverlay');
   document.getElementById('uploadModalOverlay').classList.add('open');
 }
 function closeUploadModal(){
@@ -10499,7 +11140,8 @@ window.UploadMgr = (function(){
       const nowOpen = el.classList.contains('open');
       if (nowOpen === wasOpen) return;
       if (nowOpen) {
-        try { pauseFeedMedia(); } catch (e) {}
+        try { pauseHomeFeedMedia(); } catch (e) {}
+        try { bumpOverlayZ(el); } catch (e) {}
         navStack.push(id);
         history.pushState({ ui: navStack.slice() }, '', location.pathname);
       } else {
@@ -11214,20 +11856,61 @@ async function leaveCollabFromPost(filmId){
 
 let storyChosenPoll = null;
 function pickStoryPoll(){
-  if (!storyPickedFile) { showToast('Choose a photo or video first'); return; }
-  const q = prompt('📊 Story Poll Question (e.g. Kaisa laga naya video?):', (storyChosenPoll && storyChosenPoll.q) || '');
+  const q = prompt('📊 Story Poll Question (e.g. How is the new video?):', (storyChosenPoll && storyChosenPoll.q) || '');
   if (q === null) return;
   if (!q.trim()) {
     storyChosenPoll = null;
+    updateStoryStudioLivePreview();
     showToast('Poll removed');
     return;
   }
-  const optA = prompt('Option 1:', (storyChosenPoll && storyChosenPoll.optA) || '🔥 Mast');
+  const optA = prompt('Option 1:', (storyChosenPoll && storyChosenPoll.optA) || '🔥 Awesome');
   if (!optA || !optA.trim()) return;
   const optB = prompt('Option 2:', (storyChosenPoll && storyChosenPoll.optB) || '😍 Super');
   if (!optB || !optB.trim()) return;
   storyChosenPoll = { q: q.trim().slice(0, 100), optA: optA.trim().slice(0, 40), optB: optB.trim().slice(0, 40) };
+  updateStoryStudioLivePreview();
   showToast('📊 Poll attached to story!');
+}
+
+function renderStoryViewerStickers(story){
+  const box = document.getElementById('storyViewStickersRow');
+  if (!box) return;
+  const a = (story && story.adjust) || {};
+  const badges = [];
+  if (a.location) {
+    badges.push(`<span class="story-viewer-badge" onclick="event.stopPropagation()">📍 ${escapeHtml(a.location)}</span>`);
+  }
+  if (a.mention) {
+    badges.push(`<span class="story-viewer-badge" onclick="event.stopPropagation();openMentionFromStory('${escapeAttr(a.mention)}')">@${escapeHtml(a.mention)}</span>`);
+  }
+  if (a.sticker) {
+    badges.push(`<span class="story-viewer-badge" onclick="event.stopPropagation()">${escapeHtml(a.sticker)}</span>`);
+  }
+  if (a.linkUrl) {
+    badges.push(`<a class="story-viewer-badge" href="${escapeAttr(normalizeUrl(a.linkUrl))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:linear-gradient(135deg,rgba(124,92,255,0.88),rgba(230,57,80,0.88));">🔗 ${escapeHtml(a.linkLabel || 'Visit Link ↗')}</a>`);
+  }
+  box.innerHTML = badges.join('');
+}
+
+async function openMentionFromStory(username){
+  if (!username) return;
+  const clean = String(username).replace(/^@/, '').toLowerCase();
+  const match = (allFilms || []).find(f => (f.ownerUsername || '').toLowerCase() === clean);
+  if (match && match.ownerId) {
+    closeStoryViewer();
+    goToProfileDirect(match.ownerId, match.ownerUsername);
+    return;
+  }
+  try {
+    const r = await fetch('/api/search?q=' + encodeURIComponent(clean));
+    const d = await r.json();
+    const u = (d.users || []).find(x => (x.username || '').toLowerCase() === clean) || (d.users || [])[0];
+    if (u && u.id) {
+      closeStoryViewer();
+      goToProfileDirect(u.id, u.username);
+    }
+  } catch (e) {}
 }
 
 function renderStoryPollBox(story){
