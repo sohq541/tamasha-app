@@ -21,7 +21,6 @@
   .bubble.admin{background:var(--chip);margin-left:auto;}
   .bubble.user{background:var(--field);border:1px solid var(--gold-line);}
   .bubble small{display:block;font-size:11px;color:var(--cream-dim);margin-top:3px;}
-  :root{--ink:#0B0A1F;--panel:#16122E;--marigold:#7C5CFF;--vermilion:#4361EE;--cream:#EDEBFF;--cream-dim:#A9A3C9;--gold-line:rgba(124,92,255,0.35);--ok:#5ad19a;--bad:#e88a8a;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;padding:20px 16px 70px;transition:background .2s,color .2s;}
   .wrap{max-width:760px;margin:0 auto;}
@@ -123,10 +122,12 @@
     <button class="tab" data-t="reports" id="reportsTab" onclick="setTab('reports')">Reports</button>
     <button class="tab" data-t="datahub" onclick="setTab('datahub')">🛰️ Data Hub</button>
     <button class="tab" data-t="songs" onclick="setTab('songs')">🎵 Songs</button>
+    <button class="tab" data-t="content" onclick="setTab('content')">🎬 Content Manager</button>
+    <button class="tab" data-t="stories" onclick="setTab('stories')">🔵 Stories Manager</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
-    <button class="tab" data-t="moderation" onclick="setTab('moderation')">🛡️ Queue</button>
+    <button class="tab" data-t="moderation" id="queueTab" onclick="setTab('moderation')">🛡️ Queue</button>
     <button class="tab" data-t="searches" onclick="setTab('searches')">🔎 Searches</button>
     <button class="tab" data-t="trending" onclick="setTab('trending')">Trending</button>
     <button class="tab" data-t="tools" onclick="setTab('tools')">Tools</button>
@@ -222,8 +223,9 @@ async function load(){
     document.getElementById('appWrap').style.display = 'grid';
     document.getElementById('logoutBtn').style.display = '';
     try { const rj = await res2.json(); R = res2.ok ? (rj.reports || []) : []; } catch (e) { R = []; }
-    try { const hj = await res3.json(); H = res3.ok ? (hj.tickets || []) : []; } catch (e) { H = []; }
+    try { const hj = await res3.json(); H = res3.ok ? (hj.tickets || []) : []; window.HD_STATS = hj.analytics || null; } catch (e) { H = []; window.HD_STATS = null; }
     document.getElementById('updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.t === tab));
     render();
   } catch (e) {
     document.getElementById('view').innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>';
@@ -244,12 +246,17 @@ function render(){
   document.getElementById('reportsTab').textContent = pend ? 'Reports (' + pend + ')' : 'Reports';
   const hOpen = H.filter(t => t.status === 'open').length;
   document.getElementById('hdTab').textContent = hOpen ? 'Help Desk (' + hOpen + ')' : 'Help Desk';
+  const qPend = (D.overview && D.overview.pendingModeration) || 0;
+  const qTabEl = document.getElementById('queueTab');
+  if (qTabEl) qTabEl.textContent = qPend ? '🛡️ Queue (' + qPend + ')' : '🛡️ Queue';
   if (tab === 'overview') renderOverview();
   else if (tab === 'reports') renderReports();
   else if (tab === 'helpdesk') renderHelpdesk();
   else if (tab === 'datahub') renderDataHub();
   else if (tab === 'songs') renderSongs();
   else if (tab === 'bluetick') renderBluetickAdmin();
+  else if (tab === 'content') renderContentManager();
+  else if (tab === 'stories') renderAdminStories();
   else if (tab === 'moderation') renderModeration();
   else if (tab === 'searches') renderSearches();
   else if (tab === 'trending') renderTrending();
@@ -297,12 +304,26 @@ function r2Card(){
 }
 
 
+function systemHealthCard(){
+  const s = D.systemStatus || {};
+  const pill = (ok, yes, no) => `<span class="pill ${ok ? 'g' : 'sus'}">${ok ? yes : no}</span>`;
+  return `<div class="card">
+    <div class="row1"><b>🤖 Ask AI & System Status</b></div>
+    <div class="nums" style="margin-top:10px;gap:10px;">
+      <span>Groq AI: ${pill(s.groqConfigured, 'Connected ✔', 'Missing GROQ_API_KEY')}</span>
+      <span>Vision Model: <span class="chip">${esc(s.visionModel || 'llama-4-scout')}</span></span>
+      <span>Tavily Live Search: ${pill(s.tavilyConfigured, 'Connected ✔', 'Off')}</span>
+      <span>Resend Email: ${pill(s.resendConfigured, 'Connected ✔', 'Off')}</span>
+      <span>Cloudflare R2: ${pill(s.r2Configured, 'Connected ✔', 'Missing R2 env')}</span>
+    </div>
+  </div>`;
+}
 function usageCards(){
   const st = D.storage || {}, eg = D.egress || {};
   const sp = st.limitBytes ? Math.min(100, st.usedBytes / st.limitBytes * 100) : 0;
   const ep = eg.allowedBytes ? Math.min(100, eg.totalBytes / eg.allowedBytes * 100) : (eg.totalBytes ? 100 : 0);
-  const folders = Object.entries(st.byFolder || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="chip">${esc(k)}: ${fb(v)}</span>`).join('');
   return `
+    ${systemHealthCard()}
     ${r2Card()}
   `;
 }
@@ -337,6 +358,7 @@ async function renderSongs(){
         <div class="meta">${esc(x.artist || '')}</div>
         <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;"></audio>
         <div class="row1" style="margin-top:8px;">
+          ${x.url ? `<button class="btn admin-song-play-btn" onclick="toggleAdminSongPreview('${esc(x.url)}', this)">▶ Play Preview</button>` : ''}
           <button class="btn" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove from trending' : '🔥 Add to trending'}</button>
           <button class="btn btn-danger" onclick="deleteSong('${x.id}')">Delete</button>
         </div>
@@ -415,6 +437,7 @@ function userCard(u){
       <div class="row1">
         <span class="dot ${u.online ? 'on' : ''}"></span>
         <span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>
+        ${u.roleBadge ? `<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">${esc(u.roleBadge)}</span>` : ''}
         ${u.suspended ? '<span class="pill sus">suspended</span>' : ''}
         ${u.google ? '<span class="pill g">google</span>' : ''}
         ${u.reports ? `<span class="pill rep">${u.reports} report${u.reports > 1 ? 's' : ''}</span>` : ''}
@@ -425,6 +448,8 @@ function userCard(u){
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
       <div class="row1" style="margin-top:10px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
+        <button class="btn" onclick="setRoleBadge('${u.id}', '${esc(u.username)}', '${esc(u.roleBadge || '')}')">🏷️ Role Tag</button>
+        <button class="btn" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send DM</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
       </div>
@@ -451,11 +476,14 @@ function reportCard(r){
       ${r.targetPreview ? `<div class="meta">"${esc(String(r.targetPreview).slice(0, 200))}"</div>` : ''}
       <div class="meta">Report kiya: @${esc(r.reporterUsername || 'unknown')}${r.note ? ' · ' + esc(r.note) : ''}</div>
       ${target ? `<div class="meta">Reported user: <b>@${esc(target.username)}</b>${target.suspended ? ' (suspended)' : ''}</div>` : ''}
-      ${pending ? `<div class="row1" style="margin-top:10px;">
-        <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
-        ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
-        ${target ? `<button class="btn ${target.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${target.id}')">${target.suspended ? 'Unsuspend user' : 'Suspend user'}</button>` : ''}
-      </div>` : ''}
+      <div class="row1" style="margin-top:10px;gap:6px;flex-wrap:wrap;">
+        ${r.filmId ? `<a class="btn" href="/?${r.filmType === 'short' ? 'short=' : 'film='}${esc(r.filmId)}" target="_blank" style="text-decoration:none;">↗ View Post</a>` : ''}
+        ${pending ? `
+          <button class="btn" onclick="dismissReport('${r.id}')">Dismiss</button>
+          ${canRemove ? `<button class="btn btn-danger" onclick="removeReported('${r.id}')">Remove content</button>` : ''}
+          ${target ? `<button class="btn ${target.suspended ? 'btn-ok' : 'btn-danger'}" onclick="toggleSuspend('${target.id}')">${target.suspended ? 'Unsuspend user' : 'Suspend user'}</button>` : ''}
+        ` : ''}
+      </div>
     </div>`;
 }
 function renderReports(){
@@ -482,26 +510,89 @@ async function removeReported(id){
   } catch (e) { alert(e.message); }
 }
 
+let hdFilter = 'all', hdSearch = '';
+const HD_CANNED = [
+  ['Bug Fixed', 'Namaste! Humne is bug ko fix kar diya hai. Kripya app refresh karke check karein.'],
+  ['Feature Added', 'Dhanyavaad suggestion ke liye! Ye feature ab YouSeries me live ho chuka hai.'],
+  ['Welcome Support', 'Namaste! Main Sohail Parvez (Founder & CEO). Aapki pareshani par hum turant kaam kar rahe hain.'],
+  ['Report Action', 'Dhanyavaad! Humari moderation team ne aapki report par action le liya hai.']
+];
+
 function renderHelpdesk(){
   const v = document.getElementById('view');
   if (!H.length) { v.innerHTML = '<div class="empty">No help desk messages yet.</div>'; return; }
-  v.innerHTML = H.map(t => {
-    const thread = (t.replies || []).map(r => `<div class="bubble ${r.from === 'admin' ? 'admin' : 'user'}">${esc(r.text)}<small>${r.from === 'admin' ? 'Tum (admin)' : esc(t.name)} · ${ago(r.at)}</small></div>`).join('');
-    const st = t.status === 'open' ? '<span class="hdtick" style="background:rgba(255,180,0,.2);color:#ffcf5c;">open</span>'
-      : t.status === 'answered' ? '<span class="hdtick" style="background:rgba(90,209,154,.2);color:var(--ok);">answered</span>'
-      : '<span class="hdtick" style="background:var(--field);color:var(--cream-dim);">closed</span>';
-    return `<div class="card">
-      <div class="row1"><span class="name">${esc(t.name)}</span>${st}<span class="meta push" style="margin:0;">${ago(t.createdAt)}</span></div>
-      <div class="meta">${esc(t.email || 'no email')} · ${t.username ? '@' + esc(t.username) : 'guest'}</div>
-      <div class="bubble user" style="margin-top:10px;">${esc(t.problem)}<small>${esc(t.name)} · ${ago(t.createdAt)}</small></div>
-      ${thread}
-      <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho… (user ko app me aur email pe dikhega)" style="margin-top:10px;min-height:70px;"></textarea>
-      <div class="row1" style="margin-top:8px;">
-        <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Send reply</button>
-        <button class="btn" onclick="setHelpStatus('${t.id}','${t.status === 'closed' ? 'open' : 'closed'}')">${t.status === 'closed' ? 'Reopen' : 'Close'}</button>
+  const total = H.length;
+  const openCount = H.filter(t => t.status === 'open').length;
+  const ansCount = H.filter(t => t.status === 'answered').length;
+  const closedCount = H.filter(t => t.status === 'closed').length;
+
+  const q = hdSearch.trim().toLowerCase();
+  const filtered = H.filter(t => {
+    if (hdFilter !== 'all' && t.status !== hdFilter) return false;
+    if (q) {
+      const hay = ((t.name || '') + ' ' + (t.username || '') + ' ' + (t.email || '') + ' ' + (t.problem || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  v.innerHTML = `
+    <div class="grid" style="margin-bottom:14px;">
+      <div class="stat ${openCount ? 'warn' : ''}" onclick="hdFilter='open';renderHelpdesk()" style="cursor:pointer;"><b>${openCount}</b><span>⏳ Open Tickets</span></div>
+      <div class="stat" onclick="hdFilter='answered';renderHelpdesk()" style="cursor:pointer;"><b>${ansCount}</b><span>💬 Answered</span></div>
+      <div class="stat" onclick="hdFilter='closed';renderHelpdesk()" style="cursor:pointer;"><b>${closedCount}</b><span>✔ Closed</span></div>
+      <div class="stat" onclick="hdFilter='all';renderHelpdesk()" style="cursor:pointer;"><b>${total}</b><span>📋 Total Inquiries</span></div>
+    </div>
+
+    <div class="row1" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+      <div style="display:flex;gap:6px;overflow-x:auto;">
+        <button class="tab ${hdFilter === 'all' ? 'active' : ''}" onclick="hdFilter='all';renderHelpdesk()">All (${total})</button>
+        <button class="tab ${hdFilter === 'open' ? 'active' : ''}" onclick="hdFilter='open';renderHelpdesk()">Open (${openCount})</button>
+        <button class="tab ${hdFilter === 'answered' ? 'active' : ''}" onclick="hdFilter='answered';renderHelpdesk()">Answered (${ansCount})</button>
+        <button class="tab ${hdFilter === 'closed' ? 'active' : ''}" onclick="hdFilter='closed';renderHelpdesk()">Closed (${closedCount})</button>
       </div>
-    </div>`;
-  }).join('');
+      <input type="text" placeholder="🔍 Search ticket by user, email or issue…" value="${esc(hdSearch)}" oninput="hdSearch=this.value;renderHelpdesk()" style="padding:7px 12px;border-radius:20px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;outline:none;">
+    </div>
+
+    ` + (filtered.map(t => {
+      const thread = (t.replies || []).map(r => `<div class="bubble ${r.from === 'admin' ? 'admin' : 'user'}">${esc(r.text)}<small>${r.from === 'admin' ? 'Tum (admin)' : esc(t.name)} · ${ago(r.at)}</small></div>`).join('');
+      const st = t.status === 'open' ? '<span class="hdtick" style="background:rgba(255,180,0,.2);color:#ffcf5c;">open</span>'
+        : t.status === 'answered' ? '<span class="hdtick" style="background:rgba(90,209,154,.2);color:var(--ok);">answered</span>'
+        : '<span class="hdtick" style="background:var(--field);color:var(--cream-dim);">closed</span>';
+      return `<div class="card" id="hdt-${t.id}">
+        <div class="row1"><span class="name">${esc(t.name)}</span>${st}<span class="meta push" style="margin:0;">${ago(t.createdAt)}</span></div>
+        <div class="meta">${esc(t.email || 'no email')} · ${t.username ? '@' + esc(t.username) : 'guest'} ${t.category ? '· <span class="pill g">' + esc(t.category) + '</span>' : ''}</div>
+        <div class="bubble user" style="margin-top:10px;">
+          ${esc(t.problem)}
+          ${t.screenshotUrl ? `<div style="margin-top:8px;"><a href="${esc(t.screenshotUrl)}" target="_blank"><img src="${esc(t.screenshotUrl)}" style="max-height:160px;border-radius:8px;border:1px solid var(--gold-line);" loading="lazy"></a></div>` : ''}
+          <small>${esc(t.name)} · ${ago(t.createdAt)}</small>
+        </div>
+        ${thread}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+          ${HD_CANNED.map(([lbl, txt]) => `<button type="button" class="btn" style="font-size:11.5px;padding:4px 8px;" onclick="insertCannedReply('${t.id}', ${JSON.stringify(txt)})">⚡ ${esc(lbl)}</button>`).join('')}
+        </div>
+        <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho… (user ko app me aur email pe dikhega)" style="margin-top:10px;min-height:70px;"></textarea>
+        <div class="row1" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Send reply</button>
+          <button class="btn" onclick="setHelpStatus('${t.id}','${t.status === 'closed' ? 'open' : 'closed'}')">${t.status === 'closed' ? 'Reopen' : 'Close'}</button>
+          ${t.username ? `<button class="btn" onclick="adminDmUser('${esc(t.userId || '')}', '${esc(t.username)}')">✉️ DM User</button>` : ''}
+          <button class="btn btn-danger" onclick="deleteHelpdeskTicket('${t.id}')" style="margin-left:auto;">🗑️ Delete</button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="empty">No matching helpdesk tickets found.</div>');
+}
+function insertCannedReply(tid, txt){
+  const el = document.getElementById('hr-' + tid);
+  if (el) { el.value = txt; el.focus(); }
+}
+async function deleteHelpdeskTicket(id){
+  if (!confirm('Permanently delete this helpdesk ticket?')) return;
+  try {
+    const res = await fetch('/api/admin/helpdesk/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    if (!res.ok) throw new Error('Delete failed');
+    H = H.filter(t => t.id !== id);
+    renderHelpdesk();
+  } catch (e) { alert(e.message); }
 }
 async function replyHelpdesk(id){
   const ta = document.getElementById('hr-' + id);
@@ -526,7 +617,6 @@ async function setHelpStatus(id, status){
   } catch (e) { alert(e.message); }
 }
 
-let BT = null;
 async function renderModeration(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
@@ -534,38 +624,126 @@ async function renderModeration(){
     const res = await fetch('/api/admin/moderation', { headers: { 'x-no-prompt': '1' } });
     const d = await res.json();
     if (!res.ok) throw new Error(d.error || 'Failed');
+    if (D && D.overview) {
+      D.overview.pendingModeration = (d.queue || []).length;
+      const qTabEl = document.getElementById('queueTab');
+      if (qTabEl) qTabEl.textContent = d.queue.length ? '🛡️ Queue (' + d.queue.length + ')' : '🛡️ Queue';
+    }
     v.innerHTML = `
       <div class="card">
-        <b>🛡️ Upload review</b>
-        <div class="meta">When on, new uploads will not be visible to users until you approve them.</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button><span class="meta" style="margin:0 0 0 8px;">${d.reviewUploads ? '✅ on' : 'off'}</span></div>
+        <b>🛡️ Upload review &amp; Auto-approval</b>
+        <div class="meta">When on, new uploads wait in the queue until you approve them. You can also auto-approve Verified (✔) creators.</div>
+        <div class="row1" style="margin-top:10px;gap:10px;flex-wrap:wrap;">
+          <button class="btn ${d.reviewUploads ? 'btn-danger' : 'btn-ok'}" onclick="toggleReview(${!d.reviewUploads})">${d.reviewUploads ? 'Turn off review' : 'Turn on review'}</button>
+          <span class="meta" style="margin:0;">Status: <b>${d.reviewUploads ? '✅ ON' : 'OFF'}</b></span>
+          <button class="btn ${d.autoApproveVerified ? 'btn-ok' : ''}" onclick="toggleAutoApproveVerified(${!d.autoApproveVerified})">${d.autoApproveVerified ? '✔ Auto-Approve Verified: ON' : '✔ Auto-Approve Verified: OFF'}</button>
+        </div>
       </div>
-      <h3 class="sec">Queue (${d.queue.length})</h3>
-      ${d.queue.map(f => `<div class="card">
-        <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
-        <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
-        <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="modDecide('${f.id}', true)">✔ Approve</button><button class="btn btn-danger" onclick="modDecide('${f.id}', false)">✕ Reject (delete)</button></div>
-      </div>`).join('') || '<div class="empty">The queue is empty.</div>'}`;
+      <div class="row1" style="margin:16px 0 10px;justify-content:space-between;">
+        <h3 class="sec" style="margin:0;">Queue (${d.queue.length})</h3>
+        ${d.queue.length > 0 ? `<button class="btn btn-ok" onclick="approveAllQueue()">✔ Approve All (${d.queue.length})</button>` : ''}
+      </div>
+      ${d.queue.map(f => {
+        const mediaPreview = f.videoUrl
+          ? `<video src="${esc(f.videoUrl)}" controls playsinline preload="metadata" style="max-width:260px;max-height:220px;border-radius:8px;background:#000;margin-top:8px;display:block;"></video>`
+          : (f.posterUrl
+              ? `<a href="${esc(f.posterUrl)}" target="_blank"><img src="${esc(f.posterUrl)}" style="max-width:220px;max-height:220px;border-radius:8px;object-fit:contain;background:#000;margin-top:8px;display:block;" loading="lazy"></a>`
+              : '');
+        return `<div class="card">
+          <div class="row1"><span class="name">${esc(f.title)}</span><span class="pill g">${esc(f.type)}</span></div>
+          <div class="meta">@${esc(f.owner || 'user')} · ${ago(f.uploadedAt)}</div>
+          ${f.description ? `<div class="meta" style="margin-top:4px;">${esc(f.description)}</div>` : ''}
+          ${mediaPreview}
+          <div class="row1" style="margin-top:10px;gap:6px;flex-wrap:wrap;">
+            <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${esc(f.id)}" target="_blank" style="text-decoration:none;">↗ Open</a>
+            <button class="btn btn-ok" onclick="modDecide('${f.id}', true, false)">✔ Approve</button>
+            <button class="btn btn-ok" style="background:rgba(255,190,60,0.2);border-color:#ffcf5c;color:#ffcf5c;" onclick="modDecide('${f.id}', true, true)">🔥 Approve &amp; Boost</button>
+            <button class="btn btn-danger" onclick="modDecide('${f.id}', false, false)">✕ Reject with Reason</button>
+          </div>
+        </div>`;
+      }).join('') || '<div class="empty">The queue is empty.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
 async function toggleReview(on){
   await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ reviewUploads: on }) });
   renderModeration();
 }
-async function modDecide(id, approve){
-  if (!approve && !confirm('Permanently delete this post?')) return;
-  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), { method: 'POST', headers: { 'x-no-prompt': '1' } });
+async function toggleAutoApproveVerified(on){
+  await fetch('/api/admin/moderation/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ autoApproveVerified: on }) });
   renderModeration();
 }
+async function approveAllQueue(){
+  if (!confirm('Approve all pending uploads in the queue?')) return;
+  await fetch('/api/admin/moderation/approve-all', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+  renderModeration();
+}
+async function modDecide(id, approve, boost){
+  let reason = '';
+  if (!approve) {
+    reason = prompt('Reject reason (sent to user in notifications, e.g. 18+ Content, Copyright, Spam, Low Quality):', 'Violates community guidelines');
+    if (reason === null) return;
+  }
+  await fetch('/api/admin/moderation/' + id + (approve ? '/approve' : '/reject'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+    body: JSON.stringify({ boost: !!boost, reason: reason || '' })
+  });
+  renderModeration();
+}
+let adminPreviewAudio = null, adminPreviewBtn = null;
+function toggleAdminSongPreview(url, btn){
+  if (adminPreviewAudio && adminPreviewAudio.src.endsWith(url) && !adminPreviewAudio.paused) {
+    adminPreviewAudio.pause();
+    btn.textContent = '▶ Play Preview';
+    return;
+  }
+  if (adminPreviewAudio) {
+    adminPreviewAudio.pause();
+    if (adminPreviewBtn) adminPreviewBtn.textContent = '▶ Play Preview';
+  }
+  adminPreviewAudio = new Audio(url);
+  adminPreviewBtn = btn;
+  btn.textContent = '⏸ Pause Preview';
+  adminPreviewAudio.onended = () => { btn.textContent = '▶ Play Preview'; };
+  adminPreviewAudio.play().catch(e => { btn.textContent = '▶ Play Preview'; alert('Audio playback error: ' + e.message); });
+}
+
 async function renderSearches(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
   try {
     const res = await fetch('/api/admin/search-terms', { headers: { 'x-no-prompt': '1' } });
     const d = await res.json();
-    v.innerHTML = `<div class="card"><b>🔎 Top search terms</b><div class="meta">What users are searching for. Useful for content ideas.</div></div>` +
-      (d.terms.map((t, i) => `<div class="ev"><div class="ic">#${i + 1}</div><div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} baar · ${ago(t.last)}</div></div></div>`).join('') || '<div class="empty">No searches yet.</div>');
+    v.innerHTML = `
+      <div class="card">
+        <div class="row1" style="justify-content:space-between;">
+          <div>
+            <b>🔎 Top search terms</b>
+            <div class="meta">Keywords users are searching for on YouSeries.</div>
+          </div>
+          ${(d.terms && d.terms.length) ? `<button class="btn btn-danger" onclick="clearAllSearchTerms()">🗑️ Clear All Terms</button>` : ''}
+        </div>
+      </div>` +
+      ((d.terms || []).map((t, i) => `
+        <div class="ev">
+          <div class="ic">#${i + 1}</div>
+          <div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} searches · ${ago(t.last)}</div></div>
+          <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="deleteSearchTerm('${esc(t.term)}')">✕ Delete</button>
+        </div>`).join('') || '<div class="empty">No searches recorded yet.</div>');
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
+}
+async function deleteSearchTerm(term){
+  try {
+    await fetch('/api/admin/search-terms/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ term }) });
+    renderSearches();
+  } catch (e) {}
+}
+async function clearAllSearchTerms(){
+  if (!confirm('Clear all search query logs?')) return;
+  try {
+    await fetch('/api/admin/search-terms/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ clearAll: true }) });
+    renderSearches();
+  } catch (e) {}
 }
 async function showUserDetail(id){
   const v = document.getElementById('view');
@@ -577,7 +755,7 @@ async function showUserDetail(id){
     const u = d.user;
     v.innerHTML = `
       <div class="card">
-        <button class="btn" onclick="setTab('users')">← Users</button>
+        <div class="row1"><button class="btn" onclick="setTab('users')">← Users</button><button class="btn btn-ok" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send Official DM</button></div>
         <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
         <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
         <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
@@ -595,6 +773,7 @@ async function showUserDetail(id){
       ${d.helpTickets.map(h => `<div class="card"><div class="meta">${esc(h.problem)} · ${esc(h.status)}</div></div>`).join('') || '<div class="empty">No messages.</div>'}`;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
+let BT = null, btFilter = 'all', btSearch = '';
 async function renderBluetickAdmin(){
   const v = document.getElementById('view');
   v.innerHTML = '<div class="loading">Loading…</div>';
@@ -605,59 +784,98 @@ async function renderBluetickAdmin(){
     BT = data;
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; return; }
   const st = BT.settings || {};
-  const pending = BT.requests.filter(r => r.status === 'pending');
-  const done = BT.requests.filter(r => r.status !== 'pending').slice(0, 30);
-  const rq = r => `<div class="card">
-      <div class="row1"><span class="name">@${esc(r.username)}</span><span class="pill ${r.status === 'approved' ? 'g' : r.status === 'rejected' ? 'sus' : 'rep'}">${esc(r.status)}</span><span class="meta push" style="margin:0;">${ago(r.createdAt)}</span></div>
-      <div class="meta">UTR: <b>${esc(r.utr)}</b> · ₹${esc(r.amount)}</div>
-      ${r.reason ? `<div class="meta">Reason: ${esc(r.reason)}</div>` : ''}
-      ${r.status === 'pending' ? `<div class="row1" style="margin-top:10px;">
-        <button class="btn btn-ok" onclick="decideBluetick('${r.id}', true)">✔ Approve (30 din)</button>
-        <button class="btn btn-danger" onclick="decideBluetick('${r.id}', false)">Reject</button>
-      </div>` : ''}
-    </div>`;
+  const an = BT.analytics || { totalRevenue: 0, pendingCount: 0, approvedCount: 0, activeVerifiedCount: 0 };
+  const allReqs = BT.requests || [];
+
   v.innerHTML = `
-    <div class="card">
-      <b>💳 Payment settings</b>
-      <div class="meta">Users will see this UPI ID and QR. Price between ₹5 and ₹49.</div>
-      <label class="meta" style="display:block;margin-top:10px;">Price (₹ / mahine)</label>
-      <input id="btPrice" type="number" min="5" max="49" value="${esc(st.price || 49)}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-      <label class="meta" style="display:block;margin-top:10px;">UPI ID</label>
-      <input id="btUpi" type="text" value="${esc(st.upi || '')}" placeholder="yourname@upi" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);box-sizing:border-box;">
-      <div class="row1" style="margin-top:10px;"><button class="btn btn-ok" onclick="saveBluetickSettings()">Save</button></div>
-      <label class="meta" style="display:block;margin-top:14px;">QR image (UPI QR screenshot)</label>
-      <input id="btQr" type="file" accept="image/*">
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="uploadBluetickQr()">Upload QR</button>${st.qrUrl ? '<button class="btn btn-danger" onclick="deleteBluetickQr()">Delete QR</button><span class="meta" style="margin:0 0 0 8px;">✅ QR is set</span>' : ''}</div>
+    <div class="grid" style="margin-bottom:14px;">
+      <div class="stat"><b style="color:var(--ok);">₹${an.totalRevenue}</b><span>💰 Revenue Collected</span></div>
+      <div class="stat ${an.pendingCount ? 'warn' : ''}" onclick="btFilter='pending';drawBluetickRows()" style="cursor:pointer;"><b>${an.pendingCount}</b><span>⏳ Pending Requests</span></div>
+      <div class="stat" onclick="btFilter='approved';drawBluetickRows()" style="cursor:pointer;"><b>${an.approvedCount}</b><span>✔ Total Approved</span></div>
+      <div class="stat"><b>${an.activeVerifiedCount}</b><span>🛡️ Active Verified Users</span></div>
     </div>
-    <h3 class="sec">Pending (${pending.length})</h3>
-    ${pending.map(rq).join('') || '<div class="empty">No pending requests.</div>'}
-    <h3 class="sec">Purani requests</h3>
-    ${done.map(rq).join('') || '<div class="empty">Nothing yet.</div>'}`;
+
+    <div class="card">
+      <b>✔ Blue tick settings &amp; UPI QR Code</b>
+      <div class="meta" style="margin-bottom:10px;">Set subscription price, official UPI ID, and upload payment QR code.</div>
+      <div class="row1" style="gap:8px;flex-wrap:wrap;">
+        <input id="btPrice" type="number" value="${st.price || 499}" placeholder="Price (INR)" style="width:120px;padding:8px;background:var(--field);border:1px solid var(--gold-line);border-radius:6px;color:var(--cream);">
+        <input id="btUpi" type="text" value="${esc(st.upiId || st.upi || '')}" placeholder="UPI ID (e.g. name@upi)" style="flex:1;min-width:180px;padding:8px;background:var(--field);border:1px solid var(--gold-line);border-radius:6px;color:var(--cream);">
+        <button class="btn btn-ok" onclick="saveBluetickSettings()">Save settings</button>
+      </div>
+      <div class="row1" style="margin-top:10px;gap:8px;flex-wrap:wrap;">
+        <input id="btQr" type="file" accept="image/*" style="font-size:12px;">
+        <button class="btn" onclick="uploadBluetickQr()">Upload UPI QR</button>
+        ${st.qrUrl ? `<a href="${esc(st.qrUrl)}" target="_blank" class="meta" style="color:var(--marigold);margin-left:8px;">View QR image ↗</a>` : ''}
+      </div>
+    </div>
+
+    <div class="row1" style="margin:16px 0 10px;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+      <div style="display:flex;gap:6px;overflow-x:auto;">
+        <button class="tab ${btFilter === 'all' ? 'active' : ''}" onclick="btFilter='all';drawBluetickRows()">All (${allReqs.length})</button>
+        <button class="tab ${btFilter === 'pending' ? 'active' : ''}" onclick="btFilter='pending';drawBluetickRows()">⏳ Pending (${allReqs.filter(r => r.status === 'pending').length})</button>
+        <button class="tab ${btFilter === 'approved' ? 'active' : ''}" onclick="btFilter='approved';drawBluetickRows()">✔ Approved (${allReqs.filter(r => r.status === 'approved').length})</button>
+        <button class="tab ${btFilter === 'rejected' ? 'active' : ''}" onclick="btFilter='rejected';drawBluetickRows()">✕ Rejected (${allReqs.filter(r => r.status === 'rejected').length})</button>
+      </div>
+      <input type="text" id="btSearchInput" placeholder="🔍 Search username or Txn ID…" value="${esc(btSearch)}" oninput="btSearch=this.value;drawBluetickRows()" style="padding:7px 12px;border-radius:20px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;outline:none;">
+    </div>
+
+    <div id="btRows">${drawBluetickRowsContent()}</div>
+  `;
 }
-async function decideBluetick(id, approve){
-  let reason = '';
-  if (!approve) { reason = prompt('Reject reason (shown to the user):', '') || ''; }
-  else if (!confirm('Approve and give a 30-day blue tick?')) return;
-  try {
-    const res = await fetch('/api/admin/bluetick/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ approve, reason }) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed');
-    renderBluetickAdmin();
-  } catch (e) { alert(e.message); }
+function drawBluetickRows(){
+  const box = document.getElementById('btRows');
+  if (box) box.innerHTML = drawBluetickRowsContent();
+}
+function drawBluetickRowsContent(){
+  const list = (BT && BT.requests) || [];
+  const q = btSearch.trim().toLowerCase();
+  const rows = list.filter(r => {
+    if (btFilter !== 'all' && r.status !== btFilter) return false;
+    if (q && !(r.username || '').toLowerCase().includes(q) && !(r.txnId || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!rows.length) return '<div class="empty">No matching requests found.</div>';
+  return rows.map(r => `
+    <div class="card">
+      <div class="row1">
+        <a class="name" href="/?profile=${esc(r.userId)}" target="_blank" style="text-decoration:none;color:var(--cream);">@${esc(r.username)}</a>
+        <span class="pill ${r.status === 'approved' ? 'g' : (r.status === 'rejected' ? 'rep' : 'sus')}">${esc(r.status)}</span>
+      </div>
+      <div class="meta">Txn ID: <b>${esc(r.txnId || r.utr || 'none')}</b> · Amount: ₹${r.amount || 499} · Requested ${ago(r.createdAt)}</div>
+      ${r.screenshotUrl ? `<div style="margin:8px 0;"><a href="${esc(r.screenshotUrl)}" target="_blank"><img src="${esc(r.screenshotUrl)}" style="max-height:140px;border-radius:6px;border:1px solid var(--gold-line);" loading="lazy"></a></div>` : ''}
+      <div class="row1" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
+        ${r.status === 'pending' ? `
+          <button class="btn btn-ok" onclick="decideBluetick('${r.id}', 'approve')">✔ Approve &amp; Verify</button>
+          <button class="btn btn-danger" onclick="decideBluetick('${r.id}', 'reject')">✕ Reject</button>
+        ` : ''}
+        ${r.status === 'approved' ? `
+          <button class="btn btn-danger" onclick="decideBluetick('${r.id}', 'revoke')">✕ Revoke Blue Tick</button>
+        ` : ''}
+        <button class="btn" onclick="adminDmUser('${r.userId}', '${esc(r.username)}')">✉️ DM User</button>
+      </div>
+    </div>
+  `).join('');
 }
 async function saveBluetickSettings(){
+  const price = Number(document.getElementById('btPrice').value) || 499;
+  const upiId = document.getElementById('btUpi').value.trim();
   try {
-    const res = await fetch('/api/admin/bluetick/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' }, body: JSON.stringify({ price: document.getElementById('btPrice').value, upi: document.getElementById('btUpi').value }) });
+    const res = await fetch('/api/admin/bluetick/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ price, upiId, upi: upiId })
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
-    alert('Saved ✔');
+    alert('Settings saved ✔');
     renderBluetickAdmin();
   } catch (e) { alert(e.message); }
 }
-async function deleteBluetickQr(){
-  if (!confirm('Delete the QR? Users will no longer see it.')) return;
+async function decideBluetick(id, action){
+  if (!confirm('Mark as ' + action + '?')) return;
   try {
-    const res = await fetch('/api/admin/bluetick/qr/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const res = await fetch('/api/admin/bluetick/' + id + '/' + action, { method: 'POST', headers: { 'x-no-prompt': '1' } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     renderBluetickAdmin();
@@ -714,9 +932,12 @@ async function renderTools(){
       <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="saveBanned()">Save</button><span class="meta" id="bannedStatus" style="margin:0;"></span></div>
     </div>
     <div class="card">
-      <b>📥 Users ki list (CSV)</b>
-      <div class="meta">Naam, email, join date, posts, comments, followers — Excel/Sheets me khulega.</div>
-      <div class="row1" style="margin-top:8px;"><button class="btn" onclick="exportCsv()">⬇️ Download CSV</button></div>
+      <b>📥 Users ki list (CSV) &amp; 💾 Full Database Backup (JSON)</b>
+      <div class="meta">Download user spreadsheet (CSV) or a complete 1-click JSON backup of all users, posts, stories, songs, and settings.</div>
+      <div class="row1" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
+        <button class="btn" onclick="exportCsv()">⬇️ Download Users CSV</button>
+        <button class="btn btn-ok" onclick="downloadBackupJson()">💾 Download Full Backup (JSON)</button>
+      </div>
     </div>
     <div class="card">
       <b>🚨 Report alert</b>
@@ -747,6 +968,19 @@ async function saveBanned(){
     status.textContent = '✅ Saved (' + data.words.length + ' shabd)';
   } catch (e) { status.textContent = '❌ ' + e.message; }
 }
+async function downloadBackupJson(){
+  try {
+    const res = await fetch('/api/admin/backup.json');
+    if (!res.ok) throw new Error('Backup failed');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'youseries-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) { alert(e.message); }
+}
 async function exportCsv(){
   try {
     const res = await fetch('/api/admin/users.csv');
@@ -755,6 +989,36 @@ async function exportCsv(){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'youseries-users.csv';
     document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { alert(e.message); }
+}
+async function adminDmUser(id, username){
+  const msg = prompt('Send official Admin DM / Warning to @' + username + ':');
+  if (!msg || !msg.trim()) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ message: msg.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not send DM');
+    alert('✅ Official DM sent to @' + username + '!');
+  } catch (e) { alert('❌ ' + e.message); }
+}
+async function setRoleBadge(id, username, currentBadge){
+  const badge = prompt('Set custom Role Badge for @' + username + '\nExamples: 👑 Founder & CEO, ⭐ Star Creator, 🎵 Official Artist, 🛡️ Admin\n(Leave blank to remove badge):', currentBadge || '👑 Founder & CEO');
+  if (badge === null) return;
+  try {
+    const res = await fetch('/api/admin/users/' + id + '/role-badge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ roleBadge: badge.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const u = D.users.find(x => x.id === id);
+    if (u) u.roleBadge = d.roleBadge;
+    render();
   } catch (e) { alert(e.message); }
 }
 async function toggleVerify(id){
@@ -781,6 +1045,162 @@ async function deleteUser(id){
     if (!res.ok) throw new Error(data.error || 'Failed');
     alert('@' + u.username + ' delete ho gaya.');
     load();
+  } catch (e) { alert(e.message); }
+}
+
+// ---------------- Content Manager (Posts, Reels, Photos) ----------------
+let CM_LIST = [], cmType = 'all', cmQuery = '';
+async function renderContentManager(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading posts…</div>';
+  try {
+    const res = await fetch('/api/admin/content', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    CM_LIST = d.films || [];
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; return; }
+
+  v.innerHTML = `
+    <div class="row1" style="gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:space-between;">
+      <div style="display:flex;gap:6px;overflow-x:auto;">
+        <button class="tab ${cmType === 'all' ? 'active' : ''}" onclick="cmType='all';drawContentList()">All (${CM_LIST.length})</button>
+        <button class="tab ${cmType === 'film' ? 'active' : ''}" onclick="cmType='film';drawContentList()">🎬 Videos (${CM_LIST.filter(f => f.type === 'film').length})</button>
+        <button class="tab ${cmType === 'short' ? 'active' : ''}" onclick="cmType='short';drawContentList()">⚡ Shorts (${CM_LIST.filter(f => f.type === 'short').length})</button>
+        <button class="tab ${cmType === 'photo' ? 'active' : ''}" onclick="cmType='photo';drawContentList()">🖼️ Photos (${CM_LIST.filter(f => f.type === 'photo').length})</button>
+      </div>
+      <input type="text" id="cmSearchInput" placeholder="🔍 Search title or @username…" value="${esc(cmQuery)}" oninput="cmQuery=this.value;drawContentList()" style="padding:7px 12px;border-radius:20px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;outline:none;">
+    </div>
+    <div id="cmRows"></div>
+  `;
+  drawContentList();
+}
+function drawContentList(){
+  const box = document.getElementById('cmRows');
+  if (!box) return;
+  const q = cmQuery.trim().toLowerCase();
+  const rows = CM_LIST.filter(f => (cmType === 'all' || f.type === cmType) && (!q || (f.title || '').toLowerCase().includes(q) || (f.ownerUsername || '').toLowerCase().includes(q)));
+  box.innerHTML = rows.map(f => {
+    const thumbHtml = f.posterUrl
+      ? `<img src="${esc(f.posterUrl)}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;" loading="lazy">`
+      : (f.videoUrl
+          ? `<video src="${esc(f.videoUrl)}#t=0.5" muted playsinline preload="metadata" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0;"></video>`
+          : `<div style="width:64px;height:64px;border-radius:8px;background:var(--field);display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎬</div>`);
+    return `
+    <div class="card" id="cm-${f.id}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      ${thumbHtml}
+      <div style="flex:1;min-width:180px;">
+        <div class="row1">
+          <span class="name">${esc(f.title)}</span>
+          <span class="pill g">${esc(f.type)}</span>
+          ${f.adminBoosted ? '<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">📌 Boosted</span>' : ''}
+          ${f.pendingReview ? '<span class="pill rep">pending</span>' : ''}
+          ${f.isSensitive ? '<span class="pill sus">18+/sensitive</span>' : ''}
+        </div>
+        <div class="meta">@${esc(f.ownerUsername)} · ${ago(f.uploadedAt)}</div>
+        ${f.description ? `<div class="meta" style="font-size:12px;opacity:0.85;">${esc(f.description.slice(0, 100))}</div>` : ''}
+        <div class="nums"><span><b>${f.views}</b> views</span><span><b>${f.likes}</b> likes</span><span><b>${f.comments}</b> comments</span></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${f.id}" target="_blank" style="text-align:center;text-decoration:none;">↗ Open</a>
+        <button class="btn" onclick="adminEditPost('${f.id}')">✏️ Edit</button>
+        <button class="btn ${f.adminBoosted ? 'btn-ok' : ''}" onclick="adminBoostPost('${f.id}')">${f.adminBoosted ? '📌 Unboost' : '📌 Pin/Boost'}</button>
+        <button class="btn btn-danger" onclick="adminDeletePost('${f.id}')">🗑️ Delete</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">No matching posts found.</div>';
+}
+async function adminEditPost(id){
+  const f = CM_LIST.find(x => x.id === id);
+  if (!f) return;
+  const title = prompt('Edit post title:', f.title || '');
+  if (title === null) return;
+  const description = prompt('Edit post description / hashtags:', f.description || '');
+  if (description === null) return;
+  const isSensitive = confirm('Mark this post as 18+ / Sensitive content?\n(Click OK for 18+ Sensitive, Cancel for Normal)');
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ title: title.trim() || f.title, description, isSensitive })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Edit failed');
+    f.title = d.title;
+    f.description = d.description;
+    f.isSensitive = d.isSensitive;
+    drawContentList();
+  } catch (e) { alert(e.message); }
+}
+async function adminBoostPost(id){
+  const f = CM_LIST.find(x => x.id === id);
+  if (!f) return;
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/boost', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Boost failed');
+    f.adminBoosted = d.adminBoosted;
+    drawContentList();
+  } catch (e) { alert(e.message); }
+}
+async function adminDeletePost(id){
+  if (!confirm('Permanently delete this post and its media from R2?')) return;
+  try {
+    const res = await fetch('/api/admin/content/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Delete failed');
+    CM_LIST = CM_LIST.filter(x => x.id !== id);
+    drawContentList();
+  } catch (e) { alert(e.message); }
+}
+
+// ---------------- Active Stories Manager ----------------
+let ADMIN_STORIES = [];
+async function renderAdminStories(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading active stories…</div>';
+  try {
+    const res = await fetch('/api/admin/stories', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    ADMIN_STORIES = d.stories || [];
+  } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; return; }
+
+  v.innerHTML = `
+    <div class="row1" style="margin-bottom:12px;justify-content:space-between;">
+      <h3 class="sec" style="margin:0;">🔵 Active Stories (${ADMIN_STORIES.length})</h3>
+    </div>
+    <div id="adminStoryRows">` +
+    (ADMIN_STORIES.map(s => `
+      <div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div style="width:64px;height:96px;border-radius:8px;overflow:hidden;background:#000;flex-shrink:0;">
+          ${s.mediaType === 'video'
+            ? `<video src="${esc(s.mediaUrl)}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+            : `<img src="${esc(s.mediaUrl)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">`}
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <div class="row1">
+            <span class="name">@${esc(s.ownerUsername)}</span>
+            <span class="pill g">${esc(s.mediaType)}</span>
+            ${s.song ? '<span class="pill" style="background:rgba(124,92,255,0.2);color:var(--marigold);">🎵 Song</span>' : ''}
+          </div>
+          ${s.textOverlay ? `<div class="meta" style="font-size:12.5px;color:var(--cream);margin-top:2px;">"${esc(s.textOverlay)}"</div>` : ''}
+          <div class="nums" style="margin-top:6px;"><span><b>${s.viewCount || 0}</b> views</span><span><b>${s.likeCount || 0}</b> likes</span><span>Posted ${ago(s.createdAt)}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <a class="btn" href="${esc(s.mediaUrl)}" target="_blank" style="text-decoration:none;">↗ Open Media</a>
+          <button class="btn btn-danger" onclick="adminDeleteStory('${s.id}')">🗑️ Delete</button>
+        </div>
+      </div>
+    `).join('') || '<div class="empty">No active stories in the last 24h.</div>') +
+    `</div>`;
+}
+async function adminDeleteStory(id){
+  if (!confirm('Permanently delete this story from the platform and R2?')) return;
+  try {
+    const res = await fetch('/api/admin/stories/' + id + '/delete', { method: 'POST', headers: { 'x-no-prompt': '1' } });
+    if (!res.ok) throw new Error('Delete failed');
+    ADMIN_STORIES = ADMIN_STORIES.filter(s => s.id !== id);
+    renderAdminStories();
   } catch (e) { alert(e.message); }
 }
 
