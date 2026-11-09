@@ -1802,6 +1802,7 @@
     <div class="story-viewer-avatar-fallback hidden" id="storyViewerAvatarFallback" onclick="openStoryOwnerProfile(event)" style="cursor:pointer;">U</div>
     <div class="story-viewer-who"><span class="story-viewer-username" id="storyViewerUsername" onclick="openStoryOwnerProfile(event)" style="cursor:pointer;"></span><span id="storyViewerSong" class="story-song-line" style="display:none;"></span></div>
     <span class="story-viewer-time" id="storyViewerTime"></span>
+    <button type="button" class="story-viewer-close" id="storyViewerMuteBtn" onclick="toggleStoryViewerSound(event)" title="Sound on/off" style="font-size:16px;display:none;">🔊</button>
     <button class="story-viewer-close hidden" id="storyDeleteBtn" onclick="deleteCurrentStory()" style="font-size:15px;">🗑️</button>
     <button class="story-viewer-close hidden" id="storyHighlightDeleteBtn" onclick="deleteHighlight(currentStoryUserQueue[currentStoryGroupIndex] && currentStoryUserQueue[currentStoryGroupIndex].highlightId)" style="font-size:13px;" title="Delete highlight">⭐🗑️</button>
     <button class="story-viewer-close" onclick="closeStoryViewer()">✕</button>
@@ -6941,25 +6942,78 @@ function openSongPicker(kind, mediaSec){
     const finish = val => { stopPreview(); ov.remove(); resolve(val); };
     ov.querySelector('#spCancel').onclick = () => finish('cancel');
     ov.querySelector('#spNone').onclick = () => finish(null);
-    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, title: chosen.title, artist: chosen.artist, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
+    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, title: chosen.title, artist: chosen.artist, url: chosen.url, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
     drawList();
   });
 }
 // Plays a song from its chosen start point for its chosen length
+// Resolves canonical streaming URL for a song
+function resolveSongStreamUrl(song){
+  if (!song) return '';
+  let u = song.url || song.streamUrl || '';
+  if (!u && song.id) u = '/media/song/' + song.id;
+  else if (u.startsWith('/songs/')) {
+    // If relative /songs/ path, check if song.id is available or use full origin
+    if (song.id) u = '/media/song/' + song.id;
+  }
+  return u;
+}
+
 function playSong(song, videoEl){
-  stopSong();
-  if (!song || !song.url) return;
-  songAudio = new Audio(song.url);
-  songAudio.muted = songMutedPref;
-  songAudio.currentTime = song.start || 0;
-  songAudio.play().then(() => {
-    if (videoEl) videoEl.muted = true;               // song is playing: the video's own sound is replaced
-  }).catch(() => {
-    if (videoEl) videoEl.muted = false;              // browser blocked the song: keep the video's sound
-    refreshSongBtn();                                // shows ▶ so one tap starts the song with sound
-  });
-  songStopTimer = setTimeout(stopSong, (song.duration || 15) * 1000);
+  stopSong(true);
+  if (!song) return;
+  const audioUrl = resolveSongStreamUrl(song);
+  if (!audioUrl) return;
+
+  const isStoryViewer = document.getElementById('storyViewerOverlay') && document.getElementById('storyViewerOverlay').classList.contains('open');
+  const isStoryStudio = document.getElementById('storyUploadOverlay') && document.getElementById('storyUploadOverlay').classList.contains('open');
+
+  songAudio = new Audio(audioUrl);
+  // Story audio is ALWAYS UNMUTED so user hears the music loud & clear!
+  if (isStoryViewer || isStoryStudio) {
+    songAudio.muted = false;
+  } else {
+    songAudio.muted = songMutedPref;
+  }
+  songAudio.currentTime = Math.max(0, Number(song.start || song.songStart) || 0);
+
+  const startPlay = () => {
+    if (!songAudio) return;
+    const p = songAudio.play();
+    if (p !== undefined) {
+      p.then(() => {
+        if (videoEl) videoEl.muted = true;
+        refreshSongBtn();
+        syncStoryViewerMuteBtn();
+      }).catch(err => {
+        console.warn('Audio play pending user interaction:', err);
+        // Mobile browsers require 1 tap before unmuted audio plays:
+        const unlock = () => {
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('click', unlock);
+          window.removeEventListener('touchstart', unlock);
+          if (songAudio && songAudio.paused) {
+            songAudio.muted = false;
+            songAudio.play().then(() => {
+              if (videoEl) videoEl.muted = true;
+              syncStoryViewerMuteBtn();
+            }).catch(() => {});
+          }
+        };
+        window.addEventListener('pointerdown', unlock, { once: true });
+        window.addEventListener('click', unlock, { once: true });
+        window.addEventListener('touchstart', unlock, { once: true });
+        refreshSongBtn();
+        syncStoryViewerMuteBtn();
+      });
+    }
+  };
+  startPlay();
+
+  const clipDuration = Math.max(3, Number(song.duration || song.songDuration) || 15);
+  songStopTimer = setTimeout(() => stopSong(true), clipDuration * 1000);
   refreshSongBtn();
+  syncStoryViewerMuteBtn();
 }
 // Story/post song playback: starts at the chosen point and stops after the chosen length
 let songAudio = null, songStopTimer = null;
@@ -6987,7 +7041,7 @@ function refreshSongBtn(){
   document.querySelectorAll('.song-corner-mute').forEach(b => { b.textContent = icon; });
 }
 function toggleSongMute(){
-  if (songAudio && songAudio.paused) {               // the song was blocked: start it now (this tap allows sound)
+  if (songAudio && songAudio.paused) {
     songMutedPref = false;
     try { localStorage.setItem('songMuted', '0'); } catch (e) {}
     songAudio.muted = false;
@@ -7000,11 +7054,53 @@ function toggleSongMute(){
   if (songAudio) songAudio.muted = songMutedPref;
   refreshSongBtn();
 }
-function stopSong(){
+function syncStoryViewerMuteBtn(){
+  const btn = document.getElementById('storyViewerMuteBtn');
+  if (!btn) return;
+  if (!songAudio) {
+    btn.textContent = '🔊';
+    return;
+  }
+  btn.textContent = (songAudio.muted || songAudio.paused) ? '🔇' : '🔊';
+}
+function toggleStoryViewerSound(ev){
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const btn = document.getElementById('storyViewerMuteBtn');
+  if (songAudio) {
+    if (songAudio.paused) {
+      songAudio.muted = false;
+      songAudio.play().catch(() => {});
+      if (btn) btn.textContent = '🔊';
+      showToast('Sound ON 🔊');
+      return;
+    }
+    songAudio.muted = !songAudio.muted;
+    if (btn) btn.textContent = songAudio.muted ? '🔇' : '🔊';
+    showToast(songAudio.muted ? 'Sound Muted 🔇' : 'Sound ON 🔊');
+  } else {
+    const vidEl = document.getElementById('storyViewVideo');
+    if (vidEl) {
+      vidEl.muted = !vidEl.muted;
+      if (btn) btn.textContent = vidEl.muted ? '🔇' : '🔊';
+      showToast(vidEl.muted ? 'Sound Muted 🔇' : 'Sound ON 🔊');
+    }
+  }
+}
+function stopSong(force){
+  const stOpen = document.getElementById('storyViewerOverlay') && document.getElementById('storyViewerOverlay').classList.contains('open');
+  const seOpen = document.getElementById('storyUploadOverlay') && document.getElementById('storyUploadOverlay').classList.contains('open');
+  // CRITICAL FIX: If Story Viewer or Story Studio is open, background feed observers must NOT stop story audio!
+  if (!force && (stOpen || seOpen)) {
+    return;
+  }
   clearTimeout(songStopTimer); songStopTimer = null;
-  if (songAudio) { songAudio.pause(); songAudio = null; }
+  if (songAudio) {
+    try { songAudio.pause(); } catch(e){}
+    songAudio = null;
+  }
   const v = document.getElementById('storyViewVideo'); if (v) v.muted = false;
   refreshSongBtn();
+  syncStoryViewerMuteBtn();
 }
 // #hashtags in a story are tappable: they open that hashtag's feed
 function linkifyStoryTags(text){
@@ -7045,13 +7141,23 @@ function applyStoryAdjust(st){
   });
 }
 function playStorySong(){
-  stopSong();
+  stopSong(true);
   const g = currentStoryUserQueue[currentStoryGroupIndex];
   const st = g && g.stories ? g.stories[currentStoryIndex] : null;
   applyStoryAdjust(st);
   const chip = document.getElementById('storyViewerSong');
-  if (chip) { chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : ''; chip.style.display = st && st.song ? 'block' : 'none'; }
-  if (!st || !st.song || !st.song.url) return;
+  const muteBtn = document.getElementById('storyViewerMuteBtn');
+  if (chip) {
+    chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : '';
+    chip.style.display = st && st.song ? 'inline-block' : 'none';
+  }
+  if (muteBtn) {
+    muteBtn.style.display = (st && st.song) ? 'flex' : 'none';
+    muteBtn.textContent = '🔊';
+  }
+  if (!st || !st.song) return;
+  const audioUrl = resolveSongStreamUrl(st.song);
+  if (!audioUrl) return;
   playSong(st.song, st.mediaType === 'video' ? document.getElementById('storyViewVideo') : null);
 }
 let storyPickedFile = null;
@@ -7074,6 +7180,13 @@ async function pickStorySong(){
   storyChosenSong = pick;
   const lbl = document.getElementById('storySongLabel');
   if (lbl) lbl.textContent = pick ? ('🎵 ' + (pick.title || 'Song') + ' (' + fmtClipSec(pick.songStart) + ' – ' + fmtClipSec((pick.songStart || 0) + (pick.songDuration || 15)) + ')') : '';
+  if (pick && (pick.url || pick.songId)) {
+    // Play preview right inside Story Studio so creator hears their music!
+    playSong(pick);
+    showToast('🎵 Playing: ' + (pick.title || 'Song'));
+  } else {
+    stopSong(true);
+  }
   updateStoryStudioLivePreview();
 }
 let storyPickedType = null;
@@ -7202,6 +7315,7 @@ function openStoryUploadModal(){
   document.getElementById('storyUploadOverlay').classList.add('open');
 }
 function closeStoryUploadModal(){
+  stopSong(true);
   const vidEl = document.getElementById('storyPreviewVideo');
   if (vidEl) { vidEl.pause(); vidEl.src = ''; }
   document.getElementById('storyUploadOverlay').classList.remove('open');
@@ -7429,7 +7543,7 @@ async function generateTextStoryFile(){
 }
 
 async function onStoryFilePicked(e){
-  let file = e.target.files[0];
+  let file = (e && e.target && e.target.files && e.target.files[0]) || (e && e.files && e.files[0]) || null;
   if (!file) return;
   storyIsTextMode = false;
   const bgBtn = document.getElementById('seToolBgBtn');
@@ -7437,14 +7551,7 @@ async function onStoryFilePicked(e){
   const tc = document.getElementById('storyTextCanvasCard');
   if (tc) tc.classList.add('hidden');
   storyAdjust = null;
-  if (file.type.startsWith('image/')) {
-    file = await openCropper(file, 9 / 16, 1080, 'Adjust story');
-    if (!file) { e.target.value = ''; return; }
-  } else if (file.type.startsWith('video/')) {
-    const r = await openCropper(file, 9 / 16, 0, 'Adjust video (zoom and position)', true);
-    if (!r) { e.target.value = ''; return; }
-    storyAdjust = r.adjust;
-  }
+  // Direct into Story Studio - NO "Adjust story" / cropper page!
   storyPickedFile = file;
   storyPickedType = file.type.startsWith('video') ? 'video' : 'photo';
   const url = URL.createObjectURL(file);
@@ -7855,7 +7962,7 @@ function openStoryOwnerProfile(e){
   goToProfileDirect(g.ownerId, g.ownerUsername);
 }
 function closeStoryViewer(){
-  stopSong();
+  stopSong(true);
   clearStoryTimer();
   const vidEl = document.getElementById('storyViewVideo');
   vidEl.onended = null; vidEl.onloadedmetadata = null;
