@@ -5865,7 +5865,7 @@ app.get('/api/admin/content', requireAdmin, async (req, res) => {
         videoUrl: videoKey ? await directUrl(videoKey, f.storageProvider) : null
       };
     }));
-    res.json({ content: list });
+    res.json({ content: list, films: list });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6475,6 +6475,18 @@ app.post('/api/admin/songs/:id/trend', requireAdmin, async (req, res) => {
   x.trending = !!(req.body && req.body.on);
   await writeSongs(list);
   res.json({ success: true });
+});
+app.post('/api/admin/songs/:id/edit', requireAdmin, async (req, res) => {
+  try {
+    const list = await readSongs();
+    const x = list.find(y => y.id === req.params.id);
+    if (!x) return res.status(404).json({ error: 'Song not found' });
+    if (req.body.title) x.title = String(req.body.title).trim().slice(0, 80);
+    if (req.body.artist !== undefined) x.artist = String(req.body.artist).trim().slice(0, 80);
+    if (req.body.category !== undefined) x.category = String(req.body.category).trim().slice(0, 40);
+    await writeSongs(list);
+    res.json({ success: true, title: x.title, artist: x.artist, category: x.category });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/admin/songs/:id/delete', requireAdmin, async (req, res) => {
   const list = await readSongs();
