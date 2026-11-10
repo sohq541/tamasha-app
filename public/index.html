@@ -433,9 +433,12 @@
 .story-viewer-close{margin-left:auto;background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;}
 .story-media-area{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .story-media-area img,.story-media-area video{max-width:100%;max-height:100%;object-fit:contain;}
-.story-tap-zone{position:absolute;top:0;bottom:70px;width:33%;z-index:5;}
+.story-tap-zone{position:absolute;top:0;bottom:70px;width:25%;z-index:5;}
 .story-tap-left{left:0;}
 .story-tap-right{right:0;}
+.story-tap-center{left:25%;width:50%;top:64px;bottom:82px;z-index:5;}
+.story-shared-post-pill{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);z-index:7;background:rgba(12,8,24,0.82);backdrop-filter:blur(12px);border:1.5px solid rgba(255,209,102,0.65);color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:800;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,0.55);cursor:pointer;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;transition:transform .15s ease;}
+.story-shared-post-pill:active{transform:translateX(-50%) scale(0.96);}
 .story-text-overlay{position:absolute;left:16px;right:16px;bottom:16px;color:#fff;font-size:20px;font-weight:700;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,0.6);z-index:4;pointer-events:none;word-break:break-word;}
 .story-viewer-footer{display:flex;align-items:center;gap:10px;padding:12px 14px calc(14px + env(safe-area-inset-bottom));}
 .story-comment-input{flex:1;min-width:0;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);border-radius:999px;padding:10px 16px;color:#fff;font-size:14px;}
@@ -1352,6 +1355,7 @@
   </div>
   <div class="shorts-grid hidden" id="shortsGrid"></div>
   <div id="announceBanner"></div>
+  <div id="featuredHeroBanner" class="hidden" style="max-width:540px;margin:8px auto 4px;padding:0 12px;box-sizing:border-box;"></div>
   <div id="uploadCards"></div>
   <div id="homeMainContent">
   <div class="feed-filters" id="feedFilters">
@@ -1572,6 +1576,7 @@
       <div class="yt-chan-row" id="mOwner"></div>
       <div class="yt-actions-scroll">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">👍 <span id="likeCount">0</span></button>
+        <button class="action-btn" onclick="openSuperThanksModal(currentFilm ? currentFilm.id : '')" style="background:linear-gradient(135deg,rgba(255,209,102,0.22),rgba(255,140,0,0.16));border-color:rgba(255,209,102,0.5);color:#ffd166;font-weight:700;">💎 Super Thanks</button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
         <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()" title="Playback speed">⚡ 1x</button>
@@ -1665,6 +1670,7 @@
       <button type="button" class="se-round" id="seToolBgBtn" onclick="startTextStoryMode(true)" title="Text / Gradient Story">🎨</button>
       <button type="button" class="se-round" id="seToolPollBtn" onclick="pickStoryPoll()" title="Interactive Poll">📊</button>
       <button type="button" class="se-round" id="seToolSongBtn" onclick="pickStorySong()" title="Add Music">🎵</button>
+      <button type="button" class="se-round" id="seToolHighlightBtn" onclick="pickStoryAutoHighlight()" title="Auto-Save to Profile Highlight">⭐</button>
       <button type="button" class="se-round" onclick="document.getElementById('storyFileInput').click()" title="Choose Photo/Video">🖼️</button>
     </div>
   </div>
@@ -1696,6 +1702,7 @@
   </div>
 
   <div id="sePanelSticker" class="se-subbar hidden">
+    <button type="button" class="se-chip" onclick="pickStorySharedPost()">🎬 Link Post/Reel</button>
     <button type="button" class="se-chip" onclick="pickStoryLocation()">📍 Location</button>
     <button type="button" class="se-chip" onclick="pickStoryMention()">@ Mention</button>
     <button type="button" class="se-chip" onclick="pickStoryLink()">🔗 Add Link</button>
@@ -1813,8 +1820,10 @@
     <video id="storyViewVideo" class="hidden" playsinline preload="auto"></video>
     <div class="story-sticker-cluster" id="storyViewStickersRow"></div>
     <div class="story-text-overlay" id="storyViewTextOverlay"></div>
+    <div id="storySharedPostCard" class="story-shared-post-pill hidden" onclick="openSharedPostFromStory(event)"></div>
     <div id="storyViewPollBox" class="story-poll-card hidden" onclick="event.stopPropagation()"></div>
     <div class="story-tap-zone story-tap-left" onclick="storyGoPrev()"></div>
+    <div class="story-tap-zone story-tap-center" id="storyTapCenterZone" onclick="onStoryCenterMediaTap(event)"></div>
     <div class="story-tap-zone story-tap-right" onclick="storyGoNext()"></div>
   </div>
   <div class="story-viewer-footer" id="storyViewerFooter">
@@ -2204,6 +2213,8 @@ let currentShortId = null;
 let allFilms = [];
 let currentUser = null;
 let viewingProfile = null;
+let INITIAL_URL_SEARCH = window.location.search || '';
+let initialDeepLinkHandled = false;
 
 function escapeHtml(str){
   const div = document.createElement('div');
@@ -2215,15 +2226,41 @@ function escapeAttr(str){
   return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function escapeRegexJs(str){ return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function seekVideoToTimestamp(tsStr){
+  const parts = String(tsStr || '').trim().split(':').map(Number);
+  if (parts.some(isNaN)) return;
+  let secs = 0;
+  if (parts.length === 3) secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  else if (parts.length === 2) secs = parts[0] * 60 + parts[1];
+  else return;
+  const p = document.getElementById('player');
+  const ov = document.getElementById('overlay');
+  if (p && ov && ov.classList.contains('open')) {
+    p.currentTime = secs;
+    p.play().catch(() => {});
+    showToast('⏱ Jumped to ' + tsStr);
+    return;
+  }
+  const activeShortVid = document.querySelector('.short-item video');
+  if (activeShortVid) {
+    activeShortVid.currentTime = secs;
+    activeShortVid.play().catch(() => {});
+    showToast('⏱ Jumped to ' + tsStr);
+  }
+}
 function linkifyRich(text, mentions){
   let out = escapeHtml(text || '');
   (mentions || []).slice().sort((a, b) => b.username.length - a.username.length).forEach(m => {
     const re = new RegExp('@' + escapeRegexJs(escapeHtml(m.username)) + '(?![\\w])', 'gi');
     out = out.replace(re, `<span style="color:var(--marigold);cursor:pointer;font-weight:600;" data-uid="${escapeAttr(m.id)}" data-uname="${escapeAttr(m.username)}" onclick="event.stopPropagation();openMentionProfile(this)">@${escapeHtml(m.username)}</span>`);
   });
-  return out.replace(/#(\w+)/g, (mm, tag) =>
+  out = out.replace(/#(\w+)/g, (mm, tag) =>
     `<span style="color:var(--marigold);cursor:pointer;" onclick="event.stopPropagation();openHashtagFeed('${tag.toLowerCase()}')">#${tag}</span>`
   );
+  out = out.replace(/\b((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\b/g, (mm, ts) =>
+    `<span style="background:rgba(124,92,255,0.18);color:#b9a4ff;border:1px solid rgba(124,92,255,0.4);padding:1px 7px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;display:inline-block;margin:1px 2px;" onclick="event.stopPropagation();seekVideoToTimestamp('${ts}')" title="Jump to ${ts}">⏱ ${ts}</span>`
+  );
+  return out;
 }
 function openMentionProfile(el){
   closeAllOverlays();
@@ -2429,6 +2466,10 @@ function closeAllOverlays(){
   Object.keys(closers).forEach(id => {
     const el = document.getElementById(id);
     if (el && el.classList.contains('open')) { try { closers[id](); } catch (e) {} }
+  });
+  ['yourDashOverlay','blueOverlay','noteOverlay','trustModal','notifPrefsModal','channelSheet','accountsSheet','convoInfoSheet','addGroupMemberModal','newGroupModal','sharePostChatModal','songPicker'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) { try { m.remove(); } catch (e) {} }
   });
 }
 
@@ -2780,6 +2821,7 @@ async function renderOtherProfile(userId, usernameHint){
     ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${escapeAttr(JSON.stringify(pub.note))})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
     ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
     ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
+    ${renderCreatorMilestonesHtml(theirFilms, pub.followersCount || 0, !!pub.verified)}
     <div class="profile-btn-row">
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
@@ -2862,7 +2904,7 @@ function openPostSafetyMenu(filmId){
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
   const isCollab = !!(film && currentUser && film.collaboratorId === currentUser.id && film.collabStatus === 'accepted');
-  let items = `<div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();sharePostToStoryDirect('${filmId}')">📖 Add to Story</div><div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
   if (isOwner) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`;
   } else if (isCollab) {
@@ -3106,6 +3148,7 @@ async function renderProfile(){
     <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Leave a note (24h)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
+    ${renderCreatorMilestonesHtml(myFilms, mine.followersCount || 0, !!mine.verified)}
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
       <button class="profile-btn" onclick="openProfileQr('${escapeAttr(currentUser.id)}','${escapeAttr(currentUser.username)}','${escapeAttr(mine.profileImage || '')}',${!!mine.verified})">Share Profile</button>
@@ -3207,13 +3250,24 @@ function switchProfileGrid(which){
 }
 
 let savedGridCache = [];
+let savedCollectionsCache = [];
 let savedGridFilter = 'all';
+let savedCollectionId = 'all';
+
 async function loadSavedGrid(){
   const el = document.getElementById('profileGridSaved');
+  if (!el) return;
   try {
-    const res = await fetch('/api/me/saved');
+    const [res, colRes] = await Promise.all([
+      fetch('/api/me/saved'),
+      fetch('/api/me/collections').catch(() => null)
+    ]);
     const data = await res.json();
-    savedGridCache = data.saved || [];
+    savedGridCache = Array.isArray(data) ? data : (data.saved || []);
+    if (colRes && colRes.ok) {
+      const cData = await colRes.json();
+      savedCollectionsCache = (cData && cData.collections) || [];
+    }
     renderSavedGridFiltered();
   } catch (e) {
     el.innerHTML = '<p class="comment-empty">Couldn\'t load saved posts.</p>';
@@ -3223,21 +3277,143 @@ function setSavedGridFilter(f){
   savedGridFilter = f;
   renderSavedGridFiltered();
 }
+function setSavedCollection(colId){
+  savedCollectionId = colId;
+  renderSavedGridFiltered();
+}
+async function createNewSavedCollection(){
+  const name = prompt('Enter a name for your new Saved Collection / Playlist folder (e.g., Comedy, Music, Watch Later):');
+  if (!name || !name.trim()) return;
+  try {
+    const res = await fetch('/api/me/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', name: name.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) { showToast(d.error || 'Could not create folder'); return; }
+    savedCollectionsCache = d.collections || [];
+    if (d.collection && d.collection.id) savedCollectionId = d.collection.id;
+    showToast('📂 Collection "' + name.trim() + '" created!');
+    renderSavedGridFiltered();
+  } catch (e) { showToast('Failed to create collection'); }
+}
+async function renameSavedCollection(colId, oldName){
+  const name = prompt('Rename Collection folder:', oldName || '');
+  if (!name || !name.trim()) return;
+  try {
+    const res = await fetch('/api/me/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename', collectionId: colId, name: name.trim() })
+    });
+    const d = await res.json();
+    if (res.ok) {
+      savedCollectionsCache = d.collections || [];
+      showToast('Folder renamed');
+      renderSavedGridFiltered();
+    }
+  } catch (e) {}
+}
+async function deleteSavedCollection(colId, colName){
+  if (!confirm('Delete folder "' + colName + '"? (Your saved posts will still remain in All Saved)')) return;
+  try {
+    const res = await fetch('/api/me/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', collectionId: colId })
+    });
+    const d = await res.json();
+    if (res.ok) {
+      savedCollectionsCache = d.collections || [];
+      savedCollectionId = 'all';
+      showToast('Folder deleted');
+      renderSavedGridFiltered();
+    }
+  } catch (e) {}
+}
+async function openAssignCollectionPrompt(filmId){
+  if (!savedCollectionsCache.length) {
+    if (confirm('You have no custom folders yet. Create your first Collection folder now?')) {
+      await createNewSavedCollection();
+    }
+    if (!savedCollectionsCache.length) return;
+  }
+  const listStr = savedCollectionsCache.map((c, idx) => {
+    const has = Array.isArray(c.itemIds) && c.itemIds.includes(filmId);
+    return `${idx + 1}. ${c.name} ${has ? '[✓ Added]' : ''}`;
+  }).join('\n');
+  const pick = prompt(`Choose a folder number (1-${savedCollectionsCache.length}) to add/remove this post:\n\n${listStr}\n\n(Or type "new" to create a new folder)`);
+  if (!pick) return;
+  if (pick.trim().toLowerCase() === 'new') {
+    await createNewSavedCollection();
+    return;
+  }
+  const idx = parseInt(pick.trim(), 10) - 1;
+  const col = savedCollectionsCache[idx];
+  if (!col) { showToast('Invalid folder number'); return; }
+  const alreadyIn = Array.isArray(col.itemIds) && col.itemIds.includes(filmId);
+  try {
+    const res = await fetch('/api/me/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: alreadyIn ? 'remove-item' : 'add-item', collectionId: col.id, filmId })
+    });
+    const d = await res.json();
+    if (res.ok) {
+      savedCollectionsCache = d.collections || [];
+      showToast(alreadyIn ? `Removed from 📁 ${col.name}` : `Added to 📁 ${col.name}!`);
+      renderSavedGridFiltered();
+    }
+  } catch (e) {}
+}
 function renderSavedGridFiltered(){
   const el = document.getElementById('profileGridSaved');
   if (!el) return;
-  const filtered = savedGridCache.filter(x => savedGridFilter === 'all' || x.type === savedGridFilter);
-  const chipsHtml = `<div style="grid-column:1 / -1;display:flex;gap:6px;padding:4px 0 10px;overflow-x:auto;">
-    ${[['all','✨ All'],['film','🎬 Videos'],['short','⚡ Shorts'],['photo','🖼️ Photos']].map(([k, lbl]) =>
-      `<button type="button" class="feed-chip ${savedGridFilter === k ? 'active' : ''}" onclick="setSavedGridFilter('${k}')" style="padding:5px 12px;font-size:12px;">${lbl}</button>`
-    ).join('')}
-  </div>`;
+  const activeCol = savedCollectionId !== 'all' ? savedCollectionsCache.find(c => c.id === savedCollectionId) : null;
+  if (savedCollectionId !== 'all' && !activeCol) savedCollectionId = 'all';
+
+  let pool = savedGridCache;
+  if (activeCol) {
+    const idSet = new Set(activeCol.itemIds || []);
+    pool = pool.filter(x => idSet.has(x.filmId || x.id));
+  }
+  const filtered = pool.filter(x => savedGridFilter === 'all' || x.type === savedGridFilter);
+
+  const colChip = (id, label, isAct) => `<button type="button" onclick="setSavedCollection('${escapeAttr(id)}')" style="padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${isAct?'#ffd166':'var(--gold-line)'};background:${isAct?'rgba(255,209,102,0.2)':'var(--panel)'};color:${isAct?'#ffd166':'var(--cream)'};flex-shrink:0;">${label}</button>`;
+
+  const chipsHtml = `
+    <div style="grid-column:1 / -1;display:flex;flex-direction:column;gap:8px;padding:4px 0 10px;">
+      <div style="display:flex;gap:6px;overflow-x:auto;align-items:center;">
+        ${colChip('all', '📂 All Collections', savedCollectionId === 'all')}
+        ${savedCollectionsCache.map(c => colChip(c.id, '📁 ' + escapeHtml(c.name) + ' (' + ((c.itemIds || []).length) + ')', savedCollectionId === c.id)).join('')}
+        <button type="button" onclick="createNewSavedCollection()" style="padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;border:1px dashed var(--marigold);background:transparent;color:var(--marigold);flex-shrink:0;">＋ New Folder</button>
+      </div>
+      ${activeCol ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(124,92,255,0.1);border:1px solid var(--gold-line);border-radius:10px;padding:6px 10px;font-size:12px;">
+          <span>📁 <b>${escapeHtml(activeCol.name)}</b> · ${(activeCol.itemIds || []).length} items</span>
+          <div style="display:flex;gap:6px;">
+            <button type="button" onclick="renameSavedCollection('${escapeAttr(activeCol.id)}','${escapeAttr(activeCol.name)}')" style="background:var(--panel);border:1px solid var(--gold-line);color:var(--cream);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;">✏️ Rename</button>
+            <button type="button" onclick="deleteSavedCollection('${escapeAttr(activeCol.id)}','${escapeAttr(activeCol.name)}')" style="background:rgba(255,70,70,0.15);border:1px solid rgba(255,70,70,0.4);color:#ff7b7b;padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;">🗑️ Delete</button>
+          </div>
+        </div>
+      ` : ''}
+      <div style="display:flex;gap:6px;overflow-x:auto;">
+        ${[['all','✨ All (' + pool.length + ')'],['film','🎬 Videos'],['short','⚡ Shorts'],['photo','🖼️ Photos']].map(([k, lbl]) =>
+          `<button type="button" class="feed-chip ${savedGridFilter === k ? 'active' : ''}" onclick="setSavedGridFilter('${k}')" style="padding:5px 12px;font-size:12px;">${lbl}</button>`
+        ).join('')}
+      </div>
+    </div>`;
+
   const itemsHtml = filtered.map(f => {
+    const itemId = f.filmId || f.id;
     const clickJs = f.type === 'short'
-      ? `openShortAt('${escapeAttr(f.filmId)}')`
-      : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.filmId)}')` : `playFilm('${escapeAttr(f.filmId)}')`);
-    return gridItemHtml(f, clickJs, false);
-  }).join('') || '<p class="comment-empty" style="grid-column:1 / -1;">No saved posts in this category.</p>';
+      ? `openShortAt('${escapeAttr(itemId)}')`
+      : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(itemId)}')` : `playFilm('${escapeAttr(itemId)}')`);
+    const rawHtml = gridItemHtml(f, clickJs, false);
+    const folderBtn = `<button type="button" onclick="event.stopPropagation();openAssignCollectionPrompt('${escapeAttr(itemId)}')" title="Add/Remove from Collection Folder" style="position:absolute;top:6px;left:6px;z-index:4;background:rgba(12,8,24,0.8);color:#ffd166;border:1px solid rgba(255,209,102,0.5);border-radius:7px;padding:2px 6px;font-size:10.5px;font-weight:800;cursor:pointer;">📁+</button>`;
+    return rawHtml.replace('>', '>' + folderBtn);
+  }).join('') || '<p class="comment-empty" style="grid-column:1 / -1;">No saved posts in this folder/category. Tap 📁+ on any saved post to organize it into folders.</p>';
   el.innerHTML = chipsHtml + itemsHtml;
 }
 
@@ -4124,27 +4300,35 @@ async function loadFilms() {
   renderShortsGrid(shorts);
   renderShorts(shorts);
 
-  const params = new URLSearchParams(location.search);
-  const sharedId = params.get('film');
-  const shortId = params.get('short');
-  const profileId = params.get('profile');
+  if (!initialDeepLinkHandled) {
+    initialDeepLinkHandled = true;
+    const rawSearch = location.search || INITIAL_URL_SEARCH || '';
+    INITIAL_URL_SEARCH = '';
+    const params = new URLSearchParams(rawSearch);
+    const sharedId = params.get('film');
+    const shortId = params.get('short');
+    const profileId = params.get('profile');
+    const chatUserId = params.get('chat');
+    const storyId = params.get('story');
 
-  const chatUserId = params.get('chat');
-
-  if (sharedId) {
-    const sf = allFilms.find(x => x.id === sharedId);
-    if (sf && sf.type === 'photo') openProfilePhotoFeed(sf.ownerId, sf.id);
-    else if (sf && sf.type === 'short') openShortAt(sf.id);
-    else playFilm(sharedId);
-  }
-  if (shortId) openShortAt(shortId);
-  if (profileId) {
-    const f = allFilms.find(x => x.ownerId === profileId);
-    goToProfileDirect(profileId, f ? f.ownerUsername : 'user');
-  }
-  if (chatUserId && currentUser) {
-    const f = allFilms.find(x => x.ownerId === chatUserId);
-    openChatConvo(chatUserId, f ? f.ownerUsername : null);
+    if (sharedId) {
+      const sf = allFilms.find(x => x.id === sharedId);
+      if (sf && sf.type === 'photo') openProfilePhotoFeed(sf.ownerId, sf.id);
+      else if (sf && sf.type === 'short') openShortAt(sf.id);
+      else playFilm(sharedId);
+    }
+    if (shortId) openShortAt(shortId);
+    if (profileId) {
+      const f = allFilms.find(x => x.ownerId === profileId);
+      goToProfileDirect(profileId, f ? f.ownerUsername : 'user');
+    }
+    if (chatUserId && currentUser) {
+      const f = allFilms.find(x => x.ownerId === chatUserId);
+      openChatConvo(chatUserId, f ? f.ownerUsername : null);
+    }
+    if (storyId) {
+      openStoryViewer(null, storyId);
+    }
   }
 }
   
@@ -4332,7 +4516,7 @@ function renderHome(films) {
         <div class="card-header-row">
           ${dualOrSingleAvatarHtml(f)}
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})" title="Tap to play song">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open song page & play">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${f.adminBoosted ? `<span style="background:rgba(255,190,60,0.2);color:#ffcf5c;border:1px solid rgba(255,190,60,0.4);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;">📌 Featured</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -4354,7 +4538,7 @@ function renderHome(films) {
           <button class="feed-act-btn" onclick="openSheet('${f.id}')">
             💬 <span class="feed-comment-num">${(f.comments || []).length}</span>
           </button>
-          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
+          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}')">
             ↗️
           </button>
           <button class="feed-act-btn" id="feed-save-${f.id}" style="margin-left:auto;" onclick="toggleSaveFeedPost('${f.id}', this)">
@@ -4494,7 +4678,6 @@ function setupHomeVideoObserver(){
   const mediaBoxes = document.querySelectorAll('#grid .card-media-box[data-id]');
   homeCardViewObserver = new IntersectionObserver((entries) => {
     if (isAnyModalOrOverlayOpen()) {
-      stopSong();
       return;
     }
     entries.forEach(entry => {
@@ -4545,7 +4728,7 @@ function renderShorts(shorts){
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${dualOrSingleShortAvatarHtml(f)}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
-        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();playSong(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
+        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
         ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" style="padding:5px 12px;font-size:12px;" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
@@ -4553,6 +4736,7 @@ function renderShorts(shorts){
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" id="short-like-btn-${f.id}" onclick="likeShort('${f.id}', this)">${isLiked ? '❤️' : '🤍'}</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
+        <div><button class="short-action-btn" onclick="openSuperThanksModal('${f.id}')" title="Send Super Thanks" style="font-size:22px;">💎</button><div class="short-action-count" style="color:#ffd166;font-weight:700;">Thanks</div></div>
         <div><button class="short-action-btn" id="short-save-btn-${f.id}" onclick="toggleSaveShort('${f.id}', this)" style="font-size:26px;">${isSaved ? '🔖' : '📑'}</button><div class="short-action-count">Save</div></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
@@ -4786,6 +4970,7 @@ function openMenu(id){
   const isOwner = currentUser && film && film.ownerId === currentUser.id;
   const isSaved = !!(currentUser && film && film.savedBy && film.savedBy.includes(currentUser.id));
   let itemsHtml = `
+    <div class="menu-item" onclick="closeMenu();sharePostToStoryDirect('${id}')">📖 Add to Story</div>
     <div class="menu-item" onclick="closeMenu();askAiAboutPost('${id}')">🤖 Ask AI about this</div>
     <div class="menu-item" id="menuSaveItem" onclick="toggleSaveFromMenu('${id}')">${isSaved ? '🔖 Unsave' : '📑 Save'}</div>
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
@@ -4988,14 +5173,21 @@ function saveMyCommentToken(commentId, editToken){
     const canPin = !!(currentUser && film && isMyPost(film, currentUser.id)) && !c.hidden;
     const hasMenu = canEdit || canDelete || canHide || canReport || canPin;
 
+    const isCreatorLiked = !!(c.creatorLiked || (Array.isArray(c.likes) && film && film.ownerId && c.likes.includes(film.ownerId)));
+    const creatorHeartBadge = isCreatorLiked ? `<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,44,125,0.15);color:#ff5c97;border:1px solid rgba(255,44,125,0.35);padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;" title="Liked by Creator">❤️ Liked by @${escapeHtml((film && film.ownerUsername) || 'creator')}</span>` : '';
+    const st = c.superThanks && c.superThanks.tier ? c.superThanks : null;
+    const superBadge = st ? `<div style="display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(255,209,102,0.25),rgba(255,140,0,0.22));border:1px solid rgba(255,209,102,0.6);color:#ffd166;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;margin-bottom:5px;">${escapeHtml(st.emoji || '💎')} ${escapeHtml(st.label || 'Super Thanks')}</div>` : '';
+
     return `
-      <div class="comment-item ${c.verified ? 'comment-verified-vip' : ''}" id="comment-${c.id}">
+      <div class="comment-item ${c.verified ? 'comment-verified-vip' : ''}" id="comment-${c.id}" style="${st ? 'border:1.5px solid rgba(255,209,102,0.65);background:linear-gradient(135deg,rgba(255,209,102,0.14),rgba(124,92,255,0.08));box-shadow:0 4px 16px rgba(255,209,102,0.12);' : ''}">
+        ${superBadge}
         <div class="comment-header" style="display:flex;align-items:center;justify-content:space-between;">
-          <div class="comment-name" style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="openCommentProfile('${c.userId}','${escapeHtml(c.name)}')">
+          <div class="comment-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;cursor:pointer;" onclick="openCommentProfile('${c.userId}','${escapeHtml(c.name)}')">
             ${c.profileImage ? `<img src="${c.profileImage}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : ''}
             <span style="text-decoration:underline;font-weight:600;">@${escapeHtml(c.name)}</span>${vb(c.verified)}
             ${isCommentAuthor ? `<span style="background:var(--marigold);color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:0.3px;">Author</span>` : ''}
             ${c.pinned ? `<span style="background:rgba(255,255,255,0.14);color:var(--cream);font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">📌 Pinned</span>` : ''}
+            ${creatorHeartBadge}
             ${c.hidden ? `<span style="background:#7a5c00;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;">Hidden</span>` : ''}
             ${c.edited ? '<span style="color:var(--cream-dim);font-size:11px;">(edited)</span>' : ''}
           </div>
@@ -5035,10 +5227,18 @@ async function toggleCommentLike(filmId, commentId, btn){
     if (!res.ok) return;
     [allFilms.find(f => f.id === filmId), (currentFilm && currentFilm.id === filmId) ? currentFilm : null].forEach(f => {
       const c = f && f.comments && f.comments.find(x => x.id === commentId);
-      if (c) c.likes = data.likes;
+      if (c) {
+        c.likes = data.likes;
+        c.creatorLiked = !!data.creatorLiked;
+      }
     });
     btn.classList.toggle('liked', data.liked);
     btn.innerHTML = `<span>${data.liked ? '❤️' : '🤍'}</span> <span>${data.likesCount || ''}</span>`;
+    const filmObj = allFilms.find(f => f.id === filmId) || (currentFilm && currentFilm.id === filmId ? currentFilm : null);
+    if (filmObj && currentUser && filmObj.ownerId === currentUser.id) {
+      if (currentFilm && currentFilm.id === filmId) renderComments(filmObj.comments);
+      if (sheetFilmId === filmId) renderSheetComments(filmObj.comments);
+    }
   } catch (e) {}
 }
 function replyToComment(username){
@@ -5241,9 +5441,6 @@ async function playFilm(id){
   }
   currentFilm = f;
   renderUpNext(f);
-  if (f.song && f.type !== 'photo' && f.type !== 'short') {
-    playSong(f.song, document.getElementById('player'));
-  }
   const playerEl = document.getElementById('player');
   const imgEl = document.getElementById('playerImg');
   const carEl = document.getElementById('playerCarousel');
@@ -5368,6 +5565,9 @@ async function playFilm(id){
   try {
     if (isVid) {
       playerEl.play().catch(() => {});
+      if (f.song) {
+        playSong(f.song, playerEl);
+      }
     }
   } catch (e) {}
   if (markViewed(f.id)) {
@@ -5395,6 +5595,12 @@ async function toggleSaveCurrentFilm(){
       if (data.saved) { if (!currentFilm.savedBy.includes(currentUser.id)) currentFilm.savedBy.push(currentUser.id); }
       else currentFilm.savedBy = currentFilm.savedBy.filter(id => id !== currentUser.id);
     }
+    const localF = allFilms.find(x => x.id === currentFilm.id);
+    if (localF && localF !== currentFilm) {
+      localF.savedBy = (currentFilm.savedBy || []).slice();
+    }
+    const feedSaveBtn = document.getElementById('feed-save-' + currentFilm.id);
+    if (feedSaveBtn) feedSaveBtn.textContent = data.saved ? '🔖' : '📑';
     const hudSave = document.getElementById('ytHudSaveBtn');
     if (hudSave) hudSave.classList.toggle('active', !!data.saved);
     showToast(data.saved ? 'Saved to bookmarks 🔖' : 'Removed from saved');
@@ -5486,7 +5692,9 @@ async function openProfilePhotoFeed(userId, startFilmId){
       }
     } catch (e) {}
   }
-  const userPhotos = pinSort(allFilms.filter(f => (isMyPost(f, userId) || f.id === startFilmId) && f.type === 'photo'), pinnedIds);
+  const ownPhotos = pinSort(allFilms.filter(f => (isMyPost(f, userId) || f.id === startFilmId) && f.type === 'photo'), pinnedIds);
+  const otherPhotos = startFilmId ? allFilms.filter(f => f.type === 'photo' && !ownPhotos.some(p => p.id === f.id)) : [];
+  const userPhotos = [...ownPhotos, ...otherPhotos];
   if (!username && userPhotos.length) username = userPhotos[0].ownerUsername || '';
   titleEl.textContent = username ? ('@' + username + ' · Photos') : 'Photos';
 
@@ -5519,7 +5727,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
           <button class="feed-act-btn" onclick="openSheet('${f.id}')">
             💬 <span class="feed-comment-num">${(f.comments || []).length}</span>
           </button>
-          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}', '${escapeHtml(f.title)}')">
+          <button class="feed-act-btn" onclick="shareCurrentFilmById('${f.id}')">
             ↗️
           </button>
           <button class="feed-act-btn" id="pfeed-save-${f.id}" style="margin-left:auto;" onclick="toggleSaveFeedPost('${f.id}', this)">
@@ -5560,7 +5768,10 @@ async function openProfilePhotoFeed(userId, startFilmId){
 function playNoteSong(note){
   const song = note && note.song;
   if (!song) return;
+  songMutedPref = false;
+  try { localStorage.setItem('songMuted', '0'); } catch (e) {}
   playSong(song);
+  if (song.title) showToast('🎵 Playing: ' + song.title);
 }
 function closeProfilePhotoFeed(){
   stopSong();
@@ -5660,7 +5871,7 @@ async function loadNotesStrip(){
     const data = await res.json();
     const notes = data.notes || [];
     const mine = notes.find(n => n.mine);
-    window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt } : null;
+    window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt, song: mine.song || null } : null;
     const myAvUrl = (mine && mine.profileImage) || data.myProfileImage || currentUser.profileImage || null;
     if (myAvUrl && currentUser) currentUser.profileImage = myAvUrl;
     const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}" loading="lazy" decoding="async">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
@@ -5674,12 +5885,53 @@ function closeChatInboxThenOpen(userId, username){ openChatConvo(userId, usernam
 // ---- Announcements (set from the admin dashboard) ----
 async function loadAnnouncementBanner(){
   try {
-    const res = await fetch('/api/announcements');
+    const [res, featRes, statRes] = await Promise.all([
+      fetch('/api/announcements'),
+      fetch('/api/featured-banner').catch(() => null),
+      fetch('/api/platform-status').catch(() => null)
+    ]);
     const data = await res.json();
     const a = (data.announcements || [])[0];
     const box = document.getElementById('announceBanner');
-    if (!a || !box || localStorage.getItem('seenAnnouncement') === a.id) return;
-    box.innerHTML = `<div class="announce"><span>📢</span><div>${escapeHtml(a.message)}</div><button class="a-x" onclick="dismissAnnouncement('${a.id}')">✕</button></div>`;
+    if (a && box && localStorage.getItem('seenAnnouncement') !== a.id) {
+      box.innerHTML = `<div class="announce"><span>📢</span><div>${escapeHtml(a.message)}</div><button class="a-x" onclick="dismissAnnouncement('${a.id}')">✕</button></div>`;
+    }
+    if (featRes && featRes.ok) {
+      const fData = await featRes.json();
+      const b = fData && fData.banner;
+      const heroEl = document.getElementById('featuredHeroBanner');
+      const dismissedHero = sessionStorage.getItem('dismissedHeroTitle');
+      if (heroEl && b && b.enabled && b.title && dismissedHero !== b.title) {
+        const bgMap = {
+          purple: 'linear-gradient(135deg,#5a189a 0%,#7b2cbf 50%,#3c096c 100%)',
+          gold: 'linear-gradient(135deg,#b5651d 0%,#d4af37 55%,#7f4f24 100%)',
+          crimson: 'linear-gradient(135deg,#800f2f 0%,#c9184a 55%,#590d22 100%)',
+          emerald: 'linear-gradient(135deg,#081c15 0%,#2d6a4f 55%,#1b4332 100%)'
+        };
+        const grad = bgMap[b.bgStyle] || bgMap.purple;
+        heroEl.innerHTML = `
+          <div style="background:${grad};border:1px solid rgba(255,255,255,0.22);border-radius:16px;padding:13px 15px;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.28);position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;background:rgba(255,255,255,0.18);padding:2px 8px;border-radius:999px;margin-bottom:5px;">🎯 Featured Spotlight</div>
+              <div style="font-size:15px;font-weight:800;line-height:1.25;">${escapeHtml(b.title)}</div>
+              ${b.subtitle ? `<div style="font-size:12.5px;color:rgba(255,255,255,0.88);margin-top:3px;line-height:1.35;">${escapeHtml(b.subtitle)}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              ${b.ctaUrl ? `<a href="${escapeAttr(b.ctaUrl)}" style="background:#fff;color:#111;font-weight:800;font-size:12px;padding:7px 13px;border-radius:999px;text-decoration:none;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,0.2);">${escapeHtml(b.ctaText || 'Explore ↗')}</a>` : ''}
+              <button type="button" onclick="sessionStorage.setItem('dismissedHeroTitle', ${escapeAttr(JSON.stringify(b.title))});document.getElementById('featuredHeroBanner').classList.add('hidden');" style="background:rgba(0,0,0,0.28);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;">✕</button>
+            </div>
+          </div>`;
+        heroEl.classList.remove('hidden');
+      } else if (heroEl) {
+        heroEl.classList.add('hidden');
+      }
+    }
+    if (statRes && statRes.ok) {
+      const st = await statRes.json();
+      if (st && st.maintenanceMode && (!currentUser || !currentUser.isAdmin) && box) {
+        box.innerHTML = `<div class="announce" style="background:linear-gradient(135deg,#800f2f,#c9184a);"><span>🛠️</span><div>${escapeHtml(st.maintenanceMessage || 'Platform is currently undergoing scheduled maintenance.')}</div></div>`;
+      }
+    }
   } catch (e) {}
 }
 function dismissAnnouncement(id){
@@ -6494,8 +6746,8 @@ function renderYtSidePanelContent(mode){
               ${c.profileImage ? `<img src="${escapeAttr(c.profileImage)}" style="width:100%;height:100%;object-fit:cover;">` : escapeHtml((c.name || 'U')[0].toUpperCase())}
             </div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:700;color:#0d3b42;">@${escapeHtml(c.name || 'user')} <span style="font-weight:400;color:#557;">· ${c.at ? ytShortTimeAgo(c.at) : ''}</span></div>
-              <div style="font-size:13px;color:#111;margin-top:2px;word-break:break-word;">${escapeHtml(c.text || '')}</div>
+              <div style="font-size:12px;font-weight:700;color:#0d3b42;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">@${escapeHtml(c.name || 'user')} ${c.superThanks && c.superThanks.tier ? `<span style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;padding:0 6px;border-radius:999px;font-size:10px;">${escapeHtml(c.superThanks.emoji || '💎')} ${escapeHtml(c.superThanks.label || 'Super Thanks')}</span>` : ''} ${(c.creatorLiked || (Array.isArray(c.likes) && f.ownerId && c.likes.includes(f.ownerId))) ? `<span style="background:#ffe0ec;color:#c9184a;padding:0 6px;border-radius:999px;font-size:10px;">❤️ Liked by @${escapeHtml(f.ownerUsername || 'creator')}</span>` : ''} <span style="font-weight:400;color:#557;">· ${c.at ? ytShortTimeAgo(c.at) : ''}</span></div>
+              <div style="font-size:13px;color:#111;margin-top:2px;word-break:break-word;">${linkifyRich(c.text || '', [])}</div>
             </div>
           </div>
         `).join('') : '<div style="padding:18px 8px;text-align:center;color:#456;font-size:13px;">No comments yet. Be the first to comment below!</div>'}
@@ -6584,7 +6836,7 @@ function renderYtSidePanelContent(mode){
     <div style="background:#eaf6f8;border-radius:14px;padding:13px 14px;color:#111;font-size:13.5px;line-height:1.52;">
       <div style="font-weight:700;color:#0d3b42;margin-bottom:6px;">${escapeHtml(f.title || '')}</div>
       ${metaPills ? `<div style="font-size:12px;color:#2b6a73;font-weight:600;margin-bottom:6px;">${escapeHtml(metaPills)}</div>` : ''}
-      <div style="color:#1b1b1b;word-break:break-word;">${f.description ? escapeHtml(f.description).replace(/\n/g, '<br>') : '<span style="color:#666;">No description provided by creator.</span>'}</div>
+      <div style="color:#1b1b1b;word-break:break-word;">${f.description ? linkifyRich(f.description, f.mentions).replace(/\n/g, '<br>') : '<span style="color:#666;">No description provided by creator.</span>'}</div>
       ${f.customLink ? `<div style="margin-top:10px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener" class="post-cta-btn">↗ ${escapeHtml(f.customLinkTitle || 'Visit Link')}</a></div>` : ''}
     </div>
 
@@ -6788,7 +7040,19 @@ document.getElementById('commentForm').addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(comment.error || 'Comment failed to post');
     if (!currentFilm.comments) currentFilm.comments = [];
     currentFilm.comments.push(comment);
+    const localF = allFilms.find(x => x.id === currentFilm.id);
+    if (localF && localF !== currentFilm) {
+      if (!localF.comments) localF.comments = [];
+      localF.comments.push(comment);
+    }
     renderCommentListInto('commentList', currentFilm.comments, currentFilm.id);
+    updateYtCommentCard(currentFilm);
+    const cmtCnt = document.getElementById('ytHudCommentCount');
+    if (cmtCnt) cmtCnt.textContent = currentFilm.comments.length;
+    ['#feed-card-', '#pfeed-card-'].forEach(prefix => {
+      const numEl = document.querySelector(prefix + currentFilm.id + ' .feed-comment-num');
+      if (numEl) numEl.textContent = currentFilm.comments.length;
+    });
     textInput.value = '';
   } catch (err) {
     showToast(err.message);
@@ -7089,8 +7353,10 @@ function toggleStoryViewerSound(ev){
 function stopSong(force){
   const stOpen = document.getElementById('storyViewerOverlay') && document.getElementById('storyViewerOverlay').classList.contains('open');
   const seOpen = document.getElementById('storyUploadOverlay') && document.getElementById('storyUploadOverlay').classList.contains('open');
-  // CRITICAL FIX: If Story Viewer or Story Studio is open, background feed observers must NOT stop story audio!
-  if (!force && (stOpen || seOpen)) {
+  const ovOpen = document.getElementById('overlay') && document.getElementById('overlay').classList.contains('open');
+  const shOpen = document.getElementById('shortsView') && document.getElementById('shortsView').classList.contains('active');
+  // CRITICAL FIX: If Story Viewer, Story Studio, Video Player, or Shorts is active, background observers must NOT kill audio!
+  if (!force && (stOpen || seOpen || ovOpen || shOpen)) {
     return;
   }
   clearTimeout(songStopTimer); songStopTimer = null;
@@ -7285,6 +7551,10 @@ function openStoryUploadModal(){
   storyPickedType = null;
   storyChosenSong = null;
   storyChosenPoll = null;
+  window.storyAutoHighlight = null;
+  window.storySharedPost = null;
+  const hlBtn = document.getElementById('seToolHighlightBtn');
+  if (hlBtn) hlBtn.classList.remove('active');
   storyAdjust = null;
   storyIsTextMode = false;
   storyBgIndex = 0;
@@ -7482,6 +7752,11 @@ function updateStoryStudioLivePreview(){
     if (storyMoodSticker) pills.push(`<span class="se-badge-pill" onclick="setStoryMoodSticker('${escapeAttr(storyMoodSticker)}')" title="Tap to remove">${escapeHtml(storyMoodSticker)} ✕</span>`);
     if (storyLinkObj && storyLinkObj.url) pills.push(`<span class="se-badge-pill" onclick="pickStoryLink()" title="Tap to edit">🔗 ${escapeHtml(storyLinkObj.label || 'Link')} ✕</span>`);
     if (storyChosenPoll && storyChosenPoll.q) pills.push(`<span class="se-badge-pill" onclick="pickStoryPoll()" title="Tap to edit">📊 ${escapeHtml(storyChosenPoll.q)} ✕</span>`);
+    if (window.storySharedPost && window.storySharedPost.id) {
+      const sp = window.storySharedPost;
+      const ico = sp.type === 'photo' ? '🖼️ Photo' : (sp.type === 'short' ? '⚡ Reel' : '🎬 Video');
+      pills.push(`<span class="se-badge-pill" onclick="window.storySharedPost=null;updateStoryStudioLivePreview();" title="Tap to unlink post" style="border-color:#ffd166;color:#ffd166;">${ico} · @${escapeHtml(sp.ownerUsername || 'user')} ✕</span>`);
+    }
     badgesRow.innerHTML = pills.join('');
   }
 }
@@ -7545,6 +7820,7 @@ async function generateTextStoryFile(){
 async function onStoryFilePicked(e){
   let file = (e && e.target && e.target.files && e.target.files[0]) || (e && e.files && e.files[0]) || null;
   if (!file) return;
+  if (!e || !e.keepSharedPost) window.storySharedPost = null;
   storyIsTextMode = false;
   const bgBtn = document.getElementById('seToolBgBtn');
   if (bgBtn) bgBtn.classList.remove('active');
@@ -7584,7 +7860,8 @@ async function pickUploadSong(){
   if (lbl) lbl.textContent = uploadSongChoice ? ('🎵 ' + (uploadSongChoice.title || 'Song') + ' (' + fmtClipSec(uploadSongChoice.songStart) + ' – ' + fmtClipSec((uploadSongChoice.songStart || 0) + (uploadSongChoice.songDuration || 15)) + ')') : '';
 }
 async function postStory(){
-  if (!storyPickedFile && !storyIsTextMode) {
+  const hasSharedPost = !!(window.storySharedPost && window.storySharedPost.id);
+  if (!storyPickedFile && !storyIsTextMode && !hasSharedPost) {
     showToast('Choose a photo/video or tap Text Story first');
     return;
   }
@@ -7598,7 +7875,8 @@ async function postStory(){
       mediaFileToUpload = await generateTextStoryFile();
     }
     const fd = new FormData();
-    fd.append('media', mediaFileToUpload);
+    if (mediaFileToUpload) fd.append('media', mediaFileToUpload);
+    if (hasSharedPost) fd.append('sharedFilmId', window.storySharedPost.id);
     // For text mode, the text is already rendered on the HD gradient canvas, so only set textOverlay if not text mode
     const rawCaption = document.getElementById('storyTextOverlay').value.trim();
     fd.append('textOverlay', storyIsTextMode ? '' : rawCaption);
@@ -7618,9 +7896,22 @@ async function postStory(){
       fullAdjust.isTextStory = true;
       fullAdjust.bgIndex = storyBgIndex;
     }
+    if (hasSharedPost) {
+      fullAdjust.sharedPost = {
+        id: window.storySharedPost.id,
+        type: window.storySharedPost.type || 'film',
+        ownerId: window.storySharedPost.ownerId || '',
+        ownerUsername: window.storySharedPost.ownerUsername || '',
+        title: (window.storySharedPost.title || '').slice(0, 80)
+      };
+    }
     if (Object.keys(fullAdjust).length) fd.append('adjust', JSON.stringify(fullAdjust));
     if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
     if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
+    if (window.storyAutoHighlight) {
+      if (window.storyAutoHighlight.id) fd.append('autoHighlightId', window.storyAutoHighlight.id);
+      else if (window.storyAutoHighlight.title) fd.append('autoHighlightTitle', window.storyAutoHighlight.title);
+    }
     const res = await fetch('/api/stories', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) {
@@ -7719,14 +8010,18 @@ function resumeStoryProgress(){
 
   function onPressStart(){
     longPressed = false;
-    pressTimer = setTimeout(() => { longPressed = true; pauseStoryProgress(); }, 180);
+    window._storyLongPressed = false;
+    pressTimer = setTimeout(() => { longPressed = true; window._storyLongPressed = true; pauseStoryProgress(); }, 180);
   }
   function onPressEnd(){
     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-    if (longPressed) resumeStoryProgress();
+    if (longPressed) {
+      resumeStoryProgress();
+      setTimeout(() => { window._storyLongPressed = false; }, 120);
+    }
   }
   function onTapZoneClick(e){
-    if (longPressed) { e.stopPropagation(); e.preventDefault(); longPressed = false; }
+    if (longPressed || window._storyLongPressed) { e.stopPropagation(); e.preventDefault(); longPressed = false; window._storyLongPressed = false; }
   }
 
   area.addEventListener('touchstart', onPressStart, { passive: true });
@@ -7873,11 +8168,14 @@ function storyAdvanceUser(direction){
 }
 
 // Opening a story silences the home feed: its videos are paused and its song is stopped
-let topOverlayZIndex = 200;
+let topOverlayZIndex = 210;
 function bumpOverlayZ(el){
   if (typeof el === 'string') el = document.getElementById(el);
   if (!el) return;
-  topOverlayZIndex++;
+  const openOverlays = document.querySelectorAll('.sheet-overlay.open, .chat-full-overlay.open, .modal-overlay.open, .story-viewer-overlay.open, .story-views-overlay.open');
+  if (openOverlays.length <= 1) topOverlayZIndex = 210;
+  const curZ = parseInt(window.getComputedStyle(el).zIndex, 10) || 210;
+  topOverlayZIndex = Math.max(topOverlayZIndex + 1, curZ);
   el.style.zIndex = String(topOverlayZIndex);
 }
 function pauseHomeFeedMedia(){
@@ -10553,21 +10851,82 @@ async function sendSelectedTo(){
   closeSendTo();
 }
 
+async function sharePostToStoryDirect(filmId){
+  sendToShortId = filmId;
+  await sendToAddToStory();
+}
+
 async function sendToAddToStory(){
   const id = sendToShortId;
   if (!id) return;
-  const f = (allFilms || []).find(x => x.id === id);
+  let f = (allFilms || []).find(x => x.id === id) || (currentFilm && currentFilm.id === id ? currentFilm : null);
   closeSendTo();
+  if (!f) {
+    try {
+      const r = await fetch('/api/films/' + encodeURIComponent(id));
+      if (r.ok) f = await r.json();
+    } catch (e) {}
+  }
   if (!f) { showToast('Post not found'); return; }
   openStoryUploadModal();
-  try {
-    const url = f.type === 'photo' ? (f.posterUrl || '') : (f.videoUrl || '');
-    if (!url) throw new Error('Media not found');
-    const blob = await (await fetch(url)).blob();
-    const ext = f.type === 'photo' ? 'jpg' : 'mp4';
-    const file = new File([blob], 'story.' + ext, { type: blob.type || (f.type === 'photo' ? 'image/jpeg' : 'video/mp4') });
-    await onStoryFilePicked({ target: { files: [file] } });
-  } catch (err) { showToast(err.message); }
+
+  const slide0 = (f.slideUrls && f.slideUrls[0]) || null;
+  const slide0Url = slide0 ? (typeof slide0 === 'string' ? slide0 : (slide0.url || '')) : '';
+  const url = f.type === 'photo'
+    ? (f.posterUrl || slide0Url || f.videoUrl || '')
+    : (f.videoUrl || slide0Url || f.posterUrl || '');
+
+  window.storySharedPost = {
+    id: f.id,
+    type: f.type || 'film',
+    ownerId: f.ownerId || '',
+    ownerUsername: f.ownerUsername || 'user',
+    title: (f.title || '').slice(0, 80)
+  };
+
+  if (f.song && !storyChosenSong) {
+    storyChosenSong = {
+      songId: f.song.id || f.song.songId || '',
+      title: f.song.title || 'Song',
+      artist: f.song.artist || '',
+      url: f.song.url || '',
+      songStart: Number(f.song.start || f.song.songStart) || 0,
+      songDuration: Number(f.song.duration || f.song.songDuration) || 15
+    };
+    const sl = document.getElementById('storySongLabel');
+    if (sl) sl.textContent = '🎵 ' + storyChosenSong.title;
+  }
+
+  storyIsTextMode = false;
+  storyPickedType = f.type === 'photo' ? 'photo' : 'video';
+  const imgEl = document.getElementById('storyPreviewImg');
+  const vidEl = document.getElementById('storyPreviewVideo');
+  if (url) {
+    if (storyPickedType === 'photo') {
+      vidEl.pause(); vidEl.classList.add('hidden'); vidEl.removeAttribute('src');
+      imgEl.src = url; imgEl.classList.remove('hidden');
+    } else {
+      imgEl.classList.add('hidden'); imgEl.removeAttribute('src');
+      vidEl.src = url; vidEl.classList.remove('hidden');
+      vidEl.play().catch(() => {});
+    }
+  }
+  document.getElementById('storyPickArea').classList.add('hidden');
+  document.getElementById('storyPreviewArea').classList.remove('hidden');
+  document.getElementById('storyPostBtn').classList.remove('hidden');
+  updateStoryStudioLivePreview();
+
+  // Optional background blob fetch if same-origin / CORS-allowed; server also copies directly via sharedFilmId!
+  if (url) {
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const ext = storyPickedType === 'photo' ? 'jpg' : 'mp4';
+        storyPickedFile = new File([blob], 'story.' + ext, { type: blob.type || (storyPickedType === 'photo' ? 'image/jpeg' : 'video/mp4') });
+      }
+    } catch (e) {}
+  }
 }
 
 function sendToCopyLink(){
@@ -10712,6 +11071,8 @@ function showSeekBadge(wrap, text, side){
   setTimeout(() => b.remove(), 700);
 }
 function setupPlayerDoubleTapZones(){
+  // Double-tap seek (±10s), center zoom, and single-tap HUD toggle are handled by handleYtStageTap on #ytVideoStage
+  return;
   const wrap = document.getElementById('playerMediaWrap');
   if (!wrap) return;
   let lastTap = 0, lastX = 0;
@@ -11264,6 +11625,11 @@ window.UploadMgr = (function(){
 
   window.addEventListener('popstate', function(){
     if (selfTriggeredBackCount > 0) { selfTriggeredBackCount--; return; }
+    const dynIds = ['songPicker','sharePostChatModal','addGroupMemberModal','newGroupModal','convoInfoSheet','accountsSheet','channelSheet','trustModal','notifPrefsModal','noteOverlay','blueOverlay','yourDashOverlay'];
+    for (const did of dynIds) {
+      const dm = document.getElementById(did);
+      if (dm) { dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
+    }
     if (navStack.length > 0) {
       const topId = navStack[navStack.length - 1];
       poppingFromBack = true;
@@ -11286,7 +11652,7 @@ window.UploadMgr = (function(){
     history.pushState({ page: 'home' }, '', location.pathname);
   });
 })();
-history.pushState({ page: 'home' }, '', location.pathname);
+history.pushState({ page: 'home' }, '', location.pathname + location.search);
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').then(reg => { try { reg.update(); } catch (e) {} }).catch(() => {});
   if (window.caches && caches.keys) {
@@ -11980,9 +12346,87 @@ function pickStoryPoll(){
   showToast('📊 Poll attached to story!');
 }
 
+function getStorySharedPostInfo(story){
+  if (!story) return null;
+  const group = (typeof currentStoryUserQueue !== 'undefined' && currentStoryUserQueue[currentStoryGroupIndex]) || null;
+  const a = story.adjust || {};
+
+  // 1. Explicit sharedPost saved on story
+  if (a.sharedPost && a.sharedPost.id) {
+    const f = (allFilms || []).find(x => x.id === a.sharedPost.id);
+    return {
+      id: a.sharedPost.id,
+      type: (f && f.type) || a.sharedPost.type || 'film',
+      ownerId: (f && f.ownerId) || a.sharedPost.ownerId || (group && group.ownerId) || story.ownerId || '',
+      ownerUsername: (f && f.ownerUsername) || a.sharedPost.ownerUsername || (group && group.ownerUsername) || story.ownerUsername || 'user',
+      title: (f && f.title) || a.sharedPost.title || ''
+    };
+  }
+
+  // 2. Link URL pointing to a Short or Film/Photo (?short=... or ?film=...)
+  if (a.linkUrl) {
+    const m = String(a.linkUrl).match(/[?&](short|film)=([a-zA-Z0-9_-]+)/i);
+    if (m) {
+      const targetId = m[2];
+      const f = (allFilms || []).find(x => x.id === targetId);
+      return {
+        id: targetId,
+        type: f ? f.type : (m[1].toLowerCase() === 'short' ? 'short' : 'film'),
+        ownerId: (f && f.ownerId) || (group && group.ownerId) || story.ownerId || '',
+        ownerUsername: (f && f.ownerUsername) || (group && group.ownerUsername) || story.ownerUsername || 'user',
+        title: (f && f.title) || ''
+      };
+    }
+  }
+
+  // 3. Smart fallback for existing stories (photo stories -> Photo Feed, video/reel stories -> Shorts Feed)
+  if (!a.isTextStory && Array.isArray(allFilms) && allFilms.length) {
+    const ownerId = (group && group.ownerId) || story.ownerId || '';
+    const cap = String(story.textOverlay || '').trim().toLowerCase();
+    const sSongId = story.song && (story.song.id || story.song.songId || '');
+    const sSongTitle = story.song && story.song.title ? String(story.song.title).toLowerCase() : '';
+
+    if (story.mediaType === 'photo') {
+      const photoMatch =
+        (cap && allFilms.find(f => f.type === 'photo' && (f.title || '').toLowerCase() === cap)) ||
+        (ownerId && sSongId && allFilms.find(f => f.type === 'photo' && isMyPost(f, ownerId) && f.song && (f.song.id === sSongId || f.song.songId === sSongId))) ||
+        (ownerId && allFilms.find(f => f.type === 'photo' && isMyPost(f, ownerId))) ||
+        allFilms.find(f => f.type === 'photo');
+      if (photoMatch) {
+        return {
+          id: photoMatch.id,
+          type: 'photo',
+          ownerId: photoMatch.ownerId || ownerId,
+          ownerUsername: photoMatch.ownerUsername || (group && group.ownerUsername) || 'user',
+          title: photoMatch.title || ''
+        };
+      }
+    } else if (story.mediaType === 'video') {
+      const shortMatch =
+        (cap && allFilms.find(f => f.type === 'short' && (f.title || '').toLowerCase() === cap)) ||
+        (ownerId && sSongId && allFilms.find(f => f.type === 'short' && isMyPost(f, ownerId) && f.song && (f.song.id === sSongId || f.song.songId === sSongId))) ||
+        (ownerId && allFilms.find(f => f.type === 'short' && isMyPost(f, ownerId))) ||
+        (sSongId && allFilms.find(f => f.type === 'short' && f.song && (f.song.id === sSongId || f.song.songId === sSongId))) ||
+        (sSongTitle && allFilms.find(f => f.type === 'short' && f.song && String(f.song.title || '').toLowerCase() === sSongTitle)) ||
+        allFilms.find(f => f.type === 'short');
+      if (shortMatch) {
+        return {
+          id: shortMatch.id,
+          type: 'short',
+          ownerId: shortMatch.ownerId || ownerId,
+          ownerUsername: shortMatch.ownerUsername || (group && group.ownerUsername) || 'user',
+          title: shortMatch.title || ''
+        };
+      }
+    }
+  }
+  return null;
+}
+
 function renderStoryViewerStickers(story){
   const box = document.getElementById('storyViewStickersRow');
-  if (!box) return;
+  const spCard = document.getElementById('storySharedPostCard');
+  const centerZone = document.getElementById('storyTapCenterZone');
   const a = (story && story.adjust) || {};
   const badges = [];
   if (a.location) {
@@ -11997,7 +12441,113 @@ function renderStoryViewerStickers(story){
   if (a.linkUrl) {
     badges.push(`<a class="story-viewer-badge" href="${escapeAttr(normalizeUrl(a.linkUrl))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="background:linear-gradient(135deg,rgba(124,92,255,0.88),rgba(230,57,80,0.88));">🔗 ${escapeHtml(a.linkLabel || 'Visit Link ↗')}</a>`);
   }
-  box.innerHTML = badges.join('');
+  if (box) box.innerHTML = badges.join('');
+
+  const sp = getStorySharedPostInfo(story);
+  if (sp && sp.id) {
+    if (centerZone) centerZone.style.cursor = 'pointer';
+    if (spCard) {
+      const label = sp.type === 'photo'
+        ? `🖼️ Photo · @${escapeHtml(sp.ownerUsername || 'user')} · View Photo Feed ↗`
+        : (sp.type === 'short'
+            ? `⚡ Reel · @${escapeHtml(sp.ownerUsername || 'user')} · Watch in Shorts ↗`
+            : `🎬 Video · @${escapeHtml(sp.ownerUsername || 'user')} · Watch Video ↗`);
+      spCard.innerHTML = label;
+      spCard.classList.remove('hidden');
+    }
+  } else {
+    if (centerZone) centerZone.style.cursor = 'default';
+    if (spCard) {
+      spCard.innerHTML = '';
+      spCard.classList.add('hidden');
+    }
+  }
+}
+
+function onStoryCenterMediaTap(e){
+  if (window._storyLongPressed) {
+    window._storyLongPressed = false;
+    return;
+  }
+  const group = currentStoryUserQueue && currentStoryUserQueue[currentStoryGroupIndex];
+  const story = group && group.stories && group.stories[currentStoryIndex];
+  if (!story) return;
+  const sp = getStorySharedPostInfo(story);
+  if (sp && sp.id) {
+    openSharedPostFromStory(e);
+  }
+}
+
+async function openSharedPostFromStory(e){
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (window._storyLongPressed) {
+    window._storyLongPressed = false;
+    return;
+  }
+  const group = currentStoryUserQueue && currentStoryUserQueue[currentStoryGroupIndex];
+  const story = group && group.stories && group.stories[currentStoryIndex];
+  if (!story) return;
+  const sp = getStorySharedPostInfo(story);
+  if (!sp || !sp.id) return;
+
+  closeStoryViewer();
+
+  // Ensure post is loaded in allFilms
+  let f = (allFilms || []).find(x => x.id === sp.id);
+  if (!f) {
+    try {
+      const r = await fetch('/api/films/' + encodeURIComponent(sp.id));
+      if (r.ok) {
+        f = await r.json();
+        if (f && f.id && !allFilms.some(x => x.id === f.id)) allFilms.unshift(f);
+      }
+    } catch (err) {}
+  }
+
+  const targetType = (f && f.type) || sp.type || 'film';
+  const targetOwnerId = (f && f.ownerId) || sp.ownerId || '';
+
+  if (targetType === 'photo') {
+    await openProfilePhotoFeed(targetOwnerId, sp.id);
+    setTimeout(() => {
+      const cardEl = document.getElementById('pfeed-card-' + sp.id);
+      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+    return;
+  }
+
+  if (targetType === 'short') {
+    if (typeof closeOtherProfile === 'function') closeOtherProfile();
+    if (typeof closeProfilePhotoFeed === 'function') closeProfilePhotoFeed();
+    if (typeof closeHashtagFeed === 'function') closeHashtagFeed();
+    await openShortAt(sp.id);
+    return;
+  }
+
+  playFilm(sp.id);
+}
+
+function pickStorySharedPost(){
+  const list = (allFilms || []).slice(0, 20);
+  if (!list.length) { showToast('No posts available to link'); return; }
+  const menuStr = list.map((f, idx) => {
+    const tLabel = f.type === 'photo' ? '🖼️ Photo' : (f.type === 'short' ? '⚡ Reel' : '🎬 Video');
+    return `${idx + 1}. [${tLabel}] ${f.title || 'Untitled'} (@${f.ownerUsername || 'user'})`;
+  }).join('\n');
+  const inp = prompt(`Choose a Photo or Reel number (1-${list.length}) to make this Story clickable to that post:\n\n${menuStr}`);
+  if (!inp) return;
+  const idx = parseInt(inp.trim(), 10) - 1;
+  const picked = list[idx];
+  if (!picked) { showToast('Invalid number'); return; }
+  window.storySharedPost = {
+    id: picked.id,
+    type: picked.type || 'film',
+    ownerId: picked.ownerId || '',
+    ownerUsername: picked.ownerUsername || 'user',
+    title: (picked.title || '').slice(0, 80)
+  };
+  updateStoryStudioLivePreview();
+  showToast((picked.type === 'photo' ? '🖼️ Linked to Photo Feed!' : '⚡ Linked to Shorts Reel!'));
 }
 
 async function openMentionFromStory(username){
@@ -12185,6 +12735,229 @@ function showBlueTickCelebration(username){
     </div>
   `;
   document.body.appendChild(ov);
+}
+
+
+// ===== NEW FEATURES (#5 Super Thanks, #7 Audio Page, #8 Story Auto-Highlight, #9 Creator Milestones) =====
+function renderCreatorMilestonesHtml(userFilms, followersCount, isVerified){
+  const posts = Array.isArray(userFilms) ? userFilms.length : 0;
+  const totalViews = (Array.isArray(userFilms) ? userFilms : []).reduce((s, f) => s + (Number(f.views) || 0), 0);
+  const totalLikes = (Array.isArray(userFilms) ? userFilms : []).reduce((s, f) => s + (Number(f.likes) || 0), 0);
+  const badges = [];
+  if (posts >= 1) badges.push({ icon: '🎬', label: 'Creator', tip: posts + ' Posts Shared' });
+  if (posts >= 5) badges.push({ icon: '🚀', label: 'Active Creator', tip: '5+ Posts Shared' });
+  if (totalViews >= 50 || totalLikes >= 15) badges.push({ icon: '🔥', label: 'Rising Star', tip: totalViews + ' Views · ' + totalLikes + ' Likes' });
+  if (totalViews >= 500 || followersCount >= 25) badges.push({ icon: '💎', label: 'Popular Creator', tip: 'High Community Engagement' });
+  if (isVerified || followersCount >= 100 || totalViews >= 2000) badges.push({ icon: '👑', label: 'Elite Icon', tip: 'Top Platform Creator' });
+  if (!badges.length) return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px;">
+    ${badges.map(b => `<span title="${escapeAttr(b.tip)}" style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(124,92,255,0.16),rgba(255,209,102,0.12));border:1px solid rgba(124,92,255,0.35);color:var(--cream);padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;">${b.icon} ${escapeHtml(b.label)}</span>`).join('')}
+  </div>`;
+}
+
+async function pickStoryAutoHighlight(){
+  if (!currentUser) return;
+  let myHighlights = [];
+  try {
+    const res = await fetch('/api/users/' + currentUser.id + '/highlights');
+    const d = await res.json();
+    myHighlights = (d && d.highlights) || (Array.isArray(d) ? d : []);
+  } catch (e) {}
+  const existingList = myHighlights.length
+    ? '\n\nExisting Highlights:\n' + myHighlights.map((h, i) => `${i + 1}. ${h.title}`).join('\n')
+    : '';
+  const curLabel = window.storyAutoHighlight ? (window.storyAutoHighlight.title || 'Selected') : 'None';
+  const inp = prompt(
+    `⏳ Auto-Save Story to Profile Highlight (Current: ${curLabel})\n\nType a Highlight number (1-${myHighlights.length}) OR type a new Highlight name (e.g., "Memories", "Travel", "Music") to automatically pin this story to your profile!\n(Leave blank to turn off Auto-Highlight)${existingList}`
+  );
+  const btn = document.getElementById('seToolHighlightBtn');
+  if (inp === null) return;
+  const trimmed = inp.trim();
+  if (!trimmed) {
+    window.storyAutoHighlight = null;
+    if (btn) btn.classList.remove('active');
+    showToast('Auto-Highlight turned off');
+    return;
+  }
+  const num = parseInt(trimmed, 10);
+  if (!isNaN(num) && num >= 1 && num <= myHighlights.length && String(num) === trimmed) {
+    const picked = myHighlights[num - 1];
+    window.storyAutoHighlight = { id: picked.id, title: picked.title };
+    if (btn) btn.classList.add('active');
+    showToast('⭐ Will auto-save to "' + picked.title + '" Highlight!');
+  } else {
+    window.storyAutoHighlight = { title: trimmed.slice(0, 30) };
+    if (btn) btn.classList.add('active');
+    showToast('⭐ Will auto-create & save to "' + trimmed.slice(0, 30) + '" Highlight!');
+  }
+}
+
+let superThanksSelectedTier = 'gem';
+function openSuperThanksModal(filmId){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (!filmId) return;
+  const existing = document.getElementById('superThanksOverlay');
+  if (existing) existing.remove();
+  const f = allFilms.find(x => x.id === filmId) || currentFilm || {};
+  superThanksSelectedTier = 'gem';
+  const ov = document.createElement('div');
+  ov.id = 'superThanksOverlay';
+  ov.className = 'modal-overlay open';
+  ov.style.zIndex = '1200';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+  const tiers = [
+    { id: 'chai', emoji: '☕', label: 'Chai Boost', desc: 'Warm appreciation badge' },
+    { id: 'gem', emoji: '💎', label: 'Super Gem', desc: 'Golden highlighted comment' },
+    { id: 'fire', emoji: '🔥', label: 'Mega Fire', desc: 'Top hype creator badge' },
+    { id: 'crown', emoji: '👑', label: 'Golden Crown', desc: 'Ultimate VIP supporter' }
+  ];
+  ov.innerHTML = `
+    <div class="settings-panel" style="max-width:400px;width:92%;margin:auto;background:var(--panel);border:1.5px solid rgba(255,209,102,0.55);border-radius:20px;padding:18px;box-shadow:0 16px 48px rgba(0,0,0,0.65);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;font-size:18px;color:#ffd166;">💎 Send Super Thanks</h3>
+        <button type="button" onclick="document.getElementById('superThanksOverlay').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--cream-dim);margin:0 0 12px;">Support <b>@${escapeHtml(f.ownerUsername || 'creator')}</b> with a highlighted golden comment badge that stands out at the top of the conversation!</p>
+      <div id="stTierGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        ${tiers.map(t => `
+          <div data-tier="${t.id}" onclick="selectSuperThanksTier('${t.id}')" style="cursor:pointer;padding:10px;border-radius:12px;border:1.5px solid ${t.id === 'gem' ? '#ffd166' : 'var(--gold-line)'};background:${t.id === 'gem' ? 'rgba(255,209,102,0.16)' : 'var(--field)'};text-align:center;">
+            <div style="font-size:24px;">${t.emoji}</div>
+            <div style="font-size:13px;font-weight:800;color:var(--cream);margin-top:2px;">${t.label}</div>
+            <div style="font-size:10.5px;color:var(--cream-dim);">${t.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+      <textarea id="superThanksText" maxlength="240" placeholder="Write your supportive message for @${escapeHtml(f.ownerUsername || 'creator')}..." style="width:100%;min-height:70px;border-radius:12px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);padding:10px;font-size:13px;box-sizing:border-box;margin-bottom:12px;">Loved this content! Keep shining ✨</textarea>
+      <button type="button" onclick="submitSuperThanks('${escapeAttr(filmId)}')" style="width:100%;padding:11px;border-radius:999px;border:none;background:linear-gradient(135deg,#ffd166,#ff9f1c);color:#111;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 16px rgba(255,209,102,0.35);">💎 Post Super Thanks</button>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+function selectSuperThanksTier(tierId){
+  superThanksSelectedTier = tierId;
+  document.querySelectorAll('#stTierGrid > div').forEach(el => {
+    const act = el.getAttribute('data-tier') === tierId;
+    el.style.borderColor = act ? '#ffd166' : 'var(--gold-line)';
+    el.style.background = act ? 'rgba(255,209,102,0.16)' : 'var(--field)';
+  });
+}
+async function submitSuperThanks(filmId){
+  const txtEl = document.getElementById('superThanksText');
+  const text = (txtEl ? txtEl.value : '').trim();
+  if (!text) { showToast('Please write a short message'); return; }
+  const tierMeta = {
+    chai: { tier: 'chai', emoji: '☕', label: 'Chai Boost' },
+    gem: { tier: 'gem', emoji: '💎', label: 'Super Gem' },
+    fire: { tier: 'fire', emoji: '🔥', label: 'Mega Fire' },
+    crown: { tier: 'crown', emoji: '👑', label: 'Golden Crown' }
+  }[superThanksSelectedTier] || { tier: 'gem', emoji: '💎', label: 'Super Gem' };
+  try {
+    const res = await fetch(`/api/films/${filmId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, superThanks: tierMeta })
+    });
+    const d = await res.json();
+    if (!res.ok) { showToast(d.error || 'Could not post Super Thanks'); return; }
+    const ov = document.getElementById('superThanksOverlay');
+    if (ov) ov.remove();
+    const f = allFilms.find(x => x.id === filmId);
+    if (f) {
+      f.comments = f.comments || [];
+      f.comments.push(d);
+    }
+    if (currentFilm && currentFilm.id === filmId) {
+      currentFilm.comments = f ? f.comments : [...(currentFilm.comments || []), d];
+      renderComments(currentFilm.comments);
+      if (typeof ytSidePanelOpen !== 'undefined' && ytSidePanelOpen && ytSidePanelMode === 'comments') {
+        renderYtSidePanelContent('comments');
+      }
+    }
+    if (sheetFilmId === filmId && f) renderSheetComments(f.comments);
+    const sc = document.getElementById('short-comment-' + filmId);
+    if (sc && f) sc.textContent = f.comments.length;
+    showToast(tierMeta.emoji + ' Super Thanks posted!');
+  } catch (e) { showToast('Failed to send Super Thanks'); }
+}
+
+async function openAudioPage(song){
+  if (!song) return;
+  playSong(song);
+  const existing = document.getElementById('audioPageOverlay');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'audioPageOverlay';
+  ov.className = 'modal-overlay open';
+  ov.style.zIndex = '1180';
+  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+
+  const songId = song.id || song.songId || '';
+  const localMatches = allFilms.filter(f => f.song && ((songId && (f.song.id === songId || f.song.songId === songId)) || (f.song.title && song.title && f.song.title.toLowerCase() === song.title.toLowerCase())));
+
+  const gridHtml = localMatches.length
+    ? localMatches.map(f => {
+        const clickJs = f.type === 'short'
+          ? `document.getElementById('audioPageOverlay').remove();openShortAt('${escapeAttr(f.id)}')`
+          : (f.type === 'photo' ? `document.getElementById('audioPageOverlay').remove();openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.id)}')` : `document.getElementById('audioPageOverlay').remove();playFilm('${escapeAttr(f.id)}')`);
+        return gridItemHtml(f, clickJs, false);
+      }).join('')
+    : '<div style="grid-column:1 / -1;text-align:center;padding:24px 10px;color:var(--cream-dim);font-size:13px;">No posts found with this audio yet. Be the first to create one!</div>';
+
+  ov.innerHTML = `
+    <div class="settings-panel" style="max-width:480px;width:95%;max-height:84vh;overflow-y:auto;margin:auto;background:var(--panel);border:1px solid var(--gold-line);border-radius:22px;padding:18px;box-shadow:0 16px 48px rgba(0,0,0,0.7);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div style="width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(124,92,255,0.4);">🎵</div>
+          <div>
+            <div style="font-size:17px;font-weight:800;color:var(--cream);line-height:1.25;">${escapeHtml(song.title || 'Original Audio')}</div>
+            <div style="font-size:13px;color:var(--cream-dim);margin-top:2px;">${escapeHtml(song.artist || 'YouSeries Music Library')}</div>
+            <div id="audioPageCountLine" style="font-size:11.5px;color:var(--marigold);font-weight:700;margin-top:4px;">Used in ${localMatches.length} posts</div>
+          </div>
+        </div>
+        <button type="button" onclick="document.getElementById('audioPageOverlay').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button type="button" onclick="playSong(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:120px;">🔊 Replay Audio</button>
+        <button type="button" onclick="useSongInNewPost(${escapeAttr(JSON.stringify(song))})" class="profile-btn primary" style="flex:1;min-width:140px;">🎬 Use This Audio</button>
+      </div>
+      <div id="audioPageGrid" class="profile-grid" style="grid-template-columns:repeat(3,1fr);gap:6px;">
+        ${gridHtml}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+
+  if (songId) {
+    try {
+      const res = await fetch('/api/songs/' + encodeURIComponent(songId) + '/posts');
+      if (res.ok) {
+        const d = await res.json();
+        const cntEl = document.getElementById('audioPageCountLine');
+        if (cntEl && typeof d.totalUses === 'number') {
+          cntEl.textContent = `Used in ${d.totalUses} posts & ${d.storiesCount || 0} active stories`;
+        }
+      }
+    } catch (e) {}
+  }
+}
+
+function useSongInNewPost(song){
+  const ov = document.getElementById('audioPageOverlay');
+  if (ov) ov.remove();
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const normId = song.id || song.songId || '';
+  uploadSongChoice = {
+    songId: normId,
+    title: song.title || 'Song',
+    artist: song.artist || '',
+    url: song.url || '',
+    songStart: Number(song.start || song.songStart) || 0,
+    songDuration: Number(song.duration || song.songDuration) || 15
+  };
+  openUploadModal();
+  const lbl = document.getElementById('uploadSongLabel');
+  if (lbl) lbl.textContent = '🎵 ' + uploadSongChoice.title + (uploadSongChoice.artist ? ' · ' + uploadSongChoice.artist : '');
+  showToast('🎵 Audio selected for your new post!');
 }
 
 </script>

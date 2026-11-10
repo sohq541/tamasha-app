@@ -126,6 +126,7 @@ input.search,textarea.t,select.adm-select{background:var(--field);color:var(--cr
     <button class="tab" data-t="songs" onclick="setTab('songs')">🎵 Songs</button>
     <button class="tab" data-t="content" onclick="setTab('content')">🎬 Content Manager</button>
     <button class="tab" data-t="stories" onclick="setTab('stories')">🔵 Stories Manager</button>
+    <button class="tab" data-t="commentsgroups" onclick="setTab('commentsgroups')">💬 Comments &amp; Groups</button>
     <button class="tab" data-t="users" onclick="setTab('users')">Users</button>
     <button class="tab" data-t="helpdesk" id="hdTab" onclick="setTab('helpdesk')">Help Desk</button>
     <button class="tab" data-t="bluetick" onclick="setTab('bluetick')">✔ Blue tick</button>
@@ -273,6 +274,7 @@ function fb(b){
 }
 const meterCls = p => p >= 90 ? 'bad' : p >= 70 ? 'warn' : '';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const escJs = s => esc(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
 
 function ago(iso){
   if (!iso) return 'never';
@@ -324,7 +326,7 @@ async function load(){
 
 function setTab(t){
   tab = t;
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+  document.querySelectorAll('.tabs .tab, #sideNav .tab').forEach(b => b.classList.toggle('active', b.dataset.t === t));
   render();
 }
 
@@ -346,6 +348,7 @@ function render(){
   else if (tab === 'bluetick') renderBluetickAdmin();
   else if (tab === 'content') renderContentManager();
   else if (tab === 'stories') renderAdminStories();
+  else if (tab === 'commentsgroups') renderCommentsGroupsTab();
   else if (tab === 'moderation') renderModeration();
   else if (tab === 'searches') renderSearches();
   else if (tab === 'trending') renderTrending();
@@ -404,6 +407,7 @@ function renderOverview(){
       stat(o.posts.photo, '🖼️ Photos & Carousels', '', "jumpToContentType('photo')") +
       stat((o.posts.film || 0) + (o.posts.short || 0) + (o.posts.photo || 0), '📦 All Posts', '', "jumpToContentType('all')") +
     '</div>' +
+    renderGrowthChartCardHtml() +
     (spamUsers.length ? '<h3 class="sec">⚠️ Users with Active Reports</h3>' + spamUsers.map(userCard).join('') : '');
 }
 
@@ -420,6 +424,10 @@ function r2Card(){
       <div class="meter"><i class="${meterCls(p)}" style="width:${p.toFixed(2)}%"></i></div>
       <div class="meta">${p.toFixed(1)}% use hua · 10 GB free limit (R2_LIMIT_GB se badal sakte ho)</div>
       <div style="margin-top:6px;">${folders}</div>
+      <div class="row1" style="margin-top:10px;gap:8px;">
+        <button class="btn btn-ok" onclick="cleanOrphanStorage()">🗑️ Scan &amp; Clean Orphan R2 Media</button>
+        <span class="meta" id="r2CleanStatus" style="margin:0;"></span>
+      </div>
     </div>`;
 }
 
@@ -541,9 +549,9 @@ function drawAdminSongs(){
       <div class="meta" style="margin-top:2px;">Artist: <b>${esc(x.artist || 'Unknown')}</b></div>
       <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;border-radius:8px;"></audio>
       <div class="row1" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
-        ${x.url ? `<button class="btn admin-song-play-btn" onclick="toggleAdminSongPreview('${esc(x.url)}', this)">▶ Play Preview</button>` : ''}
+        ${x.url ? `<button class="btn admin-song-play-btn" onclick="toggleAdminSongPreview('${escJs(x.url)}', this)">▶ Play Preview</button>` : ''}
         <button class="btn ${x.trending ? 'btn-ok' : ''}" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove from Trending' : '🔥 Add to Trending'}</button>
-        <button class="btn" onclick="editSongPrompt('${x.id}', '${esc(x.title)}', '${esc(x.artist || '')}', '${esc(x.category || '')}')">✏️ Edit Details</button>
+        <button class="btn" onclick="editSongPrompt('${escJs(x.id)}', '${escJs(x.title)}', '${escJs(x.artist || '')}', '${escJs(x.category || '')}')">✏️ Edit Details</button>
         <button class="btn btn-danger" onclick="deleteSong('${x.id}')">🗑️ Delete</button>
       </div>
     </div>
@@ -666,10 +674,12 @@ function userCard(u){
       <div class="meta">${esc(u.email || '')}</div>
       <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${u.online ? '🟢 online now' : ago(u.lastActiveAt)}</div>
       <div class="nums"><span><b>${u.posts}</b> posts</span><span><b>${u.comments}</b> comments</span><span><b>${u.followers}</b> followers</span></div>
-      <div class="row1" style="margin-top:10px;">
+      ${u.verifiedUntil ? `<div class="meta" style="color:#ffd166;">👑 Gifted Blue Tick active until: ${new Date(u.verifiedUntil).toLocaleDateString()}</div>` : ''}
+      <div class="row1" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
-        <button class="btn" onclick="setRoleBadge('${u.id}', '${esc(u.username)}', '${esc(u.roleBadge || '')}')">🏷️ Role Tag</button>
-        <button class="btn" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send DM</button>
+        <button class="btn" onclick="giftUserBluetick('${escJs(u.id)}', '${escJs(u.username)}')">👑 Gift Blue Tick</button>
+        <button class="btn" onclick="setRoleBadge('${escJs(u.id)}', '${escJs(u.username)}', '${escJs(u.roleBadge || '')}')">🏷️ Role Tag</button>
+        <button class="btn" onclick="adminDmUser('${escJs(u.id)}', '${escJs(u.username)}')">✉️ Send DM</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
         <button class="btn btn-danger" onclick="deleteUser('${u.id}')">🗑️ Account delete</button>
       </div>
@@ -790,21 +800,24 @@ function renderHelpdesk(){
         ${thread}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center;">
           <button type="button" class="btn btn-ok" style="font-size:12px;padding:5px 10px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" onclick="aiSuggestHelpReply('${t.id}', this)">✨ AI Auto-Write Reply</button>
-          ${HD_CANNED.map(([lbl, txt]) => `<button type="button" class="btn" style="font-size:11.5px;padding:4px 8px;" onclick="insertCannedReply('${t.id}', ${JSON.stringify(txt)})">⚡ ${esc(lbl)}</button>`).join('')}
+          ${HD_CANNED.map(([lbl], idx) => `<button type="button" class="btn" style="font-size:11.5px;padding:4px 8px;" onclick="insertCannedReply('${escJs(t.id)}', ${idx})">⚡ ${esc(lbl)}</button>`).join('')}
         </div>
         <textarea class="t" id="hr-${t.id}" placeholder="Jawab likho… (user ko app me aur email pe dikhega)" style="margin-top:10px;min-height:70px;"></textarea>
         <div class="row1" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
           <button class="btn btn-ok" onclick="replyHelpdesk('${t.id}')">Send reply</button>
           <button class="btn" onclick="setHelpStatus('${t.id}','${t.status === 'closed' ? 'open' : 'closed'}')">${t.status === 'closed' ? 'Reopen' : 'Close'}</button>
-          ${t.username ? `<button class="btn" onclick="adminDmUser('${esc(t.userId || '')}', '${esc(t.username)}')">✉️ DM User</button>` : ''}
+          ${t.username ? `<button class="btn" onclick="adminDmUser('${escJs(t.userId || '')}', '${escJs(t.username)}')">✉️ DM User</button>` : ''}
           <button class="btn btn-danger" onclick="deleteHelpdeskTicket('${t.id}')" style="margin-left:auto;">🗑️ Delete</button>
         </div>
       </div>`;
     }).join('') || '<div class="empty">No matching helpdesk tickets found.</div>');
 }
-function insertCannedReply(tid, txt){
+function insertCannedReply(tid, idxOrTxt){
   const el = document.getElementById('hr-' + tid);
-  if (el) { el.value = txt; el.focus(); }
+  if (!el) return;
+  const txt = (typeof idxOrTxt === 'number' && HD_CANNED[idxOrTxt]) ? HD_CANNED[idxOrTxt][1] : String(idxOrTxt || '');
+  el.value = txt;
+  el.focus();
 }
 async function aiSuggestHelpReply(tid, btn){
   const el = document.getElementById('hr-' + tid);
@@ -972,7 +985,7 @@ async function renderSearches(){
         <div class="ev">
           <div class="ic">#${i + 1}</div>
           <div class="txt" style="flex:1;"><b>${esc(t.term)}</b><div class="when">${t.count} searches · ${ago(t.last)}</div></div>
-          <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="deleteSearchTerm('${esc(t.term)}')">✕ Delete</button>
+          <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="deleteSearchTerm('${escJs(t.term)}')">✕ Delete</button>
         </div>`).join('') || '<div class="empty">No searches recorded yet.</div>');
   } catch (e) { v.innerHTML = '<div class="empty">❌ ' + esc(e.message) + '</div>'; }
 }
@@ -999,7 +1012,7 @@ async function showUserDetail(id){
     const u = d.user;
     v.innerHTML = `
       <div class="card">
-        <div class="row1"><button class="btn" onclick="setTab('users')">← Users</button><button class="btn btn-ok" onclick="adminDmUser('${u.id}', '${esc(u.username)}')">✉️ Send Official DM</button></div>
+        <div class="row1"><button class="btn" onclick="setTab('users')">← Users</button><button class="btn btn-ok" onclick="adminDmUser('${escJs(u.id)}', '${escJs(u.username)}')">✉️ Send Official DM</button></div>
         <div class="row1" style="margin-top:10px;"><span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>${u.suspended ? '<span class="pill sus">suspended</span>' : ''}</div>
         <div class="meta">${esc(u.email || '')} · ${u.google ? 'google login' : 'password login'}</div>
         <div class="meta">Joined: ${ago(u.createdAt)} · Last active: ${ago(u.lastActiveAt)}</div>
@@ -1219,12 +1232,69 @@ let ANN = [], BANNED = [];
 async function renderTools(){
   const view = document.getElementById('view');
   view.innerHTML = '<div class="loading">Loading…</div>';
+  let featBanner = { enabled: false, title: '', subtitle: '', ctaText: '', ctaUrl: '', bgStyle: 'purple' };
+  let platSettings = { maintenanceMode: false, maintenanceMessage: '', signupsEnabled: true, idleTimeoutMins: 30 };
   try {
-    const [a, b] = await Promise.all([fetch('/api/admin/announcements'), fetch('/api/admin/banned-words')]);
+    const [a, b, fbRes, psRes] = await Promise.all([
+      fetch('/api/admin/announcements'),
+      fetch('/api/admin/banned-words'),
+      fetch('/api/featured-banner').catch(() => null),
+      fetch('/api/admin/platform-settings', { headers: { 'x-no-prompt': '1' } }).catch(() => null)
+    ]);
     ANN = (await a.json()).announcements || [];
     BANNED = (await b.json()).words || [];
+    if (fbRes && fbRes.ok) {
+      const fbd = await fbRes.json();
+      if (fbd && fbd.banner) featBanner = Object.assign(featBanner, fbd.banner);
+    }
+    if (psRes && psRes.ok) {
+      const psd = await psRes.json();
+      if (psd && psd.settings) platSettings = Object.assign(platSettings, psd.settings);
+    }
   } catch (e) {}
   view.innerHTML = `
+    <div class="card">
+      <b>🎯 Featured Hero Banner Manager (Home Feed Spotlight)</b>
+      <div class="meta">Pin a rich gradient hero spotlight card at the top of the Home Feed for contests, new series, or big announcements.</div>
+      <div class="row1" style="margin-top:8px;gap:10px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="fbEnabled" ${featBanner.enabled ? 'checked' : ''} style="width:16px;height:16px;"> Enable Hero Banner on Home
+        </label>
+        <select class="adm-select" id="fbBgStyle">
+          <option value="purple" ${featBanner.bgStyle === 'purple' ? 'selected' : ''}>🟣 Royal Purple Gradient</option>
+          <option value="gold" ${featBanner.bgStyle === 'gold' ? 'selected' : ''}>🟡 Golden Marigold Gradient</option>
+          <option value="crimson" ${featBanner.bgStyle === 'crimson' ? 'selected' : ''}>🔴 Crimson Cinema Gradient</option>
+          <option value="emerald" ${featBanner.bgStyle === 'emerald' ? 'selected' : ''}>🟢 Emerald Forest Gradient</option>
+        </select>
+      </div>
+      <input type="text" class="search" id="fbTitle" placeholder="Headline Title (e.g., 🏆 Tamasha Short Film Contest 2025)" value="${esc(featBanner.title || '')}" style="margin-top:8px;margin-bottom:6px;">
+      <input type="text" class="search" id="fbSubtitle" placeholder="Subtitle / Description (e.g., Upload your best Short with #TamashaStar to win Verified Blue Tick!)" value="${esc(featBanner.subtitle || '')}" style="margin-bottom:6px;">
+      <div class="row1" style="gap:8px;flex-wrap:wrap;">
+        <input type="text" class="search" id="fbCtaText" placeholder="Button Label (e.g., Watch Now ↗)" value="${esc(featBanner.ctaText || '')}" style="flex:1;min-width:150px;margin:0;">
+        <input type="text" class="search" id="fbCtaUrl" placeholder="Button Link URL (e.g., /?film=... or https://...)" value="${esc(featBanner.ctaUrl || '')}" style="flex:2;min-width:200px;margin:0;">
+      </div>
+      <div class="row1" style="margin-top:10px;gap:8px;">
+        <button class="btn btn-ok" onclick="saveFeaturedBanner()">💾 Save Hero Banner</button>
+        <span class="meta" id="fbStatus" style="margin:0;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>📢 Broadcast Direct Message (Inbox DM to Users)</b>
+      <div class="meta">Send an official direct message into every user's chat inbox (or only Verified Creators).</div>
+      <div class="row1" style="margin-top:8px;gap:8px;">
+        <select class="adm-select" id="bdmTarget">
+          <option value="all">👥 All Users</option>
+          <option value="verified">✔ Verified Creators Only</option>
+        </select>
+      </div>
+      <textarea class="t" id="bdmText" maxlength="1000" placeholder="Write your personal message to users..." style="margin-top:8px;"></textarea>
+      <div class="row1" style="margin-top:8px;gap:8px;">
+        <button class="btn btn-ok" onclick="sendBroadcastDmFromTools()">📨 Send Broadcast DM</button>
+        <span class="meta" id="bdmStatus" style="margin:0;"></span>
+      </div>
+    </div>
+
     <div class="card">
       <b>📢 Send announcement</b>
       <div class="meta">All users will see it as a banner and in the notification list (and as a push, if they allowed it).</div>
@@ -1232,19 +1302,45 @@ async function renderTools(){
       <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="sendAnnouncement()">📢 Send</button></div>
       ${ANN.length ? '<h3 class="sec">Past announcements</h3>' + ANN.map(x => `<div class="ev" style="align-items:center;"><div class="txt" style="flex:1;">${esc(x.message)}<div class="when">${ago(x.createdAt)}</div></div><button class="btn btn-danger" onclick="deleteAnnouncement('${x.id}')">Delete</button></div>`).join('') : ''}
     </div>
+
+    <div class="card">
+      <b>🔐 Platform Security, Maintenance Mode &amp; Access Controls</b>
+      <div class="meta">Control public maintenance mode, pause/resume new account registrations, and set your Admin Dashboard idle auto-lock timer.</div>
+      <div class="row1" style="margin-top:10px;gap:16px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="psMaintenance" ${platSettings.maintenanceMode ? 'checked' : ''} style="width:16px;height:16px;"> 🛠️ Maintenance Mode (Pause Public Writes)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="psSignups" ${platSettings.signupsEnabled !== false ? 'checked' : ''} style="width:16px;height:16px;"> 🚪 Allow New User Signups
+        </label>
+      </div>
+      <input type="text" class="search" id="psMaintMsg" placeholder="Maintenance banner message..." value="${esc(platSettings.maintenanceMessage || 'Platform is currently undergoing scheduled maintenance. Please check back shortly!')}" style="margin-top:8px;">
+      <div class="row1" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:12.5px;color:var(--cream-dim);">⏱️ Admin Idle Auto-Logout Timer (minutes, 0 = off):</span>
+        <input type="number" class="search" id="psIdleMins" min="0" max="240" value="${Number(platSettings.idleTimeoutMins ?? 30)}" style="width:90px;margin:0;">
+        <button class="btn btn-ok" onclick="savePlatformSettings()">💾 Save Security Settings</button>
+        <span class="meta" id="psStatus" style="margin:0;"></span>
+      </div>
+    </div>
+
     <div class="card">
       <b>🔇 Banned words</b>
       <div class="meta">If any of these words appear in a comment, post title/description or note, the post will not go out. Separate them with commas or new lines.</div>
       <textarea class="t" id="bannedText" placeholder="shabd1, shabd2">${esc(BANNED.join(', '))}</textarea>
       <div class="row1" style="margin-top:8px;"><button class="btn btn-ok" onclick="saveBanned()">Save</button><span class="meta" id="bannedStatus" style="margin:0;"></span></div>
     </div>
+
     <div class="card">
-      <b>📥 Users ki list (CSV) &amp; 💾 Full Database Backup (JSON)</b>
-      <div class="meta">Download user spreadsheet (CSV) or a complete 1-click JSON backup of all users, posts, stories, songs, and settings.</div>
+      <b>📥 Users CSV, 💾 Full Backup (JSON), 📤 Restore Backup &amp; 🗑️ Storage Cleaner</b>
+      <div class="meta">Download user spreadsheet (CSV), download or restore a full JSON database backup, or clean unused orphan media files from Cloudflare R2.</div>
+      <input type="file" id="restoreBackupFileInput" accept=".json,application/json" style="display:none;" onchange="restoreDatabaseFromJson(this)">
       <div class="row1" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
         <button class="btn" onclick="exportCsv()">⬇️ Download Users CSV</button>
         <button class="btn btn-ok" onclick="downloadBackupJson()">💾 Download Full Backup (JSON)</button>
+        <button class="btn" onclick="document.getElementById('restoreBackupFileInput').click()" style="border-color:#ffd166;color:#ffd166;">📤 Restore Backup (JSON)</button>
+        <button class="btn" onclick="cleanOrphanStorage()">🗑️ Clean Orphan R2 Media</button>
       </div>
+      <div class="meta" id="backupRestoreStatus" style="margin-top:6px;"></div>
     </div>
     <div class="card">
       <b>🚨 Report alert</b>
@@ -1525,6 +1621,7 @@ function drawContentList(){
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <a class="btn" href="/?${f.type === 'short' ? 'short=' : 'film='}${f.id}" target="_blank" style="text-align:center;text-decoration:none;">↗ Open</a>
+        <button class="btn" onclick="adminAddPostStats('${f.id}')">🚀 +Views/Likes</button>
         <button class="btn" onclick="adminEditPost('${f.id}')">✏️ Edit</button>
         <button class="btn ${f.adminBoosted ? 'btn-ok' : ''}" onclick="adminBoostPost('${f.id}')">${f.adminBoosted ? '📌 Unboost' : '📌 Pin/Boost'}</button>
         <button class="btn btn-danger" onclick="adminDeletePost('${f.id}')">🗑️ Delete</button>
@@ -1632,6 +1729,15 @@ function renderUsers(){
   const view = document.getElementById('view');
   const all = D.users || [];
   view.innerHTML = `
+    <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,rgba(124,92,255,0.14),rgba(255,209,102,0.07));">
+      <div class="row1" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <b>📢 Broadcast Direct Message (Inbox DM)</b>
+          <div class="meta" style="margin:2px 0 0;">Send a personal chat message from your official founder account to all users or all verified creators.</div>
+        </div>
+        <button class="btn btn-ok" onclick="promptBroadcastDm()">📢 Send Broadcast DM</button>
+      </div>
+    </div>
     <div class="row1" style="gap:8px;margin-bottom:10px;justify-content:space-between;flex-wrap:wrap;">
       <div id="userFilterTabs" style="display:flex;gap:6px;overflow-x:auto;"></div>
       <select class="adm-select" onchange="userSort=this.value;drawUsers()">
@@ -1739,6 +1845,361 @@ if (sideNav && window.innerWidth > 820) {
   });
 }
 load();
+
+// ===== NEW ADMIN DASHBOARD FEATURES (#11, #12, #13, #14, #15, #16, #17, #18, #19) =====
+let growthDaysMode = 7;
+function renderGrowthChartCardHtml(){
+  const rows = growthDaysMode === 30 ? (D.growth30d || []) : (D.growth7d || []);
+  if (!rows.length) return '';
+  const maxVal = Math.max(1, ...rows.map(r => Math.max(r.signups || 0, r.uploads || 0, r.comments || 0)));
+  const totSignups = rows.reduce((s, r) => s + (r.signups || 0), 0);
+  const totUploads = rows.reduce((s, r) => s + (r.uploads || 0), 0);
+  const totComments = rows.reduce((s, r) => s + (r.comments || 0), 0);
+
+  const barsHtml = rows.map(r => {
+    const sH = Math.max(4, Math.round(((r.signups || 0) / maxVal) * 78));
+    const uH = Math.max(4, Math.round(((r.uploads || 0) / maxVal) * 78));
+    const cH = Math.max(4, Math.round(((r.comments || 0) / maxVal) * 78));
+    return `
+      <div style="flex:1;min-width:${growthDaysMode === 30 ? '18px' : '36px'};display:flex;flex-direction:column;align-items:center;gap:4px;" title="${esc(r.label)}: ${r.signups} signups, ${r.uploads} uploads, ${r.comments} comments">
+        <div style="height:82px;display:flex;align-items:flex-end;gap:2px;">
+          <div style="width:${growthDaysMode === 30 ? '4px' : '8px'};height:${sH}px;background:#7C5CFF;border-radius:3px 3px 0 0;"></div>
+          <div style="width:${growthDaysMode === 30 ? '4px' : '8px'};height:${uH}px;background:#00F5D4;border-radius:3px 3px 0 0;"></div>
+          <div style="width:${growthDaysMode === 30 ? '4px' : '8px'};height:${cH}px;background:#FFD166;border-radius:3px 3px 0 0;"></div>
+        </div>
+        <div style="font-size:${growthDaysMode === 30 ? '8.5px' : '10px'};color:var(--cream-dim);white-space:nowrap;transform:${growthDaysMode === 30 ? 'rotate(-45deg)' : 'none'};margin-top:${growthDaysMode === 30 ? '6px' : '0'};">${esc(r.label)}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <h3 class="sec">📈 Visual Platform Growth (${growthDaysMode} Days)</h3>
+    <div class="card">
+      <div class="row1" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap;">
+          <span><b style="color:#7C5CFF;">●</b> Signups (${totSignups})</span>
+          <span><b style="color:#00F5D4;">●</b> Uploads (${totUploads})</span>
+          <span><b style="color:#FFD166;">●</b> Comments (${totComments})</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn ${growthDaysMode === 7 ? 'btn-ok' : ''}" onclick="growthDaysMode=7;renderOverview()">7 Days</button>
+          <button class="btn ${growthDaysMode === 30 ? 'btn-ok' : ''}" onclick="growthDaysMode=30;renderOverview()">30 Days</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:${growthDaysMode === 30 ? '3px' : '8px'};overflow-x:auto;padding:12px 4px ${growthDaysMode === 30 ? '18px' : '6px'};border-top:1px solid var(--line);">
+        ${barsHtml}
+      </div>
+    </div>`;
+}
+
+// #11 Broadcast DM
+async function promptBroadcastDm(){
+  const targetPick = prompt('Who should receive this Broadcast DM?\nType "all" for All Users, or "verified" for Verified Creators only:', 'all');
+  if (!targetPick) return;
+  const target = targetPick.trim().toLowerCase() === 'verified' ? 'verified' : 'all';
+  const msg = prompt(`Write the Direct Message to send to ${target === 'verified' ? 'all Verified Creators' : 'ALL Users'}:`);
+  if (!msg || !msg.trim()) return;
+  try {
+    const res = await fetch('/api/admin/broadcast-dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ target, message: msg.trim() })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Broadcast failed');
+    alert(`✅ Broadcast DM delivered to ${d.sentCount} users!`);
+  } catch (e) { alert(e.message || 'Broadcast failed'); }
+}
+
+async function sendBroadcastDmFromTools(){
+  const target = (document.getElementById('bdmTarget') || {}).value || 'all';
+  const txtEl = document.getElementById('bdmText');
+  const stEl = document.getElementById('bdmStatus');
+  const message = (txtEl ? txtEl.value : '').trim();
+  if (!message) { alert('Please write a message first'); return; }
+  if (!confirm(`Send this Direct Message to ${target === 'verified' ? 'all Verified Creators' : 'ALL Users'}?`)) return;
+  if (stEl) stEl.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/admin/broadcast-dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ target, message })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    if (txtEl) txtEl.value = '';
+    if (stEl) stEl.textContent = `✔ Sent to ${d.sentCount} users!`;
+  } catch (e) {
+    if (stEl) stEl.textContent = '❌ ' + (e.message || 'Error');
+  }
+}
+
+// #12 Save Featured Hero Banner
+async function saveFeaturedBanner(){
+  const enabled = !!(document.getElementById('fbEnabled') && document.getElementById('fbEnabled').checked);
+  const bgStyle = (document.getElementById('fbBgStyle') || {}).value || 'purple';
+  const title = ((document.getElementById('fbTitle') || {}).value || '').trim();
+  const subtitle = ((document.getElementById('fbSubtitle') || {}).value || '').trim();
+  const ctaText = ((document.getElementById('fbCtaText') || {}).value || '').trim();
+  const ctaUrl = ((document.getElementById('fbCtaUrl') || {}).value || '').trim();
+  const st = document.getElementById('fbStatus');
+  if (st) st.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/admin/featured-banner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ enabled, bgStyle, title, subtitle, ctaText, ctaUrl })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    if (st) st.textContent = enabled ? '✔ Featured Hero Banner is LIVE on Home!' : '✔ Hero Banner saved (currently hidden)';
+  } catch (e) {
+    if (st) st.textContent = '❌ ' + (e.message || 'Error');
+  }
+}
+
+// #13 All Comments & Groups/Channels Monitor Tab
+let cgMode = 'comments', cgSearch = '', CG_DATA = { comments: [], groups: [] };
+async function renderCommentsGroupsTab(){
+  const v = document.getElementById('view');
+  v.innerHTML = '<div class="loading">Loading comments &amp; groups/channels…</div>';
+  try {
+    const res = await fetch('/api/admin/comments-groups', { headers: { 'x-no-prompt': '1' } });
+    const d = await res.json();
+    if (res.ok) {
+      CG_DATA.comments = d.comments || [];
+      CG_DATA.groups = d.groups || [];
+    }
+  } catch (e) {}
+  drawCommentsGroupsTab();
+}
+function drawCommentsGroupsTab(){
+  const v = document.getElementById('view');
+  if (!v) return;
+  const qLower = (cgSearch || '').trim().toLowerCase();
+  const cmts = CG_DATA.comments.filter(c => !qLower || (c.text || '').toLowerCase().includes(qLower) || (c.author || '').toLowerCase().includes(qLower) || (c.filmTitle || '').toLowerCase().includes(qLower));
+  const grps = CG_DATA.groups.filter(g => !qLower || (g.name || '').toLowerCase().includes(qLower) || (g.ownerUsername || '').toLowerCase().includes(qLower) || (g.description || '').toLowerCase().includes(qLower));
+
+  v.innerHTML = `
+    <div class="row1" style="gap:8px;margin-bottom:10px;justify-content:space-between;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;">
+        <button class="tab ${cgMode === 'comments' ? 'active' : ''}" onclick="cgMode='comments';drawCommentsGroupsTab()">💬 All Comments (${CG_DATA.comments.length})</button>
+        <button class="tab ${cgMode === 'groups' ? 'active' : ''}" onclick="cgMode='groups';drawCommentsGroupsTab()">📢 Groups &amp; Channels (${CG_DATA.groups.length})</button>
+      </div>
+    </div>
+    <input type="text" class="search" placeholder="🔍 Search comments, @username, post title, or group/channel name…" value="${esc(cgSearch)}" oninput="cgSearch=this.value;drawCommentsGroupsTab()">
+    <div id="cgList">
+      ${cgMode === 'comments'
+        ? (cmts.length ? cmts.map(c => `
+            <div class="card" id="adm-cmt-${c.commentId}">
+              <div class="row1" style="justify-content:space-between;">
+                <div>
+                  <span class="name">@${esc(c.author)}</span>
+                  ${c.superThanks && c.superThanks.tier ? `<span class="pill g" style="background:rgba(255,209,102,0.22);color:#ffd166;">${esc(c.superThanks.emoji || '💎')} ${esc(c.superThanks.label || 'Super Thanks')}</span>` : ''}
+                  ${c.pinned ? '<span class="pill g">📌 Pinned</span>' : ''}
+                  <span class="meta">on <b>${esc(c.filmTitle)}</b> (${esc(c.filmType)}) · ${ago(c.createdAt)}</span>
+                </div>
+                <button class="btn btn-danger" onclick="adminDeleteComment('${escJs(c.filmId)}','${escJs(c.commentId)}')">🗑️ Delete</button>
+              </div>
+              <div style="margin-top:6px;font-size:13.5px;color:var(--cream);word-break:break-word;">${esc(c.text)}</div>
+            </div>
+          `).join('') : '<div class="empty">No matching comments found.</div>')
+        : (grps.length ? grps.map(g => `
+            <div class="card" id="adm-grp-${g.id}">
+              <div class="row1" style="justify-content:space-between;">
+                <div>
+                  <span class="name">${g.type === 'channel' ? '📢' : '👥'} ${esc(g.name)}</span>
+                  <span class="pill g">${esc(g.type)}</span>
+                  <span class="meta">Owner: @${esc(g.ownerUsername)} · ${g.membersCount} members · ${g.messagesCount} msgs</span>
+                </div>
+                <button class="btn btn-danger" onclick="adminDeleteGroup('${escJs(g.id)}','${escJs(g.name)}')">🗑️ Delete ${g.type === 'channel' ? 'Channel' : 'Group'}</button>
+              </div>
+              ${g.description ? `<div class="meta" style="margin-top:4px;">${esc(g.description)}</div>` : ''}
+              ${g.lastMessage ? `<div class="meta" style="margin-top:4px;color:var(--cream);">Latest: "${esc(g.lastMessage)}" (${ago(g.lastMessageAt)})</div>` : ''}
+            </div>
+          `).join('') : '<div class="empty">No groups or channels found.</div>')
+      }
+    </div>
+  `;
+}
+async function adminDeleteComment(filmId, commentId){
+  if (!confirm('Delete this comment permanently?')) return;
+  try {
+    const res = await fetch('/api/admin/comments/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ filmId, commentId })
+    });
+    if (res.ok) {
+      CG_DATA.comments = CG_DATA.comments.filter(c => c.commentId !== commentId);
+      drawCommentsGroupsTab();
+    }
+  } catch (e) {}
+}
+async function adminDeleteGroup(groupId, name){
+  if (!confirm(`Delete "${name}" permanently?`)) return;
+  try {
+    const res = await fetch('/api/admin/groups/' + encodeURIComponent(groupId) + '/delete', {
+      method: 'POST',
+      headers: { 'x-no-prompt': '1' }
+    });
+    if (res.ok) {
+      CG_DATA.groups = CG_DATA.groups.filter(g => g.id !== groupId);
+      drawCommentsGroupsTab();
+    }
+  } catch (e) {}
+}
+
+// #15 Manual Views / Likes Booster
+async function adminAddPostStats(id){
+  const f = CM_LIST.find(x => x.id === id);
+  if (!f) return;
+  const addViewsStr = prompt(`🚀 Boost Views for "${f.title}" (Current views: ${f.views}):\nEnter how many views to add (e.g., 100, 500):`, '100');
+  if (addViewsStr === null) return;
+  const addLikesStr = prompt(`❤️ Boost Likes for "${f.title}" (Current likes: ${f.likes}):\nEnter how many likes to add (e.g., 25, 100):`, '25');
+  if (addLikesStr === null) return;
+  const addViews = Math.max(0, parseInt(addViewsStr, 10) || 0);
+  const addLikes = Math.max(0, parseInt(addLikesStr, 10) || 0);
+  try {
+    const res = await fetch('/api/admin/content/' + encodeURIComponent(id) + '/add-stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ addViews, addLikes })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Boost failed');
+    f.views = d.views;
+    f.likes = d.likes;
+    drawContentList();
+  } catch (e) { alert(e.message || 'Failed to boost stats'); }
+}
+
+// #16 Platform Security & Maintenance Controls + Idle Auto-Logout Timer
+let adminIdleTimerMinutes = Number(localStorage.getItem('adminIdleMins') || 30);
+let adminLastActivityTs = Date.now();
+['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(ev => {
+  window.addEventListener(ev, () => { adminLastActivityTs = Date.now(); }, { passive: true });
+});
+setInterval(() => {
+  if (adminIdleTimerMinutes > 0 && document.getElementById('loginWrap') && document.getElementById('loginWrap').style.display === 'none') {
+    if (Date.now() - adminLastActivityTs > adminIdleTimerMinutes * 60 * 1000) {
+      adminLastActivityTs = Date.now();
+      adminLogout();
+    }
+  }
+}, 30000);
+
+async function savePlatformSettings(){
+  const maintenanceMode = !!(document.getElementById('psMaintenance') && document.getElementById('psMaintenance').checked);
+  const signupsEnabled = !!(document.getElementById('psSignups') && document.getElementById('psSignups').checked);
+  const maintenanceMessage = ((document.getElementById('psMaintMsg') || {}).value || '').trim();
+  const idleTimeoutMins = Math.max(0, parseInt((document.getElementById('psIdleMins') || {}).value || '30', 10));
+  const st = document.getElementById('psStatus');
+  if (st) st.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/admin/platform-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ maintenanceMode, signupsEnabled, maintenanceMessage, idleTimeoutMins })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    adminIdleTimerMinutes = idleTimeoutMins;
+    localStorage.setItem('adminIdleMins', String(idleTimeoutMins));
+    if (st) st.textContent = '✔ Security settings updated!';
+  } catch (e) {
+    if (st) st.textContent = '❌ ' + (e.message || 'Error');
+  }
+}
+
+// #17 Orphan R2 Storage Cleaner
+async function cleanOrphanStorage(){
+  if (!confirm('Scan Cloudflare R2 storage and delete unreferenced orphan media files? (All active videos, Shorts, photos, stories, songs, avatars, and chat media are safely preserved)')) return;
+  const st1 = document.getElementById('r2CleanStatus');
+  const st2 = document.getElementById('backupRestoreStatus');
+  if (st1) st1.textContent = 'Scanning R2…';
+  if (st2) st2.textContent = 'Scanning R2…';
+  try {
+    const res = await fetch('/api/admin/storage/clean-orphans', {
+      method: 'POST',
+      headers: { 'x-no-prompt': '1' }
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Clean failed');
+    const msg = `✔ Cleaned ${d.deletedCount || 0} orphan files (${fb(d.freedBytes || 0)} freed)!`;
+    if (st1) st1.textContent = msg;
+    if (st2) st2.textContent = msg;
+    alert(msg);
+    load();
+  } catch (e) {
+    const err = '❌ ' + (e.message || 'Failed');
+    if (st1) st1.textContent = err;
+    if (st2) st2.textContent = err;
+    alert(err);
+  }
+}
+
+// #18 Gift Blue Tick with Duration Selector
+async function giftUserBluetick(userId, username){
+  const pick = prompt(
+    `👑 Gift Verified Blue Tick to @${username}:\n\nEnter number of days (e.g., 7, 30, 90, 365) OR enter 0 for Permanent Blue Tick:`,
+    '30'
+  );
+  if (pick === null) return;
+  const days = Math.max(0, parseInt(pick.trim(), 10) || 0);
+  try {
+    const res = await fetch('/api/admin/users/' + encodeURIComponent(userId) + '/gift-bluetick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ days })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    alert(days > 0 ? `👑 Gifted Verified Blue Tick to @${username} for ${days} days!` : `👑 Granted Permanent Verified Blue Tick to @${username}!`);
+    load();
+  } catch (e) { alert(e.message || 'Failed'); }
+}
+
+// #19 Restore Database from JSON Backup
+async function restoreDatabaseFromJson(inputEl){
+  const file = inputEl && inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const st = document.getElementById('backupRestoreStatus');
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const dataObj = parsed.data || parsed;
+    if (!dataObj || typeof dataObj !== 'object') throw new Error('Invalid backup JSON file');
+    const isOverwrite = confirm(
+      `Restore backup from "${file.name}"?\n\nClick OK for SAFE MERGE (adds missing users/posts/songs without deleting current ones).\nClick Cancel if you want to choose FULL OVERWRITE instead.`
+    );
+    let mode = 'merge';
+    if (!isOverwrite) {
+      if (!confirm('Do you want to perform a FULL OVERWRITE with this backup file? (Click OK to Overwrite, Cancel to Abort)')) {
+        inputEl.value = '';
+        return;
+      }
+      mode = 'overwrite';
+    }
+    if (st) st.textContent = 'Restoring database…';
+    const res = await fetch('/api/admin/restore-backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ mode, data: dataObj })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Restore failed');
+    const msg = `✔ Database restored (${d.mode}): ${d.users} users, ${d.films} posts, ${d.stories} stories, ${d.songs} songs!`;
+    if (st) st.textContent = msg;
+    alert(msg);
+    inputEl.value = '';
+    load();
+  } catch (e) {
+    if (st) st.textContent = '❌ ' + (e.message || 'Invalid backup file');
+    alert('Restore error: ' + (e.message || 'Invalid backup file'));
+    inputEl.value = '';
+  }
+}
+
 </script>
 </body>
 </html>
