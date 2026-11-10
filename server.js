@@ -6553,7 +6553,12 @@ app.post('/api/admin/login', (req, res) => {
   res.cookie(ADMIN_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: !!req.secure, maxAge: 12 * 60 * 60 * 1000 });
   res.json({ success: true });
 });
-app.post('/api/admin/logout', (req, res) => { res.clearCookie(ADMIN_COOKIE); res.json({ success: true }); });
+app.post('/api/admin/logout', (req, res) => {
+  res.clearCookie(ADMIN_COOKIE, { httpOnly: true, sameSite: 'lax', secure: !!req.secure, path: '/' });
+  res.clearCookie(ADMIN_COOKIE, { path: '/' });
+  res.cookie(ADMIN_COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: !!req.secure, maxAge: 0, path: '/' });
+  res.json({ success: true });
+});
 app.get('/api/admin/me', (req, res) => {
   if (!isAdminBasicAuth(req)) return res.status(401).json({ error: 'Admin login required' });
   res.json({ admin: true });
