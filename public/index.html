@@ -8,6 +8,7 @@
   <meta name="keywords" content="YouSeries, TAMASHA, Sohail Parvez, Sohail Parvez founder, video streaming, shorts, stories, creators">
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
   <link rel="canonical" href="https://www.tamasha.qd.je/">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='ig' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236A11CB'/%3E%3Cstop offset='38%25' stop-color='%23E1306C'/%3E%3Cstop offset='72%25' stop-color='%23FD1D1D'/%3E%3Cstop offset='100%25' stop-color='%23FDCB58'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='92' height='92' rx='24' fill='url(%23ig)'/%3E%3Crect x='22' y='22' width='56' height='56' rx='16' fill='none' stroke='%23ffffff' stroke-width='5.5'/%3E%3Ccircle cx='50' cy='50' r='16.5' fill='rgba(255,255,255,0.18)' stroke='%23ffffff' stroke-width='4.5'/%3E%3Cpath d='M45.5 41.5 L59 50 L45.5 58.5 Z' fill='%23ffffff' stroke='%23ffffff' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='66.5' cy='33.5' r='3.8' fill='%23ffffff'/%3E%3C/svg%3E">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="YouSeries (TAMASHA)">
   <meta property="og:title" content="YouSeries (TAMASHA) – Founded by Sohail Parvez">
@@ -63,7 +64,14 @@
   html,body{margin:0;background:var(--ink);color:var(--cream);font-family:'Mukta',sans-serif;height:100%;overscroll-behavior:none;touch-action:manipulation;}
   a{color:inherit;text-decoration:none;}
   header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--gold-line);}
-  .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:24px;color:var(--marigold);}
+  .brand{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;color:var(--marigold);display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;}
+  .ig-brand-logo{width:38px;height:38px;border-radius:11px;position:relative;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:radial-gradient(circle at 25% 110%,#ffd65c 0%,#ff7a18 28%,#ff1e62 62%,#7b2cbf 92%);box-shadow:0 4px 16px rgba(255,30,98,0.42),inset 0 1.5px 2px rgba(255,255,255,0.55);transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s ease;}
+  .brand:hover .ig-brand-logo,.brand:active .ig-brand-logo{transform:scale(1.09) rotate(-4deg);box-shadow:0 6px 22px rgba(255,122,24,0.65),inset 0 1.5px 3px rgba(255,255,255,0.75);}
+  .ig-brand-logo svg{width:28px;height:28px;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.25));}
+  @keyframes igSparkPulse{0%,100%{opacity:0.85;transform:scale(1);}50%{opacity:1;transform:scale(1.25);}}
+  .ig-brand-spark{transform-origin:66.5px 33.5px;animation:igSparkPulse 2.4s infinite ease-in-out;}
+  .brand-title-grad{background:linear-gradient(90deg,#fff 0%,#ffd166 48%,#ff5c97 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.05;letter-spacing:0.4px;}
+  html[data-theme="light"] .brand-title-grad{background:linear-gradient(90deg,#5a189a 0%,#e1306c 55%,#fd7e14 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
   .header-right{display:flex;align-items:center;gap:14px;}
 
   html,body{padding-bottom:62px;}
@@ -1325,7 +1333,20 @@
 </head>
 <body>
 <header>
-  <div class="brand">YOUSERIES<div style="font-family:'Mukta',sans-serif;font-weight:600;font-size:9px;letter-spacing:1px;color:var(--cream-dim);margin-top:-2px;">VIDEO & SHORTS STREAMING</div></div>
+  <div class="brand" onclick="switchTab('home');window.scrollTo({top:0,behavior:'smooth'});" title="YouSeries (Tamasha) — Social Media">
+    <div class="ig-brand-logo">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="16" y="16" width="68" height="68" rx="20" stroke="#ffffff" stroke-width="6.5"/>
+        <circle cx="50" cy="50" r="19.5" fill="rgba(255,255,255,0.2)" stroke="#ffffff" stroke-width="5.2"/>
+        <path d="M44.5 39.8 L60.5 50 L44.5 60.2 Z" fill="#ffffff" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+        <circle class="ig-brand-spark" cx="69" cy="31" r="4.5" fill="#ffffff"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-title-grad">YOUSERIES</div>
+      <div style="font-family:'Mukta',sans-serif;font-weight:600;font-size:9px;letter-spacing:1px;color:var(--cream-dim);margin-top:0;-webkit-text-fill-color:var(--cream-dim);">SOCIAL · STORIES · REELS</div>
+    </div>
+  </div>
   <div class="header-right" id="headerRight"><a href="#" onclick="openUploadModal();return false;">+ Upload</a></div>
 </header>
 
