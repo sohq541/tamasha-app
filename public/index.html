@@ -731,30 +731,52 @@
 }
 
 /* Fullscreen & Landscape mode states */
+#overlay:fullscreen,
+#overlay:-webkit-full-screen,
+body.yt-in-landscape-app #overlay{
+  position:fixed !important;inset:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;
+  z-index:99998 !important;background:#000 !important;overflow:hidden !important;
+}
+body.yt-in-landscape-app #overlay .modal{
+  overflow:hidden !important;background:#000 !important;
+}
+body.yt-in-landscape-app #overlay .modal-body{
+  display:none !important;
+}
 #playerMediaWrap:fullscreen,
 #playerMediaWrap:-webkit-full-screen,
-#playerMediaWrap.yt-landscape-mode{
+#playerMediaWrap.yt-landscape-mode:not(.yt-portrait-rotated){
   position:fixed !important;inset:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;
-  max-height:none !important;z-index:9990 !important;background:#000 !important;
+  max-width:none !important;max-height:none !important;z-index:99999 !important;background:#000 !important;transform:none !important;
+}
+/* When phone is held in portrait and user taps Landscape Fullscreen, rotate container 90deg around center so it works in 100% of Android APK WebViews */
+#playerMediaWrap.yt-landscape-mode.yt-portrait-rotated{
+  position:fixed !important;
+  top:50% !important;
+  left:50% !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:100vh !important;
+  width:100dvh !important;
+  height:100vw !important;
+  max-width:none !important;
+  max-height:none !important;
+  z-index:99999 !important;
+  background:#000 !important;
+  transform-origin:center center !important;
+  transform:translate(-50%, -50%) rotate(90deg) !important;
 }
 #playerMediaWrap:fullscreen #ytVideoStage,
 #playerMediaWrap:-webkit-full-screen #ytVideoStage,
 #playerMediaWrap.yt-landscape-mode #ytVideoStage{
-  max-height:none !important;height:100% !important;
+  max-height:none !important;width:100% !important;height:100% !important;
 }
 #playerMediaWrap:fullscreen #ytVideoStage video#player,
 #playerMediaWrap:-webkit-full-screen #ytVideoStage video#player,
 #playerMediaWrap.yt-landscape-mode #ytVideoStage video#player{
-  max-height:none !important;width:100% !important;height:100% !important;aspect-ratio:auto !important;
+  max-height:none !important;width:100% !important;height:100% !important;aspect-ratio:auto !important;object-fit:contain !important;
 }
-/* When phone is held in portrait and user taps Landscape Fullscreen, rotate container 90deg so it is always true Landscape */
-#playerMediaWrap.yt-landscape-mode.yt-portrait-rotated{
-  top:0 !important;left:0 !important;right:auto !important;bottom:auto !important;
-  width:100vh !important;width:100dvh !important;
-  height:100vw !important;
-  transform-origin:top left !important;
-  transform:rotate(90deg) translateY(-100%) !important;
-}
+body.yt-in-landscape-app{overflow:hidden !important;}
 /* Split-screen when Right-Side Drawer (Description / Comments / More Videos) is open */
 #playerMediaWrap.drawer-open #ytVideoStage{
   flex:0 0 58%;width:58%;
@@ -1540,11 +1562,11 @@
                 <button type="button" class="yt-zoom-pill-btn" id="ytZoomToggleBtn" onclick="cycleYtVideoZoom(event)" title="Zoom to Fill Screen / Original Video Size">
                   <span id="ytZoomBtnLabel">🔍 Fill Screen</span>
                 </button>
-                <button type="button" class="yt-fs-circle-btn" id="ytLandscapeFsBtn" onclick="fullscreenPlayer()" title="Toggle Landscape Fullscreen">
+                <button type="button" class="yt-fs-circle-btn" id="ytLandscapeFsBtn" onclick="event.stopPropagation();fullscreenPlayer(event)" title="Toggle Landscape Fullscreen">
                   <svg id="ytFsIconSvg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
                 </button>
               </div>
-              <button type="button" id="playerFsBtn" onclick="fullscreenPlayer()" aria-label="Fullscreen" style="display:none;">⛶</button>
+              <button type="button" id="playerFsBtn" onclick="event.stopPropagation();fullscreenPlayer(event)" aria-label="Fullscreen" style="display:none;">⛶</button>
             </div>
 
             <div class="yt-seek-row" id="ytSeekRow" onpointerdown="onYtSeekPointerDown(event)">
@@ -6163,16 +6185,35 @@ function fmtYtDuration(sec){
   return m + ':' + String(s).padStart(2, '0');
 }
 
+let ytManualLandscape = false;
+
 function updateLandscapeOrientationClass(){
   const wrap = document.getElementById('playerMediaWrap');
   if (!wrap) return;
-  const isFs = !!(document.fullscreenElement === wrap || document.webkitFullscreenElement === wrap);
-  const isLandMode = wrap.classList.contains('yt-landscape-mode') || isFs;
-  if (isLandMode && window.innerWidth < window.innerHeight) {
-    wrap.classList.add('yt-portrait-rotated');
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const isLandMode = ytManualLandscape || wrap.classList.contains('yt-landscape-mode') || isFs;
+  const vw = window.innerWidth || document.documentElement.clientWidth || 360;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 640;
+
+  if (isLandMode) {
+    wrap.classList.add('yt-landscape-mode');
+    document.body.classList.add('yt-in-landscape-app');
+    if (vw < vh) {
+      wrap.classList.add('yt-portrait-rotated');
+      wrap.style.setProperty('width', vh + 'px', 'important');
+      wrap.style.setProperty('height', vw + 'px', 'important');
+    } else {
+      wrap.classList.remove('yt-portrait-rotated');
+      wrap.style.setProperty('width', vw + 'px', 'important');
+      wrap.style.setProperty('height', vh + 'px', 'important');
+    }
   } else {
-    wrap.classList.remove('yt-portrait-rotated');
+    wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated');
+    document.body.classList.remove('yt-in-landscape-app');
+    wrap.style.removeProperty('width');
+    wrap.style.removeProperty('height');
   }
+
   const fsSvg = document.getElementById('ytFsIconSvg');
   if (fsSvg) {
     fsSvg.innerHTML = isLandMode
@@ -6185,25 +6226,30 @@ window.addEventListener('resize', updateLandscapeOrientationClass);
 window.addEventListener('orientationchange', () => setTimeout(updateLandscapeOrientationClass, 120));
 
 document.addEventListener('fullscreenchange', function(){
-  const wrap = document.getElementById('playerMediaWrap');
-  const isFs = !!(wrap && (document.fullscreenElement === wrap || document.webkitFullscreenElement === wrap));
-  if (wrap && !isFs) {
-    wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated', 'drawer-open');
-  } else if (wrap && isFs) {
-    wrap.classList.add('yt-landscape-mode');
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  // Only exit landscape if the user was NOT in manual CSS landscape mode
+  if (!isFs && !ytManualLandscape) {
+    const wrap = document.getElementById('playerMediaWrap');
+    if (wrap) wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated', 'drawer-open');
+    document.body.classList.remove('yt-in-landscape-app');
   }
-  lockLandscapeForFullscreen(isFs);
   updateLandscapeOrientationClass();
 });
 
-function fullscreenPlayer(){
+function fullscreenPlayer(ev){
+  if (ev && ev.stopPropagation) ev.stopPropagation();
   const wrap = document.getElementById('playerMediaWrap');
+  const ov = document.getElementById('overlay');
   if (!wrap) return;
-  const isFs = !!(document.fullscreenElement === wrap || document.webkitFullscreenElement === wrap);
-  const isLandMode = wrap.classList.contains('yt-landscape-mode') || isFs;
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const isLandMode = ytManualLandscape || wrap.classList.contains('yt-landscape-mode') || isFs;
 
   if (isLandMode) {
+    ytManualLandscape = false;
     wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated', 'drawer-open');
+    document.body.classList.remove('yt-in-landscape-app');
+    wrap.style.removeProperty('width');
+    wrap.style.removeProperty('height');
     lockLandscapeForFullscreen(false);
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       try {
@@ -6215,19 +6261,25 @@ function fullscreenPlayer(){
     return;
   }
 
+  ytManualLandscape = true;
   wrap.classList.add('yt-landscape-mode');
+  document.body.classList.add('yt-in-landscape-app');
   updateLandscapeOrientationClass();
   showYtHudTemporarily();
+  lockLandscapeForFullscreen(true);
+
+  // Request fullscreen on #overlay (unrotated outer backdrop) so WebView never clips rotated #playerMediaWrap
+  const fsTarget = ov || document.documentElement;
   try {
-    if (wrap.requestFullscreen) {
-      wrap.requestFullscreen().then(() => {
+    if (fsTarget && fsTarget.requestFullscreen) {
+      fsTarget.requestFullscreen().then(() => {
         lockLandscapeForFullscreen(true);
         setTimeout(updateLandscapeOrientationClass, 80);
       }).catch(() => {
         updateLandscapeOrientationClass();
       });
-    } else if (wrap.webkitRequestFullscreen) {
-      wrap.webkitRequestFullscreen();
+    } else if (fsTarget && fsTarget.webkitRequestFullscreen) {
+      fsTarget.webkitRequestFullscreen();
       lockLandscapeForFullscreen(true);
       setTimeout(updateLandscapeOrientationClass, 80);
     } else {
@@ -6256,8 +6308,14 @@ function handleYtBackBtn(ev){
 function closeModal(){
   stopSong();
   if (currentFilm) watchTimeFlush(currentFilm.id);
+  ytManualLandscape = false;
+  document.body.classList.remove('yt-in-landscape-app');
   const wrap = document.getElementById('playerMediaWrap');
-  if (wrap) wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated', 'drawer-open');
+  if (wrap) {
+    wrap.classList.remove('yt-landscape-mode', 'yt-portrait-rotated', 'drawer-open');
+    wrap.style.removeProperty('width');
+    wrap.style.removeProperty('height');
+  }
   if (document.fullscreenElement || document.webkitFullscreenElement) {
     try { if (document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
   }
