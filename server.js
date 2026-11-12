@@ -689,7 +689,8 @@ app.get(['/', '/index.html'], async (req, res, next) => {
     let ogUrl = `${baseUrl}${req.originalUrl}`;
 
     if (filmId) {
-      const films = await readFilms();
+      await getPlatformExtras();
+    const films = await readFilms();
       const f = films.find(x => x.id === filmId);
       if (f) {
         const kind = f.type === 'short' ? 'Short' : (f.type === 'photo' ? 'Photo' : 'Video');
@@ -781,7 +782,86 @@ self.addEventListener('fetch', event => {
     fetch(event.request).catch(() => caches.match(event.request))
   );
 });
+self.addEventListener('push', event => {
+  let data = { title: 'YouSeries', body: 'New notification', icon: '/icon-192.png', url: '/' };
+  try {
+    if (event.data) data = Object.assign(data, event.data.json());
+  } catch (e) {
+    if (event.data) data.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon || '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url || '/' },
+      vibrate: [100, 50, 100]
+    })
+  );
+});
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
 `.trim());
+});
+
+// ===================== PWA & TWA MANIFEST & ASSETLINKS =====================
+app.get('/manifest.json', (req, res) => {
+  res.set({
+    'Content-Type': 'application/manifest+json; charset=utf-8',
+    'Cache-Control': 'no-cache'
+  });
+  res.json({
+    name: "YouSeries (Tamasha)",
+    short_name: "YouSeries",
+    description: "YouSeries Social Media — Photos, Stories, Reels and Creator Community",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    display_override: ["window-controls-overlay", "standalone", "fullscreen"],
+    orientation: "portrait",
+    background_color: "#000000",
+    theme_color: "#000000",
+    icons: [
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='ig' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236A11CB'/%3E%3Cstop offset='38%25' stop-color='%23E1306C'/%3E%3Cstop offset='72%25' stop-color='%23FD1D1D'/%3E%3Cstop offset='100%25' stop-color='%23FDCB58'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='92' height='92' rx='24' fill='url(%23ig)'/%3E%3Crect x='22' y='22' width='56' height='56' rx='16' fill='none' stroke='%23ffffff' stroke-width='5.5'/%3E%3Ccircle cx='50' cy='50' r='16.5' fill='rgba(255,255,255,0.18)' stroke='%23ffffff' stroke-width='4.5'/%3E%3Cpath d='M45.5 41.5 L59 50 L45.5 58.5 Z' fill='%23ffffff' stroke='%23ffffff' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='66.5' cy='33.5' r='3.8' fill='%23ffffff'/%3E%3C/svg%3E",
+        sizes: "192x192 512x512",
+        type: "image/svg+xml",
+        purpose: "any maskable"
+      }
+    ]
+  });
+});
+
+app.get(['/.well-known/assetlinks.json', '/assetlinks.json'], (req, res) => {
+  res.set({
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-cache'
+  });
+  // Digital Asset Links for TWA to verify ownership and remove Chrome URL bar completely
+  res.json([
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "je.qd.app",
+        sha256_cert_fingerprints: [
+          "55:F1:E7:46:6B:3E:09:0D:C1:00:F8:36:48:0F:9D:E1:FC:A2:5C:4B:79:B3:94:EE:AE:8A:D1:47:A2:9D:23:7D"
+        ]
+      }
+    }
+  ]);
 });
 
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -792,7 +872,134 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// ===================== AUTH ROUTES =====================
+// ===================== PLATFORM EXTRAS HELPERS (13 NEW FEATURES) =====================
+let platformExtrasCache = { at: 0, data: null };
+async function getPlatformExtras(force = false) {
+  if (!force && platformExtrasCache.data && Date.now() - platformExtrasCache.at < 30000) {
+    return platformExtrasCache.data;
+  }
+  try {
+    const raw = (await storeTryReadJSON('platform-settings.json')) || {};
+    platformExtrasCache = { at: Date.now(), data: raw };
+    return raw;
+  } catch (e) {
+    return platformExtrasCache.data || {};
+  }
+}
+
+async function savePlatformExtras(patch) {
+  const cur = await getPlatformExtras(true);
+  const next = { ...cur, ...patch, updatedAt: new Date().toISOString() };
+  await storeWriteJSON('platform-settings.json', next);
+  platformExtrasCache = { at: Date.now(), data: next };
+  return next;
+}
+
+function computeConversationStreak(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return { streakDays: 0, streakActiveToday: false };
+  const valid = messages.filter(m => m && !m.unsent && m.createdAt);
+  if (!valid.length) return { streakDays: 0, streakActiveToday: false };
+  const daySet = new Set();
+  const senders = new Set();
+  for (const m of valid) {
+    if (m.senderId) senders.add(m.senderId);
+    const d = new Date(m.createdAt);
+    if (!isNaN(d.getTime())) {
+      const ist = new Date(d.getTime() + 5.5 * 3600 * 1000);
+      daySet.add(ist.toISOString().slice(0, 10));
+    }
+  }
+  if (daySet.size === 0) return { streakDays: 0, streakActiveToday: false };
+  const nowIst = new Date(Date.now() + 5.5 * 3600 * 1000);
+  const todayStr = nowIst.toISOString().slice(0, 10);
+  const yestStr = new Date(nowIst.getTime() - 86400000).toISOString().slice(0, 10);
+  const activeToday = daySet.has(todayStr);
+  if (!activeToday && !daySet.has(yestStr)) {
+    return { streakDays: 0, streakActiveToday: false };
+  }
+  let streak = 0;
+  let cursor = activeToday ? nowIst : new Date(nowIst.getTime() - 86400000);
+  while (true) {
+    const key = cursor.toISOString().slice(0, 10);
+    if (daySet.has(key)) {
+      streak++;
+      cursor = new Date(cursor.getTime() - 86400000);
+    } else {
+      break;
+    }
+  }
+  // Require at least 2 messages or mutual exchange for 1-day streak, or multi-day history
+  if (streak === 1 && valid.length < 2 && senders.size < 2) {
+    return { streakDays: 0, streakActiveToday: false };
+  }
+  return { streakDays: streak, streakActiveToday: activeToday };
+}
+
+async function sendAutoWelcomeDmIfEnabled(newUser) {
+  try {
+    if (!newUser || !newUser.id) return;
+    const extras = await getPlatformExtras();
+    const w = extras.welcomeDm;
+    if (!w || !w.enabled || !w.message || !String(w.message).trim()) return;
+    const users = await readUsers();
+    const senderUsernameReq = String(w.senderUsername || 'Sohail_parvez').replace(/^@/, '').trim().toLowerCase();
+    let sender = users.find(u => (u.username || '').toLowerCase() === senderUsernameReq)
+      || users.find(u => (u.email || '').toLowerCase() === 'sohailp541@gmail.com');
+    let convo = null;
+    let senderId = AI_ASSISTANT_ID;
+    let senderName = AI_ASSISTANT_USERNAME;
+    if (sender && sender.id !== newUser.id) {
+      senderId = sender.id;
+      senderName = sender.username;
+      convo = await getConversationForUsers(sender.id, newUser.id, true);
+    } else {
+      convo = await ensureAiConversation(newUser.id);
+    }
+    if (!convo) return;
+    const personalized = String(w.message)
+      .replace(/\{username\}/gi, '@' + newUser.username)
+      .replace(/@username/gi, '@' + newUser.username)
+      .trim()
+      .slice(0, 2000);
+    const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const newMessage = {
+      id: msgId,
+      conversationId: convo.id,
+      senderId,
+      type: 'text',
+      text: personalized,
+      mediaKey: null, mediaType: null, fileName: null,
+      storageProvider: r2On() ? 'r2' : 'gdrive',
+      duration: null, shortId: null, shortTitle: null, shortOwnerUsername: null,
+      createdAt: new Date().toISOString(),
+      editedAt: null,
+      deletedFor: [],
+      unsent: false,
+      readBy: [senderId]
+    };
+    const messages = await readChatMessages(convo.id);
+    messages.push(newMessage);
+    await writeChatMessages(convo.id, messages);
+    const convos = await readConversations();
+    const cRef = convos.find(c => c.id === convo.id);
+    if (cRef) {
+      cRef.updatedAt = newMessage.createdAt;
+      cRef.lastMessage = { senderId, preview: previewForMessage(newMessage), createdAt: newMessage.createdAt };
+      await writeConversations(convos);
+    }
+    await notify(newUser.id, {
+      type: 'message',
+      fromUserId: senderId,
+      fromUsername: senderName,
+      conversationId: convo.id,
+      message: `👋 @${senderName} sent you a welcome message!`
+    });
+  } catch (e) {
+    console.error('Auto-welcome DM error:', e.message);
+  }
+}
+
+// ===================== AUTH ROUTES ======================
 
 app.post('/api/signup', async (req, res) => {
   try {
@@ -816,6 +1023,7 @@ app.post('/api/signup', async (req, res) => {
     };
     users.push(newUser);
     await writeUsers(users);
+    sendAutoWelcomeDmIfEnabled(newUser).catch(() => {});
 
     const token = signToken(newUser, await startSession(req, newUser));
     activateAccountToken(req, res, newUser.id, token);
@@ -941,6 +1149,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       };
       users.push(user);
       await writeUsers(users);
+      sendAutoWelcomeDmIfEnabled(user).catch(() => {});
     }
     if (user.suspended) { res.redirect('/login.html?error=suspended'); return; }
 
@@ -973,7 +1182,9 @@ app.get('/api/me', async (req, res) => {
       if (me) {
         const active = !!me.verified && (me.blueFree || !me.blueUntil || Date.now() < me.blueUntil);
         const isFounder = (me.email || '').toLowerCase() === 'sohailp541@gmail.com';
-        u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null };
+        const extras = await getPlatformExtras();
+        const isCotw = !!(extras.creatorOfWeek && extras.creatorOfWeek.userId === me.id);
+        u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null, bioLinks: Array.isArray(me.bioLinks) ? me.bioLinks : [], closeFriendsCount: Array.isArray(me.closeFriends) ? me.closeFriends.length : 0, isCreatorOfWeek: isCotw };
       }
     } catch (e) { /* keep the token data */ }
   }
@@ -1092,8 +1303,14 @@ app.get('/api/users/:id/public', async (req, res) => {
 
     const convosForChan = await readConversations();
     const userChan = convosForChan.find(c => c.type === 'channel' && c.ownerId === user.id);
+    const extras = await getPlatformExtras();
+    const isCreatorOfWeek = !!(extras.creatorOfWeek && extras.creatorOfWeek.userId === user.id);
+    const rawBioLinks = Array.isArray(user.bioLinks) ? user.bioLinks : (user.website ? [{ title: user.website.replace(/^https?:\/\//i, ''), url: user.website }] : []);
     res.json({
       id: user.id, username: user.username, bio: user.bio || '', website: user.website || '',
+      bioLinks: rawBioLinks.slice(0, 5),
+      isCreatorOfWeek,
+      isCloseFriend: !!(me && Array.isArray(me.closeFriends) && me.closeFriends.includes(user.id)),
       verified: !!user.verified,
       vipRing: user.vipRing || 'none',
       channelId: userChan ? userChan.id : null,
@@ -1294,14 +1511,89 @@ app.put('/api/me/bio', async (req, res) => {
 
     user.bio = (bio || '').slice(0, 150);
     user.website = (website || '').slice(0, 100);
+    if (Array.isArray(req.body.bioLinks)) {
+      user.bioLinks = req.body.bioLinks
+        .map(l => ({
+          title: String((l && l.title) || '').trim().slice(0, 40),
+          url: String((l && l.url) || '').trim().slice(0, 200)
+        }))
+        .filter(l => l.url.length > 0)
+        .slice(0, 5);
+      if (user.bioLinks.length > 0 && !website) {
+        user.website = user.bioLinks[0].url.slice(0, 100);
+      } else if (user.bioLinks.length === 0 && !website) {
+        user.website = '';
+      }
+    } else if (user.website) {
+      user.bioLinks = [{ title: user.website.replace(/^https?:\/\//i, '').slice(0, 40), url: user.website }];
+    }
     const { vipRing } = req.body;
     if ((user.verified || user.isAdmin) && ['none', 'purple', 'gold', 'neon'].includes(vipRing)) {
       user.vipRing = vipRing;
     }
     await writeUsers(users);
-    res.json({ bio: user.bio, website: user.website, vipRing: user.vipRing || 'none' });
+    res.json({ bio: user.bio, website: user.website, bioLinks: user.bioLinks || [], vipRing: user.vipRing || 'none' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ---- Feature #1: Close Friends List API ----
+app.get('/api/me/close-friends', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    const directUrl = makeDirectUrlCache();
+    const cfSet = new Set(Array.isArray(me.closeFriends) ? me.closeFriends : []);
+    const candidateIds = new Set([
+      ...(me.following || []),
+      ...users.filter(u => (u.following || []).includes(me.id)).map(u => u.id),
+      ...cfSet
+    ]);
+    candidateIds.delete(me.id);
+    const candidates = await Promise.all(Array.from(candidateIds).map(async uid => {
+      const u = users.find(x => x.id === uid);
+      if (!u || u.suspended) return null;
+      return {
+        id: u.id,
+        username: u.username,
+        verified: !!u.verified,
+        profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null,
+        isCloseFriend: cfSet.has(u.id)
+      };
+    }));
+    res.json({
+      closeFriends: Array.from(cfSet),
+      candidates: candidates.filter(Boolean).sort((a, b) => (b.isCloseFriend - a.isCloseFriend) || a.username.localeCompare(b.username))
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/me/close-friends', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const targetId = String((req.body && req.body.userId) || '').trim();
+    if (!targetId || targetId === currentUser.id) return res.status(400).json({ error: 'Invalid user' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    if (!Array.isArray(me.closeFriends)) me.closeFriends = [];
+    const idx = me.closeFriends.indexOf(targetId);
+    let isCloseFriend = false;
+    if (idx === -1) {
+      me.closeFriends.push(targetId);
+      isCloseFriend = true;
+    } else {
+      me.closeFriends.splice(idx, 1);
+      isCloseFriend = false;
+    }
+    await writeUsers(users);
+    res.json({ success: true, isCloseFriend, closeFriends: me.closeFriends });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 
 app.post('/api/users/:id/follow', async (req, res) => {
   try {
@@ -1497,6 +1789,7 @@ app.get('/api/films', async (req, res) => {
       .filter(f => !myBlocked.includes(f.ownerId))
       .filter(f => {
         const owner = userById.get(f.ownerId);
+        if (owner && owner.shadowbanned && !(currentUser && currentUser.id === owner.id)) return false;
         return !(owner && owner.blockedUsers && me && owner.blockedUsers.includes(me.id));
       })
       .map(async f => {
@@ -1519,8 +1812,11 @@ app.get('/api/films', async (req, res) => {
         const collabUser = (f.collabStatus === 'accepted' && f.collaboratorId) ? userById.get(f.collaboratorId) : null;
         const collabAvatarUrl = collabUser && collabUser.profileImage ? await directUrl(collabUser.profileImage, collabUser.avatarStorageProvider) : null;
         const ownerDefaultRole = (owner && (owner.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null;
+        const pExtras = platformExtrasCache.data || {};
+        const ownerIsCotw = !!(pExtras.creatorOfWeek && owner && pExtras.creatorOfWeek.userId === owner.id);
         return {
           ...f, comments: enrichedComments,
+          ownerCreatorOfWeek: ownerIsCotw,
           videoUrl, posterUrl,
           slideUrls: await buildSlideUrls(f, directUrl),
           ownerVerified: !!(owner && owner.verified),
@@ -2603,6 +2899,7 @@ app.post('/api/stories', (req, res, next) => {
       mediaType: isVideo ? 'video' : 'photo',
       storageProvider: 'gdrive',
       textOverlay: (req.body.textOverlay || '').slice(0, 200),
+      closeFriendsOnly: toBool(req.body && req.body.closeFriendsOnly),
       createdAt: new Date().toISOString(),
       views: [],
       comments: []
@@ -2775,6 +3072,15 @@ app.get('/api/stories', async (req, res) => {
 
     const byUser = {};
     stories.forEach(s => {
+      const owner = users.find(u => u.id === s.ownerId);
+      // #14 Shadowban check: hide shadowbanned user's stories from others
+      if (owner && owner.shadowbanned && !(currentUser && currentUser.id === owner.id)) return;
+      // #1 Close Friends check: if story is closeFriendsOnly, only show to owner or users in owner.closeFriends
+      if (s.closeFriendsOnly) {
+        const isOwner = !!(currentUser && currentUser.id === s.ownerId);
+        const inCloseFriends = !!(currentUser && owner && Array.isArray(owner.closeFriends) && owner.closeFriends.includes(currentUser.id));
+        if (!isOwner && !inCloseFriends) return;
+      }
       if (!byUser[s.ownerId]) byUser[s.ownerId] = [];
       byUser[s.ownerId].push(s);
     });
@@ -2787,7 +3093,7 @@ app.get('/api/stories', async (req, res) => {
         const isLikedByMe = !!(currentUser && (likesArr.includes(currentUser.id) || (s.comments || []).some(c => c && c.userId === currentUser.id && c.text && c.text.trim() === '❤️')));
         return {
           id: s.id, ownerId: s.ownerId, ownerUsername: s.ownerUsername,
-          mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, poll: s.poll || null, createdAt: s.createdAt,
+          mediaType: s.mediaType, textOverlay: s.textOverlay, song: s.song, adjust: s.adjust, poll: s.poll || null, closeFriendsOnly: !!s.closeFriendsOnly, createdAt: s.createdAt,
           mediaUrl: await directUrl(s.mediaFile, s.storageProvider),
           viewCount: (s.views || []).length,
           likeCount: likesArr.length,
@@ -2801,6 +3107,7 @@ app.get('/api/stories', async (req, res) => {
         ownerUsername: owner ? owner.username : userStories[0].ownerUsername,
         ownerProfileImage: ownerAvatarUrl,
         stories: userStories,
+        hasCloseFriendsStory: userStories.some(s => s.closeFriendsOnly),
         allViewed: userStories.every(s => s.viewedByMe)
       };
     }));
@@ -3476,7 +3783,8 @@ async function enrichMessage(m, directUrl, usersList) {
     shortId: null, shortTitle: null, shortThumb: null, shortOwnerUsername: null,
     replyTo: m.unsent ? null : (m.replyTo || null),
     reactions: m.reactions || {},
-    poll: m.poll || null
+    poll: m.poll || null,
+    vanish: !!m.vanish
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'gdrive');
@@ -4068,9 +4376,13 @@ app.get('/api/conversations', async (req, res) => {
           return null;
         }
         const other = users.find(u => u.id === otherId);
+        const streakInfo = computeConversationStreak(visibleMessages);
         return {
           id: c.id,
           type: 'dm',
+          vanishMode: !!c.vanishMode,
+          streakDays: streakInfo.streakDays,
+          streakActiveToday: streakInfo.streakActiveToday,
           otherUser: other ? {
             id: other.id, username: other.username,
             verified: !!other.verified,
@@ -4134,10 +4446,15 @@ app.get('/api/conversations/with/:userId', async (req, res) => {
     const rawMessages = (await readChatMessages(convo.id)).filter(m => !(m.deletedFor || []).includes(currentUser.id));
     const messages = await Promise.all(rawMessages.slice(-100).map(m => enrichMessage(m, directUrl, users)));
 
+    const streakInfo = computeConversationStreak(rawMessages);
     res.json({
       id: convo.id,
+      vanishMode: !!convo.vanishMode,
+      streakDays: streakInfo.streakDays,
+      streakActiveToday: streakInfo.streakActiveToday,
       otherUser: {
         id: target.id, username: target.username,
+        verified: !!target.verified,
         profileImage: target.profileImage ? await directUrl(target.profileImage, target.avatarStorageProvider) : null,
         online: isUserOnline(target)
       },
@@ -4564,7 +4881,8 @@ app.get('/api/conversations/:id/messages', async (req, res) => {
     if (otherId && otherId !== AI_ASSISTANT_ID) {
       otherOnline = isUserOnline(users.find(u => u.id === otherId));
     }
-    res.json({ messages, otherTyping: otherId ? isOtherTyping(convo.id, otherId) : false, otherOnline });
+    const streakInfo = computeConversationStreak(raw);
+    res.json({ messages, otherTyping: otherId ? isOtherTyping(convo.id, otherId) : false, otherOnline, vanishMode: !!convo.vanishMode, streakDays: streakInfo.streakDays });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4675,6 +4993,7 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
       shortId: type === 'short' ? shortId : null, shortTitle, shortOwnerUsername,
       poll: pollData,
       replyTo,
+      vanish: !!(convo.vanishMode || toBool(req.body && req.body.vanish)),
       createdAt: new Date().toISOString(), editedAt: null,
       deletedFor: [], unsent: false, readBy: [req.currentUser.id]
     };
@@ -4843,6 +5162,49 @@ app.post('/api/conversations/:id/read', async (req, res) => {
     });
     if (changed) await writeChatMessages(convo.id, messages);
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #10: Vanish Mode (Disappearing Messages) ----
+app.post('/api/conversations/:id/vanish', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+    convo.vanishMode = req.body && req.body.on !== undefined ? !!req.body.on : !convo.vanishMode;
+    // When turning vanish mode off, also clear already-seen vanish messages
+    if (!convo.vanishMode) {
+      const msgs = await readChatMessages(convo.id);
+      const filtered = msgs.filter(m => !(m.vanish && Array.isArray(m.readBy) && m.readBy.length >= 2));
+      if (filtered.length !== msgs.length) await writeChatMessages(convo.id, filtered);
+    }
+    await writeConversations(convos);
+    res.json({ success: true, vanishMode: !!convo.vanishMode });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/conversations/:id/clear-vanish', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convos = await readConversations();
+    const convo = convos.find(c => c.id === req.params.id);
+    if (!convo || !convo.participants.includes(currentUser.id)) return res.status(403).json({ error: 'Not allowed' });
+    const msgs = await readChatMessages(convo.id);
+    const remaining = msgs.filter(m => {
+      if (!m.vanish) return true;
+      const seenByOther = (m.senderId !== currentUser.id) || (Array.isArray(m.readBy) && m.readBy.some(uid => uid !== m.senderId));
+      return !seenByOther;
+    });
+    if (remaining.length !== msgs.length) {
+      await writeChatMessages(convo.id, remaining);
+      const lastMsg = remaining.length ? remaining[remaining.length - 1] : null;
+      convo.lastMessage = lastMsg ? { senderId: lastMsg.senderId, preview: previewForMessage(lastMsg), createdAt: lastMsg.createdAt } : null;
+      await writeConversations(convos);
+    }
+    res.json({ success: true, removed: msgs.length - remaining.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -5557,9 +5919,27 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     const tagCount = {};
     films.forEach(f => { if (now - ts(f.uploadedAt) < 14 * DAY) getFilmHashtags(f).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; }); });
     const trendingTags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
+    const pExtras = await getPlatformExtras();
+    const cotwUserId = (pExtras.creatorOfWeek && pExtras.creatorOfWeek.userId) || null;
     const creatorAgg = {};
-    films.forEach(f => { if (!f.ownerId || f.ownerId === 'admin') return; const c = creatorAgg[f.ownerId] || (creatorAgg[f.ownerId] = { username: f.ownerUsername, posts: 0, score: 0 }); c.posts++; c.score += scoreOf(f); });
-    const trendingCreators = Object.values(creatorAgg).sort((a, b) => b.score - a.score).slice(0, 5);
+    films.forEach(f => {
+      if (!f.ownerId || f.ownerId === 'admin') return;
+      const uObj = users.find(u => u.id === f.ownerId);
+      const c = creatorAgg[f.ownerId] || (creatorAgg[f.ownerId] = {
+        id: f.ownerId,
+        username: (uObj && uObj.username) || f.ownerUsername || 'user',
+        posts: 0,
+        views: 0,
+        likes: 0,
+        score: 0,
+        isCreatorOfWeek: f.ownerId === cotwUserId
+      });
+      c.posts++;
+      c.views += (f.views || 0);
+      c.likes += (f.likes || 0);
+      c.score += scoreOf(f);
+    });
+    const trendingCreators = Object.values(creatorAgg).sort((a, b) => b.score - a.score).slice(0, 10);
 
     // Storage + egress
     const st = await refreshStorageStats();
@@ -5567,7 +5947,8 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
 
     const rows = users.map(u => ({
       id: u.id, username: u.username, email: u.email, createdAt: u.createdAt || null, lastActiveAt: u.lastActiveAt || null,
-      online: isUserOnline(u), suspended: !!u.suspended, verified: !!u.verified, roleBadge: u.roleBadge || (((u.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null), google: !u.passwordHash,
+      online: isUserOnline(u), suspended: !!u.suspended, shadowbanned: !!u.shadowbanned, isCreatorOfWeek: u.id === cotwUserId,
+      verified: !!u.verified, roleBadge: u.roleBadge || (((u.email || '').toLowerCase() === 'sohailp541@gmail.com') ? '👑 Founder & CEO' : null), google: !u.passwordHash,
       posts: postCount[u.id] || 0, comments: commentCount[u.id] || 0, followers: followers[u.id] || 0, reports: reportsAgainst[u.id] || 0
     })).sort((a, b) => ts(b.lastActiveAt) - ts(a.lastActiveAt) || ts(b.createdAt) - ts(a.createdAt));
 
@@ -5610,7 +5991,8 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
         pendingReports: reports.filter(r => r.status === 'pending').length,
         pendingModeration: films.filter(f => f.pendingReview).length
       },
-      trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators },
+      trending: { posts: trendingPosts, hashtags: trendingTags, creators: trendingCreators, creatorOfWeek: pExtras.creatorOfWeek || null },
+      welcomeDm: pExtras.welcomeDm || { enabled: false, senderUsername: 'Sohail_parvez', message: 'Welcome to YouSeries (TAMASHA) {username}! 🎉 Share your Reels, Photos & Stories with the community!' },
       storage: { ok: st.ok, error: st.error, usedBytes: st.usedBytes, limitBytes: st.accountLimit || STORAGE_LIMIT_BYTES, objects: st.objects, byFolder: st.byFolder, listedAt: st.at ? new Date(st.at).toISOString() : null },
       egress: { mode: 'render', month: usage.month, jsonBytes: usage.jsonBytes, mediaBytes: 0, proxyBytes: usage.proxyBytes, totalBytes: usage.proxyBytes, allowedBytes: GD_MONTH_CAP, views: usage.views },
       drive: { enabled: false },
@@ -6023,6 +6405,7 @@ app.get('/api/admin/content', requireAdmin, async (req, res) => {
         views: f.views || 0,
         likes: f.likes || 0,
         comments: (f.comments || []).length,
+        engagementRate: Number(((((f.likes || 0) + ((f.comments || []).length * 2)) / Math.max(1, f.views || 0)) * 100).toFixed(1)),
         uploadedAt: f.uploadedAt,
         pendingReview: !!f.pendingReview,
         isSensitive: !!f.isSensitive,
@@ -6904,6 +7287,7 @@ app.get('/api/songs', async (req, res) => {
       title: x.title,
       artist: x.artist || '',
       category: x.category || 'General',
+      mood: x.mood || x.category || 'General',
       trending: !!x.trending,
       useCount,
       createdAt: x.createdAt || null,
@@ -6929,7 +7313,8 @@ app.post('/api/admin/songs', requireAdmin, upload.single('song'), async (req, re
       key,
       title,
       artist: String((req.body && req.body.artist) || '').trim().slice(0, 80),
-      category: String((req.body && req.body.category) || 'General').trim().slice(0, 40),
+      category: String((req.body && (req.body.category || req.body.mood)) || 'General').trim().slice(0, 40),
+      mood: String((req.body && (req.body.mood || req.body.category)) || 'General').trim().slice(0, 40),
       trending: toBool(req.body && req.body.trending),
       createdAt: new Date().toISOString()
     });
@@ -6980,6 +7365,153 @@ app.post('/api/admin/songs/:id/delete', requireAdmin, async (req, res) => {
   await storeDelete(x.key);
   await writeSongs(list.filter(y => y.id !== x.id));
   res.json({ success: true });
+});
+
+// ---- Feature #13: Creator of the Week ----
+app.get('/api/creator-of-week', async (req, res) => {
+  try {
+    const extras = await getPlatformExtras();
+    res.json({ creatorOfWeek: extras.creatorOfWeek || null });
+  } catch (e) { res.json({ creatorOfWeek: null }); }
+});
+
+app.post('/api/admin/creator-of-week', requireAdmin, async (req, res) => {
+  try {
+    const userId = String((req.body && req.body.userId) || '').trim();
+    if (!userId) {
+      await savePlatformExtras({ creatorOfWeek: null });
+      feedVer++; feedCache.clear();
+      return res.json({ success: true, creatorOfWeek: null });
+    }
+    const users = await readUsers();
+    const u = users.find(x => x.id === userId || x.username.toLowerCase() === userId.toLowerCase());
+    if (!u) return res.status(404).json({ error: 'Creator not found' });
+    const creatorOfWeek = {
+      userId: u.id,
+      username: u.username,
+      verified: !!u.verified,
+      setAt: new Date().toISOString()
+    };
+    await savePlatformExtras({ creatorOfWeek });
+    feedVer++; feedCache.clear();
+    await notify(u.id, {
+      type: 'admin_notice',
+      fromUserId: 'system',
+      fromUsername: 'YouSeries',
+      message: `👑 Congratulations @${u.username}! You have been crowned Creator of the Week on YouSeries!`
+    }).catch(() => {});
+    res.json({ success: true, creatorOfWeek });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #14: Shadowban / Reach Control Toggle ----
+app.post('/api/admin/users/:id/shadowban', requireAdmin, async (req, res) => {
+  try {
+    const users = await readUsers();
+    const u = users.find(x => x.id === req.params.id);
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    if ((u.email || '').toLowerCase() === 'sohailp541@gmail.com') {
+      return res.status(400).json({ error: 'Cannot shadowban Founder account' });
+    }
+    u.shadowbanned = req.body && req.body.shadowbanned !== undefined ? !!req.body.shadowbanned : !u.shadowbanned;
+    await writeUsers(users);
+    feedVer++; feedCache.clear();
+    res.json({ success: true, shadowbanned: !!u.shadowbanned });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #15: Bulk Auto-Welcome DM Setup ----
+app.get('/api/admin/welcome-dm', requireAdmin, async (req, res) => {
+  try {
+    const extras = await getPlatformExtras();
+    res.json(extras.welcomeDm || {
+      enabled: false,
+      senderUsername: 'Sohail_parvez',
+      message: 'Welcome to YouSeries (TAMASHA) {username}! 🎉 Share your Reels, Photos & Stories with the community!'
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/welcome-dm', requireAdmin, async (req, res) => {
+  try {
+    const welcomeDm = {
+      enabled: !!(req.body && req.body.enabled),
+      senderUsername: String((req.body && req.body.senderUsername) || 'Sohail_parvez').replace(/^@/, '').trim().slice(0, 50) || 'Sohail_parvez',
+      message: String((req.body && req.body.message) || '').trim().slice(0, 1500),
+      updatedAt: new Date().toISOString()
+    };
+    await savePlatformExtras({ welcomeDm });
+    res.json({ success: true, welcomeDm });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #17: Bulk Song Category / Mood Tags ----
+app.post('/api/admin/songs/:id/mood', requireAdmin, async (req, res) => {
+  try {
+    const mood = String((req.body && req.body.mood) || 'General').trim().slice(0, 40);
+    const list = await readSongs();
+    const x = list.find(y => y.id === req.params.id);
+    if (!x) return res.status(404).json({ error: 'Song not found' });
+    x.mood = mood;
+    x.category = mood;
+    await writeSongs(list);
+    res.json({ success: true, mood: x.mood });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/songs/bulk-mood', requireAdmin, async (req, res) => {
+  try {
+    const mood = String((req.body && req.body.mood) || 'General').trim().slice(0, 40);
+    const songIds = Array.isArray(req.body && req.body.songIds) ? new Set(req.body.songIds.map(String)) : null;
+    const list = await readSongs();
+    let updated = 0;
+    list.forEach(x => {
+      if (!songIds || songIds.has(String(x.id))) {
+        x.mood = mood;
+        x.category = mood;
+        updated++;
+      }
+    });
+    await writeSongs(list);
+    res.json({ success: true, updated, mood });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #19: Inactive / Bot Account Finder & Bulk Cleanup ----
+app.post('/api/admin/users/clean-inactive', requireAdmin, async (req, res) => {
+  try {
+    const [users, films] = await Promise.all([readUsers(), readFilms()]);
+    const postCount = {};
+    films.forEach(f => {
+      if (f.ownerId) postCount[f.ownerId] = (postCount[f.ownerId] || 0) + 1;
+    });
+    const days = Math.max(1, parseInt((req.body && req.body.days) || '30', 10) || 30);
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const explicitIds = Array.isArray(req.body && req.body.userIds) ? new Set(req.body.userIds.map(String)) : null;
+    const removed = [];
+    const remaining = users.filter(u => {
+      const isFounder = (u.email || '').toLowerCase() === 'sohailp541@gmail.com';
+      if (isFounder || u.isAdmin || u.verified) return true;
+      if ((postCount[u.id] || 0) > 0) return true;
+      if (explicitIds) {
+        if (explicitIds.has(u.id)) {
+          removed.push(u.username);
+          return false;
+        }
+        return true;
+      }
+      const lastTs = new Date(u.lastActiveAt || u.createdAt || 0).getTime() || 0;
+      if (lastTs < cutoff) {
+        removed.push(u.username);
+        return false;
+      }
+      return true;
+    });
+    if (removed.length > 0) {
+      await writeUsers(remaining);
+    }
+    res.json({ success: true, deletedCount: removed.length, deletedUsernames: removed });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---------------- Admin login form (dashboard) ----------------
