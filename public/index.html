@@ -1284,6 +1284,241 @@ body.yt-in-landscape-app{overflow:hidden !important;}
 .post-cta-btn { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#7C5CFF,#5B3FE0); color: #fff; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; text-decoration: none; margin-top: 8px; box-shadow: 0 2px 8px rgba(124,92,255,0.35); }
 .post-cta-btn:hover { opacity: 0.95; }
 
+
+/* ===== 13 NEW FEATURES CSS (#1, #5, #6, #7, #8, #10, #11, #13, #17) ===== */
+.story-ring.close-friends {
+  background: linear-gradient(135deg, #00e676 0%, #00c853 50%, #69f0ae 100%) !important;
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.45);
+}
+.story-ring.close-friends.seen {
+  background: rgba(0, 230, 118, 0.42) !important;
+  box-shadow: none;
+}
+.story-cf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(135deg, #00c853, #00e676);
+  color: #03220f;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+  box-shadow: 0 2px 8px rgba(0, 230, 118, 0.35);
+}
+.se-cf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(0, 230, 118, 0.45);
+  background: rgba(0, 230, 118, 0.12);
+  color: #69f0ae;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.se-cf-btn.active {
+  background: linear-gradient(135deg, #00c853, #00e676);
+  color: #03220f;
+  border-color: #00e676;
+  box-shadow: 0 4px 16px rgba(0, 230, 118, 0.45);
+}
+/* #5 3D Story Reaction Fountain Burst */
+@keyframes storyBurst3D {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.35) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(calc(var(--bx) * 0.25), -70px, 0) scale(var(--bs)) rotate(calc(var(--br) * 0.4));
+  }
+  75% {
+    opacity: 0.95;
+    transform: translate3d(var(--bx), var(--by), 0) scale(calc(var(--bs) * 1.12)) rotate(var(--br));
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--bx) * 1.15), calc(var(--by) - 90px), 0) scale(0.5) rotate(calc(var(--br) * 1.3));
+  }
+}
+.story-emoji-burst-particle {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  font-size: 28px;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+  animation: storyBurst3D var(--bdur, 1.35s) cubic-bezier(0.2, 0.85, 0.35, 1) forwards;
+}
+/* #6 Bio Links Hub */
+.bio-links-hub-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 8px;
+}
+.bio-link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(124, 92, 255, 0.14);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  color: var(--cream);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bio-link-pill:hover {
+  border-color: var(--marigold);
+  background: rgba(124, 92, 255, 0.24);
+}
+/* #7 DM Daily Streak Pill */
+.dm-streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 107, 0, 0.24), rgba(255, 44, 125, 0.24));
+  border: 1px solid rgba(255, 145, 0, 0.55);
+  color: #ffb703;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+/* #8 Carousel Auto-Slide Button */
+.carousel-auto-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.carousel-auto-btn.on {
+  border-color: rgba(0, 230, 118, 0.6);
+  color: #69f0ae;
+}
+/* #10 Vanish Mode Chat */
+.chat-vanish-banner {
+  margin: 6px 12px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(155, 93, 229, 0.16);
+  border: 1px dashed rgba(155, 93, 229, 0.65);
+  color: #e0c3fc;
+  font-size: 12px;
+  text-align: center;
+  font-weight: 600;
+}
+.chat-bubble.vanish-bubble {
+  border: 1.5px dashed #b57cff !important;
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.45), rgba(30, 20, 60, 0.72)) !important;
+  box-shadow: 0 0 12px rgba(155, 93, 229, 0.25);
+}
+.vanish-tag {
+  display: inline-block;
+  font-size: 10px;
+  color: #d8b4fe;
+  margin-left: 6px;
+  opacity: 0.9;
+}
+/* #11 Explore Visual Masonry Grid */
+.explore-grid-wrap {
+  padding: 6px 0 70px;
+}
+.explore-chips-bar {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 4px 12px 10px;
+  scrollbar-width: none;
+}
+.explore-chips-bar::-webkit-scrollbar { display: none; }
+.explore-masonry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+.explore-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: #111;
+  overflow: hidden;
+  cursor: pointer;
+}
+.explore-tile.tall {
+  grid-row: span 2;
+  aspect-ratio: auto;
+}
+.explore-tile img, .explore-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.explore-tile-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.explore-tile-stats {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 6px 5px;
+  background: linear-gradient(to top, rgba(0,0,0,0.78), transparent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* #13 Creator of the Week Badge */
+.cotw-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd166, #f77f00);
+  color: #1d1102;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 5px;
+  box-shadow: 0 2px 10px rgba(255, 209, 102, 0.35);
+  vertical-align: middle;
+}
 </style>
 <script type="application/ld+json">
 {
@@ -1437,7 +1672,16 @@ body.yt-in-landscape-app{overflow:hidden !important;}
     <input type="text" id="searchInput" placeholder="Search films, shorts, people, #hashtags..." oninput="doSearch(this.value)">
   </div>
   <div class="search-results hidden" id="searchResults"></div>
-  <div class="search-placeholder" id="searchPlaceholder">Search for anything — films, shorts, people or #hashtags.</div>
+  <div id="searchPlaceholder" class="explore-grid-wrap">
+    <div class="explore-chips-bar" id="exploreFilterChips">
+      <button type="button" class="feed-chip active" data-ef="all" onclick="setExploreFilter('all')">✨ For You</button>
+      <button type="button" class="feed-chip" data-ef="trending" onclick="setExploreFilter('trending')">🔥 Trending</button>
+      <button type="button" class="feed-chip" data-ef="short" onclick="setExploreFilter('short')">⚡ Reels</button>
+      <button type="button" class="feed-chip" data-ef="photo" onclick="setExploreFilter('photo')">🖼️ Photos</button>
+      <button type="button" class="feed-chip" data-ef="film" onclick="setExploreFilter('film')">🎬 Videos</button>
+    </div>
+    <div id="exploreMasonryGrid" class="explore-masonry-grid"></div>
+  </div>
 </div>
 
 <div id="shortsView">
@@ -1806,14 +2050,16 @@ body.yt-in-landscape-app{overflow:hidden !important;}
   <div id="storySongLabel" class="se-song"></div>
   <div class="se-bottom">
     <input type="text" id="storyTextOverlay" class="se-caption" placeholder="Add a caption or #hashtag..." maxlength="200" oninput="updateStoryStudioLivePreview()">
-    <div class="se-share">
-      <div class="se-target" onclick="if(storyPickedFile || storyIsTextMode) postStory(); else document.getElementById('storyFileInput').click();" style="cursor:pointer;">
+    <div class="se-share" style="gap:6px;flex-wrap:wrap;">
+      <div class="se-target" onclick="if(storyPickedFile || storyIsTextMode) postStory(); else document.getElementById('storyFileInput').click();" style="cursor:pointer;flex:1;min-width:140px;">
         <div class="se-target-av" id="storyEditorMyAvatar">Y</div>
         <div style="display:flex;flex-direction:column;line-height:1.2;">
-          <span>Your story</span>
-          <span style="font-size:11px;color:rgba(255,255,255,0.65);font-weight:500;">Visible for 24h · Archive enabled</span>
+          <span id="storyShareTargetLabel">Your story</span>
+          <span id="storyShareTargetSub" style="font-size:10.5px;color:rgba(255,255,255,0.65);font-weight:500;">Visible for 24h · Archive enabled</span>
         </div>
       </div>
+      <button type="button" id="storyCloseFriendsBtn" class="se-cf-btn" onclick="toggleStoryCloseFriendsMode()" title="Share with Close Friends Only">⭐ Close Friends</button>
+      <button type="button" class="se-round" onclick="openCloseFriendsModal()" title="Edit Close Friends List" style="width:36px;height:36px;font-size:14px;border-color:rgba(0,230,118,0.4);">👥</button>
       <button type="button" id="storyPostBtn" class="se-go hidden" onclick="postStory()" aria-label="Share">Share ➜</button>
     </div>
     <div id="storyUploadStatus" class="se-status"></div>
@@ -1980,6 +2226,7 @@ body.yt-in-landscape-app{overflow:hidden !important;}
       <div class="chat-header-name" id="chatConvoHeaderName" style="flex:none;"></div>
       <div class="chat-typing-text hidden" id="chatConvoTypingText"><span class="tdots"><span></span><span></span><span></span></span></div>
     </div>
+    <button class="chat-header-icon hidden" id="chatVanishBtn" onclick="toggleChatVanishMode()" title="Vanish Mode: Seen messages disappear on exit" style="font-size:12px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 9px;">🤫 Vanish</button>
     <button class="chat-header-icon hidden" id="aiClearBtn" onclick="clearAiChat()" title="Clear Ask AI chat" style="font-size:13px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 10px;">🧹 Clear</button>
     <button class="chat-header-icon hidden" id="chatDeleteConvoBtn" onclick="deleteCurrentConversation()" title="Delete conversation" style="font-size:13px;border:1px solid var(--gold-line);border-radius:14px;padding:4px 10px;color:#e88a8a;">🗑️ Delete</button>
   </div>
@@ -2584,7 +2831,7 @@ function switchTab(tab){
   }
   if (tab === 'home') setupHomeVideoObserver();
   if (tab === 'profile') renderProfile();
-  if (tab === 'search') setTimeout(() => document.getElementById('searchInput').focus(), 50);
+  if (tab === 'search') { renderExploreGrid(); }
 }
 
 // Login screen for visitors who are not logged in (Instagram-style, nothing from the site is shown behind it)
@@ -2880,15 +3127,16 @@ async function renderOtherProfile(userId, usernameHint){
         <div onclick="openUserList('${userId}','following')" style="cursor:pointer;"><div class="profile-stat-num">${pub.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}${roleBadgeHtml(pub.roleBadge)}</div>
+    <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}${roleBadgeHtml(pub.roleBadge, pub.isCreatorOfWeek)}</div>
     ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${escapeAttr(JSON.stringify(pub.note))})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
     ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
-    ${pub.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(pub.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(pub.website)}</a></div>` : ''}
+    ${renderProfileBioLinksHtml(pub.bioLinks, pub.website, pub.username)}
     ${renderCreatorMilestonesHtml(theirFilms, pub.followersCount || 0, !!pub.verified)}
     <div class="profile-btn-row">
       <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="chatReturnTarget={type:'profile',userId:'${userId}',username:'${escapeHtml(pub.username)}'};openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
-      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})">Share Profile</button>
+      <button class="profile-btn" onclick="toggleUserCloseFriend('${escapeAttr(userId)}', this)" style="${pub.isCloseFriend ? 'border-color:#00e676;color:#69f0ae;background:rgba(0,230,118,0.12);' : ''}">${pub.isCloseFriend ? '⭐ Close Friend' : '☆ Close Friend'}</button>
+      <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})">Share</button>
     </div>
     ${pub.channelId ? `<div onclick="openOtherChannel('${escapeAttr(pub.channelId)}','${escapeAttr(pub.channelTitle || (pub.username + ' channel'))}',${pub.channelMembersCount || 0})" style="cursor:pointer;margin:10px 0 4px;padding:12px 14px;border:1px solid var(--gold-line);border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <div style="min-width:0;"><div style="font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 ${escapeHtml(pub.channelTitle || (pub.username + ' channel'))}</div>
@@ -3207,10 +3455,10 @@ async function renderProfile(){
         <div onclick="openUserList('${currentUser.id}','following')" style="cursor:pointer;"><div class="profile-stat-num">${mine.followingCount}</div><div class="profile-stat-label">Following</div></div>
       </div>
     </div>
-    <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge)} <span style="font-size:13px;opacity:.7;">▾</span></div>
+    <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge, mine.isCreatorOfWeek)} <span style="font-size:13px;opacity:.7;">▾</span></div>
     <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Leave a note (24h)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
-    ${mine.website ? `<div class="profile-link">🔗 <a href="${escapeHtml(normalizeUrl(mine.website))}" target="_blank" style="color:var(--marigold-deep);">${escapeHtml(mine.website)}</a></div>` : ''}
+    ${renderProfileBioLinksHtml(mine.bioLinks, mine.website, currentUser.username)}
     ${renderCreatorMilestonesHtml(myFilms, mine.followersCount || 0, !!mine.verified)}
     <div class="profile-btn-row">
       <button class="profile-btn" onclick="toggleSettings()">Edit Profile</button>
@@ -3236,9 +3484,13 @@ async function renderProfile(){
         ${mine.profileImage ? `<button type="button" class="profile-btn" style="flex:none;padding:9px 14px;color:#e88a8a;border-color:#E63950;" onclick="removeOwnAvatar()">Remove</button>` : ''}
       </div>
 
-      <h3 class="section-title" style="text-align:left;margin:22px 0 8px;">Bio & link <span id="bioCounter" style="font-size:12px;color:var(--cream-dim);font-weight:400;">(${(mine.bio || '').length}/150)</span></h3>
+      <h3 class="section-title" style="text-align:left;margin:22px 0 8px;">Bio & Links Hub (Up to 5 Links) <span id="bioCounter" style="font-size:12px;color:var(--cream-dim);font-weight:400;">(${(mine.bio || '').length}/150)</span></h3>
       <textarea id="bioInput" maxlength="150" oninput="const c=document.getElementById('bioCounter');if(c)c.textContent='('+this.value.length+'/150)';" placeholder="Write something about yourself...">${escapeHtml(mine.bio)}</textarea>
-      <input type="text" id="websiteInput" maxlength="100" placeholder="Website or social link" value="${escapeHtml(mine.website)}">
+      <input type="hidden" id="websiteInput" value="${escapeHtml(mine.website)}">
+      <div id="bioLinksEditorContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        ${renderBioLinksEditorInputsHtml(mine.bioLinks, mine.website)}
+      </div>
+      <button type="button" class="profile-btn" style="margin-top:8px;font-size:12px;padding:7px 12px;width:100%;" onclick="addBioLinkEditorRow()">＋ Add Another Link (Max 5)</button>
       ${(mine.verified || (currentUser && currentUser.isAdmin)) ? `
         <label style="display:block;font-size:12.5px;color:var(--cream);font-weight:700;margin-top:12px;">✨ Exclusive VIP Avatar Glow Ring (Verified Only)</label>
         <select id="vipRingSelect" style="width:100%;margin-top:4px;padding:9px;border-radius:8px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);">
@@ -3533,10 +3785,14 @@ async function saveBio(){
   statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--cream-dim)';
   const ringEl = document.getElementById('vipRingSelect');
   const vipRing = ringEl ? ringEl.value : 'none';
+  const bioLinks = collectBioLinksFromEditor();
+  const primaryWebsite = bioLinks.length > 0 ? bioLinks[0].url : '';
+  const webInp = document.getElementById('websiteInput');
+  if (webInp) webInp.value = primaryWebsite;
   try {
     const res = await fetch('/api/me/bio', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bio: document.getElementById('bioInput').value, website: document.getElementById('websiteInput').value, vipRing })
+      body: JSON.stringify({ bio: document.getElementById('bioInput').value, website: primaryWebsite, bioLinks, vipRing })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
@@ -3574,6 +3830,7 @@ function setMenuTitle(title, showBack, backFn){
 function renderProfileMenuMain(){
   setMenuTitle('Menu', false);
   document.getElementById('profileMenuBody').innerHTML =
+    menuRow('⭐', 'Close Friends List', 'closeProfileMenu();openCloseFriendsModal()') +
     menuRow('⚙️', 'Settings and Privacy', 'renderSettingsPrivacyMenu()') +
     menuRow('📊', 'Your Activity', 'renderActivityMenu()') +
     menuRow('🗂️', 'Manage uploads', 'closeProfileMenu();openMyUploadsManager()') +
@@ -4459,7 +4716,7 @@ function doSearchResults(query){
   const resultsEl = document.getElementById('searchResults');
   const placeholderEl = document.getElementById('searchPlaceholder');
   const raw = query.trim().toLowerCase();
-  if (!raw) { resultsEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); return; }
+  if (!raw) { resultsEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); renderExploreGrid(); return; }
   const isTagQuery = raw.startsWith('#');
   const isUserQuery = raw.startsWith('@');
   const q = raw.replace(/^[#@]/, '');
@@ -4579,7 +4836,7 @@ function renderHome(films) {
         <div class="card-header-row">
           ${dualOrSingleAvatarHtml(f)}
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open song page & play">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge, f.ownerCreatorOfWeek)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open song page & play">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${f.adminBoosted ? `<span style="background:rgba(255,190,60,0.2);color:#ffcf5c;border:1px solid rgba(255,190,60,0.4);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;">📌 Featured</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -4790,7 +5047,7 @@ function renderShorts(shorts){
       <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
-        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${dualOrSingleShortAvatarHtml(f)}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
+        ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${dualOrSingleShortAvatarHtml(f)}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge, f.ownerCreatorOfWeek)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
         ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
@@ -5680,7 +5937,8 @@ const vb = flag => flag ? '<span class="vbadge" onclick="event.stopPropagation()
 function carouselHtml(f){
   const slides = f.slideUrls || [];
   const n = slides.length;
-  return `<div class="carousel" data-n="${n}">
+  return `<div class="carousel" data-n="${n}" ontouchstart="this.dataset.lastTouch=Date.now()" onmousedown="this.dataset.lastTouch=Date.now()">
+    ${n > 1 ? `<button type="button" class="carousel-auto-btn on" onclick="event.stopPropagation();toggleCarouselAutoSlide(this)" title="Auto-slide photos">⏯ Auto</button>` : ''}
     <div class="carousel-track" onscroll="carouselScroll(this)">
       ${slides.map(sl => `<div class="carousel-slide">${sl.mediaType === 'video'
         ? `<video src="${sl.url}" controls playsinline muted preload="metadata"></video>`
@@ -7259,10 +7517,15 @@ function openSongPicker(kind, mediaSec){
         <span style="font-size:12px;color:var(--marigold);font-weight:600;">${want}s clip</span>
       </div>
       <input id="spSearch" type="text" placeholder="Search song, artist or mood…" style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13.5px;margin:6px 0 8px;">
-      <div id="spTabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;">
-        <button type="button" data-f="all" class="feed-chip active" style="padding:4px 12px;font-size:12px;">All</button>
-        <button type="button" data-f="trending" class="feed-chip" style="padding:4px 12px;font-size:12px;">🔥 Trending</button>
-        <button type="button" data-f="popular" class="feed-chip" style="padding:4px 12px;font-size:12px;">⭐ Most Used</button>
+      <div id="spTabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;">
+        <button type="button" data-f="all" class="feed-chip active" style="padding:4px 12px;font-size:12px;flex-shrink:0;">All</button>
+        <button type="button" data-f="trending" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🔥 Trending</button>
+        <button type="button" data-f="popular" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">⭐ Most Used</button>
+        <button type="button" data-f="Romantic" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">💖 Romantic</button>
+        <button type="button" data-f="Party" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🕺 Party</button>
+        <button type="button" data-f="Sad" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🥺 Sad</button>
+        <button type="button" data-f="Gym" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">💪 Gym</button>
+        <button type="button" data-f="Lo-Fi" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🎶 Lo-Fi</button>
       </div>
       <div id="spList" style="flex:1;overflow-y:auto;min-height:140px;max-height:42vh;padding-right:2px;"></div>
       <div id="spStart" style="display:none;margin-top:10px;padding:10px;border-radius:10px;background:rgba(124,92,255,0.1);border:1px solid var(--gold-line);color:var(--cream);font-size:13px;">
@@ -7291,9 +7554,10 @@ function openSongPicker(kind, mediaSec){
     };
     const drawList = () => {
       const q = spQuery.trim().toLowerCase();
-      let rows = list.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q));
-      if (spFilter === 'trending') rows = rows.filter(x => x.trending);
+      let rows = list.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q) || (x.mood || '').toLowerCase().includes(q));
+      if (spFilter === 'trending') rows = rows.filter(x => x.trending || (x.mood || '').toLowerCase().includes('trending'));
       else if (spFilter === 'popular') rows = rows.slice().sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
+      else if (spFilter !== 'all') rows = rows.filter(x => ((x.mood || x.category || '')).toLowerCase().includes(spFilter.toLowerCase()));
       const box = ov.querySelector('#spList');
       box.innerHTML = rows.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px 12px;border:1.5px solid ${chosen && chosen.id === x.id ? 'var(--marigold)' : 'var(--gold-line)'};border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <div style="min-width:0;">
@@ -7631,11 +7895,11 @@ function renderStoriesBar(){
 
   let html = currentUser ? `
     <div class="story-avatar-wrap" onclick="${myGroup ? `openStoryViewer('${myId}')` : 'openStoryUploadModal()'}">
-      <div class="story-ring ${myGroup ? (myGroup.allViewed ? 'seen' : '') : 'add-own'}">
+      <div class="story-ring ${myGroup ? ((myGroup.hasCloseFriendsStory ? 'close-friends ' : '') + (myGroup.allViewed ? 'seen' : '')) : 'add-own'}">
         <div class="story-avatar-inner">${myAvatarInner}</div>
         <div class="story-add-badge" onclick="event.stopPropagation();openStoryUploadModal()">+</div>
       </div>
-      <div class="story-username">${myGroup ? 'Your Story' : 'Add Story'}</div>
+      <div class="story-username">${myGroup ? (myGroup.hasCloseFriendsStory ? '🟢 Your Story' : 'Your Story') : 'Add Story'}</div>
     </div>
   ` : '';
 
@@ -7645,10 +7909,10 @@ function renderStoriesBar(){
       : `<span>${escapeHtml(g.ownerUsername[0].toUpperCase())}</span>`;
     html += `
       <div class="story-avatar-wrap" onclick="openStoryViewer('${g.ownerId}')">
-        <div class="story-ring ${g.allViewed ? 'seen' : ''}">
+        <div class="story-ring ${g.hasCloseFriendsStory ? 'close-friends ' : ''}${g.allViewed ? 'seen' : ''}">
           <div class="story-avatar-inner">${avatarInner}</div>
         </div>
-        <div class="story-username">${escapeHtml(g.ownerUsername)}</div>
+        <div class="story-username">${g.hasCloseFriendsStory ? '🟢 ' : ''}${escapeHtml(g.ownerUsername)}</div>
       </div>
     `;
   });
@@ -7681,6 +7945,8 @@ function openStoryUploadModal(){
   storyChosenPoll = null;
   window.storyAutoHighlight = null;
   window.storySharedPost = null;
+  window.storyCloseFriendsOnly = false;
+  syncStoryCloseFriendsUI();
   const hlBtn = document.getElementById('seToolHighlightBtn');
   if (hlBtn) hlBtn.classList.remove('active');
   storyAdjust = null;
@@ -8034,6 +8300,7 @@ async function postStory(){
       };
     }
     if (Object.keys(fullAdjust).length) fd.append('adjust', JSON.stringify(fullAdjust));
+    if (window.storyCloseFriendsOnly) fd.append('closeFriendsOnly', 'true');
     if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
     if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
     if (window.storyAutoHighlight) {
@@ -8182,7 +8449,7 @@ function startStoryPlayback(){
       stAvFb.classList.remove('hidden');
     }
   }
-  document.getElementById('storyViewerUsername').textContent = '@' + group.ownerUsername;
+  document.getElementById('storyViewerUsername').innerHTML = '@' + escapeHtml(group.ownerUsername) + (story.closeFriendsOnly ? '<span class="story-cf-badge">⭐ Close Friends</span>' : '');
   document.getElementById('storyViewerTime').textContent = storyTimeAgo(story.createdAt);
   const ovEl = document.getElementById('storyViewTextOverlay');
   const stAdj = story.adjust || {};
@@ -8864,25 +9131,31 @@ async function toggleStoryLike(event){
 }
 
 function triggerStoryEmojiAnimation(sourceBtn, emoji){
-  const footer = document.getElementById('storyViewerFooter');
-  if (!footer || !sourceBtn) return;
-  const count = 5;
-  for (let i = 0; i < count; i++) {
-    const el = document.createElement('div');
-    el.className = 'floating-story-heart';
-    el.textContent = emoji;
-    const offsetX = (Math.random() * 50 - 25);
-    const targetX = (Math.random() * 90 - 45);
-    const rot = (Math.random() * 40 - 20) + 'deg';
-    const rect = sourceBtn.getBoundingClientRect();
-    const footRect = footer.getBoundingClientRect();
-    el.style.left = (rect.left - footRect.left + 8 + offsetX) + 'px';
-    el.style.bottom = '46px';
-    el.style.setProperty('--tx', targetX + 'px');
-    el.style.setProperty('--rot', rot);
-    el.style.animationDelay = (i * 0.07) + 's';
-    footer.appendChild(el);
-    setTimeout(() => el.remove(), 1200 + (i * 80));
+  const overlay = document.getElementById('storyViewerOverlay') || document.body;
+  const rect = sourceBtn ? sourceBtn.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight - 90, width: 32 };
+  const startX = rect.left + (rect.width || 30) / 2;
+  const startY = rect.top;
+  const totalParticles = 18;
+  for (let i = 0; i < totalParticles; i++) {
+    const p = document.createElement('div');
+    p.className = 'story-emoji-burst-particle';
+    p.textContent = emoji;
+    const spreadX = (Math.random() * 260 - 130).toFixed(1) + 'px';
+    const liftY = (-180 - Math.random() * 340).toFixed(1) + 'px';
+    const scale = (0.85 + Math.random() * 0.85).toFixed(2);
+    const rot = (Math.random() * 90 - 45).toFixed(1) + 'deg';
+    const dur = (1.1 + Math.random() * 0.55).toFixed(2) + 's';
+    p.style.left = (startX - 14 + (Math.random() * 24 - 12)) + 'px';
+    p.style.top = (startY - 10) + 'px';
+    p.style.fontSize = Math.round(22 + Math.random() * 18) + 'px';
+    p.style.setProperty('--bx', spreadX);
+    p.style.setProperty('--by', liftY);
+    p.style.setProperty('--bs', scale);
+    p.style.setProperty('--br', rot);
+    p.style.setProperty('--bdur', dur);
+    p.style.animationDelay = (i * 0.035) + 's';
+    overlay.appendChild(p);
+    setTimeout(() => p.remove(), 1900);
   }
 }
 
@@ -9347,7 +9620,7 @@ function renderFilteredInbox(){
           <div class="online-dot ${c.otherUser.online ? 'on' : ''}"></div>
         </div>
         <div class="chat-inbox-info">
-          <div class="chat-inbox-name">@${escapeHtml(c.otherUser.username)}${vb(c.otherUser.verified)}</div>
+          <div class="chat-inbox-name">@${escapeHtml(c.otherUser.username)}${vb(c.otherUser.verified)}${c.streakDays >= 1 ? `<span class="dm-streak-pill" title="${c.streakDays}-day chat streak!">🔥 ${c.streakDays}d</span>` : ''}${c.vanishMode ? `<span class="vanish-tag" title="Vanish mode active">🤫</span>` : ''}</div>
           <div class="chat-inbox-preview ${c.unreadCount > 0 ? 'unread' : ''}">${escapeHtml(c.lastMessage ? c.lastMessage.preview : 'Say hi 👋')}</div>
         </div>
         <div class="chat-inbox-meta" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -10196,7 +10469,9 @@ async function openChatConvo(userId, usernameHint){
     if (!res.ok) throw new Error(data.error || 'Could not open chat');
     chatConvoId = data.id;
     chatOtherUser = data.otherUser;
-    document.getElementById('chatConvoHeaderName').textContent = '@' + data.otherUser.username;
+    window.chatVanishMode = !!data.vanishMode;
+    window.chatStreakDays = data.streakDays || 0;
+    updateChatHeaderBadges();
     const clrBtn = document.getElementById('aiClearBtn');
     if (clrBtn) clrBtn.classList.toggle('hidden', data.otherUser.id !== 'ai-assistant');
     const delBtn = document.getElementById('chatDeleteConvoBtn');
@@ -10222,6 +10497,11 @@ async function openChatConvo(userId, usernameHint){
 
 let chatReturnTarget = null;
 function closeChatConvo(){
+  if (chatConvoId && (window.chatVanishMode || (chatMessagesCache || []).some(m => m && m.vanish))) {
+    fetch('/api/conversations/' + chatConvoId + '/clear-vanish', { method: 'POST' }).catch(() => {});
+  }
+  window.chatVanishMode = false;
+  window.chatStreakDays = 0;
   document.getElementById('chatConvoOverlay').classList.remove('open');
   if (chatPollHandle) { clearInterval(chatPollHandle = null); }
   stopVoiceRecording(true);
@@ -10287,6 +10567,15 @@ async function pollChatMessages(){
       renderChatMessages();
       if (hasNewFromOther) { scrollChatToBottom(); markChatRead(); }
     }
+    if (data.vanishMode !== undefined && !!data.vanishMode !== !!window.chatVanishMode) {
+      window.chatVanishMode = !!data.vanishMode;
+      updateChatHeaderBadges();
+      renderChatMessages();
+    }
+    if (data.streakDays !== undefined && data.streakDays !== window.chatStreakDays) {
+      window.chatStreakDays = data.streakDays || 0;
+      updateChatHeaderBadges();
+    }
     document.getElementById('chatConvoOnlineDot').classList.toggle('on', !!data.otherOnline);
     const typingEl = document.getElementById('chatConvoTypingText');
     typingEl.classList.toggle('hidden', !data.otherTyping);
@@ -10296,7 +10585,7 @@ async function pollChatMessages(){
 function renderChatMessages(){
   const el = document.getElementById('chatMessagesArea');
   if (!chatMessagesCache.length) { el.innerHTML = '<div class="chat-empty">Say hi 👋</div>'; return; }
-  let html = '';
+  let html = window.chatVanishMode ? '<div class="chat-vanish-banner">🤫 Vanish Mode is ON — Seen messages disappear when you close this chat</div>' : '';
   let lastDay = null;
   let lastMineIdx = -1;
   chatMessagesCache.forEach((m, i) => { if (m.senderId === currentUser.id) lastMineIdx = i; });
@@ -10446,7 +10735,7 @@ function renderChatBubble(m, mine, showStatus){
       <div style="font-size:11px;color:var(--cream-dim);margin-top:8px;text-align:right;">${totalVotes} total vote(s)</div>
     </div></div>`;
   } else if (m.type === 'text') {
-    bubbleInner = `<div class="chat-bubble">${quoteHtml}${linkifyText(m.text || '')}</div>`;
+    bubbleInner = `<div class="chat-bubble ${m.vanish ? 'vanish-bubble' : ''}">${quoteHtml}${linkifyText(m.text || '')}${m.vanish ? '<span class="vanish-tag" title="Disappears after seen">🤫</span>' : ''}</div>`;
   } else if (m.type === 'photo') {
     bubbleInner = `<div>${quoteHtml}<div class="chat-bubble media-bubble"><img class="chat-media-img" src="${m.mediaUrl}" onclick="openChatMediaLightbox('${m.mediaUrl}','photo')" loading="lazy" decoding="async"></div>${m.text ? `<div class="chat-bubble" style="margin-top:6px;">${linkifyText(m.text)}</div>` : ''}</div>`;
   } else if (m.type === 'video') {
@@ -12447,9 +12736,11 @@ async function deleteStoryFromMyUploads(storyId){
 
 
 // ---- Helpers for Role Badge, Dual Collab Avatar, Story Polls, Story History, Profile Visitors & Blue Tick Confetti ----
-function roleBadgeHtml(badge){
-  if (!badge) return '';
-  return `<span class="role-badge-pill">${escapeHtml(badge)}</span>`;
+function roleBadgeHtml(badge, isCreatorOfWeek){
+  let out = '';
+  if (badge) out += `<span class="role-badge-pill">${escapeHtml(badge)}</span>`;
+  if (isCreatorOfWeek) out += `<span class="cotw-badge-pill" title="Crowned Creator of the Week">👑 Creator of the Week</span>`;
+  return out;
 }
 
 function dualOrSingleAvatarHtml(f){
@@ -13135,6 +13426,354 @@ function useSongInNewPost(song){
   showToast('🎵 Audio selected for your new post!');
 }
 
+
+// ===================== 13 NEW FEATURES JS HELPERS (#1, #5, #6, #7, #8, #10, #11, #13, #17) =====================
+
+// ---- #1 Close Friends Story Mode & Manager ----
+window.storyCloseFriendsOnly = false;
+function toggleStoryCloseFriendsMode(){
+  window.storyCloseFriendsOnly = !window.storyCloseFriendsOnly;
+  syncStoryCloseFriendsUI();
+  if (window.storyCloseFriendsOnly) {
+    showToast('🟢 Close Friends Story ON — Only your Close Friends will see this story');
+  } else {
+    showToast('Story set to Everyone');
+  }
+}
+
+function syncStoryCloseFriendsUI(){
+  const btn = document.getElementById('storyCloseFriendsBtn');
+  const lbl = document.getElementById('storyShareTargetLabel');
+  const sub = document.getElementById('storyShareTargetSub');
+  if (btn) {
+    btn.classList.toggle('active', !!window.storyCloseFriendsOnly);
+    btn.innerHTML = window.storyCloseFriendsOnly ? '🟢 Close Friends ✓' : '⭐ Close Friends';
+  }
+  if (lbl) lbl.textContent = window.storyCloseFriendsOnly ? 'Close Friends Story' : 'Your story';
+  if (sub) sub.textContent = window.storyCloseFriendsOnly ? 'Only people on your Close Friends list can view' : 'Visible for 24h · Archive enabled';
+}
+
+async function toggleUserCloseFriend(userId, btnEl){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  if (btnEl) btnEl.disabled = true;
+  try {
+    const res = await fetch('/api/me/close-friends', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed');
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = data.isCloseFriend ? '⭐ Close Friend' : '☆ Close Friend';
+      btnEl.style.borderColor = data.isCloseFriend ? '#00e676' : '';
+      btnEl.style.color = data.isCloseFriend ? '#69f0ae' : '';
+      btnEl.style.background = data.isCloseFriend ? 'rgba(0,230,118,0.12)' : '';
+    }
+    showToast(data.isCloseFriend ? '🟢 Added to Close Friends!' : 'Removed from Close Friends');
+  } catch (e) {
+    if (btnEl) btnEl.disabled = false;
+    showToast(e.message || 'Could not update Close Friends');
+  }
+}
+
+async function openCloseFriendsModal(){
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  const old = document.getElementById('closeFriendsModal');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'closeFriendsModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div style="background:var(--panel);border:1px solid rgba(0,230,118,0.45);border-radius:18px;padding:18px;width:100%;max-width:410px;max-height:84vh;display:flex;flex-direction:column;color:var(--cream);box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="display:inline-flex;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#00c853,#00e676);color:#03220f;align-items:center;justify-content:center;font-weight:900;">⭐</span>
+          <h3 style="margin:0;font-size:17px;">Close Friends</h3>
+        </div>
+        <button type="button" onclick="document.getElementById('closeFriendsModal').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Stories shared with Close Friends show a <b style="color:#00e676;">🟢 Green Ring</b> and are only visible to people selected below.</div>
+      <input type="text" id="cfSearchInp" placeholder="🔍 Search followers or following..." style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+      <div id="cfCandidatesList" style="flex:1;overflow-y:auto;min-height:180px;max-height:50vh;">
+        <p class="comment-empty">Loading your connections...</p>
+      </div>
+      <button type="button" class="profile-btn primary" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#00c853,#00e676);color:#03220f;font-weight:800;border:none;" onclick="document.getElementById('closeFriendsModal').remove()">Done ✓</button>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  try {
+    const res = await fetch('/api/me/close-friends');
+    const data = await res.json();
+    let list = data.candidates || [];
+    const draw = () => {
+      const q = ((document.getElementById('cfSearchInp') || {}).value || '').trim().toLowerCase();
+      const filtered = list.filter(u => !q || (u.username || '').toLowerCase().includes(q));
+      const box = document.getElementById('cfCandidatesList');
+      if (!box) return;
+      if (!filtered.length) {
+        box.innerHTML = '<p class="comment-empty">Follow people to add them to your Close Friends list.</p>';
+        return;
+      }
+      box.innerHTML = filtered.map(u => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 6px;border-bottom:1px solid var(--gold-line);gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            ${avatarOrFallback(u.profileImage, u.username, 'chat-inbox-avatar', 'chat-inbox-avatar-fallback')}
+            <div style="font-weight:700;font-size:13.5px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${escapeHtml(u.username)}${vb(u.verified)}</div>
+          </div>
+          <button type="button" data-uid="${escapeAttr(u.id)}" class="se-cf-btn ${u.isCloseFriend ? 'active' : ''}" style="padding:6px 12px;font-size:12px;">
+            ${u.isCloseFriend ? '🟢 Added ✓' : '＋ Add'}
+          </button>
+        </div>
+      `).join('');
+      box.querySelectorAll('button[data-uid]').forEach(b => {
+        b.onclick = async () => {
+          const uid = b.dataset.uid;
+          b.disabled = true;
+          try {
+            const r = await fetch('/api/me/close-friends', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: uid })
+            });
+            const d = await r.json();
+            if (r.ok) {
+              const item = list.find(x => x.id === uid);
+              if (item) item.isCloseFriend = d.isCloseFriend;
+              draw();
+            }
+          } catch (e) {}
+          b.disabled = false;
+        };
+      });
+    };
+    const inp = document.getElementById('cfSearchInp');
+    if (inp) inp.oninput = draw;
+    draw();
+  } catch (e) {
+    const box = document.getElementById('cfCandidatesList');
+    if (box) box.innerHTML = '<p class="comment-empty">Could not load Close Friends.</p>';
+  }
+}
+
+// ---- #6 Profile Bio Links Hub (Multi-Linktree Style — up to 5 links) ----
+function normalizeBioLinksArray(bioLinks, fallbackWebsite){
+  let arr = Array.isArray(bioLinks) ? bioLinks.filter(l => l && l.url && String(l.url).trim()) : [];
+  if (!arr.length && fallbackWebsite && String(fallbackWebsite).trim()) {
+    const w = String(fallbackWebsite).trim();
+    arr = [{ title: w.replace(/^https?:\/\//i, ''), url: w }];
+  }
+  return arr.slice(0, 5).map(l => ({
+    title: String(l.title || l.url || '').replace(/^https?:\/\//i, '').trim().slice(0, 40) || 'Link',
+    url: normalizeUrl(String(l.url || '').trim())
+  }));
+}
+
+function renderProfileBioLinksHtml(bioLinks, fallbackWebsite, username){
+  const links = normalizeBioLinksArray(bioLinks, fallbackWebsite);
+  if (!links.length) return '';
+  if (links.length === 1) {
+    const l = links[0];
+    return `<div class="bio-links-hub-row">
+      <a class="bio-link-pill" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">🔗 ${escapeHtml(l.title)} ↗</a>
+    </div>`;
+  }
+  const encoded = escapeAttr(JSON.stringify(links));
+  const first = links[0];
+  return `<div class="bio-links-hub-row">
+    <a class="bio-link-pill" href="${escapeAttr(first.url)}" target="_blank" rel="noopener noreferrer">🔗 ${escapeHtml(first.title)}</a>
+    <button type="button" class="bio-link-pill" style="background:rgba(255,209,102,0.16);border-color:rgba(255,209,102,0.45);color:#ffd166;" onclick="openBioLinksHubSheet(${encoded}, '${escapeAttr(username || 'user')}')">📌 +${links.length - 1} more link${links.length - 1 > 1 ? 's' : ''}</button>
+  </div>`;
+}
+
+function openBioLinksHubSheet(links, username){
+  const old = document.getElementById('bioLinksHubModal');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'bioLinksHubModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:1200;display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div style="background:var(--panel);border-top:1px solid var(--gold-line);border-radius:20px 20px 0 0;padding:20px 18px 28px;width:100%;max-width:480px;color:var(--cream);box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-family:'Baloo 2',sans-serif;font-size:17px;font-weight:800;">🔗 @${escapeHtml(username)}'s Links</div>
+        <button type="button" onclick="document.getElementById('bioLinksHubModal').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${(links || []).map(l => `
+          <a href="${escapeAttr(normalizeUrl(l.url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:var(--field);border:1px solid var(--gold-line);color:var(--cream);text-decoration:none;font-weight:700;font-size:14px;">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔗 ${escapeHtml(l.title || l.url)}</span>
+            <span style="font-size:12px;color:var(--marigold);margin-left:10px;flex-shrink:0;">Open ↗</span>
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+
+function renderBioLinksEditorInputsHtml(bioLinks, fallbackWebsite){
+  const links = normalizeBioLinksArray(bioLinks, fallbackWebsite);
+  const rows = links.length ? links : [{ title: '', url: '' }];
+  return rows.map((l, idx) => bioLinkEditorRowTemplate(idx, l.title, l.url)).join('');
+}
+
+function bioLinkEditorRowTemplate(idx, title, url){
+  return `<div class="bio-link-edit-row" style="display:flex;gap:6px;align-items:center;">
+    <input type="text" class="bio-link-title-inp" maxlength="40" placeholder="Label (e.g. YouTube)" value="${escapeHtml(title || '')}" style="flex:0 0 38%;margin:0;">
+    <input type="text" class="bio-link-url-inp" maxlength="200" placeholder="https://..." value="${escapeHtml(url || '')}" style="flex:1;margin:0;">
+    <button type="button" onclick="this.parentElement.remove()" style="background:rgba(230,57,80,0.18);border:1px solid rgba(230,57,80,0.4);color:#ff8585;border-radius:8px;padding:8px 10px;cursor:pointer;flex-shrink:0;" title="Remove link">✕</button>
+  </div>`;
+}
+
+function addBioLinkEditorRow(){
+  const box = document.getElementById('bioLinksEditorContainer');
+  if (!box) return;
+  const count = box.querySelectorAll('.bio-link-edit-row').length;
+  if (count >= 5) {
+    showToast('Maximum 5 bio links allowed');
+    return;
+  }
+  box.insertAdjacentHTML('beforeend', bioLinkEditorRowTemplate(count, '', ''));
+}
+
+function collectBioLinksFromEditor(){
+  const box = document.getElementById('bioLinksEditorContainer');
+  if (!box) return [];
+  const out = [];
+  box.querySelectorAll('.bio-link-edit-row').forEach(row => {
+    const t = (row.querySelector('.bio-link-title-inp')?.value || '').trim();
+    const u = (row.querySelector('.bio-link-url-inp')?.value || '').trim();
+    if (u) {
+      out.push({ title: t || u.replace(/^https?:\/\//i, '').slice(0, 40), url: u });
+    }
+  });
+  return out.slice(0, 5);
+}
+
+// ---- #7 Daily Streak & #10 Vanish Mode in Chat ----
+function updateChatHeaderBadges(){
+  const nameEl = document.getElementById('chatConvoHeaderName');
+  const vBtn = document.getElementById('chatVanishBtn');
+  if (!chatOtherUser) return;
+  const isAi = chatOtherUser.id === 'ai-assistant';
+  const isGroupOrChan = !!(chatConvoData && (chatConvoData.type === 'group' || chatConvoData.type === 'channel'));
+  if (nameEl && !isGroupOrChan) {
+    const streakHtml = (!isAi && window.chatStreakDays >= 1)
+      ? `<span class="dm-streak-pill" title="${window.chatStreakDays}-day active messaging streak!">🔥 ${window.chatStreakDays}d</span>`
+      : '';
+    nameEl.innerHTML = '@' + escapeHtml(chatOtherUser.username || '') + vb(chatOtherUser.verified) + streakHtml;
+  }
+  if (vBtn) {
+    vBtn.classList.toggle('hidden', isAi || isGroupOrChan);
+    vBtn.innerHTML = window.chatVanishMode ? '🤫 Vanish ON' : '🤫 Vanish';
+    vBtn.style.borderColor = window.chatVanishMode ? '#b57cff' : 'var(--gold-line)';
+    vBtn.style.background = window.chatVanishMode ? 'rgba(155,93,229,0.25)' : 'transparent';
+    vBtn.style.color = window.chatVanishMode ? '#e0c3fc' : 'var(--cream)';
+  }
+}
+
+async function toggleChatVanishMode(){
+  if (!chatConvoId) return;
+  try {
+    const res = await fetch('/api/conversations/' + chatConvoId + '/vanish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ on: !window.chatVanishMode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not toggle Vanish Mode');
+    window.chatVanishMode = !!data.vanishMode;
+    updateChatHeaderBadges();
+    renderChatMessages();
+    showToast(window.chatVanishMode ? '🤫 Vanish Mode ON — Seen messages disappear when you leave chat' : 'Vanish Mode OFF');
+  } catch (e) {
+    showToast(e.message);
+  }
+}
+
+// ---- #8 Photo Frame & Carousel Music Auto-Slide ----
+function toggleCarouselAutoSlide(btn){
+  const carousel = btn ? btn.closest('.carousel') : null;
+  if (!carousel) return;
+  const paused = carousel.dataset.autoPaused === '1';
+  carousel.dataset.autoPaused = paused ? '0' : '1';
+  btn.classList.toggle('on', paused);
+  btn.textContent = paused ? '⏯ Auto' : '⏸ Paused';
+}
+
+setInterval(() => {
+  if (document.hidden) return;
+  const carousels = document.querySelectorAll('.carousel');
+  carousels.forEach(car => {
+    const n = parseInt(car.dataset.n || '1', 10);
+    if (n <= 1 || car.dataset.autoPaused === '1') return;
+    const lastTouch = parseInt(car.dataset.lastTouch || '0', 10);
+    if (lastTouch && Date.now() - lastTouch < 7500) return;
+    const rect = car.getBoundingClientRect();
+    const inView = rect.top < window.innerHeight * 0.82 && rect.bottom > window.innerHeight * 0.18 && rect.width > 0;
+    if (!inView) return;
+    const track = car.querySelector('.carousel-track');
+    if (!track) return;
+    const w = track.clientWidth || 1;
+    const curIdx = Math.round(track.scrollLeft / w);
+    const nextIdx = (curIdx + 1) % n;
+    track.scrollTo({ left: nextIdx * w, behavior: 'smooth' });
+  });
+}, 3500);
+
+// ---- #11 Explore Visual Masonry Grid (Instagram Explore in Search Tab) ----
+let currentExploreFilter = 'all';
+function setExploreFilter(f){
+  currentExploreFilter = f || 'all';
+  document.querySelectorAll('#exploreFilterChips .feed-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.ef === currentExploreFilter);
+  });
+  renderExploreGrid();
+}
+
+function renderExploreGrid(){
+  const grid = document.getElementById('exploreMasonryGrid');
+  if (!grid) return;
+  let list = (allFilms || []).slice();
+  if (currentExploreFilter === 'trending') {
+    list.sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3));
+  } else if (currentExploreFilter === 'short') {
+    list = list.filter(f => f.type === 'short');
+  } else if (currentExploreFilter === 'photo') {
+    list = list.filter(f => f.type === 'photo');
+  } else if (currentExploreFilter === 'film') {
+    list = list.filter(f => f.type === 'film');
+  } else {
+    // 'all' (For You): smart mix sorted by engagement + freshness
+    list.sort((a, b) => ((b.likes || 0) * 2 + (b.views || 0)) - ((a.likes || 0) * 2 + (a.views || 0)));
+  }
+  if (!list.length) {
+    grid.innerHTML = '<p class="comment-empty" style="grid-column:1 / -1;padding:32px 16px;">No posts in this category yet.</p>';
+    return;
+  }
+  grid.innerHTML = list.slice(0, 60).map((f, idx) => {
+    const isTall = (idx % 7 === 2) && f.type === 'short';
+    const badge = f.type === 'short' ? '⚡' : (f.type === 'photo' ? ((f.slideUrls && f.slideUrls.length > 1) ? '❐' : '🖼️') : '🎬');
+    const clickAction = f.type === 'short'
+      ? `openShortAt('${escapeAttr(f.id)}')`
+      : (f.type === 'photo' ? `openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.id)}')` : `playFilm('${escapeAttr(f.id)}')`);
+    const mediaHtml = f.posterUrl
+      ? `<img src="${escapeAttr(f.posterUrl)}" alt="${escapeAttr(f.title || '')}" loading="lazy" decoding="async">`
+      : (f.videoUrl
+          ? `<video src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="metadata"></video>`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;">${badge}</div>`);
+    return `<div class="explore-tile ${isTall ? 'tall' : ''}" onclick="${clickAction}">
+      ${mediaHtml}
+      <span class="explore-tile-badge">${badge}</span>
+      <div class="explore-tile-stats">
+        <span>❤️ ${f.likes || 0}</span>
+        <span>👁 ${f.views || 0}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
 </script>
 </body>
 </html>

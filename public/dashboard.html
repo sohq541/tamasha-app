@@ -514,13 +514,24 @@ async function renderSongs(){
     </div>
 
     <div class="row1" style="margin:16px 0 10px;gap:8px;flex-wrap:wrap;justify-content:space-between;">
-      <div style="display:flex;gap:6px;overflow-x:auto;">
+      <div style="display:flex;gap:6px;overflow-x:auto;flex-wrap:wrap;">
         <button class="tab ${songFilter === 'all' ? 'active' : ''}" onclick="songFilter='all';drawAdminSongs()">All (${ADMIN_SONGS_LIST.length})</button>
         <button class="tab ${songFilter === 'trending' ? 'active' : ''}" onclick="songFilter='trending';drawAdminSongs()">🔥 Trending (${ADMIN_SONGS_LIST.filter(x => x.trending).length})</button>
         <button class="tab ${songFilter === 'popular' ? 'active' : ''}" onclick="songFilter='popular';drawAdminSongs()">⭐ Most Used</button>
         <button class="tab ${songFilter === 'newest' ? 'active' : ''}" onclick="songFilter='newest';drawAdminSongs()">🆕 Newest</button>
+        <button class="tab ${songFilter === 'Romantic' ? 'active' : ''}" onclick="songFilter='Romantic';drawAdminSongs()">💖 Romantic</button>
+        <button class="tab ${songFilter === 'Party' ? 'active' : ''}" onclick="songFilter='Party';drawAdminSongs()">🕺 Party</button>
+        <button class="tab ${songFilter === 'Sad' ? 'active' : ''}" onclick="songFilter='Sad';drawAdminSongs()">🥺 Sad</button>
+        <button class="tab ${songFilter === 'Gym' ? 'active' : ''}" onclick="songFilter='Gym';drawAdminSongs()">💪 Gym</button>
+        <button class="tab ${songFilter === 'Lo-Fi' ? 'active' : ''}" onclick="songFilter='Lo-Fi';drawAdminSongs()">🎶 Lo-Fi</button>
       </div>
       <input type="text" id="snSearch" placeholder="🔍 Search song, artist or category…" value="${esc(songSearch)}" oninput="songSearch=this.value;drawAdminSongs()" style="padding:7px 12px;border-radius:20px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:12.5px;outline:none;">
+    </div>
+    <div class="card" style="margin-bottom:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;background:rgba(124,92,255,0.08);">
+      <div style="font-size:12.5px;font-weight:700;">🎵 Quick Bulk Mood Tagger (Tag all currently filtered songs):</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${['Romantic', 'Party', 'Sad', 'Gym', 'Lo-Fi', 'General'].map(m => `<button class="btn" style="padding:4px 10px;font-size:11.5px;" onclick="bulkAssignMoodToVisibleSongs('${m}')">Tag Visible → ${m}</button>`).join('')}
+      </div>
     </div>
     <div id="snListRows"></div>
   `;
@@ -535,6 +546,7 @@ function drawAdminSongs(){
   if (songFilter === 'trending') list = list.filter(x => x.trending);
   else if (songFilter === 'popular') list.sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
   else if (songFilter === 'newest') list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  else if (songFilter !== 'all') list = list.filter(x => ((x.mood || x.category || '')).toLowerCase().includes(songFilter.toLowerCase()));
   if (q) {
     list = list.filter(x => ((x.title || '') + ' ' + (x.artist || '') + ' ' + (x.category || '')).toLowerCase().includes(q));
   }
@@ -548,6 +560,13 @@ function drawAdminSongs(){
       </div>
       <div class="meta" style="margin-top:2px;">Artist: <b>${esc(x.artist || 'Unknown')}</b></div>
       <audio controls preload="none" src="${x.url}" style="width:100%;margin-top:8px;border-radius:8px;"></audio>
+      <div class="row1" style="margin-top:8px;gap:5px;flex-wrap:wrap;">
+        <span style="font-size:11.5px;color:var(--cream-dim);margin-right:4px;">Mood:</span>
+        ${[['Romantic','💖 Romantic'],['Party','🕺 Party'],['Sad','🥺 Sad'],['Gym','💪 Gym'],['Lo-Fi','🎶 Lo-Fi']].map(([mKey, mLbl]) => {
+          const activeMood = ((x.mood || x.category || '').toLowerCase() === mKey.toLowerCase());
+          return `<button class="btn ${activeMood ? 'btn-ok' : ''}" style="padding:3px 8px;font-size:11px;" onclick="setSongMoodQuick('${escJs(x.id)}','${mKey}')">${mLbl}</button>`;
+        }).join('')}
+      </div>
       <div class="row1" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
         ${x.url ? `<button class="btn admin-song-play-btn" onclick="toggleAdminSongPreview('${escJs(x.url)}', this)">▶ Play Preview</button>` : ''}
         <button class="btn ${x.trending ? 'btn-ok' : ''}" onclick="trendSong('${x.id}', ${!x.trending})">${x.trending ? 'Remove from Trending' : '🔥 Add to Trending'}</button>
@@ -666,6 +685,8 @@ function userCard(u){
         <span class="dot ${u.online ? 'on' : ''}"></span>
         <span class="name">@${esc(u.username)}${u.verified ? ' <span class="vtick">✔</span>' : ''}</span>
         ${u.roleBadge ? `<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">${esc(u.roleBadge)}</span>` : ''}
+        ${u.isCreatorOfWeek ? `<span class="pill" style="background:linear-gradient(135deg,#ffd166,#f77f00);color:#1d1102;font-weight:800;">👑 Creator of Week</span>` : ''}
+        ${u.shadowbanned ? `<span class="pill sus" style="background:rgba(155,93,229,0.22);color:#d8b4fe;">🕵️ shadowbanned</span>` : ''}
         ${u.suspended ? '<span class="pill sus">suspended</span>' : ''}
         ${u.google ? '<span class="pill g">google</span>' : ''}
         ${u.reports ? `<span class="pill rep">${u.reports} report${u.reports > 1 ? 's' : ''}</span>` : ''}
@@ -678,6 +699,8 @@ function userCard(u){
       <div class="row1" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
         <button class="btn" onclick="toggleVerify('${u.id}')">${u.verified ? '✔ Remove verified' : '✔ Verify'}</button>
         <button class="btn" onclick="giftUserBluetick('${escJs(u.id)}', '${escJs(u.username)}')">👑 Gift Blue Tick</button>
+        <button class="btn ${u.isCreatorOfWeek ? 'btn-ok' : ''}" onclick="setCreatorOfWeek('${escJs(u.isCreatorOfWeek ? '' : u.id)}', '${escJs(u.username)}')">${u.isCreatorOfWeek ? '👑 Unset COTW' : '🏆 Crown COTW'}</button>
+        <button class="btn ${u.shadowbanned ? 'btn-ok' : ''}" style="${u.shadowbanned ? '' : 'border-color:#b57cff;color:#d8b4fe;'}" onclick="toggleShadowban('${escJs(u.id)}', '${escJs(u.username)}')">${u.shadowbanned ? '✅ Un-Shadowban' : '🕵️ Shadowban'}</button>
         <button class="btn" onclick="setRoleBadge('${escJs(u.id)}', '${escJs(u.username)}', '${escJs(u.roleBadge || '')}')">🏷️ Role Tag</button>
         <button class="btn" onclick="adminDmUser('${escJs(u.id)}', '${escJs(u.username)}')">✉️ Send DM</button>
         <button class="btn" onclick="showUserDetail('${u.id}')">👁 Detail</button>
@@ -1215,17 +1238,42 @@ async function uploadBluetickQr(){
 }
 
 function renderTrending(){
-  const t = D.trending || { posts: [], hashtags: [], creators: [] };
+  const t = D.trending || { posts: [], hashtags: [], creators: [], creatorOfWeek: null };
+  const cotw = t.creatorOfWeek || null;
   const typeIcon = { film: '🎬', short: '⚡', photo: '🖼️', carousel: '❐' };
   document.getElementById('view').innerHTML =
-    '<h3 class="sec" style="margin-top:0;">🔥 Top posts</h3>' +
-    (t.posts.length ? t.posts.map((p, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">${typeIcon[p.type] || ''} ${esc(p.title)}</span></div>
+    `<div class="card" style="background:linear-gradient(135deg,rgba(255,209,102,0.16),rgba(124,92,255,0.12));border-color:rgba(255,209,102,0.45);margin-bottom:14px;">
+      <div class="row1" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <b>👑 Creator of the Week Spotlight</b>
+          <div class="meta">${cotw ? `Currently Crowned: <b style="color:#ffd166;">@${esc(cotw.username)}</b> (displays a golden 👑 Creator of the Week badge on their profile & posts)` : 'No Creator of the Week crowned yet. Pick from the Top 10 Leaderboard below!'}</div>
+        </div>
+        ${cotw ? `<button class="btn btn-danger" onclick="setCreatorOfWeek('', '')">✕ Clear Badge</button>` : ''}
+      </div>
+    </div>` +
+    '<h3 class="sec" style="margin-top:0;">🏆 Top 10 Creators Leaderboard</h3>' +
+    (t.creators.length ? t.creators.map((c, i) => `<div class="card" style="${c.isCreatorOfWeek ? 'border-color:#ffd166;background:rgba(255,209,102,0.08);' : ''}">
+      <div class="row1" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div class="row1" style="gap:8px;">
+          <b>#${i + 1}</b>
+          <span class="name">@${esc(c.username || 'user')}</span>
+          ${c.isCreatorOfWeek ? '<span class="pill" style="background:linear-gradient(135deg,#ffd166,#f77f00);color:#1d1102;font-weight:800;">👑 Creator of the Week</span>' : ''}
+        </div>
+        <button class="btn ${c.isCreatorOfWeek ? 'btn-ok' : ''}" onclick="setCreatorOfWeek('${escJs(c.isCreatorOfWeek ? '' : (c.id || c.username))}', '${escJs(c.username)}')">${c.isCreatorOfWeek ? '👑 Active Winner ✓' : '👑 Set Creator of Week'}</button>
+      </div>
+      <div class="nums" style="margin-top:6px;">
+        <span><b>${c.posts || 0}</b> posts</span>
+        ${c.views !== undefined ? `<span><b>${c.views}</b> views</span>` : ''}
+        ${c.likes !== undefined ? `<span><b>${c.likes}</b> likes</span>` : ''}
+        <span><b>${c.score || 0}</b> total score</span>
+      </div>
+    </div>`).join('') : '<div class="empty">No creators yet.</div>') +
+    '<h3 class="sec">🔥 Top posts</h3>' +
+    (t.posts.length ? t.posts.map((p, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">${typeIcon[p.type] || ''} ${esc(p.title)}</span>${engagementBadgeHtml(p)}</div>
       <div class="meta">@${esc(p.owner || 'user')}</div>
       <div class="nums"><span><b>${p.views}</b> views</span><span><b>${p.likes}</b> likes</span><span><b>${p.comments}</b> comments</span></div></div>`).join('') : '<div class="empty">No posts yet.</div>') +
-    '<h3 class="sec">#️⃣ Trending hashtags (14 din)</h3>' +
-    (t.hashtags.length ? '<div class="card">' + t.hashtags.map(h => `<span class="chip">#${esc(h.tag)} · ${h.count}</span>`).join('') + '</div>' : '<div class="empty">No hashtags.</div>') +
-    '<h3 class="sec">⭐ Top creators</h3>' +
-    (t.creators.length ? t.creators.map((c, i) => `<div class="card"><div class="row1"><b>#${i + 1}</b><span class="name">@${esc(c.username || 'user')}</span></div><div class="nums"><span><b>${c.posts}</b> posts</span><span><b>${c.score}</b> score</span></div></div>`).join('') : '<div class="empty">No creators.</div>');
+    '<h3 class="sec">#️⃣ Trending hashtags (14 days)</h3>' +
+    (t.hashtags.length ? '<div class="card">' + t.hashtags.map(h => `<span class="chip">#${esc(h.tag)} · ${h.count}</span>`).join('') + '</div>' : '<div class="empty">No hashtags.</div>');
 }
 
 let ANN = [], BANNED = [];
@@ -1276,6 +1324,25 @@ async function renderTools(){
       <div class="row1" style="margin-top:10px;gap:8px;">
         <button class="btn btn-ok" onclick="saveFeaturedBanner()">💾 Save Hero Banner</button>
         <span class="meta" id="fbStatus" style="margin:0;"></span>
+      </div>
+    </div>
+
+    <div class="card" style="border-color:rgba(0,230,118,0.4);">
+      <b>📩 Automatic Welcome DM for New Signups (From Founder Account)</b>
+      <div class="meta">Automatically send a personal welcome DM into every new user's inbox the moment they sign up (via Email or Google). Supports <code>{username}</code> placeholder.</div>
+      <div class="row1" style="margin-top:10px;gap:12px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="wdmEnabled" ${(D && D.welcomeDm && D.welcomeDm.enabled) ? 'checked' : ''} style="width:16px;height:16px;"> ✅ Enable Auto-Welcome DM on Signup
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--cream-dim);">Sender @username:</span>
+          <input type="text" class="search" id="wdmSender" value="${esc((D && D.welcomeDm && D.welcomeDm.senderUsername) || 'Sohail_parvez')}" style="width:160px;margin:0;padding:6px 10px;">
+        </div>
+      </div>
+      <textarea class="t" id="wdmMessage" maxlength="1200" placeholder="Welcome to YouSeries (TAMASHA) {username}! 🎉" style="margin-top:8px;">${esc((D && D.welcomeDm && D.welcomeDm.message) || 'Welcome to YouSeries (TAMASHA) {username}! 🎉 Share your Reels, Photos & Stories with the community!')}</textarea>
+      <div class="row1" style="margin-top:8px;gap:8px;">
+        <button class="btn btn-ok" onclick="saveWelcomeDmSettings()">💾 Save Auto-Welcome DM</button>
+        <span class="meta" id="wdmStatus" style="margin:0;"></span>
       </div>
     </div>
 
@@ -1499,6 +1566,7 @@ async function renderContentManager(){
           <option value="views" ${cmSort === 'views' ? 'selected' : ''}>👁️ Most Views</option>
           <option value="likes" ${cmSort === 'likes' ? 'selected' : ''}>❤️ Most Likes</option>
           <option value="comments" ${cmSort === 'comments' ? 'selected' : ''}>💬 Most Comments</option>
+          <option value="engagement" ${cmSort === 'engagement' ? 'selected' : ''}>🔥 Engagement Rate (%)</option>
         </select>
         <button class="btn ${cmBulkMode ? 'btn-ok' : ''}" id="cmBulkToggleBtn" onclick="toggleCmBulkMode()">${cmBulkMode ? '✕ Cancel Select' : '☑️ Bulk Select'}</button>
       </div>
@@ -1551,6 +1619,7 @@ function getFilteredCmRows(){
     if (cmSort === 'views') return (b.views || 0) - (a.views || 0);
     if (cmSort === 'likes') return (b.likes || 0) - (a.likes || 0);
     if (cmSort === 'comments') return (b.comments || 0) - (a.comments || 0);
+    if (cmSort === 'engagement') return calcEngagementRate(b) - calcEngagementRate(a);
     return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
   });
   return rows;
@@ -1611,6 +1680,7 @@ function drawContentList(){
         <div class="row1">
           <span class="name">${esc(f.title)}</span>
           <span class="pill g">${esc(f.type)}</span>
+          ${engagementBadgeHtml(f)}
           ${f.adminBoosted ? '<span class="pill g" style="background:rgba(255,190,60,0.2);color:#ffcf5c;">📌 Boosted</span>' : ''}
           ${f.pendingReview ? '<span class="pill rep">pending</span>' : ''}
           ${f.isSensitive ? '<span class="pill sus">18+/sensitive</span>' : ''}
@@ -1762,12 +1832,16 @@ function drawUsers(){
     const verCnt = all.filter(u => u.verified).length;
     const roleCnt = all.filter(u => u.roleBadge).length;
     const susCnt = all.filter(u => u.suspended).length;
+    const shbCnt = all.filter(u => u.shadowbanned).length;
+    const inactCnt = all.filter(isUserInactiveCandidate).length;
     const repCnt = all.filter(u => u.reports > 0).length;
     tabsBox.innerHTML = `
       <button class="tab ${userFilter === 'all' ? 'active' : ''}" onclick="userFilter='all';drawUsers()">All (${all.length})</button>
       <button class="tab ${userFilter === 'online' ? 'active' : ''}" onclick="userFilter='online';drawUsers()">🟢 Online (${onCnt})</button>
       <button class="tab ${userFilter === 'verified' ? 'active' : ''}" onclick="userFilter='verified';drawUsers()">✔ Verified (${verCnt})</button>
       <button class="tab ${userFilter === 'role' ? 'active' : ''}" onclick="userFilter='role';drawUsers()">🏷️ Role Tagged (${roleCnt})</button>
+      <button class="tab ${userFilter === 'shadowbanned' ? 'active' : ''}" onclick="userFilter='shadowbanned';drawUsers()">🕵️ Shadowbanned (${shbCnt})</button>
+      <button class="tab ${userFilter === 'inactive' ? 'active' : ''}" onclick="userFilter='inactive';drawUsers()">🧹 Inactive / 0-Post (${inactCnt})</button>
       <button class="tab ${userFilter === 'suspended' ? 'active' : ''}" onclick="userFilter='suspended';drawUsers()">🚫 Suspended (${susCnt})</button>
       <button class="tab ${userFilter === 'reported' ? 'active' : ''}" onclick="userFilter='reported';drawUsers()">🚩 Reported (${repCnt})</button>
     `;
@@ -1777,6 +1851,8 @@ function drawUsers(){
     if (userFilter === 'online' && !u.online) return false;
     if (userFilter === 'verified' && !u.verified) return false;
     if (userFilter === 'role' && !u.roleBadge) return false;
+    if (userFilter === 'shadowbanned' && !u.shadowbanned) return false;
+    if (userFilter === 'inactive' && !isUserInactiveCandidate(u)) return false;
     if (userFilter === 'suspended' && !u.suspended) return false;
     if (userFilter === 'reported' && !(u.reports > 0)) return false;
     if (t && !(u.username || '').toLowerCase().includes(t) && !(u.email || '').toLowerCase().includes(t) && !(u.roleBadge || '').toLowerCase().includes(t)) return false;
@@ -1788,7 +1864,19 @@ function drawUsers(){
     if (userSort === 'followers') return (b.followers || 0) - (a.followers || 0);
     return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
   });
-  document.getElementById('ulist').innerHTML = rows.length ? rows.map(userCard).join('') : '<div class="empty">No matching users found.</div>';
+  const inactiveBanner = userFilter === 'inactive' ? `
+    <div class="card" style="margin-bottom:10px;background:rgba(230,57,80,0.12);border-color:var(--bad);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b>🧹 Inactive / 0-Post Bot Account Cleaner (${rows.length} candidate accounts)</b>
+        <div class="meta">These accounts have 0 uploaded posts and are unverified. Founder & verified accounts are always protected.</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" onclick="cleanInactiveAccounts(false)">🧹 Clean 30d+ Inactive Only</button>
+        <button class="btn btn-danger" onclick="cleanInactiveAccounts(true)">🗑️ Clean All ${rows.length} Listed 0-Post Accounts</button>
+      </div>
+    </div>
+  ` : '';
+  document.getElementById('ulist').innerHTML = inactiveBanner + (rows.length ? rows.map(userCard).join('') : '<div class="empty">No matching users found.</div>');
 }
 
 let actFilter = 'all', actSearch = '';
@@ -2200,6 +2288,171 @@ async function restoreDatabaseFromJson(inputEl){
   }
 }
 
+
+// ===================== ADMIN DASHBOARD NEW FEATURES (#13, #14, #15, #17, #19, #20) =====================
+
+// ---- #20 Engagement Rate Calculator ----
+function calcEngagementRate(f){
+  if (!f) return 0;
+  if (f.engagementRate !== undefined && !isNaN(Number(f.engagementRate))) return Number(f.engagementRate);
+  const views = Math.max(1, Number(f.views) || 0);
+  const likes = Number(f.likes) || 0;
+  const comments = Array.isArray(f.comments) ? f.comments.length : (Number(f.comments) || 0);
+  return Number((((likes + comments * 2) / views) * 100).toFixed(1));
+}
+
+function engagementBadgeHtml(f){
+  const er = calcEngagementRate(f);
+  if (er >= 15) {
+    return `<span class="pill" style="background:rgba(0,230,118,0.18);color:#69f0ae;font-weight:800;" title="High Engagement Rate">🔥 ${er}% ER</span>`;
+  }
+  if (er >= 5) {
+    return `<span class="pill" style="background:rgba(255,209,102,0.18);color:#ffd166;font-weight:800;" title="Good Engagement Rate">⚡ ${er}% ER</span>`;
+  }
+  return `<span class="pill" style="background:rgba(255,255,255,0.08);color:var(--cream-dim);font-weight:700;" title="Engagement Rate">📊 ${er}% ER</span>`;
+}
+
+// ---- #13 Set Creator of the Week ----
+async function setCreatorOfWeek(userId, username){
+  const msg = userId
+    ? `Crown @${username} as Creator of the Week? They will receive a golden 👑 Creator of the Week badge across the platform!`
+    : 'Clear the current Creator of the Week badge?';
+  if (!confirm(msg)) return;
+  try {
+    const res = await fetch('/api/admin/creator-of-week', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ userId })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    await load();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ---- #14 Shadowban Toggle ----
+async function toggleShadowban(userId, username){
+  const u = (D.users || []).find(x => x.id === userId);
+  const willBan = !(u && u.shadowbanned);
+  if (!confirm(willBan
+    ? `🕵️ Shadowban @${username}? They will still see their own posts/stories as normal, but their content will be hidden from all other users' feeds.`
+    : `Remove shadowban for @${username} and restore their feed reach?`)) return;
+  try {
+    const res = await fetch('/api/admin/users/' + userId + '/shadowban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ shadowbanned: willBan })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    if (u) u.shadowbanned = !!d.shadowbanned;
+    drawUsers();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ---- #15 Auto-Welcome DM Setup ----
+async function saveWelcomeDmSettings(){
+  const enabled = !!(document.getElementById('wdmEnabled') && document.getElementById('wdmEnabled').checked);
+  const senderUsername = (document.getElementById('wdmSender')?.value || 'Sohail_parvez').trim();
+  const message = (document.getElementById('wdmMessage')?.value || '').trim();
+  const statusEl = document.getElementById('wdmStatus');
+  if (statusEl) statusEl.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/admin/welcome-dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ enabled, senderUsername, message })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    if (D) D.welcomeDm = d.welcomeDm;
+    if (statusEl) { statusEl.style.color = '#69f0ae'; statusEl.textContent = '✔ Saved!'; }
+  } catch (e) {
+    if (statusEl) { statusEl.style.color = '#ff7b7b'; statusEl.textContent = '❌ ' + e.message; }
+  }
+}
+
+// ---- #17 Song Mood Quick & Bulk Tagger ----
+async function setSongMoodQuick(songId, mood){
+  try {
+    const res = await fetch('/api/admin/songs/' + songId + '/mood', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ mood })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const item = ADMIN_SONGS_LIST.find(x => x.id === songId);
+    if (item) { item.mood = d.mood; item.category = d.mood; }
+    drawAdminSongs();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function bulkAssignMoodToVisibleSongs(mood){
+  const q = songSearch.trim().toLowerCase();
+  let list = ADMIN_SONGS_LIST.slice();
+  if (songFilter === 'trending') list = list.filter(x => x.trending);
+  else if (songFilter !== 'all' && songFilter !== 'popular' && songFilter !== 'newest') {
+    list = list.filter(x => ((x.mood || x.category || '')).toLowerCase().includes(songFilter.toLowerCase()));
+  }
+  if (q) list = list.filter(x => ((x.title || '') + ' ' + (x.artist || '') + ' ' + (x.category || '')).toLowerCase().includes(q));
+  if (!list.length) { alert('No visible songs to tag'); return; }
+  if (!confirm(`Tag ${list.length} visible song(s) as "${mood}"?`)) return;
+  try {
+    const res = await fetch('/api/admin/songs/bulk-mood', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify({ songIds: list.map(x => x.id), mood })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Bulk tag failed');
+    list.forEach(x => { x.mood = mood; x.category = mood; });
+    drawAdminSongs();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ---- #19 Inactive / Bot Account Finder & Cleaner ----
+function isUserInactiveCandidate(u){
+  if (!u || u.verified) return false;
+  if ((u.email || '').toLowerCase() === 'sohailp541@gmail.com') return false;
+  if (u.roleBadge && u.roleBadge.includes('Founder')) return false;
+  if ((u.posts || 0) > 0) return false;
+  const lastTs = new Date(u.lastActiveAt || u.createdAt || 0).getTime() || 0;
+  const daysInactive = (Date.now() - lastTs) / (24 * 3600 * 1000);
+  return daysInactive >= 30 || ((u.posts || 0) === 0 && (u.comments || 0) === 0 && !u.online);
+}
+
+async function cleanInactiveAccounts(cleanAllListed){
+  const all = D.users || [];
+  const candidates = all.filter(isUserInactiveCandidate);
+  if (!candidates.length) { alert('No inactive 0-post accounts found.'); return; }
+  const msg = cleanAllListed
+    ? `Delete all ${candidates.length} unverified 0-post inactive account(s)? (Founder & verified accounts are safe)`
+    : `Delete unverified accounts with 0 posts that have been inactive for 30+ days?`;
+  if (!confirm(msg)) return;
+  try {
+    const body = cleanAllListed ? { userIds: candidates.map(u => u.id) } : { days: 30 };
+    const res = await fetch('/api/admin/users/clean-inactive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-no-prompt': '1' },
+      body: JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Cleanup failed');
+    alert(`🧹 Cleaned ${d.deletedCount || 0} inactive account(s)!`);
+    await load();
+  } catch (e) {
+    alert(e.message);
+  }
+}
 </script>
 </body>
 </html>
