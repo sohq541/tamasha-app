@@ -1519,6 +1519,360 @@ body.yt-in-landscape-app{overflow:hidden !important;}
   box-shadow: 0 2px 10px rgba(255, 209, 102, 0.35);
   vertical-align: middle;
 }
+
+/* ===== INSTAGRAM-STYLE VIRAL SONG TAGS, EQUALIZER & SPINNING DISC ===== */
+@keyframes igEqBar1 { 0%, 100% { height: 3px; } 50% { height: 11px; } }
+@keyframes igEqBar2 { 0%, 100% { height: 10px; } 40% { height: 3px; } 80% { height: 12px; } }
+@keyframes igEqBar3 { 0%, 100% { height: 5px; } 35% { height: 12px; } 70% { height: 4px; } }
+@keyframes igDiscSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.ig-eq-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.ig-eq-bars i {
+  display: block;
+  width: 2.2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+.ig-eq-bars i:nth-child(1) { height: 5px; animation: igEqBar1 0.75s ease-in-out infinite; }
+.ig-eq-bars i:nth-child(2) { height: 10px; animation: igEqBar2 0.65s ease-in-out infinite; }
+.ig-eq-bars i:nth-child(3) { height: 6px; animation: igEqBar3 0.8s ease-in-out infinite; }
+
+.ig-trending-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #00e676;
+  background: rgba(0, 230, 118, 0.16);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 4px;
+  line-height: 1.3;
+}
+.song-title-line {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--cream);
+  font-weight: 600;
+  margin-top: 2px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.song-title-line:hover {
+  background: rgba(124, 92, 255, 0.22);
+  border-color: var(--marigold);
+}
+.short-audio-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 4px 11px 4px 6px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  max-width: 82%;
+  cursor: pointer;
+}
+.short-audio-disc {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #fff;
+  animation: igDiscSpin 4.5s linear infinite;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #7C5CFF, #FF2C7D);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.story-song-line {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 3px;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== INSTAGRAM-STYLE 2-STEP UPLOAD STUDIO ===== */
+#uploadModalOverlay .ig-up-sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 93vh;
+  background: var(--panel);
+  border: 1px solid var(--gold-line);
+  border-radius: 22px 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.ig-up-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--gold-line);
+  background: rgba(12, 9, 24, 0.92);
+  flex-shrink: 0;
+}
+.ig-up-topbtn {
+  background: none;
+  border: none;
+  color: var(--cream);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.ig-up-nextbtn {
+  background: linear-gradient(135deg, #7C5CFF, #E63950);
+  color: #fff;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ig-up-nextbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ig-up-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 24px;
+}
+.ig-up-typebar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 12px;
+}
+.ig-up-typebar::-webkit-scrollbar { display: none; }
+.ig-up-typepill {
+  flex: 1;
+  min-width: 82px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--gold-line);
+  background: var(--field);
+  color: var(--cream-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.ig-up-typepill.active {
+  background: linear-gradient(135deg, rgba(124,92,255,0.28), rgba(230,57,80,0.22));
+  border-color: var(--marigold);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(124,92,255,0.25);
+}
+.ig-up-dropzone {
+  border: 1.5px dashed rgba(124, 92, 255, 0.55);
+  border-radius: 18px;
+  background: rgba(124, 92, 255, 0.06);
+  padding: 34px 18px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.ig-up-stage {
+  position: relative;
+  width: 100%;
+  background: #080612;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  max-height: 54vh;
+}
+.ig-up-stage img, .ig-up-stage video {
+  width: 100%;
+  max-height: 54vh;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+.ig-up-live-txt {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 88%;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 17px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 6;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+  word-break: break-word;
+}
+.ig-up-live-txt.pos-top { top: 14px; bottom: auto; }
+.ig-up-live-txt.pos-center { top: 50%; transform: translate(-50%, -50%); bottom: auto; }
+.ig-up-live-txt.pos-bottom { bottom: 16px; top: auto; }
+.ig-up-live-txt.style-neon { text-shadow: 0 0 10px currentColor, 0 0 24px currentColor; }
+.ig-up-live-txt.style-bold { background: rgba(0,0,0,0.68); backdrop-filter: blur(6px); }
+.ig-up-live-txt.style-typewriter { font-family: monospace; background: rgba(0,0,0,0.55); }
+.ig-up-song-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 82%;
+}
+.ig-up-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ig-up-toolbar::-webkit-scrollbar { display: none; }
+.ig-up-toolbtn {
+  flex: 1;
+  min-width: 78px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--gold-line);
+  background: var(--field);
+  color: var(--cream);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.ig-up-toolbtn.active {
+  border-color: var(--marigold);
+  background: rgba(124, 92, 255, 0.22);
+  color: #fff;
+}
+.ig-up-subpanel {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--gold-line);
+}
+.ig-up-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--gold-line);
+  cursor: pointer;
+}
+.ig-up-mini-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--gold-line);
+  margin-bottom: 10px;
+}
+.ig-up-mini-thumb {
+  width: 78px;
+  height: 78px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--gold-line);
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+}
+.ig-up-mini-thumb img, .ig-up-mini-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.post-media-overlay-txt {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 88%;
+  padding: 5px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 16px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 4;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+.post-media-overlay-txt.pos-top { top: 14px; }
+.post-media-overlay-txt.pos-center { top: 50%; transform: translate(-50%, -50%); }
+.post-media-overlay-txt.pos-bottom { bottom: 18px; }
+.post-media-overlay-txt.style-neon { text-shadow: 0 0 10px currentColor, 0 0 22px currentColor; }
+.post-media-overlay-txt.style-bold { background: rgba(0,0,0,0.65); }
+.post-media-overlay-txt.style-typewriter { font-family: monospace; background: rgba(0,0,0,0.55); }
 </style>
 <script type="application/ld+json">
 {
@@ -1743,7 +2097,7 @@ body.yt-in-landscape-app{overflow:hidden !important;}
                 <span class="yt-autoplay-knob" id="ytTopAutoplayKnob">▶</span>
               </button>
               <!-- 3. Setting Side Click P2P Open -->
-              <button type="button" class="yt-hud-icon-btn" id="ytTopPipBtn" onclick="triggerYtP2P(event)" title="Open P2P Mini Player (Picture-in-Picture)">
+              <button type="button" class="yt-hud-icon-btn" id="ytTopPipBtn" onclick="triggerYtP2P(event)" title="Open PiP Mini Player (Picture-in-Picture)">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="11" width="8" height="7" rx="1" fill="currentColor"/></svg>
               </button>
               <!-- CC Button -->
@@ -1768,7 +2122,7 @@ body.yt-in-landscape-app{overflow:hidden !important;}
               <b id="ytSetSpeedVal" style="color:#ff2c7d;">1x</b>
             </div>
             <div class="yt-set-item" onclick="triggerYtP2P(event)">
-              <span>⧉ Open P2P (Mini Player)</span>
+              <span>⧉ Open PiP (Mini Player)</span>
               <span style="opacity:0.75;">↗</span>
             </div>
             <div class="yt-set-item" onclick="toggleYtAutoplaySwitch(event)">
@@ -2427,70 +2781,195 @@ body.yt-in-landscape-app{overflow:hidden !important;}
 </div>
 
 <div class="sheet-overlay" id="uploadModalOverlay" onclick="if(event.target===this) closeUploadModal()">
-  <div class="sheet" style="max-height:88vh;overflow-y:auto;">
-    <div class="sheet-header"><h3>Upload</h3><button class="sheet-close" onclick="closeUploadModal()">✕</button></div>
-    <form id="quickUploadForm">
-      <label>Title *</label>
-      <input type="text" id="qTitle" required>
+  <div class="sheet ig-up-sheet">
+    <div class="ig-up-topbar">
+      <button type="button" class="ig-up-topbtn" id="igUpBackBtn" onclick="igUploadHeaderBack()">✕</button>
+      <div id="igUpHeaderTitle" style="font-family:'Baloo 2',sans-serif;font-size:17px;font-weight:800;color:#fff;">New Full Video</div>
+      <button type="button" class="ig-up-nextbtn" id="igUpNextBtn" onclick="igUploadHeaderNext()" disabled>Next →</button>
+    </div>
 
-      <label>When to publish? (optional, empty = now)</label>
-      <input type="datetime-local" id="qPublishAt" style="width:100%;">
-
-      <label>Content Type</label>
-      <div class="row">
-        <label><input type="radio" name="qType" value="film" checked onclick="toggleQType('film')"> Full Film</label>
-        <label><input type="radio" name="qType" value="short" onclick="toggleQType('short')"> Short</label>
-        <label><input type="radio" name="qType" value="photo" onclick="toggleQType('photo')"> Photo</label>
-        <label><input type="radio" name="qType" value="carousel" onclick="toggleQType('carousel')"> Carousel</label>
+    <form id="quickUploadForm" class="ig-up-body">
+      <!-- Hidden radios kept for full compatibility -->
+      <div class="hidden">
+        <input type="radio" name="qType" value="film" checked>
+        <input type="radio" name="qType" value="short">
+        <input type="radio" name="qType" value="photo">
+        <input type="radio" name="qType" value="carousel">
       </div>
-
-      <div id="qVideoFields">
-        <label>Poster (optional)</label>
-        <input type="file" id="qPoster" accept="image/*">
-        <label>Video file *</label>
-        <input type="file" id="qVideo" accept="video/*">
+      <!-- Hidden native file inputs -->
+      <div id="qVideoFields" class="hidden">
+        <input type="file" id="qPoster" accept="image/*" onchange="onIgCustomPosterPicked(this)">
+        <input type="file" id="qVideo" accept="video/*" onchange="onIgMediaFilePicked('video', this)">
       </div>
       <div id="qPhotoFields" class="hidden">
-        <label>Photo *</label>
-        <input type="file" id="qPhoto" accept="image/*">
+        <input type="file" id="qPhoto" accept="image/*" onchange="onIgMediaFilePicked('photo', this)">
       </div>
       <div id="qCarouselFields" class="hidden">
-        <label>Photos / videos * (2 to 10, first one will be cover)</label>
-        <input type="file" id="qCarousel" accept="image/*,video/*" multiple onchange="onCarouselPicked(this)">
-        <div id="qCarouselInfo" style="font-size:12.5px;color:var(--cream-dim);margin-top:6px;"></div>
+        <input type="file" id="qCarousel" accept="image/*,video/*" multiple onchange="onCarouselPicked(this);onIgMediaFilePicked('carousel', this);">
       </div>
 
-      <label>Year</label><input type="text" id="qYear">
-      <label>Language</label><input type="text" id="qLanguage">
-      <label>Genre</label><input type="text" id="qGenre">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">
-        <label style="margin:0;">Description &amp; #Hashtags</label>
-        <button type="button" id="aiCaptionBtn" onclick="generateAiUploadCaption()" style="background:rgba(124,92,255,0.18);border:1px solid var(--marigold);color:var(--cream);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">✨ AI Write Caption &amp; #Tags</button>
-      </div>
-      <textarea id="qDescription" placeholder="Write a caption or tap '✨ AI Write Caption & #Tags' above..."></textarea>
-      <label>🤝 Collab (optional) — share a post with another user</label>
-      <div class="collab-chip hidden" id="qCollabChip"></div>
-      <input type="text" id="qCollab" placeholder="type a username — tap one from the list" oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off">
-      <div class="collab-popup hidden" id="qCollabPopup"></div>
+      <!-- ========== STEP 1: LIVE PREVIEW & CREATIVE STUDIO ========== -->
+      <div id="igUploadStep1">
+        <div class="ig-up-typebar" id="igUpTypeBar">
+          <button type="button" class="ig-up-typepill active" data-t="film" onclick="toggleQType('film')">🎬 Full Video</button>
+          <button type="button" class="ig-up-typepill" data-t="short" onclick="toggleQType('short')">⚡ Reel / Short</button>
+          <button type="button" class="ig-up-typepill" data-t="photo" onclick="toggleQType('photo')">🖼️ Photo</button>
+          <button type="button" class="ig-up-typepill" data-t="carousel" onclick="toggleQType('carousel')">❐ Carousel</button>
+        </div>
 
-      <div id="qVipFields" class="hidden" style="background:rgba(124,92,255,0.08);border:1px solid var(--marigold);border-radius:10px;padding:10px 12px;margin-top:12px;">
-        <div style="font-size:12.5px;font-weight:700;color:var(--marigold);">⚡ Fast-Track Verified Publishing Active</div>
-        <label style="display:block;font-size:12px;color:var(--cream);margin-top:6px;font-weight:600;">🔗 Custom Link Button on Post (Verified Only)</label>
-        <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;">
-        <input type="text" id="qCustomLinkTitle" placeholder="Button text (e.g. Visit Website, Watch Full Video)" maxlength="40" style="width:100%;margin-top:6px;">
-      </div>
-      <div id="qVipLockedBox" class="hidden" style="background:rgba(255,255,255,0.03);border:1px dashed var(--gold-line);border-radius:10px;padding:9px 12px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <span style="font-size:12px;color:var(--cream-dim);">🔒 Custom Link Button &amp; Fast-Track (Verified Only)</span>
-        <button type="button" class="profile-btn" style="padding:4px 10px;font-size:11.5px;flex:0 0 auto;" onclick="closeUploadModal();openBlueTick();">Get Blue Tick ✔</button>
-      </div>
-      <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:14px;">
-        <input type="checkbox" id="qSensitive" style="width:auto;">
-        <span style="font-size:13.5px;color:var(--cream-dim);">⚠️ Sensitive content (won’t show in the feed of people who've turned this off)</span>
-      </label>
+        <div id="igUpDropzone" class="ig-up-dropzone" onclick="triggerIgMediaPicker()">
+          <div style="width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,rgba(124,92,255,0.3),rgba(230,57,80,0.3));display:flex;align-items:center;justify-content:center;font-size:28px;" id="igUpDropIcon">🎬</div>
+          <div style="font-size:16px;font-weight:800;color:#fff;" id="igUpDropTitle">Select a Full Video to preview</div>
+          <div style="font-size:12.5px;color:var(--cream-dim);max-width:300px;" id="igUpDropSub">Preview video, pick cover thumbnail, add text, filters &amp; viral music before publishing</div>
+          <button type="button" class="ig-up-nextbtn" style="margin-top:4px;padding:9px 20px;">📁 Choose from Device</button>
+        </div>
 
-      <button type="button" id="qSongBtn" onclick="pickUploadSong()" style="width:100%;margin-bottom:8px;background:none;border:1px solid var(--gold-line);color:var(--cream);border-radius:8px;padding:10px;font-weight:600;cursor:pointer;">🎵 Add a song (optional)</button>
-      <div id="qSongLabel" class="meta" style="margin-bottom:8px;"></div>
-      <button type="submit">Start Upload</button>
+        <div id="igUpPreviewWrap" class="hidden">
+          <div class="ig-up-stage" id="igUpStage">
+            <img id="igUpPreviewImg" class="hidden" alt="Preview">
+            <video id="igUpPreviewVideo" class="hidden" playsinline controls loop></video>
+            <div id="igUpCarouselNav" class="hidden" style="position:absolute;inset:0;pointer-events:none;z-index:5;">
+              <button type="button" onclick="igCarouselPreviewStep(-1)" style="pointer-events:auto;position:absolute;left:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,0.65);color:#fff;font-size:16px;cursor:pointer;">‹</button>
+              <button type="button" onclick="igCarouselPreviewStep(1)" style="pointer-events:auto;position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,0.65);color:#fff;font-size:16px;cursor:pointer;">›</button>
+              <span id="igUpCarouselBadge" style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.72);color:#fff;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:800;">1/2</span>
+            </div>
+            <div id="igUpLiveText" class="ig-up-live-txt pos-bottom hidden"></div>
+            <div id="igUpSongChip" class="ig-up-song-chip hidden" onclick="pickUploadSong()">
+              <span class="ig-eq-bars"><i></i><i></i><i></i></span>
+              <span id="igUpSongChipText" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+              <button type="button" onclick="event.stopPropagation();clearUploadSongSelection()" style="background:none;border:none;color:#ff8585;font-weight:800;cursor:pointer;padding:0 2px;">✕</button>
+            </div>
+          </div>
+
+          <div id="qCarouselInfo" style="font-size:12px;color:var(--cream-dim);margin-top:6px;text-align:center;"></div>
+
+          <!-- Creative Studio Toolbar -->
+          <div class="ig-up-toolbar">
+            <button type="button" class="ig-up-toolbtn" id="igToolTextBtn" onclick="toggleIgUploadTool('text')">Aa Text</button>
+            <button type="button" class="ig-up-toolbtn" id="igToolFilterBtn" onclick="toggleIgUploadTool('filter')">✨ Filter</button>
+            <button type="button" class="ig-up-toolbtn" id="igToolSongBtn" onclick="pickUploadSong()">🎵 Add Song</button>
+            <button type="button" class="ig-up-toolbtn hidden" id="igToolCoverBtn" onclick="toggleIgUploadTool('cover')">🎞️ Cover</button>
+            <button type="button" class="ig-up-toolbtn" onclick="triggerIgMediaPicker()">🔄 Change</button>
+          </div>
+
+          <!-- Subpanel: Text Overlay -->
+          <div id="igPanelText" class="ig-up-subpanel hidden">
+            <input type="text" id="igUpTextInput" maxlength="120" placeholder="Add text on preview (e.g. Watch till end 🔥)..." oninput="syncIgUploadLivePreview()" style="margin:0 0 8px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <button type="button" class="feed-chip active" data-ustyle="classic" onclick="setIgUploadTextStyle('classic')" style="padding:4px 10px;font-size:11.5px;">Classic</button>
+              <button type="button" class="feed-chip" data-ustyle="neon" onclick="setIgUploadTextStyle('neon')" style="padding:4px 10px;font-size:11.5px;">✨ Neon</button>
+              <button type="button" class="feed-chip" data-ustyle="bold" onclick="setIgUploadTextStyle('bold')" style="padding:4px 10px;font-size:11.5px;">🔥 Bold</button>
+              <button type="button" class="feed-chip" data-ustyle="typewriter" onclick="setIgUploadTextStyle('typewriter')" style="padding:4px 10px;font-size:11.5px;">⌨️ Type</button>
+              <button type="button" class="feed-chip" id="igUpTextPosBtn" onclick="cycleIgUploadTextPos()" style="padding:4px 10px;font-size:11.5px;">↕ Bottom</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+              <span class="se-color-dot active" style="background:#ffffff;" data-ucol="#ffffff" onclick="setIgUploadTextColor('#ffffff')"></span><span class="se-color-dot " style="background:#FFD166;" data-ucol="#FFD166" onclick="setIgUploadTextColor('#FFD166')"></span><span class="se-color-dot " style="background:#FF2C7D;" data-ucol="#FF2C7D" onclick="setIgUploadTextColor('#FF2C7D')"></span><span class="se-color-dot " style="background:#00F5D4;" data-ucol="#00F5D4" onclick="setIgUploadTextColor('#00F5D4')"></span><span class="se-color-dot " style="background:#9B5DE5;" data-ucol="#9B5DE5" onclick="setIgUploadTextColor('#9B5DE5')"></span><span class="se-color-dot " style="background:#00E676;" data-ucol="#00E676" onclick="setIgUploadTextColor('#00E676')"></span>
+            </div>
+          </div>
+
+          <!-- Subpanel: Visual Filters -->
+          <div id="igPanelFilter" class="ig-up-subpanel hidden">
+            <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;">
+              <button type="button" class="feed-chip active" data-uf="none" onclick="setIgUploadFilter('none')" style="padding:5px 11px;font-size:12px;">Normal</button>
+              <button type="button" class="feed-chip" data-uf="vivid" onclick="setIgUploadFilter('vivid')" style="padding:5px 11px;font-size:12px;">🌈 Vivid</button>
+              <button type="button" class="feed-chip" data-uf="warm" onclick="setIgUploadFilter('warm')" style="padding:5px 11px;font-size:12px;">☀️ Warm</button>
+              <button type="button" class="feed-chip" data-uf="cool" onclick="setIgUploadFilter('cool')" style="padding:5px 11px;font-size:12px;">❄️ Cool</button>
+              <button type="button" class="feed-chip" data-uf="vintage" onclick="setIgUploadFilter('vintage')" style="padding:5px 11px;font-size:12px;">🎞️ Vintage</button>
+              <button type="button" class="feed-chip" data-uf="bw" onclick="setIgUploadFilter('bw')" style="padding:5px 11px;font-size:12px;">🖤 B&amp;W</button>
+              <button type="button" class="feed-chip" data-uf="cinema" onclick="setIgUploadFilter('cinema')" style="padding:5px 11px;font-size:12px;">🎬 Cinema</button>
+            </div>
+          </div>
+
+          <!-- Subpanel: Cover / Thumbnail Frame Picker (Full Video & Reel) -->
+          <div id="igPanelCover" class="ig-up-subpanel hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12.5px;font-weight:700;color:var(--cream);">🎞️ Video Cover / Thumbnail</span>
+              <span id="igCoverTimeLbl" style="font-size:12px;color:var(--marigold);font-weight:700;">0:00</span>
+            </div>
+            <input type="range" id="igCoverSlider" min="0" max="10" step="0.1" value="0" oninput="seekIgCoverFrame(this.value)" style="width:100%;">
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+              <button type="button" class="profile-btn primary" style="flex:1;padding:7px 10px;font-size:12px;" onclick="captureIgCoverFrame()">📸 Set Frame as Cover</button>
+              <button type="button" class="profile-btn" style="flex:1;padding:7px 10px;font-size:12px;" onclick="document.getElementById('qPoster').click()">🖼️ Upload Custom Poster</button>
+            </div>
+            <div id="igCoverStatus" style="font-size:11.5px;color:#69f0ae;margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== STEP 2: INSTAGRAM NEW POST DETAILS & PUBLISH ========== -->
+      <div id="igUploadStep2" class="hidden">
+        <div class="ig-up-mini-header">
+          <div class="ig-up-mini-thumb" id="igUpMiniThumb" onclick="goIgUploadStep(1)" title="Tap to edit preview">🎬</div>
+          <div style="flex:1;min-width:0;">
+            <label id="qTitleLabel" style="margin:0 0 4px;font-size:12px;font-weight:700;color:var(--marigold);">🎬 Video Title *</label>
+            <input type="text" id="qTitle" placeholder="Enter catchy title for your video..." required style="margin:0 0 8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:12px;color:var(--cream-dim);">Description &amp; #Hashtags</span>
+              <button type="button" id="aiCaptionBtn" onclick="generateAiUploadCaption()" style="background:rgba(124,92,255,0.18);border:1px solid var(--marigold);color:var(--cream);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;">✨ AI Caption</button>
+            </div>
+            <textarea id="qDescription" placeholder="Write a caption, add #hashtags or @mentions..." style="margin:0;min-height:68px;"></textarea>
+          </div>
+        </div>
+
+        <!-- Music Row -->
+        <div class="ig-up-row" onclick="pickUploadSong()">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <span style="font-size:18px;">🎵</span>
+            <div style="min-width:0;">
+              <div style="font-size:13.5px;font-weight:700;color:var(--cream);">Add Viral Music</div>
+              <div id="qSongLabel" style="font-size:12px;color:var(--marigold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Tap to search Bollywood, Punjabi &amp; trending songs</div>
+            </div>
+          </div>
+          <span style="color:var(--cream-dim);font-size:16px;">›</span>
+        </div>
+
+        <!-- Collaborator Row -->
+        <div style="padding:10px 2px;border-bottom:1px solid var(--gold-line);">
+          <label style="margin:0 0 6px;font-size:13px;font-weight:700;color:var(--cream);">🤝 Tag People / Invite Collab</label>
+          <div class="collab-chip hidden" id="qCollabChip"></div>
+          <input type="text" id="qCollab" placeholder="Type @username to invite collaborator..." oninput="collabSearchInput(this, 'qCollabPopup', 'upload')" autocomplete="off" style="margin:0;">
+          <div class="collab-popup hidden" id="qCollabPopup"></div>
+        </div>
+
+        <!-- Full Video Details (Auto-shown for Full Video, optional toggle for others) -->
+        <div id="qFullVideoMetaBox" style="padding:10px 2px;border-bottom:1px solid var(--gold-line);">
+          <div style="font-size:13px;font-weight:700;color:var(--cream);margin-bottom:6px;">🎬 Full Video Info (Optional)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <input type="text" id="qYear" placeholder="Year (2026)" style="margin:0;">
+            <input type="text" id="qLanguage" placeholder="Language" style="margin:0;">
+            <input type="text" id="qGenre" placeholder="Genre" style="margin:0;">
+          </div>
+        </div>
+
+        <!-- Advanced Options (Schedule, VIP Link, Sensitive) -->
+        <div class="ig-up-row" onclick="document.getElementById('igUpAdvBox').classList.toggle('hidden')">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:17px;">⚙️</span>
+            <span style="font-size:13.5px;font-weight:700;color:var(--cream);">Advanced Settings (Schedule, Links, 18+)</span>
+          </div>
+          <span style="color:var(--cream-dim);font-size:14px;">▾</span>
+        </div>
+        <div id="igUpAdvBox" class="hidden" style="padding:10px 2px;">
+          <label style="margin:4px 0 4px;">⏰ Schedule Publish Time (optional, empty = now)</label>
+          <input type="datetime-local" id="qPublishAt" style="width:100%;">
+          <div id="qVipFields" class="hidden" style="background:rgba(124,92,255,0.08);border:1px solid var(--marigold);border-radius:10px;padding:10px 12px;margin-top:10px;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--marigold);">⚡ Fast-Track Verified Publishing Active</div>
+            <label style="display:block;font-size:12px;color:var(--cream);margin-top:6px;font-weight:600;">🔗 Custom Link Button on Post (Verified Only)</label>
+            <input type="url" id="qCustomLink" placeholder="https://yourwebsite.com or https://youtube.com/..." style="width:100%;margin-top:4px;">
+            <input type="text" id="qCustomLinkTitle" placeholder="Button text (e.g. Visit Website, Watch Full Video)" maxlength="40" style="width:100%;margin-top:6px;">
+          </div>
+          <div id="qVipLockedBox" class="hidden" style="background:rgba(255,255,255,0.03);border:1px dashed var(--gold-line);border-radius:10px;padding:9px 12px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-size:12px;color:var(--cream-dim);">🔒 Custom Link Button &amp; Fast-Track (Verified Only)</span>
+            <button type="button" class="profile-btn" style="padding:4px 10px;font-size:11.5px;flex:0 0 auto;" onclick="closeUploadModal();openBlueTick();">Get Blue Tick ✔</button>
+          </div>
+          <label class="row" style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+            <input type="checkbox" id="qSensitive" style="width:auto;">
+            <span style="font-size:13px;color:var(--cream-dim);">⚠️ Sensitive content</span>
+          </label>
+        </div>
+
+        <button type="submit" id="igUpPublishBtn" style="margin-top:16px;background:linear-gradient(135deg,#7C5CFF,#E63950);border-radius:14px;font-size:15px;font-weight:800;">🚀 Publish Full Video</button>
+      </div>
     </form>
   </div>
 </div>
@@ -4836,7 +5315,7 @@ function renderHome(films) {
         <div class="card-header-row">
           ${dualOrSingleAvatarHtml(f)}
           <div>
-            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge, f.ownerCreatorOfWeek)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open song page & play">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}</div>
+            <div class="card-username" onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge, f.ownerCreatorOfWeek)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open audio page & use this song">${renderIgSongBadgeHtml(f.song)}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${f.adminBoosted ? `<span style="background:rgba(255,190,60,0.2);color:#ffcf5c;border:1px solid rgba(255,190,60,0.4);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;">📌 Featured</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -4847,7 +5326,7 @@ function renderHome(films) {
           ${
             isPhoto
               ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`) + (f.song ? `<button class="mute-toggle-btn song-corner-mute" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${songMutedPref ? '🔇' : '🔊'}</button>` : '')
-              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline ${homeFeedSoundMuted ? 'muted' : ''} loop></video>${!isShort ? `<button type="button" class="mute-toggle-btn" style="right:48px;" onclick="event.stopPropagation();openFilmInLandscape('${f.id}')" title="Watch in Landscape Fullscreen">⛶</button>` : ''}<button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${(homeFeedSoundMuted || (f.song && songMutedPref)) ? '🔇' : '🔊'}</button>`
+              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline ${homeFeedSoundMuted ? 'muted' : ''} loop style="${(f.mediaFilter && typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[f.mediaFilter]) ? 'filter:' + STORY_FILTER_CSS[f.mediaFilter] + ';' : ''}"></video>${(f.overlayText && f.overlayText.text) ? `<div class="post-media-overlay-txt pos-${escapeAttr(f.overlayText.pos || 'bottom')} ${f.overlayText.style && f.overlayText.style !== 'classic' ? 'style-' + escapeAttr(f.overlayText.style) : ''}" style="color:${escapeAttr(f.overlayText.color || '#ffffff')};">${escapeHtml(f.overlayText.text)}</div>` : ''}${!isShort ? `<button type="button" class="mute-toggle-btn" style="right:48px;" onclick="event.stopPropagation();openFilmInLandscape('${f.id}')" title="Watch in Landscape Fullscreen">⛶</button>` : ''}<button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${(homeFeedSoundMuted || (f.song && songMutedPref)) ? '🔇' : '🔊'}</button>`
           }
         </div>
 
@@ -5041,14 +5520,19 @@ function renderShorts(shorts){
     const canFollow = !!(currentUser && f.ownerId && f.ownerId !== currentUser.id && !f.isFollowing);
     return `
     <div class="short-item" data-id="${f.id}">
-      <video data-src="${f.videoUrl}" preload="none" playsinline data-id="${f.id}"></video>
+      <video data-src="${f.videoUrl}" preload="none" playsinline data-id="${f.id}" style="${(f.mediaFilter && typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[f.mediaFilter]) ? 'filter:' + STORY_FILTER_CSS[f.mediaFilter] + ';' : ''}"></video>${(f.overlayText && f.overlayText.text) ? `<div class="post-media-overlay-txt pos-${escapeAttr(f.overlayText.pos || 'bottom')} ${f.overlayText.style && f.overlayText.style !== 'classic' ? 'style-' + escapeAttr(f.overlayText.style) : ''}" style="color:${escapeAttr(f.overlayText.color || '#ffffff')};">${escapeHtml(f.overlayText.text)}</div>` : ''}
       <div class="short-center-icon" style="display:none;">▶</div>
       <div class="short-speed-badge">⏩ 2x</div>
       <div class="short-timer" style="display:none;"></div>
       <button class="short-mute-btn" onclick="toggleShortMute(event, this)">🔊</button>
       <div class="short-info">
         ${f.ownerUsername ? `<div class="short-owner" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${dualOrSingleShortAvatarHtml(f)}<span onclick="goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')" style="cursor:pointer;">@${escapeHtml(f.ownerUsername)}</span>${vb(f.ownerVerified)}${roleBadgeHtml(f.ownerRoleBadge, f.ownerCreatorOfWeek)}${collabLabel(f)}${canFollow ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)" style="margin-left:6px;padding:3px 10px;font-size:11.5px;">Follow</button>` : ''}${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:11.5px;margin-left:4px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}</div>` : ''}
-        ${f.song ? `<div class="song-title-line" style="color:#fff;margin-bottom:5px;cursor:pointer;" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})">♫ ${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</div>` : ''}
+        ${f.song ? `<div class="short-audio-bar" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to view audio & use in your Reel">
+          ${f.song.cover ? `<img src="${escapeAttr(f.song.cover)}" class="short-audio-disc" alt="">` : `<span class="short-audio-disc">🎵</span>`}
+          <span class="ig-eq-bars"><i></i><i></i><i></i></span>
+          <span class="ig-trending-arrow">↗</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.song.title)}${f.song.artist ? ' · ' + escapeHtml(f.song.artist) : ''}</span>
+        </div>` : ''}
         <h3>${escapeHtml(f.title)}</h3>
         ${f.description ? `<p onclick="event.stopPropagation();this.classList.toggle('expanded')" title="Tap to expand">${linkifyRich(f.description || '', f.mentions)}</p>` : ''}
         ${f.customLink ? `<div style="margin-top:6px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" style="padding:5px 12px;font-size:12px;" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
@@ -5850,6 +6334,7 @@ async function playFilm(id){
       <div class="yt-chan-avatar" id="mOwnerAvatar">${avHtml}</div>
       <div style="flex:1;min-width:0;">
         <div class="yt-chan-name" id="mOwnerName">@${escapeHtml(f.ownerUsername)}${vb(f.ownerVerified)}${collabLabel(f)}</div>
+        ${f.song ? `<div class="song-title-line" style="margin-top:4px;" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})">${renderIgSongBadgeHtml(f.song)}</div>` : ''}
       </div>
       ${(!isMe && currentUser) ? `<button type="button" class="yt-follow-pill ${f.isFollowing ? 'following' : ''}" data-owner="${escapeAttr(f.ownerId)}" onclick="event.stopPropagation();followFromFeed('${escapeAttr(f.ownerId)}',this)">${f.isFollowing ? '🔔 Following' : 'Follow'}</button>` : ''}
     `;
@@ -5886,6 +6371,10 @@ async function playFilm(id){
   bumpOverlayZ(ovEl);
   ovEl.classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (playerEl) {
+    const pFilt = (f.mediaFilter && typeof STORY_FILTER_CSS !== "undefined" && STORY_FILTER_CSS[f.mediaFilter]) ? STORY_FILTER_CSS[f.mediaFilter] : "";
+    playerEl.style.filter = pFilt;
+  }
   syncYtCustomHud(f);
   try {
     if (isVid) {
@@ -6034,7 +6523,7 @@ async function openProfilePhotoFeed(userId, startFilmId){
             ${f.ownerProfileImage ? `<img src="${f.ownerProfileImage}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" loading="lazy" decoding="async">` : escapeHtml((f.ownerUsername || 'U')[0].toUpperCase())}
           </div>
           <div>
-            <div class="card-username" onclick="closeProfilePhotoFeed();goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}</div>
+            <div class="card-username" onclick="closeProfilePhotoFeed();goToProfileDirect('${f.ownerId}','${escapeHtml(f.ownerUsername)}')">@${escapeHtml(f.ownerUsername || 'user')}${vb(f.ownerVerified)}${collabLabel(f)}${f.song ? `<div class="song-title-line" onclick="event.stopPropagation();openAudioPage(${escapeAttr(JSON.stringify(f.song))})" title="Tap to open audio page">${renderIgSongBadgeHtml(f.song)}</div>` : ''}</div>
             ${f.uploadedAt ? `<span style="color:rgba(255,255,255,0.75);font-size:12px;margin-left:2px;">· ${storyTimeAgo(f.uploadedAt)}</span>` : ''}${isPinned ? `<span style="color:rgba(255,255,255,0.85);font-size:12px;margin-left:6px;">📌 Pinned</span>` : ''}
           </div>
           ${(currentUser && f.ownerId !== currentUser.id && !f.isFollowing) ? `<button class="feed-follow-btn" data-owner="${f.ownerId}" onclick="event.stopPropagation();followFromFeed('${f.ownerId}',this)">Follow</button>` : ''}
@@ -6193,7 +6682,7 @@ async function saveNote(clear){
   if (!clear && text) {
     const pick = await openSongPicker('note');
     if (pick === 'cancel') return;
-    if (pick) songPart = { songId: pick.songId, songStart: pick.songStart };
+    if (pick) songPart = { songId: pick.songId, songUrl: pick.url || '', songTitle: pick.title || '', songArtist: pick.artist || '', songCover: pick.cover || '', songStart: pick.songStart };
   }
   try {
     const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...songPart }) });
@@ -6662,7 +7151,7 @@ async function triggerYtP2P(ev){
     ov.classList.add('p2p-mini-mode');
     document.body.style.overflow = '';
     v.play().catch(() => {});
-    showToast('P2P Mini-Player active ⧉');
+    showToast('PiP Mini-Player active ⧉');
   }
 }
 
@@ -7502,78 +7991,186 @@ function fmtClipSec(s){
   s = Math.max(0, Math.floor(Number(s) || 0));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+function renderIgSongBadgeHtml(song){
+  if (!song || !song.title) return '';
+  return `<span class="ig-eq-bars"><i></i><i></i><i></i></span><span class="ig-trending-arrow" title="Trending Audio">↗</span><span>${escapeHtml(song.title)}${song.artist ? ' · ' + escapeHtml(song.artist) : ''}</span>`;
+}
+
 function openSongPicker(kind, mediaSec){
   return new Promise(async resolve => {
-    let list = [];
-    try { const r = await fetch('/api/songs'); list = await r.json(); if (!Array.isArray(list)) list = []; } catch (e) {}
+    let localList = [];
+    let onlineList = [];
+    let onlineLoading = false;
+    try { const r = await fetch('/api/songs'); localList = await r.json(); if (!Array.isArray(localList)) localList = []; } catch (e) {}
     const want = (kind === 'story' || kind === 'note' || kind === 'photo') ? 15 : Math.max(1, Math.min(600, Math.round(mediaSec || 15)));
-    let spFilter = 'all', spQuery = '';
+    let spSource = 'online'; // Default to Online Viral Songs like Instagram!
+    let spFilter = 'trending', spQuery = '';
+    let searchDebounce = null;
+
     const ov = document.createElement('div');
     ov.id = 'songPicker';
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:980;display:flex;align-items:center;justify-content:center;padding:16px;';
-    ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:16px;padding:16px;width:100%;max-width:400px;max-height:88vh;display:flex;flex-direction:column;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div style="font-weight:700;font-size:16px;color:var(--cream);">🎵 Choose a song</div>
-        <span style="font-size:12px;color:var(--marigold);font-weight:600;">${want}s clip</span>
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.86);z-index:1150;display:flex;align-items:center;justify-content:center;padding:14px;';
+    ov.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:20px;padding:16px;width:100%;max-width:420px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,0.75);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-weight:800;font-size:16.5px;color:var(--cream);display:flex;align-items:center;gap:6px;">🎵 Music &amp; Viral Audio</div>
+        <span style="font-size:11.5px;background:rgba(124,92,255,0.2);color:var(--marigold);padding:2px 9px;border-radius:999px;font-weight:700;">${want}s clip</span>
       </div>
-      <input id="spSearch" type="text" placeholder="Search song, artist or mood…" style="width:100%;padding:9px 12px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13.5px;margin:6px 0 8px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;background:var(--field);padding:4px;border-radius:12px;border:1px solid var(--gold-line);">
+        <button type="button" id="spSrcOnline" style="flex:1;padding:7px 10px;border-radius:9px;border:none;font-size:12.5px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;">🌐 Online Viral Songs</button>
+        <button type="button" id="spSrcLocal" style="flex:1;padding:7px 10px;border-radius:9px;border:none;font-size:12.5px;font-weight:700;cursor:pointer;background:transparent;color:var(--cream-dim);">📁 App Library (${localList.length})</button>
+      </div>
+      <div style="position:relative;margin-bottom:8px;">
+        <input id="spSearch" type="text" placeholder="🔍 Search any Bollywood, Punjabi, Hindi or viral song…" style="width:100%;padding:10px 14px;border-radius:999px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:13.5px;box-sizing:border-box;outline:none;">
+      </div>
       <div id="spTabs" style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;">
-        <button type="button" data-f="all" class="feed-chip active" style="padding:4px 12px;font-size:12px;flex-shrink:0;">All</button>
-        <button type="button" data-f="trending" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🔥 Trending</button>
-        <button type="button" data-f="popular" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">⭐ Most Used</button>
+        <button type="button" data-f="trending" class="feed-chip active" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🔥 Viral / Trending</button>
         <button type="button" data-f="Romantic" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">💖 Romantic</button>
         <button type="button" data-f="Party" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🕺 Party</button>
         <button type="button" data-f="Sad" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🥺 Sad</button>
         <button type="button" data-f="Gym" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">💪 Gym</button>
         <button type="button" data-f="Lo-Fi" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">🎶 Lo-Fi</button>
+        <button type="button" data-f="all" class="feed-chip" style="padding:4px 12px;font-size:12px;flex-shrink:0;">✨ All</button>
       </div>
-      <div id="spList" style="flex:1;overflow-y:auto;min-height:140px;max-height:42vh;padding-right:2px;"></div>
-      <div id="spStart" style="display:none;margin-top:10px;padding:10px;border-radius:10px;background:rgba(124,92,255,0.1);border:1px solid var(--gold-line);color:var(--cream);font-size:13px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Clip window:</span><b id="spSecs">0:00 – 0:${String(want).padStart(2,'0')}</b></div>
-        <input id="spSlider" type="range" min="0" max="0" value="0" step="1" style="width:100%;">
+      <div id="spList" style="flex:1;overflow-y:auto;min-height:170px;max-height:44vh;padding-right:2px;"></div>
+      <div id="spStart" style="display:none;margin-top:10px;padding:10px;border-radius:12px;background:rgba(124,92,255,0.12);border:1px solid var(--gold-line);color:var(--cream);font-size:12.5px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span id="spChosenTitle" style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%;">Selected clip:</span>
+          <b id="spSecs" style="color:var(--marigold);">0:00 – 0:${String(want).padStart(2,'0')}</b>
+        </div>
+        <input id="spSlider" type="range" min="0" max="15" value="0" step="1" style="width:100%;">
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--gold-line);background:none;color:var(--cream);cursor:pointer;">Cancel</button>
-        <button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--marigold);color:#fff;font-weight:700;opacity:.5;cursor:pointer;">Use Song</button>
+        <button id="spCancel" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--gold-line);background:none;color:var(--cream);cursor:pointer;font-weight:600;">Cancel</button>
+        <button id="spOk" disabled style="flex:1;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;font-weight:800;opacity:.45;cursor:pointer;">Done ✓</button>
       </div>
-      <button id="spNone" style="margin-top:8px;width:100%;background:none;border:none;color:var(--cream-dim);font-size:13px;padding:6px;cursor:pointer;">Continue without a song</button>
+      <button id="spNone" style="margin-top:6px;width:100%;background:none;border:none;color:var(--cream-dim);font-size:12.5px;padding:5px;cursor:pointer;">Continue without music</button>
     </div>`;
     document.body.appendChild(ov);
+
     let chosen = null, audio = null, stopT = null;
-    const stopPreview = () => { clearTimeout(stopT); if (audio) { audio.pause(); audio = null; } };
+    const stopPreview = () => { clearTimeout(stopT); if (audio) { try { audio.pause(); } catch(e){} audio = null; } };
     const startClipPreview = (startSec) => {
       if (!audio) return;
       clearTimeout(stopT);
-      audio.currentTime = startSec;
+      try { audio.currentTime = startSec; } catch (e) {}
       audio.play().catch(() => {});
-      stopT = setTimeout(() => { if (audio) { audio.pause(); audio.currentTime = startSec; } }, want * 1000);
+      stopT = setTimeout(() => { if (audio) { try { audio.pause(); audio.currentTime = startSec; } catch(e){} } }, want * 1000);
     };
     const updateClipLabel = (startSec) => {
       const s = Number(startSec) || 0;
-      ov.querySelector('#spSecs').textContent = fmtClipSec(s) + ' – ' + fmtClipSec(s + want);
+      const secEl = ov.querySelector('#spSecs');
+      if (secEl) secEl.textContent = fmtClipSec(s) + ' – ' + fmtClipSec(s + want);
     };
+
+    const fetchOnlineSongs = async (queryText, moodKey) => {
+      onlineLoading = true;
+      drawList();
+      const qTerm = (queryText || '').trim();
+      const moodQueries = {
+        trending: 'Bollywood Trending Viral Hits Arijit Singh',
+        Romantic: 'Bollywood Romantic Songs Arijit Singh Atif Aslam',
+        Party: 'Punjabi Party Viral Hits Karan Aujla Diljit Dosanjh',
+        Sad: 'Bollywood Sad Heartbreak Songs Arijit Singh',
+        Gym: 'Indian Gym Workout Motivation Sidhu Moose Wala',
+        'Lo-Fi': 'Hindi Lofi Slowed Reverb Bollywood',
+        all: 'Top Indian Viral Songs 2025'
+      };
+      const effectiveTerm = qTerm || moodQueries[moodKey] || 'Bollywood Top Viral Hits';
+      let fetched = [];
+      try {
+        const res = await fetch(`/api/songs/online-search?q=${encodeURIComponent(qTerm)}&mood=${encodeURIComponent(moodKey || '')}`);
+        if (res.ok) {
+          const d = await res.json();
+          if (Array.isArray(d.results) && d.results.length) fetched = d.results;
+        }
+      } catch (e) {}
+      // Direct client fallback to iTunes India API if needed
+      if (!fetched.length) {
+        try {
+          const ir = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(effectiveTerm)}&country=IN&media=music&entity=song&limit=25`);
+          if (ir.ok) {
+            const idata = await ir.json();
+            fetched = (idata.results || []).filter(it => it.previewUrl && it.trackName).map(it => ({
+              id: 'itunes_' + it.trackId,
+              title: it.trackName,
+              artist: it.artistName || 'Artist',
+              category: it.primaryGenreName || 'Trending',
+              mood: moodKey || 'Trending',
+              trending: true,
+              isOnline: true,
+              cover: (it.artworkUrl100 || '').replace('100x100bb', '200x200bb'),
+              url: it.previewUrl,
+              useCount: 0
+            }));
+          }
+        } catch (e) {}
+      }
+      onlineList = fetched;
+      onlineLoading = false;
+      drawList();
+    };
+
     const drawList = () => {
-      const q = spQuery.trim().toLowerCase();
-      let rows = list.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q) || (x.mood || '').toLowerCase().includes(q));
-      if (spFilter === 'trending') rows = rows.filter(x => x.trending || (x.mood || '').toLowerCase().includes('trending'));
-      else if (spFilter === 'popular') rows = rows.slice().sort((a, b) => (b.useCount || 0) - (a.useCount || 0));
-      else if (spFilter !== 'all') rows = rows.filter(x => ((x.mood || x.category || '')).toLowerCase().includes(spFilter.toLowerCase()));
       const box = ov.querySelector('#spList');
-      box.innerHTML = rows.map(x => `<div class="sp-item" data-id="${x.id}" style="padding:10px 12px;border:1.5px solid ${chosen && chosen.id === x.id ? 'var(--marigold)' : 'var(--gold-line)'};border-radius:10px;margin-bottom:8px;cursor:pointer;color:var(--cream);display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <div style="min-width:0;">
-          <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(x.title)} ${x.trending ? '🔥' : ''}</div>
-          <div style="font-size:12px;color:var(--cream-dim);">${escapeHtml(x.artist || 'Unknown artist')} · ${escapeHtml(x.category || 'General')}</div>
-        </div>
-        ${x.useCount ? `<span style="font-size:11px;color:var(--marigold);white-space:nowrap;">${x.useCount} posts</span>` : ''}
-      </div>`).join('') || '<div style="color:var(--cream-dim);text-align:center;padding:24px 0;">No songs found.</div>';
+      if (!box) return;
+      if (spSource === 'online' && onlineLoading) {
+        box.innerHTML = '<div style="color:var(--cream-dim);text-align:center;padding:34px 12px;font-size:13px;">🎵 Finding viral songs…</div>';
+        return;
+      }
+      const q = spQuery.trim().toLowerCase();
+      let rows = [];
+      if (spSource === 'online') {
+        rows = onlineList.slice();
+      } else {
+        rows = localList.filter(x => !q || (x.title || '').toLowerCase().includes(q) || (x.artist || '').toLowerCase().includes(q) || (x.category || '').toLowerCase().includes(q) || (x.mood || '').toLowerCase().includes(q));
+        if (spFilter === 'trending') rows = rows.filter(x => x.trending || (x.mood || '').toLowerCase().includes('trending'));
+        else if (spFilter !== 'all') rows = rows.filter(x => ((x.mood || x.category || '')).toLowerCase().includes(spFilter.toLowerCase()));
+      }
+
+      if (!rows.length) {
+        box.innerHTML = `<div style="color:var(--cream-dim);text-align:center;padding:28px 12px;font-size:13px;">No songs found. Type any song or singer name above!</div>`;
+        return;
+      }
+
+      box.innerHTML = rows.map(x => {
+        const isSel = !!(chosen && chosen.id === x.id);
+        const thumb = x.cover
+          ? `<img src="${escapeAttr(x.cover)}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;" loading="lazy">`
+          : `<div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0;">🎵</div>`;
+        return `<div class="sp-item" data-id="${escapeAttr(x.id)}" style="padding:8px 10px;border:1.5px solid ${isSel ? '#00e676' : 'var(--gold-line)'};background:${isSel ? 'rgba(0,230,118,0.09)' : 'rgba(255,255,255,0.03)'};border-radius:12px;margin-bottom:7px;cursor:pointer;color:var(--cream);display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          ${thumb}
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;">
+              ${isSel ? '<span class="ig-eq-bars" style="color:#00e676;"><i></i><i></i><i></i></span>' : '<span class="ig-trending-arrow">↗</span>'}
+              <span>${escapeHtml(x.title)}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(x.artist || 'Unknown artist')} · <span style="color:var(--marigold);">${escapeHtml(x.category || 'Viral')}</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            ${x.useCount ? `<span style="font-size:10.5px;color:var(--marigold);">${x.useCount} reels</span>` : ''}
+            <span style="width:30px;height:30px;border-radius:50%;background:${isSel ? '#00e676' : 'rgba(255,255,255,0.1)'};color:${isSel ? '#04230f' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">${isSel ? '⏸' : '▶'}</span>
+          </div>
+        </div>`;
+      }).join('');
+
       box.querySelectorAll('.sp-item').forEach(el => el.onclick = () => {
-        chosen = list.find(x => x.id === el.dataset.id);
+        const pool = spSource === 'online' ? onlineList : localList;
+        const pickedItem = pool.find(x => String(x.id) === String(el.dataset.id));
+        if (!pickedItem) return;
+        if (chosen && chosen.id === pickedItem.id && audio && !audio.paused) {
+          stopPreview();
+          drawList();
+          return;
+        }
+        chosen = pickedItem;
         drawList();
         stopPreview();
         audio = new Audio(chosen.url);
         const sl = ov.querySelector('#spSlider');
+        const cTitle = ov.querySelector('#spChosenTitle');
+        if (cTitle) cTitle.textContent = '🎵 ' + chosen.title;
         audio.onloadedmetadata = () => {
-          sl.max = Math.max(0, Math.floor((audio.duration || want) - want));
+          sl.max = Math.max(0, Math.floor((audio.duration || 30) - want));
           sl.value = 0;
           updateClipLabel(0);
         };
@@ -7589,17 +8186,65 @@ function openSongPicker(kind, mediaSec){
         startClipPreview(0);
       });
     };
-    ov.querySelector('#spSearch').oninput = e => { spQuery = e.target.value; drawList(); };
+
+    const setSourceTab = (src) => {
+      spSource = src;
+      const bOn = ov.querySelector('#spSrcOnline');
+      const bLoc = ov.querySelector('#spSrcLocal');
+      if (bOn) {
+        bOn.style.background = src === 'online' ? 'linear-gradient(135deg,#7C5CFF,#E63950)' : 'transparent';
+        bOn.style.color = src === 'online' ? '#fff' : 'var(--cream-dim)';
+      }
+      if (bLoc) {
+        bLoc.style.background = src === 'local' ? 'linear-gradient(135deg,#7C5CFF,#E63950)' : 'transparent';
+        bLoc.style.color = src === 'local' ? '#fff' : 'var(--cream-dim)';
+      }
+      if (src === 'online' && !onlineList.length) {
+        fetchOnlineSongs(spQuery, spFilter);
+      } else {
+        drawList();
+      }
+    };
+
+    ov.querySelector('#spSrcOnline').onclick = () => setSourceTab('online');
+    ov.querySelector('#spSrcLocal').onclick = () => setSourceTab('local');
+
+    ov.querySelector('#spSearch').oninput = e => {
+      spQuery = e.target.value;
+      if (spSource === 'online') {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => fetchOnlineSongs(spQuery, spFilter), 320);
+      } else {
+        drawList();
+      }
+    };
+
     ov.querySelectorAll('#spTabs button').forEach(b => b.onclick = () => {
       spFilter = b.dataset.f;
       ov.querySelectorAll('#spTabs button').forEach(x => x.classList.toggle('active', x === b));
-      drawList();
+      if (spSource === 'online') {
+        fetchOnlineSongs(spQuery, spFilter);
+      } else {
+        drawList();
+      }
     });
+
     const finish = val => { stopPreview(); ov.remove(); resolve(val); };
     ov.querySelector('#spCancel').onclick = () => finish('cancel');
     ov.querySelector('#spNone').onclick = () => finish(null);
-    ov.querySelector('#spOk').onclick = () => finish(chosen ? { songId: chosen.id, title: chosen.title, artist: chosen.artist, url: chosen.url, songStart: Number(ov.querySelector('#spSlider').value) || 0, songDuration: want } : null);
-    drawList();
+    ov.querySelector('#spOk').onclick = () => finish(chosen ? {
+      songId: chosen.id,
+      title: chosen.title,
+      artist: chosen.artist || '',
+      url: chosen.url || '',
+      cover: chosen.cover || '',
+      isOnline: !!chosen.isOnline,
+      songStart: Number(ov.querySelector('#spSlider').value) || 0,
+      songDuration: want
+    } : null);
+
+    // Load initial viral songs automatically
+    fetchOnlineSongs('', 'trending');
   });
 }
 // Plays a song from its chosen start point for its chosen length
@@ -7806,8 +8451,16 @@ function playStorySong(){
   const chip = document.getElementById('storyViewerSong');
   const muteBtn = document.getElementById('storyViewerMuteBtn');
   if (chip) {
-    chip.textContent = st && st.song ? '♫ ' + st.song.title + (st.song.artist ? ' · ' + st.song.artist : '') : '';
-    chip.style.display = st && st.song ? 'inline-block' : 'none';
+    if (st && st.song) {
+      chip.innerHTML = renderIgSongBadgeHtml(st.song);
+      chip.style.display = 'inline-flex';
+      chip.onclick = (ev) => { ev.stopPropagation(); pauseStoryProgress(); openAudioPage(st.song); };
+      chip.title = 'Tap to use this song';
+    } else {
+      chip.innerHTML = '';
+      chip.style.display = 'none';
+      chip.onclick = null;
+    }
   }
   if (muteBtn) {
     muteBtn.style.display = (st && st.song) ? 'flex' : 'none';
@@ -8244,14 +8897,16 @@ async function onStoryFilePicked(e){
 
 let uploadSongChoice = null;
 async function pickUploadSong(){
-  const f = document.querySelector('#quickUploadForm input[type=file]');
-  const file = f && f.files && f.files[0];
+  const file = (typeof getActiveIgUploadFile === 'function') ? getActiveIgUploadFile() : null;
   const isVid = !!(file && file.type && file.type.startsWith('video'));
-  const pick = await openSongPicker(isVid ? 'video' : 'photo', (file && isVid) ? await mediaDurationOf(file) : 8);
+  const pick = await openSongPicker(isVid ? 'video' : 'photo', (file && isVid) ? await mediaDurationOf(file) : 15);
   if (pick === 'cancel') return;
   uploadSongChoice = pick || null;
-  const lbl = document.getElementById('qSongLabel');
-  if (lbl) lbl.textContent = uploadSongChoice ? ('🎵 ' + (uploadSongChoice.title || 'Song') + ' (' + fmtClipSec(uploadSongChoice.songStart) + ' – ' + fmtClipSec((uploadSongChoice.songStart || 0) + (uploadSongChoice.songDuration || 15)) + ')') : '';
+  if (typeof syncIgUploadSongUI === 'function') syncIgUploadSongUI();
+  if (uploadSongChoice && uploadSongChoice.url && typeof igUpStep !== 'undefined' && igUpStep === 1) {
+    playSong(uploadSongChoice, isVid ? document.getElementById('igUpPreviewVideo') : null);
+    showToast('🎵 Previewing: ' + uploadSongChoice.title);
+  }
 }
 async function postStory(){
   const hasSharedPost = !!(window.storySharedPost && window.storySharedPost.id);
@@ -8302,7 +8957,7 @@ async function postStory(){
     if (Object.keys(fullAdjust).length) fd.append('adjust', JSON.stringify(fullAdjust));
     if (window.storyCloseFriendsOnly) fd.append('closeFriendsOnly', 'true');
     if (storyChosenPoll) fd.append('poll', JSON.stringify(storyChosenPoll));
-    if (storyChosenSong) { fd.append('songId', storyChosenSong.songId); fd.append('songStart', storyChosenSong.songStart); fd.append('songDuration', storyChosenSong.songDuration); }
+    if (storyChosenSong) { fd.append('songId', storyChosenSong.songId || ''); fd.append('songUrl', storyChosenSong.url || ''); fd.append('songTitle', storyChosenSong.title || ''); fd.append('songArtist', storyChosenSong.artist || ''); fd.append('songCover', storyChosenSong.cover || ''); fd.append('songStart', storyChosenSong.songStart || 0); fd.append('songDuration', storyChosenSong.songDuration || 15); }
     if (window.storyAutoHighlight) {
       if (window.storyAutoHighlight.id) fd.append('autoHighlightId', window.storyAutoHighlight.id);
       else if (window.storyAutoHighlight.title) fd.append('autoHighlightTitle', window.storyAutoHighlight.title);
@@ -11595,24 +12250,469 @@ function startHeartbeat(){
 init();
 let uploadXhr = null;
 
-function toggleQType(type){
-  document.getElementById('qVideoFields').classList.toggle('hidden', type === 'photo' || type === 'carousel');
-  document.getElementById('qPhotoFields').classList.toggle('hidden', type !== 'photo');
-  document.getElementById('qCarouselFields').classList.toggle('hidden', type !== 'carousel');
+// ===================== INSTAGRAM-STYLE 2-STEP UPLOAD STUDIO =====================
+let igUpStep = 1;
+let igUpType = 'film';
+let igUpPreviewUrls = [];
+let igUpCarouselFiles = [];
+let igUpCarouselIdx = 0;
+let igUpFilter = 'none';
+let igUpTextStyle = 'classic';
+let igUpTextColor = '#ffffff';
+let igUpTextPos = 'bottom';
+let igUpCustomPosterFile = null;
+let igUpCustomPosterUrl = null;
+
+function revokeIgPreviewUrls(){
+  igUpPreviewUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+  igUpPreviewUrls = [];
+  if (igUpCustomPosterUrl) { try { URL.revokeObjectURL(igUpCustomPosterUrl); } catch (e) {} igUpCustomPosterUrl = null; }
 }
+
+function toggleQType(type){
+  igUpType = type || 'film';
+  const radio = document.querySelector(`input[name="qType"][value="${igUpType}"]`);
+  if (radio) radio.checked = true;
+  document.querySelectorAll('#igUpTypeBar .ig-up-typepill').forEach(b => b.classList.toggle('active', b.dataset.t === igUpType));
+  const titles = { film: 'New Full Video', short: 'New Reel / Short', photo: 'New Photo Post', carousel: 'New Carousel' };
+  const dropIcons = { film: '🎬', short: '⚡', photo: '🖼️', carousel: '❐' };
+  const dropTitles = {
+    film: 'Select a Full Video to preview',
+    short: 'Select a Vertical Reel / Short',
+    photo: 'Select a Photo to preview & edit',
+    carousel: 'Select 2–10 Photos or Videos'
+  };
+  const pubLabels = { film: '🚀 Publish Full Video', short: '🚀 Share Reel', photo: '🚀 Share Photo', carousel: '🚀 Share Carousel' };
+  const hdr = document.getElementById('igUpHeaderTitle');
+  if (hdr) hdr.textContent = igUpStep === 1 ? (titles[igUpType] || 'New Post') : 'Post Details';
+  const di = document.getElementById('igUpDropIcon'); if (di) di.textContent = dropIcons[igUpType] || '🎬';
+  const dt = document.getElementById('igUpDropTitle'); if (dt) dt.textContent = dropTitles[igUpType] || 'Select media';
+  const pb = document.getElementById('igUpPublishBtn'); if (pb) pb.textContent = pubLabels[igUpType] || '🚀 Publish';
+
+  const titleLbl = document.getElementById('qTitleLabel');
+  const titleInp = document.getElementById('qTitle');
+  if (titleLbl) titleLbl.textContent = igUpType === 'film' ? '🎬 Full Video Title *' : (igUpType === 'short' ? '⚡ Reel Title *' : '🖼️ Post Title *');
+  if (titleInp) titleInp.placeholder = igUpType === 'film' ? 'Enter full video title...' : 'Add a short title...';
+
+  const fvMeta = document.getElementById('qFullVideoMetaBox');
+  if (fvMeta) fvMeta.classList.toggle('hidden', igUpType !== 'film');
+
+  const covBtn = document.getElementById('igToolCoverBtn');
+  if (covBtn) covBtn.classList.toggle('hidden', igUpType === 'photo' || igUpType === 'carousel');
+
+  refreshIgUploadPreviewState();
+}
+
+function triggerIgMediaPicker(){
+  if (igUpType === 'photo') document.getElementById('qPhoto').click();
+  else if (igUpType === 'carousel') document.getElementById('qCarousel').click();
+  else document.getElementById('qVideo').click();
+}
+
 function onCarouselPicked(input){
   const files = Array.from(input.files || []);
   const info = document.getElementById('qCarouselInfo');
+  if (!info) return;
   if (!files.length) { info.textContent = ''; return; }
   const vids = files.filter(f => f.type.startsWith('video')).length;
-  info.style.color = (files.length < 2 || files.length > 10) ? '#e88a8a' : 'var(--cream-dim)';
-  info.textContent = files.length + ' chune (' + (files.length - vids) + ' photo, ' + vids + ' video)' + (files.length < 2 ? ' — at least 2 needed' : files.length > 10 ? ' — maximum 10' : '');
+  info.style.color = (files.length < 2 || files.length > 10) ? '#ff8585' : 'var(--cream-dim)';
+  info.textContent = files.length + ' selected (' + (files.length - vids) + ' photo, ' + vids + ' video)' + (files.length < 2 ? ' — at least 2 needed' : files.length > 10 ? ' — maximum 10' : '');
+}
+
+function onIgMediaFilePicked(kind, input){
+  const files = Array.from((input && input.files) || []);
+  if (!files.length) return;
+  igUpCustomPosterFile = null;
+  if (igUpCustomPosterUrl) { try { URL.revokeObjectURL(igUpCustomPosterUrl); } catch (e) {} igUpCustomPosterUrl = null; }
+  const covSt = document.getElementById('igCoverStatus');
+  if (covSt) covSt.textContent = '';
+  if (kind === 'carousel') {
+    igUpCarouselFiles = files.slice(0, 10);
+    igUpCarouselIdx = 0;
+  }
+  // Auto-fill title from filename if title is empty
+  const titleInp = document.getElementById('qTitle');
+  if (titleInp && !titleInp.value.trim() && files[0] && files[0].name) {
+    const cleanName = files[0].name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 80);
+    if (cleanName && !/^(IMG|VID|PXL|Screenshot|WhatsApp|1000\d+)/i.test(cleanName)) {
+      titleInp.value = cleanName;
+    }
+  }
+  refreshIgUploadPreviewState(true);
+}
+
+function onIgCustomPosterPicked(input){
+  const f = input && input.files && input.files[0];
+  if (!f) return;
+  igUpCustomPosterFile = f;
+  if (igUpCustomPosterUrl) { try { URL.revokeObjectURL(igUpCustomPosterUrl); } catch (e) {} }
+  igUpCustomPosterUrl = URL.createObjectURL(f);
+  const st = document.getElementById('igCoverStatus');
+  if (st) st.textContent = '✓ Custom poster selected: ' + f.name;
+  showToast('🖼️ Custom cover poster selected!');
+  updateIgMiniThumb();
+}
+
+function getActiveIgUploadFile(){
+  if (igUpType === 'photo') return (document.getElementById('qPhoto').files || [])[0] || null;
+  if (igUpType === 'carousel') return igUpCarouselFiles[igUpCarouselIdx] || (document.getElementById('qCarousel').files || [])[0] || null;
+  return (document.getElementById('qVideo').files || [])[0] || null;
+}
+
+function hasValidIgUploadMedia(){
+  if (igUpType === 'carousel') {
+    const fl = Array.from(document.getElementById('qCarousel').files || []);
+    return fl.length >= 2 && fl.length <= 10;
+  }
+  return !!getActiveIgUploadFile();
+}
+
+function refreshIgUploadPreviewState(autoDetectAspect){
+  const drop = document.getElementById('igUpDropzone');
+  const wrap = document.getElementById('igUpPreviewWrap');
+  const imgEl = document.getElementById('igUpPreviewImg');
+  const vidEl = document.getElementById('igUpPreviewVideo');
+  const carNav = document.getElementById('igUpCarouselNav');
+  const carBadge = document.getElementById('igUpCarouselBadge');
+  const nextBtn = document.getElementById('igUpNextBtn');
+
+  const activeFile = getActiveIgUploadFile();
+  const hasMedia = !!activeFile;
+  if (drop) drop.classList.toggle('hidden', hasMedia);
+  if (wrap) wrap.classList.toggle('hidden', !hasMedia);
+  if (nextBtn) nextBtn.disabled = !hasValidIgUploadMedia();
+
+  if (!hasMedia) {
+    if (vidEl) { vidEl.pause(); vidEl.removeAttribute('src'); vidEl.classList.add('hidden'); }
+    if (imgEl) { imgEl.removeAttribute('src'); imgEl.classList.add('hidden'); }
+    return;
+  }
+
+  const objUrl = URL.createObjectURL(activeFile);
+  igUpPreviewUrls.push(objUrl);
+  const isVid = activeFile.type && activeFile.type.startsWith('video');
+
+  if (carNav) {
+    const showCar = igUpType === 'carousel' && igUpCarouselFiles.length > 1;
+    carNav.classList.toggle('hidden', !showCar);
+    if (showCar && carBadge) carBadge.textContent = (igUpCarouselIdx + 1) + '/' + igUpCarouselFiles.length;
+  }
+
+  if (isVid) {
+    if (imgEl) { imgEl.classList.add('hidden'); imgEl.removeAttribute('src'); }
+    if (vidEl) {
+      vidEl.classList.remove('hidden');
+      vidEl.src = objUrl;
+      vidEl.muted = !!uploadSongChoice;
+      vidEl.onloadedmetadata = () => {
+        const sl = document.getElementById('igCoverSlider');
+        if (sl && isFinite(vidEl.duration) && vidEl.duration > 0) {
+          sl.max = Math.max(1, Math.floor(vidEl.duration * 10) / 10);
+          sl.value = Math.min(1, vidEl.duration / 4);
+        }
+        if (autoDetectAspect && (igUpType === 'film' || igUpType === 'short')) {
+          if (vidEl.videoHeight > vidEl.videoWidth * 1.1 && igUpType === 'film') {
+            igUpType = 'short';
+            const r = document.querySelector('input[name="qType"][value="short"]');
+            if (r) r.checked = true;
+            document.querySelectorAll('#igUpTypeBar .ig-up-typepill').forEach(b => b.classList.toggle('active', b.dataset.t === 'short'));
+            const hdr = document.getElementById('igUpHeaderTitle'); if (hdr) hdr.textContent = 'New Reel / Short';
+            const pb = document.getElementById('igUpPublishBtn'); if (pb) pb.textContent = '🚀 Share Reel';
+            const fvMeta = document.getElementById('qFullVideoMetaBox'); if (fvMeta) fvMeta.classList.add('hidden');
+            showToast('⚡ Vertical video detected — switched to Reel / Short!');
+          }
+        }
+      };
+      vidEl.play().catch(() => {});
+    }
+  } else {
+    if (vidEl) { vidEl.pause(); vidEl.classList.add('hidden'); vidEl.removeAttribute('src'); }
+    if (imgEl) {
+      imgEl.classList.remove('hidden');
+      imgEl.src = objUrl;
+    }
+  }
+  syncIgUploadLivePreview();
+  syncIgUploadSongUI();
+}
+
+function igCarouselPreviewStep(delta){
+  if (!igUpCarouselFiles.length) return;
+  igUpCarouselIdx = (igUpCarouselIdx + delta + igUpCarouselFiles.length) % igUpCarouselFiles.length;
+  refreshIgUploadPreviewState(false);
+}
+
+function toggleIgUploadTool(which){
+  const map = {
+    text: ['igPanelText', 'igToolTextBtn'],
+    filter: ['igPanelFilter', 'igToolFilterBtn'],
+    cover: ['igPanelCover', 'igToolCoverBtn']
+  };
+  Object.keys(map).forEach(k => {
+    const [pId, bId] = map[k];
+    const pEl = document.getElementById(pId);
+    const bEl = document.getElementById(bId);
+    if (!pEl || !bEl) return;
+    if (k === which) {
+      const openNow = pEl.classList.contains('hidden');
+      pEl.classList.toggle('hidden', !openNow);
+      bEl.classList.toggle('active', openNow);
+    } else {
+      pEl.classList.add('hidden');
+      bEl.classList.remove('active');
+    }
+  });
+}
+
+function setIgUploadFilter(f){
+  igUpFilter = f || 'none';
+  document.querySelectorAll('#igPanelFilter .feed-chip').forEach(b => b.classList.toggle('active', b.dataset.uf === igUpFilter));
+  syncIgUploadLivePreview();
+}
+
+function setIgUploadTextStyle(st){
+  igUpTextStyle = st || 'classic';
+  document.querySelectorAll('#igPanelText [data-ustyle]').forEach(b => b.classList.toggle('active', b.dataset.ustyle === igUpTextStyle));
+  syncIgUploadLivePreview();
+}
+
+function setIgUploadTextColor(col){
+  igUpTextColor = col || '#ffffff';
+  document.querySelectorAll('#igPanelText [data-ucol]').forEach(d => d.classList.toggle('active', d.dataset.ucol === igUpTextColor));
+  syncIgUploadLivePreview();
+}
+
+function cycleIgUploadTextPos(){
+  const order = ['bottom', 'center', 'top'];
+  const lbls = { bottom: '↕ Bottom', center: '↕ Center', top: '↕ Top' };
+  igUpTextPos = order[(order.indexOf(igUpTextPos) + 1) % order.length];
+  const btn = document.getElementById('igUpTextPosBtn');
+  if (btn) btn.textContent = lbls[igUpTextPos];
+  syncIgUploadLivePreview();
+}
+
+function syncIgUploadLivePreview(){
+  const cssFilt = (typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[igUpFilter]) ? STORY_FILTER_CSS[igUpFilter] : 'none';
+  const imgEl = document.getElementById('igUpPreviewImg');
+  const vidEl = document.getElementById('igUpPreviewVideo');
+  if (imgEl) imgEl.style.filter = cssFilt !== 'none' ? cssFilt : '';
+  if (vidEl) vidEl.style.filter = cssFilt !== 'none' ? cssFilt : '';
+
+  const txt = (document.getElementById('igUpTextInput')?.value || '').trim();
+  const liveEl = document.getElementById('igUpLiveText');
+  if (liveEl) {
+    if (txt) {
+      liveEl.textContent = txt;
+      liveEl.className = 'ig-up-live-txt pos-' + igUpTextPos + (igUpTextStyle !== 'classic' ? (' style-' + igUpTextStyle) : '');
+      liveEl.style.color = igUpTextColor;
+    } else {
+      liveEl.classList.add('hidden');
+    }
+  }
+}
+
+function syncIgUploadSongUI(){
+  const chip = document.getElementById('igUpSongChip');
+  const chipTxt = document.getElementById('igUpSongChipText');
+  const step2Lbl = document.getElementById('qSongLabel');
+  const songBtn = document.getElementById('igToolSongBtn');
+  if (uploadSongChoice && uploadSongChoice.title) {
+    const label = uploadSongChoice.title + (uploadSongChoice.artist ? ' · ' + uploadSongChoice.artist : '');
+    if (chip && chipTxt) {
+      chipTxt.textContent = label;
+      chip.classList.remove('hidden');
+    }
+    if (step2Lbl) step2Lbl.textContent = '🎵 ' + label + ' (' + fmtClipSec(uploadSongChoice.songStart || 0) + ' – ' + fmtClipSec((uploadSongChoice.songStart || 0) + (uploadSongChoice.songDuration || 15)) + ')';
+    if (songBtn) songBtn.classList.add('active');
+    const vidEl = document.getElementById('igUpPreviewVideo');
+    if (vidEl) vidEl.muted = true;
+  } else {
+    if (chip) chip.classList.add('hidden');
+    if (step2Lbl) step2Lbl.textContent = 'Tap to search Bollywood, Punjabi & trending songs';
+    if (songBtn) songBtn.classList.remove('active');
+    const vidEl = document.getElementById('igUpPreviewVideo');
+    if (vidEl) vidEl.muted = false;
+  }
+}
+
+function clearUploadSongSelection(){
+  uploadSongChoice = null;
+  stopSong(true);
+  syncIgUploadSongUI();
+  showToast('Music removed');
+}
+
+function seekIgCoverFrame(secVal){
+  const vidEl = document.getElementById('igUpPreviewVideo');
+  const lbl = document.getElementById('igCoverTimeLbl');
+  const s = Number(secVal) || 0;
+  if (lbl) lbl.textContent = fmtClipSec(Math.floor(s));
+  if (vidEl && !vidEl.classList.contains('hidden')) {
+    try { vidEl.pause(); vidEl.currentTime = s; } catch (e) {}
+  }
+}
+
+function captureIgCoverFrame(){
+  const vidEl = document.getElementById('igUpPreviewVideo');
+  if (!vidEl || !vidEl.videoWidth) { showToast('Play or load the video first'); return; }
+  try {
+    const c = document.createElement('canvas');
+    c.width = Math.min(960, vidEl.videoWidth);
+    c.height = Math.round(c.width * (vidEl.videoHeight / vidEl.videoWidth));
+    const ctx = c.getContext('2d');
+    const cssFilt = (typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[igUpFilter]) ? STORY_FILTER_CSS[igUpFilter] : 'none';
+    if (cssFilt !== 'none') ctx.filter = cssFilt;
+    ctx.drawImage(vidEl, 0, 0, c.width, c.height);
+    c.toBlob(blob => {
+      if (!blob) return;
+      igUpCustomPosterFile = new File([blob], 'cover-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+      if (igUpCustomPosterUrl) { try { URL.revokeObjectURL(igUpCustomPosterUrl); } catch (e) {} }
+      igUpCustomPosterUrl = URL.createObjectURL(igUpCustomPosterFile);
+      const st = document.getElementById('igCoverStatus');
+      if (st) st.textContent = '✓ Video frame captured at ' + fmtClipSec(Math.floor(vidEl.currentTime || 0)) + ' as Cover!';
+      showToast('📸 Cover thumbnail captured!');
+      updateIgMiniThumb();
+    }, 'image/jpeg', 0.88);
+  } catch (e) {
+    showToast('Could not capture frame');
+  }
+}
+
+function updateIgMiniThumb(){
+  const box = document.getElementById('igUpMiniThumb');
+  if (!box) return;
+  if (igUpCustomPosterUrl) {
+    box.innerHTML = `<img src="${igUpCustomPosterUrl}" alt="Cover">`;
+    return;
+  }
+  const activeFile = getActiveIgUploadFile();
+  if (!activeFile) { box.innerHTML = '🎬'; return; }
+  const u = URL.createObjectURL(activeFile);
+  igUpPreviewUrls.push(u);
+  const cssFilt = (typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[igUpFilter]) ? STORY_FILTER_CSS[igUpFilter] : 'none';
+  if (activeFile.type && activeFile.type.startsWith('video')) {
+    box.innerHTML = `<video src="${u}#t=0.5" muted playsinline preload="metadata" style="filter:${cssFilt};"></video>`;
+  } else {
+    box.innerHTML = `<img src="${u}" alt="Preview" style="filter:${cssFilt};">`;
+  }
+}
+
+function goIgUploadStep(stepNum){
+  igUpStep = stepNum;
+  const s1 = document.getElementById('igUploadStep1');
+  const s2 = document.getElementById('igUploadStep2');
+  const backBtn = document.getElementById('igUpBackBtn');
+  const nextBtn = document.getElementById('igUpNextBtn');
+  const hdr = document.getElementById('igUpHeaderTitle');
+  if (s1) s1.classList.toggle('hidden', stepNum !== 1);
+  if (s2) s2.classList.toggle('hidden', stepNum !== 2);
+  if (backBtn) backBtn.textContent = stepNum === 1 ? '✕' : '←';
+  if (nextBtn) {
+    nextBtn.textContent = stepNum === 1 ? 'Next →' : 'Share 🚀';
+    nextBtn.disabled = stepNum === 1 ? !hasValidIgUploadMedia() : false;
+  }
+  if (stepNum === 2) {
+    if (hdr) hdr.textContent = igUpType === 'film' ? 'Full Video Details' : (igUpType === 'short' ? 'New Reel' : 'New Post');
+    const vidEl = document.getElementById('igUpPreviewVideo');
+    if (vidEl && !vidEl.paused) vidEl.pause();
+    stopSong(true);
+    updateIgMiniThumb();
+    syncIgUploadSongUI();
+    setTimeout(() => { const t = document.getElementById('qTitle'); if (t && !t.value) t.focus(); }, 60);
+  } else {
+    const titles = { film: 'New Full Video', short: 'New Reel / Short', photo: 'New Photo Post', carousel: 'New Carousel' };
+    if (hdr) hdr.textContent = titles[igUpType] || 'New Post';
+  }
+}
+
+function igUploadHeaderBack(){
+  if (igUpStep === 2) goIgUploadStep(1);
+  else closeUploadModal();
+}
+
+function igUploadHeaderNext(){
+  if (igUpStep === 1) {
+    if (!hasValidIgUploadMedia()) {
+      showToast(igUpType === 'carousel' ? 'Select at least 2 photos/videos' : 'Please select a file first');
+      return;
+    }
+    goIgUploadStep(2);
+  } else {
+    const form = document.getElementById('quickUploadForm');
+    if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+  }
+}
+
+async function renderEditedPhotoFile(origFile){
+  const txt = (document.getElementById('igUpTextInput')?.value || '').trim();
+  const hasFilter = igUpFilter && igUpFilter !== 'none';
+  if (!origFile || !origFile.type.startsWith('image') || (!txt && !hasFilter)) return origFile;
+  return new Promise(resolve => {
+    const img = new Image();
+    const u = URL.createObjectURL(origFile);
+    img.onload = () => {
+      try {
+        const maxSide = 1600;
+        let w = img.naturalWidth || 1080;
+        let h = img.naturalHeight || 1080;
+        if (Math.max(w, h) > maxSide) {
+          const sc = maxSide / Math.max(w, h);
+          w = Math.round(w * sc);
+          h = Math.round(h * sc);
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        const cssFilt = (typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[igUpFilter]) ? STORY_FILTER_CSS[igUpFilter] : 'none';
+        if (cssFilt !== 'none') ctx.filter = cssFilt;
+        ctx.drawImage(img, 0, 0, w, h);
+        ctx.filter = 'none';
+        if (txt) {
+          const fontSize = Math.max(28, Math.round(w * 0.052));
+          ctx.font = `800 ${fontSize}px ${igUpTextStyle === 'typewriter' ? 'monospace' : 'sans-serif'}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const yPos = igUpTextPos === 'top' ? Math.round(h * 0.14) : (igUpTextPos === 'center' ? Math.round(h * 0.5) : Math.round(h * 0.86));
+          if (igUpTextStyle === 'bold' || igUpTextStyle === 'typewriter') {
+            const tw = Math.min(w * 0.88, ctx.measureText(txt).width + 36);
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillRect((w - tw) / 2, yPos - fontSize * 0.72, tw, fontSize * 1.44);
+          }
+          ctx.fillStyle = igUpTextColor || '#ffffff';
+          ctx.shadowColor = igUpTextStyle === 'neon' ? (igUpTextColor || '#ffffff') : 'rgba(0,0,0,0.75)';
+          ctx.shadowBlur = igUpTextStyle === 'neon' ? 24 : 12;
+          ctx.fillText(txt, w / 2, yPos, w * 0.88);
+        }
+        c.toBlob(blob => {
+          URL.revokeObjectURL(u);
+          resolve(blob ? new File([blob], (origFile.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : origFile);
+        }, 'image/jpeg', 0.92);
+      } catch (e) {
+        URL.revokeObjectURL(u);
+        resolve(origFile);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); resolve(origFile); };
+    img.src = u;
+  });
 }
 
 function openUploadModal(){
   if (!currentUser) { window.location.href = '/login.html'; return; }
   pauseFeedMedia();
   clearUploadCollab();
+  igUpStep = 1;
+  igUpFilter = 'none';
+  igUpTextStyle = 'classic';
+  igUpTextColor = '#ffffff';
+  igUpTextPos = 'bottom';
+  igUpCustomPosterFile = null;
+  igUpCarouselFiles = [];
+  igUpCarouselIdx = 0;
+  const ti = document.getElementById('igUpTextInput'); if (ti) ti.value = '';
+  const cs = document.getElementById('igCoverStatus'); if (cs) cs.textContent = '';
+  ['igPanelText','igPanelFilter','igPanelCover','igUpAdvBox'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+  ['igToolTextBtn','igToolFilterBtn','igToolCoverBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active'); });
   const isVip = !!(currentUser && (currentUser.verified || currentUser.isAdmin));
   const vipFields = document.getElementById('qVipFields');
   const vipLocked = document.getElementById('qVipLockedBox');
@@ -11622,54 +12722,89 @@ function openUploadModal(){
   const clt = document.getElementById('qCustomLinkTitle');
   if (cl) cl.value = '';
   if (clt) clt.value = '';
+  toggleQType(igUpType || 'film');
+  goIgUploadStep(1);
+  syncIgUploadSongUI();
   bumpOverlayZ('uploadModalOverlay');
   document.getElementById('uploadModalOverlay').classList.add('open');
 }
+
 function closeUploadModal(){
+  stopSong(true);
+  const vidEl = document.getElementById('igUpPreviewVideo');
+  if (vidEl) { try { vidEl.pause(); vidEl.removeAttribute('src'); } catch (e) {} }
+  revokeIgPreviewUrls();
   document.getElementById('uploadModalOverlay').classList.remove('open');
 }
 
 document.getElementById('quickUploadForm').addEventListener('submit', async function(e){
   e.preventDefault();
-  const type = document.querySelector('input[name="qType"]:checked').value;
+  const type = (document.querySelector('input[name="qType"]:checked') || {}).value || igUpType || 'film';
   const publishRaw = (document.getElementById('qPublishAt') || {}).value || '';
+  const rawTitle = (document.getElementById('qTitle').value || '').trim();
+  const rawDesc = (document.getElementById('qDescription').value || '').trim();
+  const overlayTxt = (document.getElementById('igUpTextInput')?.value || '').trim();
+
+  if (!rawTitle) {
+    if (igUpStep === 1) goIgUploadStep(2);
+    showToast('Please enter a title first');
+    const tEl = document.getElementById('qTitle');
+    if (tEl) tEl.focus();
+    return;
+  }
+
   const meta = {
     publishAt: publishRaw ? new Date(publishRaw).toISOString() : null,
-    title: document.getElementById('qTitle').value,
+    title: rawTitle,
     type,
-    year: document.getElementById('qYear').value,
-    language: document.getElementById('qLanguage').value,
-    genre: document.getElementById('qGenre').value,
-    description: document.getElementById('qDescription').value,
-    collabUsername: qCollabSelected ? qCollabSelected.username : document.getElementById('qCollab').value.trim(),
-    isSensitive: document.getElementById('qSensitive').checked,
+    year: (document.getElementById('qYear')?.value || '').trim(),
+    language: (document.getElementById('qLanguage')?.value || '').trim(),
+    genre: (document.getElementById('qGenre')?.value || '').trim(),
+    description: rawDesc,
+    collabUsername: qCollabSelected ? qCollabSelected.username : (document.getElementById('qCollab')?.value || '').trim(),
+    isSensitive: !!(document.getElementById('qSensitive') && document.getElementById('qSensitive').checked),
     customLink: (document.getElementById('qCustomLink') || {}).value || '',
-    customLinkTitle: (document.getElementById('qCustomLinkTitle') || {}).value || ''
+    customLinkTitle: (document.getElementById('qCustomLinkTitle') || {}).value || '',
+    mediaFilter: igUpFilter !== 'none' ? igUpFilter : '',
+    overlayText: (type === 'film' || type === 'short') && overlayTxt ? { text: overlayTxt, style: igUpTextStyle, color: igUpTextColor, pos: igUpTextPos } : null
   };
 
   let mainFile, posterFile = null, extraFiles = [];
   if (type === 'carousel') {
     const files = Array.from(document.getElementById('qCarousel').files || []);
-    if (files.length < 2) { alert('For a carousel, choose at least 2 photos/videos'); return; }
-    if (files.length > 10) { alert('You can choose up to 10 photos/videos'); return; }
+    if (files.length < 2) { showToast('For a carousel, choose at least 2 photos/videos'); return; }
+    if (files.length > 10) { showToast('You can choose up to 10 photos/videos'); return; }
     meta.type = 'photo';
-    mainFile = files[0]; extraFiles = files.slice(1);
+    mainFile = await renderEditedPhotoFile(files[0]);
+    extraFiles = files.slice(1);
   } else if (type === 'photo') {
-    mainFile = document.getElementById('qPhoto').files[0];
-    if (!mainFile) { alert('Please choose a photo file'); return; }
+    const origPhoto = document.getElementById('qPhoto').files[0];
+    if (!origPhoto) { showToast('Please choose a photo file'); return; }
+    mainFile = await renderEditedPhotoFile(origPhoto);
   } else {
     mainFile = document.getElementById('qVideo').files[0];
-    if (!mainFile) { alert('Please choose a video file'); return; }
-    posterFile = document.getElementById('qPoster').files[0] || null;
+    if (!mainFile) { showToast('Please choose a video file'); return; }
+    posterFile = igUpCustomPosterFile || document.getElementById('qPoster').files[0] || null;
   }
 
   closeUploadModal();
-  if (uploadSongChoice) Object.assign(meta, { songId: uploadSongChoice.songId, songStart: uploadSongChoice.songStart, songDuration: uploadSongChoice.songDuration });
+  if (uploadSongChoice) {
+    Object.assign(meta, {
+      songId: uploadSongChoice.songId || '',
+      songUrl: uploadSongChoice.url || '',
+      songTitle: uploadSongChoice.title || '',
+      songArtist: uploadSongChoice.artist || '',
+      songCover: uploadSongChoice.cover || '',
+      songStart: uploadSongChoice.songStart || 0,
+      songDuration: uploadSongChoice.songDuration || 15
+    });
+  }
   UploadMgr.add(meta, mainFile, posterFile, extraFiles);
-  uploadSongChoice = null; const ql = document.getElementById('qSongLabel'); if (ql) ql.textContent = '';
+  uploadSongChoice = null;
+  igUpCustomPosterFile = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
-
   document.getElementById('quickUploadForm').reset();
+  igUpType = 'film';
   toggleQType('film');
 });
 
@@ -12078,7 +13213,7 @@ window.UploadMgr = (function(){
         return;
       }
     }
-    const dynIds = ['superThanksOverlay','audioPageOverlay','songPicker','sharePostChatModal','addGroupMemberModal','newGroupModal','convoInfoSheet','accountsSheet','channelSheet','trustModal','notifPrefsModal','noteOverlay','blueOverlay','yourDashOverlay','btCelebModal','cropOverlay','pollModal','newChannelModal'];
+    const dynIds = ['closeFriendsModal','bioLinksHubModal','superThanksOverlay','audioPageOverlay','songPicker','sharePostChatModal','addGroupMemberModal','newGroupModal','convoInfoSheet','accountsSheet','channelSheet','trustModal','notifPrefsModal','noteOverlay','blueOverlay','yourDashOverlay','btCelebModal','cropOverlay','pollModal','newChannelModal'];
     for (const did of dynIds) {
       const dm = document.getElementById(did);
       if (dm) { dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
@@ -12189,14 +13324,8 @@ function shareCurrentFilmById(id, title) {
 })();
 </script>
 <footer class="seo-footer" style="padding:18px 16px 90px;text-align:center;font-size:12.5px;line-height:1.6;color:#A9A3C9;">
-  <h2 style="font-size:14px;margin:0 0 6px;color:#EDEBFF;">YouSeries (TAMASHA) – Video &amp; Shorts Streaming</h2>
-  <p style="margin:0 0 6px;color:#EDEBFF;font-weight:600;">YouSeries (TAMASHA) is founded by <a href="/founder" style="color:#fff;text-decoration:underline;">Sohail Parvez</a> (Founder &amp; CEO, Age 23, MBA in Data Analytics). Watch and share short videos, full films, stories, and photos.</p>
-  <p style="margin:0 0 8px;font-size:12px;">
-    Official Founder Social Handles:
-    <a href="https://www.instagram.com/sohail_parvezofficial/" rel="me noopener" target="_blank" style="color:#7C5CFF;font-weight:600;">Instagram (@sohail_parvezofficial)</a> ·
-    <a href="https://www.facebook.com/share/1CKJdD67rj/" rel="me noopener" target="_blank" style="color:#7C5CFF;font-weight:600;">Facebook (Sohail Parvez)</a> ·
-    <a href="/founder" style="color:#7C5CFF;font-weight:600;">Founder Biography</a>
-  </p>
+  <h2 style="font-size:14px;margin:0 0 6px;color:#EDEBFF;">YouSeries (TAMASHA) – Video, Reels &amp; Stories</h2>
+  <p style="margin:0 0 8px;color:#A9A3C9;">Watch and share short reels, full videos, 24h stories, and photos with viral music on YouSeries (TAMASHA).</p>
   <p style="margin:0;"><a href="/login.html" style="color:#7C5CFF;">Login</a> · <a href="/signup.html" style="color:#7C5CFF;">Sign up</a> · <a href="/founder" style="color:#7C5CFF;">About Founder</a> · <a href="/privacy-policy.html" style="color:#7C5CFF;">Privacy Policy</a> · <a href="/terms-of-service.html" style="color:#7C5CFF;">Terms of Service</a></p>
 </footer>
 <script>
@@ -13373,18 +14502,22 @@ async function openAudioPage(song){
     <div class="settings-panel" style="max-width:480px;width:95%;max-height:84vh;overflow-y:auto;margin:auto;background:var(--panel);border:1px solid var(--gold-line);border-radius:22px;padding:18px;box-shadow:0 16px 48px rgba(0,0,0,0.7);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;">
         <div style="display:flex;gap:12px;align-items:center;">
-          <div style="width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(124,92,255,0.4);">🎵</div>
+          ${song.cover ? `<img src="${escapeAttr(song.cover)}" style="width:62px;height:62px;border-radius:16px;object-fit:cover;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.2);">` : `<div style="width:62px;height:62px;border-radius:16px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(124,92,255,0.4);">🎵</div>`}
           <div>
-            <div style="font-size:17px;font-weight:800;color:var(--cream);line-height:1.25;">${escapeHtml(song.title || 'Original Audio')}</div>
-            <div style="font-size:13px;color:var(--cream-dim);margin-top:2px;">${escapeHtml(song.artist || 'YouSeries Music Library')}</div>
-            <div id="audioPageCountLine" style="font-size:11.5px;color:var(--marigold);font-weight:700;margin-top:4px;">Used in ${localMatches.length} posts</div>
+            <div style="font-size:17px;font-weight:800;color:var(--cream);line-height:1.25;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span>${escapeHtml(song.title || 'Original Audio')}</span>
+              <span class="ig-trending-arrow" style="font-size:11px;padding:1px 6px;">↗ Trending</span>
+            </div>
+            <div style="font-size:13px;color:var(--cream-dim);margin-top:2px;">${escapeHtml(song.artist || 'Original Audio')}</div>
+            <div id="audioPageCountLine" style="font-size:11.5px;color:var(--marigold);font-weight:700;margin-top:4px;">Used in ${localMatches.length} post${localMatches.length === 1 ? '' : 's'}</div>
           </div>
         </div>
         <button type="button" onclick="document.getElementById('audioPageOverlay').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:22px;cursor:pointer;">✕</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-        <button type="button" onclick="playSong(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:120px;">🔊 Replay Audio</button>
-        <button type="button" onclick="useSongInNewPost(${escapeAttr(JSON.stringify(song))})" class="profile-btn primary" style="flex:1;min-width:140px;">🎬 Use This Audio</button>
+        <button type="button" onclick="playSong(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:105px;">🔊 Listen</button>
+        <button type="button" onclick="useSongInNewPost(${escapeAttr(JSON.stringify(song))})" class="profile-btn primary" style="flex:1;min-width:125px;">🎬 Use in Post/Reel</button>
+        <button type="button" onclick="useSongInNewStory(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:120px;border-color:#00e676;color:#69f0ae;">📸 Use in Story</button>
       </div>
       <div id="audioPageGrid" class="profile-grid" style="grid-template-columns:repeat(3,1fr);gap:6px;">
         ${gridHtml}
@@ -13417,13 +14550,39 @@ function useSongInNewPost(song){
     title: song.title || 'Song',
     artist: song.artist || '',
     url: song.url || '',
+    cover: song.cover || '',
+    isOnline: !!song.isOnline,
     songStart: Number(song.start || song.songStart) || 0,
     songDuration: Number(song.duration || song.songDuration) || 15
   };
   openUploadModal();
-  const lbl = document.getElementById('uploadSongLabel');
+  const lbl = document.getElementById('qSongLabel') || document.getElementById('uploadSongLabel');
   if (lbl) lbl.textContent = '🎵 ' + uploadSongChoice.title + (uploadSongChoice.artist ? ' · ' + uploadSongChoice.artist : '');
-  showToast('🎵 Audio selected for your new post!');
+  showToast('🎵 Viral audio attached to your new post!');
+}
+
+function useSongInNewStory(song){
+  const ov = document.getElementById('audioPageOverlay');
+  if (ov) ov.remove();
+  if (document.getElementById('storyViewerOverlay').classList.contains('open')) {
+    closeStoryViewer();
+  }
+  if (!currentUser) { window.location.href = '/login.html'; return; }
+  openStoryUploadModal();
+  storyChosenSong = {
+    songId: song.id || song.songId || '',
+    title: song.title || 'Song',
+    artist: song.artist || '',
+    url: song.url || '',
+    cover: song.cover || '',
+    isOnline: !!song.isOnline,
+    songStart: Number(song.start || song.songStart) || 0,
+    songDuration: 15
+  };
+  const lbl = document.getElementById('storySongLabel');
+  if (lbl) lbl.textContent = '🎵 ' + storyChosenSong.title + (storyChosenSong.artist ? ' · ' + storyChosenSong.artist : '');
+  playSong(storyChosenSong);
+  showToast('🎵 Viral audio added to your Story!');
 }
 
 
@@ -13504,6 +14663,7 @@ async function openCloseFriendsModal(){
     </div>
   `;
   document.body.appendChild(ov);
+  try { history.pushState({ modal: 'closeFriendsModal' }, '', location.pathname + location.search); } catch (e) {}
   try {
     const res = await fetch('/api/me/close-friends');
     const data = await res.json();
@@ -13611,6 +14771,7 @@ function openBioLinksHubSheet(links, username){
     </div>
   `;
   document.body.appendChild(ov);
+  try { history.pushState({ modal: 'bioLinksHubModal' }, '', location.pathname + location.search); } catch (e) {}
 }
 
 function renderBioLinksEditorInputsHtml(bioLinks, fallbackWebsite){
