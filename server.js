@@ -259,6 +259,23 @@ async function decorateNewFilm(newFilm, body, currentUser) {
       newFilm.customLinkTitle = String(body.customLinkTitle || 'Visit Link').trim().slice(0, 40) || 'Visit Link';
     }
   }
+  if (body && body.mediaFilter && typeof body.mediaFilter === 'string' && body.mediaFilter !== 'none') {
+    newFilm.mediaFilter = String(body.mediaFilter).slice(0, 30);
+  }
+  if (body && body.overlayText) {
+    let ov = body.overlayText;
+    if (typeof ov === 'string') {
+      try { ov = JSON.parse(ov); } catch (e) { ov = { text: ov }; }
+    }
+    if (ov && typeof ov === 'object' && ov.text && String(ov.text).trim()) {
+      newFilm.overlayText = {
+        text: String(ov.text).trim().slice(0, 140),
+        style: String(ov.style || 'classic').slice(0, 20),
+        color: String(ov.color || '#ffffff').slice(0, 24),
+        pos: ['top', 'center', 'bottom'].includes(ov.pos) ? ov.pos : 'bottom'
+      };
+    }
+  }
 }
 function getFilmHashtags(f) {
   const base = (f.hashtags && f.hashtags.length) ? f.hashtags : extractHashtags((f.title || '') + ' ' + (f.description || ''));
@@ -2077,6 +2094,8 @@ app.post('/api/films', (req, res, next) => {
         ownerUsername: req.currentUser ? req.currentUser.username : 'YouSeries',
         views: 0, likes: 0, comments: [], uploadedAt: new Date().toISOString()
       };
+      const attachedPhotoSong = await pickSong(req.body, 'photo');
+      if (attachedPhotoSong) newFilm.song = attachedPhotoSong;
       await decorateNewFilm(newFilm, req.body, req.currentUser);
       films.unshift(newFilm);
       await writeFilms(films);
@@ -2315,16 +2334,39 @@ app.post('/api/upload/mp/abort', async (req, res) => {
 
 // A song attached by a user: { url, title, start, duration }. Duration rules: photo story/upload 8s, note 15s, video = its own length.
 async function pickSong(body, kind) {
-  const id = body && body.songId;
-  if (!id) return null;
-  const x = (await readSongs()).find(y => y.id === String(id));
-  if (!x) return null;
+  if (!body) return null;
+  const id = body.songId ? String(body.songId).trim() : '';
+  const extUrl = body.songUrl ? String(body.songUrl).trim() : '';
   const start = Math.max(0, Math.min(3600, Number(body.songStart) || 0));
   const want = (kind === 'story' || kind === 'note') ? 15 : kind === 'photo' ? 15 : Math.max(1, Math.min(600, Number(body.songDuration) || 15));
-  const r2Url = r2PublicUrl(x.key);
-  const fallbackUrl = `/media/song/${x.id}`;
-  const finalUrl = (process.env.R2_PUBLIC_URL && !r2Url.startsWith('/songs/')) ? r2Url : fallbackUrl;
-  return { id: x.id, url: finalUrl, title: x.title, artist: x.artist || '', category: x.category || '', start, duration: want };
+
+  if (id) {
+    const x = (await readSongs()).find(y => y.id === id);
+    if (x) {
+      const r2Url = r2PublicUrl(x.key);
+      const fallbackUrl = `/media/song/${x.id}`;
+      const finalUrl = (process.env.R2_PUBLIC_URL && !r2Url.startsWith('/songs/')) ? r2Url : fallbackUrl;
+      return { id: x.id, url: finalUrl, title: x.title, artist: x.artist || '', category: x.category || 'Trending', cover: x.cover || '', isOnline: false, trending: !!x.trending, start, duration: want };
+    }
+  }
+  if (extUrl && /^https?:\/\//i.test(extUrl)) {
+    const cleanTitle = String(body.songTitle || 'Viral Audio').trim().slice(0, 90) || 'Viral Audio';
+    const cleanArtist = String(body.songArtist || '').trim().slice(0, 80);
+    const cleanCover = String(body.songCover || '').trim().slice(0, 350);
+    return {
+      id: id || ('online_' + Buffer.from(extUrl).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 16)),
+      url: extUrl,
+      title: cleanTitle,
+      artist: cleanArtist,
+      category: 'Trending',
+      cover: /^https?:\/\//i.test(cleanCover) ? cleanCover : '',
+      isOnline: true,
+      trending: true,
+      start,
+      duration: want
+    };
+  }
+  return null;
 }
 app.post('/api/films/finalize', async (req, res) => {
   try {
@@ -6609,6 +6651,10 @@ app.get('/api/songs/:id/posts', async (req, res) => {
       if (titleQuery && (f.song.title || '').toLowerCase() === titleQuery) return true;
       return false;
     });
+    if (!song && matched.length > 0 && matched[0].song) {
+      const ms = matched[0].song;
+      song = { id: ms.id || songId, title: ms.title, artist: ms.artist || '', category: ms.category || 'Trending', trending: true, cover: ms.cover || '', url: ms.url || '' };
+    }
     const posts = await Promise.all(matched.slice(0, 60).map(async f => {
       const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
       const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
@@ -7274,6 +7320,111 @@ async function computeSongUsageMap() {
   } catch (e) {}
   return counts;
 }
+// ---- Instagram-Style Online Viral Song Search (JioSaavn + Apple iTunes India, Zero API Key) ----
+let onlineSongsCache = new Map();
+app.get('/api/songs/online-search', async (req, res) => {
+  try {
+    const rawQ = String(req.query.q || '').trim();
+    const mood = String(req.query.mood || '').trim();
+    let searchTerm = rawQ;
+    if (!searchTerm) {
+      const moodQueries = {
+        trending: 'Bollywood Trending Viral Hits 2025 Arijit Singh',
+        Romantic: 'Bollywood Romantic Love Songs Arijit Singh Atif Aslam',
+        Party: 'Punjabi Party Hits Karan Aujla Diljit Dosanjh Badshah',
+        Sad: 'Bollywood Heartbreak Sad Songs Arijit Singh B Praak',
+        Gym: 'Indian Workout Gym Motivation Phonk Sidhu Moose Wala',
+        'Lo-Fi': 'Bollywood Lofi Slowed Reverb Hindi Chill'
+      };
+      searchTerm = moodQueries[mood] || 'Bollywood Top Viral Songs Arijit Singh';
+    }
+    const cacheKey = searchTerm.toLowerCase();
+    const cached = onlineSongsCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < 15 * 60 * 1000) {
+      return res.json({ results: cached.results });
+    }
+
+    const usageMap = await computeSongUsageMap();
+    const results = [];
+    const seenKeys = new Set();
+
+    // 1. Primary: Apple iTunes India Music API (Fast global CDN 30s AAC preview + artwork)
+    try {
+      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&country=IN&media=music&entity=song&limit=28`;
+      const r = await fetch(itunesUrl, { headers: { 'Accept': 'application/json' } });
+      if (r.ok) {
+        const d = await r.json();
+        for (const item of (d.results || [])) {
+          if (!item.previewUrl || !item.trackName) continue;
+          const id = 'itunes_' + item.trackId;
+          const dedup = (item.trackName + '|' + (item.artistName || '')).toLowerCase();
+          if (seenKeys.has(dedup)) continue;
+          seenKeys.add(dedup);
+          const cover = (item.artworkUrl100 || item.artworkUrl60 || '').replace('100x100bb', '200x200bb');
+          const useCount = (usageMap[id] || 0) + (usageMap[item.previewUrl] || 0);
+          results.push({
+            id,
+            title: item.trackName,
+            artist: item.artistName || 'Artist',
+            album: item.collectionName || '',
+            category: item.primaryGenreName || 'Viral',
+            mood: mood || item.primaryGenreName || 'Trending',
+            trending: true,
+            isOnline: true,
+            cover,
+            url: item.previewUrl,
+            useCount
+          });
+        }
+      }
+    } catch (e) {}
+
+    // 2. Secondary fallback: JioSaavn public API if iTunes returned few results
+    if (results.length < 6) {
+      try {
+        const saavnUrl = `https://saavn.dev/api/search/songs?query=${encodeURIComponent(searchTerm)}&limit=15`;
+        const sr = await fetch(saavnUrl, { headers: { 'Accept': 'application/json' } });
+        if (sr.ok) {
+          const sd = await sr.json();
+          const items = (sd && sd.data && sd.data.results) || [];
+          for (const it of items) {
+            const dlArr = Array.isArray(it.downloadUrl) ? it.downloadUrl : [];
+            const bestDl = dlArr.find(x => x.quality === '160kbps') || dlArr[dlArr.length - 1];
+            const streamUrl = bestDl && bestDl.url;
+            if (!streamUrl || !it.name) continue;
+            const id = 'saavn_' + it.id;
+            const artistStr = (it.artists && it.artists.primary && it.artists.primary.map(a => a.name).join(', ')) || '';
+            const dedup = (it.name + '|' + artistStr).toLowerCase();
+            if (seenKeys.has(dedup)) continue;
+            seenKeys.add(dedup);
+            const imgArr = Array.isArray(it.image) ? it.image : [];
+            const cover = (imgArr[imgArr.length - 1] && imgArr[imgArr.length - 1].url) || '';
+            const useCount = (usageMap[id] || 0) + (usageMap[streamUrl] || 0);
+            results.push({
+              id,
+              title: String(it.name).replace(/&quot;/g, '"').replace(/&amp;/g, '&'),
+              artist: artistStr || 'Artist',
+              category: 'Trending',
+              mood: mood || 'Trending',
+              trending: true,
+              isOnline: true,
+              cover,
+              url: streamUrl,
+              useCount
+            });
+          }
+        }
+      } catch (e) {}
+    }
+
+    onlineSongsCache.set(cacheKey, { at: Date.now(), results });
+    if (onlineSongsCache.size > 200) onlineSongsCache.delete(onlineSongsCache.keys().next().value);
+    res.json({ results });
+  } catch (err) {
+    res.json({ results: [] });
+  }
+});
+
 app.get('/api/songs', async (req, res) => {
   if (!getUserFromReq(req) && !isAdminBasicAuth(req)) return res.status(401).json({ error: 'Login required' });
   const [list, usageMap] = await Promise.all([readSongs(), computeSongUsageMap()]);
