@@ -6105,9 +6105,9 @@ async function buildSlideUrls(f, directUrl) {
   return Promise.all(f.slides.map(async sl => ({ url: await directUrl(sl.key, f.storageProvider), mediaType: sl.mediaType })));
 }
 function activeNote(u) {
-  if (!u || !u.note || !u.note.text) return null;
+  if (!u || !u.note || (!u.note.text && !u.note.song)) return null;
   if (Date.now() - new Date(u.note.createdAt).getTime() > 24 * 60 * 60 * 1000) return null;
-  return { text: u.note.text, createdAt: u.note.createdAt, song: u.note.song || null };
+  return { text: u.note.text || '', createdAt: u.note.createdAt, song: u.note.song || null };
 }
 
 // ---------------- Report alerts (in-app + push to the owner's account, optional email through Resend) ----------------
@@ -6242,7 +6242,13 @@ app.post('/api/me/note', async (req, res) => {
     const me = users.find(u => u.id === currentUser.id);
     if (!me) return res.status(404).json({ error: 'User not found' });
     const noteSong = await pickSong(req.body, 'note');
-    if (text) me.note = { text, createdAt: new Date().toISOString(), ...(noteSong ? { song: noteSong } : {}) }; else delete me.note;
+    if (noteSong) {
+      me.note = { text: '', createdAt: new Date().toISOString(), song: noteSong };
+    } else if (text) {
+      me.note = { text, createdAt: new Date().toISOString(), song: null };
+    } else {
+      delete me.note;
+    }
     await writeUsers(users);
     res.json({ note: activeNote(me) });
   } catch (err) { res.status(500).json({ error: err.message }); }
