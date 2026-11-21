@@ -3621,7 +3621,6 @@ async function renderOtherProfile(userId, usernameHint){
       </div>
     </div>
     <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}${roleBadgeHtml(pub.roleBadge, pub.isCreatorOfWeek)}</div>
-    ${renderProfileNoteHtml(pub.note, false)}
     ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
     ${renderProfileBioLinksHtml(pub.bioLinks, pub.website, pub.username)}
     ${renderCreatorMilestonesHtml(theirFilms, pub.followersCount || 0, !!pub.verified)}
@@ -3949,7 +3948,6 @@ async function renderProfile(){
       </div>
     </div>
     <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge, mine.isCreatorOfWeek)} <span style="font-size:13px;opacity:.7;">▾</span></div>
-    ${renderProfileNoteHtml(mine.note, true)}
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${renderProfileBioLinksHtml(mine.bioLinks, mine.website, currentUser.username)}
     ${renderCreatorMilestonesHtml(myFilms, mine.followersCount || 0, !!mine.verified)}
@@ -6883,6 +6881,96 @@ async function saveNote(clear){
   } catch (e) { showToast(e.message); }
 }
 
+function closeNoteViewPopup(){
+  stopSong(true);
+  window._activeNoteSongKey = null;
+  const p = document.getElementById('noteViewPopup');
+  if (p) p.remove();
+}
+
+function openNoteViewPopup(note){
+  if (!note) { openNoteEditor(); return; }
+  const isMine = !!(note.mine || (currentUser && note.userId === currentUser.id));
+  const old = document.getElementById('noteViewPopup');
+  if (old) old.remove();
+
+  const ov = document.createElement('div');
+  ov.id = 'noteViewPopup';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:970;display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick = e => { if (e.target === ov) closeNoteViewPopup(); };
+
+  const avHtml = note.profileImage
+    ? `<img src="${escapeAttr(note.profileImage)}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--marigold);">`
+    : `<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;">${escapeHtml(((note.username || 'U')[0] || 'U').toUpperCase())}</div>`;
+
+  let bodyCard = '';
+  if (note.song) {
+    const sg = note.song;
+    const key = sg.id || sg.url || sg.title || 'note_popup';
+    window._activeNoteSongKey = key;
+    songMutedPref = false;
+    try { localStorage.setItem('songMuted', '0'); } catch (e) {}
+    playSong(sg);
+    const noteAttr = escapeAttr(JSON.stringify(note));
+    const cover = sg.cover
+      ? `<img src="${escapeAttr(sg.cover)}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:0 4px 14px rgba(0,0,0,0.45);">`
+      : `<div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;flex-shrink:0;">🎵</div>`;
+    bodyCard = `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:rgba(124,92,255,0.14);border:1px solid rgba(124,92,255,0.4);margin:14px 0;">
+        ${cover}
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:800;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.title || 'Music Note')}</div>
+          <div style="font-size:12.5px;color:var(--cream-dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.artist || 'Viral Audio')}</div>
+        </div>
+        <button type="button" class="note-play-toggle-btn" data-notekey="${escapeAttr(key)}" onclick="toggleNoteSongPlay(${noteAttr}, this)" style="padding:8px 15px;border-radius:999px;border:none;background:#00e676;color:#03220f;font-size:12.5px;font-weight:800;cursor:pointer;flex-shrink:0;">⏸ Off</button>
+      </div>`;
+  } else {
+    bodyCard = `
+      <div style="padding:16px 18px;border-radius:18px;background:var(--field);border:1px solid var(--gold-line);margin:14px 0;font-size:16px;font-weight:700;color:var(--cream);text-align:center;line-height:1.45;word-break:break-word;">
+        “${escapeHtml(note.text || '')}”
+      </div>`;
+  }
+
+  const actionsHtml = isMine
+    ? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        <button type="button" class="profile-btn primary" style="width:100%;padding:12px;font-size:14px;font-weight:800;border-radius:12px;" onclick="closeNoteViewPopup();openNoteEditor();">✨ Leave a new note</button>
+        <button type="button" class="profile-btn" style="width:100%;padding:11px;font-size:13.5px;font-weight:700;color:#ff8585;border-color:rgba(230,57,80,0.45);border-radius:12px;" onclick="deleteMyNoteFromPopup()">🗑️ Delete note</button>
+      </div>`
+    : `<div style="display:flex;gap:8px;margin-top:10px;">
+        <button type="button" class="profile-btn primary" style="flex:1;padding:11px;font-size:13.5px;font-weight:800;border-radius:12px;" onclick="closeNoteViewPopup();closeChatInboxThenOpen('${escapeAttr(note.userId || '')}','${escapeAttr(note.username || '')}');">✉️ Reply to @${escapeHtml(note.username || 'user')}</button>
+      </div>`;
+
+  ov.innerHTML = `
+    <div style="background:var(--panel);border-top:1px solid var(--gold-line);border-radius:24px 24px 0 0;padding:14px 18px 26px;width:100%;max-width:480px;color:var(--cream);box-sizing:border-box;box-shadow:0 -12px 40px rgba(0,0,0,0.7);">
+      <div style="width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,0.22);margin:0 auto 14px;"></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${avHtml}
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:800;color:var(--cream);">@${escapeHtml(note.username || (currentUser ? currentUser.username : 'user'))}${vb(note.verified)}</div>
+          <div style="font-size:12px;color:var(--cream-dim);">Shared ${note.createdAt ? storyTimeAgo(note.createdAt) : 'recently'} · 24h Note</div>
+        </div>
+        <button type="button" onclick="closeNoteViewPopup()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;padding:4px 6px;">✕</button>
+      </div>
+      ${bodyCard}
+      ${actionsHtml}
+    </div>
+  `;
+  document.body.appendChild(ov);
+  try { history.pushState({ modal: 'noteViewPopup' }, '', location.pathname + location.search); } catch (e) {}
+}
+
+async function deleteMyNoteFromPopup(){
+  closeNoteViewPopup();
+  try {
+    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: '' }) });
+    if (res.ok) {
+      window.myNote = null;
+      showToast('Note deleted');
+      loadNotesStrip();
+    }
+  } catch (e) { showToast('Could not delete note'); }
+}
+
 async function loadNotesStrip(){
   const el = document.getElementById('notesStrip');
   if (!el || !currentUser) return;
@@ -6898,14 +6986,13 @@ async function loadNotesStrip(){
     const bubbleLabel = n => {
       if (!n) return '＋ Note';
       if (n.song) {
-        const k = n.song.id || n.song.url || n.song.title || 'note';
-        const playing = !!(songAudio && !songAudio.paused && window._activeNoteSongKey === k);
-        return `${playing ? '⏸' : '▶'} 🎵 ${escapeHtml((n.song.title || 'Song').slice(0, 18))}`;
+        return `🎵 ${escapeHtml((n.song.title || 'Song').slice(0, 18))}`;
       }
       return escapeHtml(n.text || '');
     };
-    const first = `<div class="note-item" onclick="${mine && mine.song ? `toggleNoteSongPlay(${escapeAttr(JSON.stringify(mine))}, null)` : 'openNoteEditor()'}"><div class="note-bubble ${mine ? '' : 'add'}">${bubbleLabel(mine)}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">${mine ? '<span onclick="event.stopPropagation();openNoteEditor()" style="text-decoration:underline;">Edit note</span>' : 'Your note'}</div></div>`;
-    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="${n.song ? `toggleNoteSongPlay(${escapeAttr(JSON.stringify(n))}, null)` : `closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')`}"><div class="note-bubble">${bubbleLabel(n)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
+    const mineObj = mine ? { ...mine, mine: true, profileImage: myAvUrl, username: currentUser.username } : null;
+    const first = `<div class="note-item" onclick="${mineObj ? `openNoteViewPopup(${escapeAttr(JSON.stringify(mineObj))})` : 'openNoteEditor()'}"><div class="note-bubble ${mineObj ? '' : 'add'}">${bubbleLabel(mineObj)}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">Your note</div></div>`;
+    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="openNoteViewPopup(${escapeAttr(JSON.stringify(n))})"><div class="note-bubble">${bubbleLabel(n)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
     el.innerHTML = first + others;
   } catch (e) {}
 }
@@ -13413,7 +13500,7 @@ window.UploadMgr = (function(){
     const dynIds = ['closeFriendsModal','bioLinksHubModal','superThanksOverlay','audioPageOverlay','songPicker','sharePostChatModal','addGroupMemberModal','newGroupModal','convoInfoSheet','accountsSheet','channelSheet','trustModal','notifPrefsModal','noteOverlay','blueOverlay','yourDashOverlay','btCelebModal','cropOverlay','pollModal','newChannelModal'];
     for (const did of dynIds) {
       const dm = document.getElementById(did);
-      if (dm) { if (did === 'audioPageOverlay') closeAudioPage(); else dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
+      if (dm) { if (did === 'audioPageOverlay') closeAudioPage(); else if (did === 'noteViewPopup') closeNoteViewPopup(); else dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
     }
     if (navStack.length > 0) {
       const topId = navStack[navStack.length - 1];
