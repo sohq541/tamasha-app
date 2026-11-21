@@ -38,6 +38,90 @@ const webpush = require('web-push');
 
 const app = express();
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// ===================== SECURITY HEADERS (HSTS, CSP, X-Frame-Options, nosniff) =====================
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), payment=(), usb=()');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self' https: data: blob:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; " +
+    "style-src 'self' 'unsafe-inline' https:; " +
+    "img-src 'self' https: data: blob:; " +
+    "media-src 'self' https: data: blob:; " +
+    "font-src 'self' https: data:; " +
+    "connect-src 'self' https: wss:; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
+    "frame-ancestors 'self';"
+  );
+  next();
+});
+
+// ===================== TIERED API RATE LIMITER =====================
+const apiRateBuckets = new Map();
+function checkRateLimit(bucketKey, limit, windowMs) {
+  const now = Date.now();
+  let entry = apiRateBuckets.get(bucketKey);
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 1, resetAt: now + windowMs };
+    apiRateBuckets.set(bucketKey, entry);
+    return { ok: true, remaining: limit - 1, resetSec: Math.ceil(windowMs / 1000) };
+  }
+  entry.count++;
+  const remaining = Math.max(0, limit - entry.count);
+  const resetSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+  return { ok: entry.count <= limit, remaining, resetSec };
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of apiRateBuckets.entries()) {
+    if (now >= v.resetAt) apiRateBuckets.delete(k);
+  }
+}, 5 * 60 * 1000).unref();
+
+app.use('/api/', (req, res, next) => {
+  const ip = (req.ip || req.socket.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+  const p = req.path || '';
+  const isAuthRoute = /^\/(login|signup|forgot-password)/.test(p);
+  const isChunkOrPing = p.startsWith('/upload/mp/') || p === '/me/heartbeat' || /\/typing$/.test(p);
+  const isWrite = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+
+  let limit = 200;
+  let windowMs = 60 * 1000;
+  let tier = 'read';
+
+  if (isAuthRoute && isWrite) {
+    limit = 20;
+    windowMs = 15 * 60 * 1000;
+    tier = 'auth';
+  } else if (isWrite && !isChunkOrPing) {
+    limit = 60;
+    windowMs = 60 * 1000;
+    tier = 'write';
+  } else if (isChunkOrPing) {
+    limit = 300;
+    windowMs = 60 * 1000;
+    tier = 'chunk';
+  }
+
+  const r = checkRateLimit(`${tier}:${ip}`, limit, windowMs);
+  res.setHeader('X-RateLimit-Limit', String(limit));
+  res.setHeader('X-RateLimit-Remaining', String(r.remaining));
+  if (!r.ok) {
+    res.setHeader('Retry-After', String(r.resetSec));
+    return res.status(429).json({ error: 'Too many requests. Please slow down and try again in a moment.' });
+  }
+  next();
+});
 const PORT = process.env.PORT || 3000;
 
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
