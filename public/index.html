@@ -3621,7 +3621,7 @@ async function renderOtherProfile(userId, usernameHint){
       </div>
     </div>
     <div class="profile-username">@${escapeHtml(pub.username)}${vb(pub.verified)}${roleBadgeHtml(pub.roleBadge, pub.isCreatorOfWeek)}</div>
-    ${pub.note ? `<div><span class="note-pill" style="cursor:pointer;" onclick="playNoteSong(${escapeAttr(JSON.stringify(pub.note))})">📝 ${escapeHtml(pub.note.text)}${pub.note.song ? ' 🎵' : ''}</span></div>` : ''}
+    ${renderProfileNoteHtml(pub.note, false)}
     ${pub.bio ? `<div class="profile-bio">${linkifyRich(pub.bio, [])}</div>` : ''}
     ${renderProfileBioLinksHtml(pub.bioLinks, pub.website, pub.username)}
     ${renderCreatorMilestonesHtml(theirFilms, pub.followersCount || 0, !!pub.verified)}
@@ -3949,7 +3949,7 @@ async function renderProfile(){
       </div>
     </div>
     <div class="profile-username" onclick="openAccountsSheet()" style="cursor:pointer;">@${escapeHtml(currentUser.username)}${vb(mine.verified)}${roleBadgeHtml(mine.roleBadge, mine.isCreatorOfWeek)} <span style="font-size:13px;opacity:.7;">▾</span></div>
-    <div><span class="note-pill ${mine.note ? '' : 'empty'}" onclick="openNoteEditor()">${mine.note ? '📝 ' + escapeHtml(mine.note.text) + (mine.note.song ? ' 🎵' : '') : '＋ Leave a note (24h)'}</span>${mine.note && mine.note.song ? ` <button type="button" onclick="playNoteSong(${escapeAttr(JSON.stringify(mine.note))})" style="background:none;border:none;color:var(--marigold);font-size:12px;cursor:pointer;font-weight:600;">▶ Play 15s</button>` : ''}</div>
+    ${renderProfileNoteHtml(mine.note, true)}
     ${mine.bio ? `<div class="profile-bio">${linkifyRich(mine.bio, [])}</div>` : ''}
     ${renderProfileBioLinksHtml(mine.bioLinks, mine.website, currentUser.username)}
     ${renderCreatorMilestonesHtml(myFilms, mine.followersCount || 0, !!mine.verified)}
@@ -6592,13 +6592,63 @@ async function openProfilePhotoFeed(userId, startFilmId){
     }, 30);
   }
 }
-function playNoteSong(note){
+window._activeNoteSongKey = null;
+function renderProfileNoteHtml(note, isOwn){
+  if (!note || (!note.text && !note.song)) {
+    return isOwn ? `<div><span class="note-pill empty" onclick="openNoteEditor()">＋ Leave a note or song (24h)</span></div>` : '';
+  }
+  if (note.song) {
+    const sg = note.song;
+    const key = sg.id || sg.url || sg.title || 'note';
+    const isPlaying = !!(songAudio && !songAudio.paused && window._activeNoteSongKey === key);
+    const noteAttr = escapeAttr(JSON.stringify(note));
+    const cover = sg.cover
+      ? `<img src="${escapeAttr(sg.cover)}" style="width:36px;height:36px;border-radius:9px;object-fit:cover;flex-shrink:0;">`
+      : `<div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;">🎵</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;margin:8px 0 4px;border-radius:14px;background:rgba(124,92,255,0.12);border:1px solid var(--gold-line);max-width:340px;">
+      ${cover}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:800;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.title || 'Music Note')}</div>
+        <div style="font-size:11px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.artist || '24h Music Note')}</div>
+      </div>
+      <button type="button" class="note-play-toggle-btn" data-notekey="${escapeAttr(key)}" onclick="event.stopPropagation();toggleNoteSongPlay(${noteAttr}, this)" style="padding:6px 12px;border-radius:999px;border:none;background:${isPlaying ? '#00e676' : 'linear-gradient(135deg,#7C5CFF,#E63950)'};color:${isPlaying ? '#03220f' : '#fff'};font-size:11.5px;font-weight:800;cursor:pointer;flex-shrink:0;">${isPlaying ? '⏸ Off' : '▶ Play'}</button>
+      ${isOwn ? `<button type="button" onclick="event.stopPropagation();openNoteEditor()" title="Edit Note" style="background:none;border:none;color:var(--cream-dim);font-size:14px;cursor:pointer;padding:2px 4px;">✏️</button>` : ''}
+    </div>`;
+  }
+  return `<div><span class="note-pill" ${isOwn ? 'onclick="openNoteEditor()"' : ''}>📝 ${escapeHtml(note.text)}</span></div>`;
+}
+
+function toggleNoteSongPlay(note, btnEl){
   const song = note && note.song;
   if (!song) return;
+  const key = song.id || song.url || song.title || 'note';
+  const isSamePlaying = !!(songAudio && !songAudio.paused && window._activeNoteSongKey === key);
+  if (isSamePlaying) {
+    stopSong(true);
+    window._activeNoteSongKey = null;
+    document.querySelectorAll('.note-play-toggle-btn').forEach(b => {
+      b.textContent = '▶ Play';
+      b.style.background = 'linear-gradient(135deg,#7C5CFF,#E63950)';
+      b.style.color = '#fff';
+    });
+    showToast('🔇 Music paused');
+    return;
+  }
   songMutedPref = false;
   try { localStorage.setItem('songMuted', '0'); } catch (e) {}
+  window._activeNoteSongKey = key;
   playSong(song);
+  document.querySelectorAll('.note-play-toggle-btn').forEach(b => {
+    const active = b.dataset.notekey === key;
+    b.textContent = active ? '⏸ Off' : '▶ Play';
+    b.style.background = active ? '#00e676' : 'linear-gradient(135deg,#7C5CFF,#E63950)';
+    b.style.color = active ? '#03220f' : '#fff';
+  });
   if (song.title) showToast('🎵 Playing: ' + song.title);
+}
+
+function playNoteSong(note){
+  toggleNoteSongPlay(note, null);
 }
 function closeProfilePhotoFeed(){
   stopSong();
@@ -6670,43 +6720,169 @@ async function togglePinProfile(id){
 }
 
 // ---- Notes (60 chars, 24h) ----
+let noteEditorMode = 'text';
+let noteEditorPickedSong = null;
+
 function openNoteEditor(){
-  const cur = (window.myNote && window.myNote.text) || '';
+  const curText = (window.myNote && window.myNote.text) || '';
+  const curSong = (window.myNote && window.myNote.song) || null;
+  const hasAny = !!(curText || curSong);
+  noteEditorMode = curSong ? 'song' : 'text';
+  noteEditorPickedSong = curSong ? {
+    songId: curSong.id || curSong.songId || '',
+    title: curSong.title || 'Song',
+    artist: curSong.artist || '',
+    url: curSong.url || '',
+    cover: curSong.cover || '',
+    songStart: Number(curSong.start || curSong.songStart) || 0,
+    songDuration: Number(curSong.duration || curSong.songDuration) || 15
+  } : null;
+
   const old = document.getElementById('noteOverlay'); if (old) old.remove();
   const el = document.createElement('div');
   el.id = 'noteOverlay';
-  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;';
-  el.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:14px;padding:18px;width:100%;max-width:360px;">
-    <div style="font-weight:700;margin-bottom:4px;">📝 My Note</div>
-    <div style="font-size:12.5px;color:var(--cream-dim);margin-bottom:10px;">Max 60 characters. Removed automatically after 24 hours. Followers will see it in Messages.</div>
-    <input id="noteInput" type="text" maxlength="60" value="${escapeAttr(cur)}" placeholder="What’s on your mind?" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:rgba(255,255,255,.06);color:var(--cream);font-size:14px;">
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button type="button" class="profile-btn primary" style="flex:1;" onclick="saveNote()">Save</button>
-      ${cur ? '<button type="button" class="profile-btn" style="flex:1;" onclick="saveNote(true)">Remove</button>' : ''}
-      <button type="button" class="profile-btn" style="flex:1;" onclick="document.getElementById(\'noteOverlay\').remove()">Cancel</button>
-    </div></div>`;
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:960;display:flex;align-items:center;justify-content:center;padding:18px;';
+  el.onclick = e => { if (e.target === el) closeNoteEditor(); };
+  el.innerHTML = `<div style="background:var(--panel);border:1px solid var(--gold-line);border-radius:18px;padding:18px;width:100%;max-width:380px;color:var(--cream);box-sizing:border-box;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div style="font-weight:800;font-size:16.5px;">✨ Add 24h Note</div>
+      <button type="button" onclick="closeNoteEditor()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:12px;">Choose either a short <b>Text Note</b> OR a <b>Music Note</b> (not both). Disappears after 24h.</div>
+
+    <!-- Exclusive Mode Switcher -->
+    <div style="display:flex;gap:6px;background:var(--field);padding:4px;border-radius:12px;border:1px solid var(--gold-line);margin-bottom:12px;">
+      <button type="button" id="noteModeTextBtn" onclick="switchNoteEditorMode('text')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12.5px;font-weight:800;cursor:pointer;">📝 Text Note</button>
+      <button type="button" id="noteModeSongBtn" onclick="switchNoteEditorMode('song')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12.5px;font-weight:800;cursor:pointer;">🎵 Music Note</button>
+    </div>
+
+    <!-- Mode 1: Text Only -->
+    <div id="noteTextSection">
+      <input id="noteInput" type="text" maxlength="60" value="${escapeAttr(curText)}" placeholder="What’s on your mind? (max 60 chars)" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--gold-line);background:var(--field);color:var(--cream);font-size:14px;box-sizing:border-box;outline:none;">
+    </div>
+
+    <!-- Mode 2: Song Only (With Play On/Off Card) -->
+    <div id="noteSongSection" class="hidden">
+      <div id="noteSongPreviewCard"></div>
+      <button type="button" onclick="pickSongForNoteEditor()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px dashed var(--marigold);background:rgba(124,92,255,0.1);color:var(--cream);font-size:13px;font-weight:700;cursor:pointer;">🎵 Choose / Search Viral Song</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button type="button" class="profile-btn primary" style="flex:1;padding:10px;font-weight:800;" onclick="saveNote()">Share Note</button>
+      ${hasAny ? '<button type="button" class="profile-btn" style="flex:0 0 auto;padding:10px 12px;color:#ff8585;border-color:rgba(230,57,80,0.45);" onclick="saveNote(true)">🗑️ Remove</button>' : ''}
+    </div>
+  </div>`;
   document.body.appendChild(el);
-  setTimeout(() => { const i = document.getElementById('noteInput'); if (i) i.focus(); }, 50);
+  switchNoteEditorMode(noteEditorMode);
 }
+
+function closeNoteEditor(){
+  stopSong(true);
+  window._activeNoteSongKey = null;
+  const o = document.getElementById('noteOverlay');
+  if (o) o.remove();
+}
+
+function switchNoteEditorMode(mode){
+  noteEditorMode = mode === 'song' ? 'song' : 'text';
+  if (noteEditorMode === 'text') stopSong(true);
+  const tBtn = document.getElementById('noteModeTextBtn');
+  const sBtn = document.getElementById('noteModeSongBtn');
+  const tSec = document.getElementById('noteTextSection');
+  const sSec = document.getElementById('noteSongSection');
+  if (tBtn) {
+    tBtn.style.background = noteEditorMode === 'text' ? 'linear-gradient(135deg,#7C5CFF,#E63950)' : 'transparent';
+    tBtn.style.color = noteEditorMode === 'text' ? '#fff' : 'var(--cream-dim)';
+  }
+  if (sBtn) {
+    sBtn.style.background = noteEditorMode === 'song' ? 'linear-gradient(135deg,#7C5CFF,#E63950)' : 'transparent';
+    sBtn.style.color = noteEditorMode === 'song' ? '#fff' : 'var(--cream-dim)';
+  }
+  if (tSec) tSec.classList.toggle('hidden', noteEditorMode !== 'text');
+  if (sSec) sSec.classList.toggle('hidden', noteEditorMode !== 'song');
+  if (noteEditorMode === 'song') renderNoteSongPreviewCard();
+  else setTimeout(() => { const i = document.getElementById('noteInput'); if (i) i.focus(); }, 40);
+}
+
+function renderNoteSongPreviewCard(){
+  const box = document.getElementById('noteSongPreviewCard');
+  if (!box) return;
+  if (!noteEditorPickedSong) {
+    box.innerHTML = `<div style="padding:18px 12px;text-align:center;border-radius:12px;background:var(--field);border:1px solid var(--gold-line);color:var(--cream-dim);font-size:12.5px;">No song selected yet.<br>Tap the button below to search Bollywood, Punjabi &amp; viral songs.</div>`;
+    return;
+  }
+  const sg = noteEditorPickedSong;
+  const key = sg.songId || sg.url || sg.title || 'note_editor';
+  const isPlaying = !!(songAudio && !songAudio.paused && window._activeNoteSongKey === key);
+  const cover = sg.cover
+    ? `<img src="${escapeAttr(sg.cover)}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;">`
+    : `<div style="width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;flex-shrink:0;">🎵</div>`;
+  const fakeNote = escapeAttr(JSON.stringify({ song: { id: sg.songId, title: sg.title, artist: sg.artist, url: sg.url, cover: sg.cover, start: sg.songStart, duration: sg.songDuration } }));
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(124,92,255,0.14);border:1px solid var(--marigold);">
+    ${cover}
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13.5px;font-weight:800;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.title)}</div>
+      <div style="font-size:11.5px;color:var(--cream-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sg.artist || 'Viral Audio')} · ${fmtClipSec(sg.songStart || 0)} – ${fmtClipSec((sg.songStart || 0) + (sg.songDuration || 15))}</div>
+    </div>
+    <button type="button" class="note-play-toggle-btn" data-notekey="${escapeAttr(key)}" onclick="toggleNoteSongPlay(${fakeNote}, this)" style="padding:7px 13px;border-radius:999px;border:none;background:${isPlaying ? '#00e676' : 'linear-gradient(135deg,#7C5CFF,#E63950)'};color:${isPlaying ? '#03220f' : '#fff'};font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">${isPlaying ? '⏸ Off' : '▶ Play'}</button>
+  </div>`;
+}
+
+async function pickSongForNoteEditor(){
+  const pick = await openSongPicker('note', 15);
+  if (pick === 'cancel') return;
+  if (!pick) {
+    noteEditorPickedSong = null;
+    stopSong(true);
+    renderNoteSongPreviewCard();
+    return;
+  }
+  noteEditorPickedSong = pick;
+  const key = pick.songId || pick.url || pick.title || 'note_editor';
+  window._activeNoteSongKey = key;
+  playSong(pick);
+  renderNoteSongPreviewCard();
+}
+
 async function saveNote(clear){
-  const text = clear ? '' : (document.getElementById('noteInput').value || '');
-  let songPart = {};
-  if (!clear && text) {
-    const pick = await openSongPicker('note');
-    if (pick === 'cancel') return;
-    if (pick) songPart = { songId: pick.songId, songUrl: pick.url || '', songTitle: pick.title || '', songArtist: pick.artist || '', songCover: pick.cover || '', songStart: pick.songStart };
+  let payload = { text: '' };
+  if (!clear) {
+    if (noteEditorMode === 'song') {
+      if (!noteEditorPickedSong) {
+        showToast('Please choose a song first');
+        return;
+      }
+      payload = {
+        text: '',
+        songId: noteEditorPickedSong.songId || '',
+        songUrl: noteEditorPickedSong.url || '',
+        songTitle: noteEditorPickedSong.title || '',
+        songArtist: noteEditorPickedSong.artist || '',
+        songCover: noteEditorPickedSong.cover || '',
+        songStart: noteEditorPickedSong.songStart || 0,
+        songDuration: noteEditorPickedSong.songDuration || 15
+      };
+    } else {
+      const textVal = (document.getElementById('noteInput')?.value || '').trim();
+      if (!textVal) {
+        showToast('Write a note first');
+        return;
+      }
+      payload = { text: textVal };
+    }
   }
   try {
-    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...songPart }) });
+    const res = await fetch('/api/me/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     window.myNote = data.note;
-    const o = document.getElementById('noteOverlay'); if (o) o.remove();
-    showToast(data.note ? 'Note posted 📝' : 'Note removed');
+    closeNoteEditor();
+    showToast(data.note ? (data.note.song ? 'Music Note shared 🎵' : 'Note posted 📝') : 'Note removed');
     if (document.getElementById('chatInboxOverlay').classList.contains('open')) loadNotesStrip();
     try { renderProfile(); } catch (e) {}
   } catch (e) { showToast(e.message); }
 }
+
 async function loadNotesStrip(){
   const el = document.getElementById('notesStrip');
   if (!el || !currentUser) return;
@@ -6715,12 +6891,21 @@ async function loadNotesStrip(){
     const data = await res.json();
     const notes = data.notes || [];
     const mine = notes.find(n => n.mine);
-    window.myNote = mine ? { text: mine.text, createdAt: mine.createdAt, song: mine.song || null } : null;
+    window.myNote = mine ? { text: mine.text || '', createdAt: mine.createdAt, song: mine.song || null } : null;
     const myAvUrl = (mine && mine.profileImage) || data.myProfileImage || currentUser.profileImage || null;
     if (myAvUrl && currentUser) currentUser.profileImage = myAvUrl;
     const av = n => `<div class="note-avatar">${n.profileImage ? `<img src="${n.profileImage}" loading="lazy" decoding="async">` : escapeHtml((n.username[0] || '?').toUpperCase())}</div>`;
-    const first = `<div class="note-item" onclick="${mine && mine.song ? `playNoteSong(${escapeAttr(JSON.stringify(mine))});` : ''}openNoteEditor()"><div class="note-bubble ${mine ? '' : 'add'}">${mine ? escapeHtml(mine.text) + (mine.song ? ' 🎵' : '') : '＋ Note'}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">Your note</div></div>`;
-    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="${n.song ? `playNoteSong(${escapeAttr(JSON.stringify(n))})` : `closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')`}"><div class="note-bubble">${escapeHtml(n.text)}${n.song ? ' 🎵' : ''}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
+    const bubbleLabel = n => {
+      if (!n) return '＋ Note';
+      if (n.song) {
+        const k = n.song.id || n.song.url || n.song.title || 'note';
+        const playing = !!(songAudio && !songAudio.paused && window._activeNoteSongKey === k);
+        return `${playing ? '⏸' : '▶'} 🎵 ${escapeHtml((n.song.title || 'Song').slice(0, 18))}`;
+      }
+      return escapeHtml(n.text || '');
+    };
+    const first = `<div class="note-item" onclick="${mine && mine.song ? `toggleNoteSongPlay(${escapeAttr(JSON.stringify(mine))}, null)` : 'openNoteEditor()'}"><div class="note-bubble ${mine ? '' : 'add'}">${bubbleLabel(mine)}</div>${av({ profileImage: myAvUrl, username: currentUser.username })}<div class="note-name">${mine ? '<span onclick="event.stopPropagation();openNoteEditor()" style="text-decoration:underline;">Edit note</span>' : 'Your note'}</div></div>`;
+    const others = notes.filter(n => !n.mine).map(n => `<div class="note-item" onclick="${n.song ? `toggleNoteSongPlay(${escapeAttr(JSON.stringify(n))}, null)` : `closeChatInboxThenOpen('${n.userId}','${escapeHtml(n.username)}')`}"><div class="note-bubble">${bubbleLabel(n)}</div>${av(n)}<div class="note-name">${escapeHtml(n.username)}${vb(n.verified)}</div></div>`).join('');
     el.innerHTML = first + others;
   } catch (e) {}
 }
