@@ -2252,7 +2252,6 @@ body.yt-in-landscape-app{overflow:hidden !important;}
       <div class="yt-chan-row" id="mOwner"></div>
       <div class="yt-actions-scroll">
         <button class="action-btn" id="likeBtn" onclick="likeCurrentFilm()">👍 <span id="likeCount">0</span></button>
-        <button class="action-btn" onclick="openSuperThanksModal(currentFilm ? currentFilm.id : '')" style="background:linear-gradient(135deg,rgba(255,209,102,0.22),rgba(255,140,0,0.16));border-color:rgba(255,209,102,0.5);color:#ffd166;font-weight:700;">💎 Super Thanks</button>
         <button class="action-btn" onclick="shareCurrentFilm()">↗ Share</button>
         <button class="action-btn" id="modalSaveBtn" onclick="toggleSaveCurrentFilm()">📑 Save</button>
         <button class="action-btn" id="speedBtn" onclick="cyclePlayerSpeed()" title="Playback speed">⚡ 1x</button>
@@ -3709,7 +3708,7 @@ function openPostSafetyMenu(filmId){
   const film = allFilms.find(f => f.id === filmId);
   const isOwner = !!(film && currentUser && film.ownerId === currentUser.id);
   const isCollab = !!(film && currentUser && film.collaboratorId === currentUser.id && film.collabStatus === 'accepted');
-  let items = `<div class="menu-item" onclick="closePostSafetyMenu();sharePostToStoryDirect('${filmId}')">📖 Add to Story</div><div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
+  let items = `<div class="menu-item" onclick="closePostSafetyMenu();sharePostToStoryDirect('${filmId}')">📖 Add to Story</div><div class="menu-item" style="color:#ffd166;font-weight:700;" onclick="closePostSafetyMenu();openSuperThanksModal('${filmId}')">💎 Super Thanks</div><div class="menu-item" onclick="closePostSafetyMenu();askAiAboutPost('${filmId}')">🤖 Ask AI about this post</div>`;
   if (isOwner) {
     items += `<div class="menu-item" onclick="closePostSafetyMenu();openEditFromFeed('${filmId}')">✏️ Edit</div><div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${filmId}')">📌 Pin / Unpin on profile</div><div class="menu-item" onclick="closePostSafetyMenu();openCollabSheet('${filmId}')">🤝 Collab</div><div class="menu-item" onclick="closePostSafetyMenu();openInsights('${filmId}')">📊 View Insights</div><div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteFeedPost('${filmId}')">🗑️ Delete</div>`;
   } else if (isCollab) {
@@ -5555,7 +5554,6 @@ function renderShorts(shorts){
       <div class="short-actions">
         <div><button class="short-action-btn ${isLiked ? 'liked' : ''}" id="short-like-btn-${f.id}" onclick="likeShort('${f.id}', this)">${isLiked ? '❤️' : '🤍'}</button><div class="short-action-count" id="short-like-${f.id}">${f.likes || 0}</div></div>
         <div><button class="short-action-btn" onclick="openSheet('${f.id}')">💬</button><div class="short-action-count" id="short-comment-${f.id}">${(f.comments || []).length}</div></div>
-        <div><button class="short-action-btn" onclick="openSuperThanksModal('${f.id}')" title="Send Super Thanks" style="font-size:22px;">💎</button><div class="short-action-count" style="color:#ffd166;font-weight:700;">Thanks</div></div>
         <div><button class="short-action-btn" id="short-save-btn-${f.id}" onclick="toggleSaveShort('${f.id}', this)" style="font-size:26px;">${isSaved ? '🔖' : '📑'}</button><div class="short-action-count">Save</div></div>
         <div><button class="short-action-btn" onclick="shareShort('${f.id}')">↗</button><div class="short-action-count">Share</div></div>
         <div><button class="short-action-btn" onclick="openMenu('${f.id}')">⋮</button></div>
@@ -5790,10 +5788,9 @@ function openMenu(id){
   const isSaved = !!(currentUser && film && film.savedBy && film.savedBy.includes(currentUser.id));
   let itemsHtml = `
     <div class="menu-item" onclick="closeMenu();sharePostToStoryDirect('${id}')">📖 Add to Story</div>
+    <div class="menu-item" style="color:#ffd166;font-weight:700;" onclick="closeMenu();openSuperThanksModal('${id}')">💎 Super Thanks</div>
     <div class="menu-item" onclick="closeMenu();askAiAboutPost('${id}')">🤖 Ask AI about this</div>
-    <div class="menu-item" id="menuSaveItem" onclick="toggleSaveFromMenu('${id}')">${isSaved ? '🔖 Unsave' : '📑 Save'}</div>
     <div class="menu-item" onclick="downloadCurrentShort()">⬇️ Download</div>
-    <div class="menu-item" onclick="copyCurrentShortLink()">🔗 Copy link</div>
   `;
   const isCollab = !!(currentUser && film && film.collaboratorId === currentUser.id && film.collabStatus === 'accepted');
   if (isOwner) {
@@ -7836,7 +7833,7 @@ function openPlayerMenu(){
   const canManage = !!isMyPost(f, currentUser.id);
   const saveBtn = document.getElementById('modalSaveBtn');
   const saved = !!(saveBtn && saveBtn.classList.contains('liked'));
-  let items = `<div class="menu-item" onclick="closePostSafetyMenu();closeModal();askAiAboutPost('${f.id}')">🤖 Ask AI about this</div><div class="menu-item" onclick="closePostSafetyMenu();toggleSaveCurrentFilm()">${saved ? '🔖 Unsave' : '📑 Save'}</div>`;
+  let items = `<div class="menu-item" style="color:#ffd166;font-weight:700;" onclick="closePostSafetyMenu();openSuperThanksModal('${f.id}')">💎 Super Thanks</div><div class="menu-item" onclick="closePostSafetyMenu();closeModal();askAiAboutPost('${f.id}')">🤖 Ask AI about this</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();editCurrentFilmModal()">✏️ Edit</div>`;
   if (isOwner) items += `<div class="menu-item" onclick="closePostSafetyMenu();togglePinProfile('${f.id}')">📌 Pin / Unpin on profile</div>`;
   if (isOwner) items += `<div class="menu-item" style="color:#e88a8a;" onclick="closePostSafetyMenu();deleteCurrentFilmModal()">🗑️ Delete</div>`;
