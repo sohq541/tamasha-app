@@ -221,6 +221,20 @@
   background:rgba(0,0,0,0.55); color:#fff; font-size:15px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
 }
+.landscape-toggle-btn{
+  position:absolute; bottom:12px; right:54px; z-index:5;
+  width:34px; height:34px; border-radius:50%; border:none;
+  background:rgba(0,0,0,0.55); color:#fff; font-size:15px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.card-desc-clamp{
+  color:var(--cream-dim); margin-top:2px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; cursor:pointer;
+}
+.card-desc-clamp.expanded{
+  display:block; -webkit-line-clamp:unset; overflow:visible;
+}
 .card-actions-bar {
   display: flex;
   align-items: center;
@@ -5326,7 +5340,7 @@ function renderHome(films) {
           ${
             isPhoto
               ? (f.slideUrls ? carouselHtml(f) : `<img src="${f.posterUrl || ''}" alt="${escapeHtml(f.title)}" loading="lazy" decoding="async">`) + (f.song ? `<button class="mute-toggle-btn song-corner-mute" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${songMutedPref ? '🔇' : '🔊'}</button>` : '')
-              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline ${homeFeedSoundMuted ? 'muted' : ''} loop style="${(f.mediaFilter && typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[f.mediaFilter]) ? 'filter:' + STORY_FILTER_CSS[f.mediaFilter] + ';' : ''}"></video>${(f.overlayText && f.overlayText.text) ? `<div class="post-media-overlay-txt pos-${escapeAttr(f.overlayText.pos || 'bottom')} ${f.overlayText.style && f.overlayText.style !== 'classic' ? 'style-' + escapeAttr(f.overlayText.style) : ''}" style="color:${escapeAttr(f.overlayText.color || '#ffffff')};">${escapeHtml(f.overlayText.text)}</div>` : ''}${!isShort ? `<button type="button" class="mute-toggle-btn" style="right:48px;" onclick="event.stopPropagation();openFilmInLandscape('${f.id}')" title="Watch in Landscape Fullscreen">⛶</button>` : ''}<button class="mute-toggle-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${(homeFeedSoundMuted || (f.song && songMutedPref)) ? '🔇' : '🔊'}</button>`
+              : `<video src="${f.videoUrl}" poster="${f.posterUrl || ''}" preload="metadata" playsinline ${homeFeedSoundMuted ? 'muted' : ''} loop style="${(f.mediaFilter && typeof STORY_FILTER_CSS !== 'undefined' && STORY_FILTER_CSS[f.mediaFilter]) ? 'filter:' + STORY_FILTER_CSS[f.mediaFilter] + ';' : ''}"></video>${(f.overlayText && f.overlayText.text) ? `<div class="post-media-overlay-txt pos-${escapeAttr(f.overlayText.pos || 'bottom')} ${f.overlayText.style && f.overlayText.style !== 'classic' ? 'style-' + escapeAttr(f.overlayText.style) : ''}" style="color:${escapeAttr(f.overlayText.color || '#ffffff')};">${escapeHtml(f.overlayText.text)}</div>` : ''}${!isShort ? `<button type="button" class="landscape-toggle-btn" onclick="event.stopPropagation();openFilmInLandscape('${f.id}')" title="Watch in Landscape Fullscreen">⛶</button>` : ''}<button class="mute-toggle-btn card-mute-btn" onclick="event.stopPropagation();toggleCardMute('${f.id}',this)">${(homeFeedSoundMuted || (f.song && songMutedPref)) ? '🔇' : '🔊'}</button>`
           }
         </div>
 
@@ -5347,7 +5361,7 @@ function renderHome(films) {
 
         <div class="card-caption-area">
           <div><b>@${escapeHtml(f.ownerUsername || 'user')}</b>${vb(f.ownerVerified)} ${escapeHtml(f.title)}</div>
-          ${f.description ? `<div style="color:var(--cream-dim);margin-top:2px;">${linkifyRich(f.description, f.mentions)}</div>` : ''}
+          ${f.description ? `<div class="card-desc-clamp" onclick="this.classList.toggle('expanded')" title="Tap to read more">${linkifyRich(f.description, f.mentions)}</div>` : ''}
           ${f.customLink ? `<div style="margin-top:8px;"><a href="${escapeAttr(f.customLink)}" target="_blank" rel="noopener noreferrer" class="post-cta-btn" onclick="event.stopPropagation()">🔗 ${escapeHtml(f.customLinkTitle || 'Visit Link')} ↗</a></div>` : ''}
         </div>
       </div>
@@ -5432,7 +5446,7 @@ function tryPlayHomeVideo(video){
     p.catch(() => {
       video.muted = true;
       const box = video.closest('.card-media-box');
-      const btn = box ? box.querySelector('.mute-toggle-btn') : null;
+      const btn = box ? (box.querySelector('.card-mute-btn') || box.querySelector('.mute-toggle-btn')) : null;
       if (btn && !btn.classList.contains('song-corner-mute')) btn.textContent = '🔇';
       video.play().catch(() => {});
     });
@@ -13216,7 +13230,7 @@ window.UploadMgr = (function(){
     const dynIds = ['closeFriendsModal','bioLinksHubModal','superThanksOverlay','audioPageOverlay','songPicker','sharePostChatModal','addGroupMemberModal','newGroupModal','convoInfoSheet','accountsSheet','channelSheet','trustModal','notifPrefsModal','noteOverlay','blueOverlay','yourDashOverlay','btCelebModal','cropOverlay','pollModal','newChannelModal'];
     for (const did of dynIds) {
       const dm = document.getElementById(did);
-      if (dm) { dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
+      if (dm) { if (did === 'audioPageOverlay') closeAudioPage(); else dm.remove(); history.pushState({ page: 'home' }, '', location.pathname + location.search); return; }
     }
     if (navStack.length > 0) {
       const topId = navStack[navStack.length - 1];
@@ -14475,68 +14489,146 @@ async function submitSuperThanks(filmId){
   } catch (e) { showToast('Failed to send Super Thanks'); }
 }
 
+function closeAudioPage(){
+  stopSong(true);
+  const ov = document.getElementById('audioPageOverlay');
+  if (ov) ov.remove();
+  if (window._audioPageResumeStory) {
+    window._audioPageResumeStory = false;
+    try { resumeStoryProgress(); } catch (e) {}
+  }
+}
+
 async function openAudioPage(song){
   if (!song) return;
+  const fromStory = !!(document.getElementById('storyViewerOverlay') && document.getElementById('storyViewerOverlay').classList.contains('open'));
+  window._audioPageResumeStory = fromStory;
   playSong(song);
+
   const existing = document.getElementById('audioPageOverlay');
   if (existing) existing.remove();
+
   const ov = document.createElement('div');
   ov.id = 'audioPageOverlay';
-  ov.className = 'modal-overlay open';
-  ov.style.zIndex = '1180';
-  ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+  ov.style.cssText = 'position:fixed;inset:0;background:var(--ink,#0b0816);z-index:1180;display:flex;flex-direction:column;color:var(--cream);overflow:hidden;';
 
   const songId = song.id || song.songId || '';
-  const localMatches = allFilms.filter(f => f.song && ((songId && (f.song.id === songId || f.song.songId === songId)) || (f.song.title && song.title && f.song.title.toLowerCase() === song.title.toLowerCase())));
+  const matchPost = f => f && f.song && (
+    (songId && (String(f.song.id || '') === String(songId) || String(f.song.songId || '') === String(songId))) ||
+    (f.song.title && song.title && String(f.song.title).toLowerCase() === String(song.title).toLowerCase())
+  );
+  let matchedPosts = (allFilms || []).filter(matchPost);
 
-  const gridHtml = localMatches.length
-    ? localMatches.map(f => {
-        const clickJs = f.type === 'short'
-          ? `document.getElementById('audioPageOverlay').remove();openShortAt('${escapeAttr(f.id)}')`
-          : (f.type === 'photo' ? `document.getElementById('audioPageOverlay').remove();openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.id)}')` : `document.getElementById('audioPageOverlay').remove();playFilm('${escapeAttr(f.id)}')`);
-        return gridItemHtml(f, clickJs, false);
-      }).join('')
-    : '<div style="grid-column:1 / -1;text-align:center;padding:24px 10px;color:var(--cream-dim);font-size:13px;">No posts found with this audio yet. Be the first to create one!</div>';
+  const renderAudioGrid = (postsList) => {
+    if (!postsList || !postsList.length) {
+      return '<div style="grid-column:1 / -1;text-align:center;padding:42px 18px;color:var(--cream-dim);font-size:13.5px;">🎵 No posts with this audio yet.<br><span style="opacity:0.8;">Tap <b>Use Audio</b> above to be the first!</span></div>';
+    }
+    return postsList.map(f => {
+      const clickJs = f.type === 'short'
+        ? `closeAudioPage();openShortAt('${escapeAttr(f.id)}')`
+        : (f.type === 'photo' ? `closeAudioPage();openProfilePhotoFeed('${escapeAttr(f.ownerId || '')}','${escapeAttr(f.id)}')` : `closeAudioPage();playFilm('${escapeAttr(f.id)}')`);
+      const slide0 = (f.slideUrls && f.slideUrls[0]) || null;
+      const imgUrl = f.posterUrl || (slide0 && slide0.mediaType === 'photo' ? slide0.url : null);
+      const vidUrl = f.videoUrl || (slide0 && slide0.mediaType === 'video' ? slide0.url : null);
+      const mediaHtml = imgUrl
+        ? `<img src="${escapeAttr(imgUrl)}" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" decoding="async">`
+        : (vidUrl
+            ? `<video src="${escapeAttr(vidUrl)}#t=0.5" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;"></video>`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px;background:#151126;">🎬</div>`);
+      const typeIcon = f.type === 'short' ? '⚡' : (f.type === 'photo' ? '🖼️' : '🎬');
+      return `<div onclick="${clickJs}" style="position:relative;aspect-ratio:3/4;background:#111;overflow:hidden;cursor:pointer;border-radius:4px;">
+        ${mediaHtml}
+        <span style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.58);color:#fff;font-size:10.5px;padding:2px 6px;border-radius:6px;font-weight:700;">${typeIcon}</span>
+        <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 6px 5px;background:linear-gradient(to top,rgba(0,0,0,0.82),transparent);color:#fff;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:4px;">▶ ${f.views || 0}</div>
+      </div>`;
+    }).join('');
+  };
+
+  const songJsonAttr = escapeAttr(JSON.stringify(song));
+  const coverHtml = song.cover
+    ? `<img src="${escapeAttr(song.cover)}" style="width:74px;height:74px;border-radius:16px;object-fit:cover;flex-shrink:0;box-shadow:0 8px 24px rgba(0,0,0,0.5);border:1.5px solid rgba(255,255,255,0.2);">`
+    : `<div style="width:74px;height:74px;border-radius:16px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;flex-shrink:0;box-shadow:0 8px 24px rgba(124,92,255,0.4);">🎵</div>`;
 
   ov.innerHTML = `
-    <div class="settings-panel" style="max-width:480px;width:95%;max-height:84vh;overflow-y:auto;margin:auto;background:var(--panel);border:1px solid var(--gold-line);border-radius:22px;padding:18px;box-shadow:0 16px 48px rgba(0,0,0,0.7);">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;">
-        <div style="display:flex;gap:12px;align-items:center;">
-          ${song.cover ? `<img src="${escapeAttr(song.cover)}" style="width:62px;height:62px;border-radius:16px;object-fit:cover;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.2);">` : `<div style="width:62px;height:62px;border-radius:16px;background:linear-gradient(135deg,#7C5CFF,#FF2C7D);display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(124,92,255,0.4);">🎵</div>`}
-          <div>
-            <div style="font-size:17px;font-weight:800;color:var(--cream);line-height:1.25;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              <span>${escapeHtml(song.title || 'Original Audio')}</span>
-              <span class="ig-trending-arrow" style="font-size:11px;padding:1px 6px;">↗ Trending</span>
-            </div>
-            <div style="font-size:13px;color:var(--cream-dim);margin-top:2px;">${escapeHtml(song.artist || 'Original Audio')}</div>
-            <div id="audioPageCountLine" style="font-size:11.5px;color:var(--marigold);font-weight:700;margin-top:4px;">Used in ${localMatches.length} post${localMatches.length === 1 ? '' : 's'}</div>
-          </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--gold-line);background:var(--panel);flex-shrink:0;">
+      <button type="button" onclick="closeAudioPage()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:2px 8px;line-height:1;">←</button>
+      <div style="font-family:'Baloo 2',sans-serif;font-size:17.5px;font-weight:800;color:var(--cream);flex:1;">Audio</div>
+      <span class="ig-trending-arrow" style="font-size:11.5px;padding:3px 9px;border-radius:999px;">↗ Trending</span>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:16px 14px 40px;max-width:540px;width:100%;margin:0 auto;box-sizing:border-box;">
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
+        ${coverHtml}
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:18px;font-weight:800;color:var(--cream);line-height:1.25;word-break:break-word;">${escapeHtml(song.title || 'Original Audio')}</div>
+          <div style="font-size:13.5px;color:var(--cream-dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(song.artist || 'YouSeries Music')}</div>
+          <div id="audioPageCountLine" style="font-size:12px;color:var(--marigold);font-weight:700;margin-top:5px;">${matchedPosts.length} reel${matchedPosts.length === 1 ? '' : 's'} &amp; post${matchedPosts.length === 1 ? '' : 's'}</div>
         </div>
-        <button type="button" onclick="document.getElementById('audioPageOverlay').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:22px;cursor:pointer;">✕</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-        <button type="button" onclick="playSong(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:105px;">🔊 Listen</button>
-        <button type="button" onclick="useSongInNewPost(${escapeAttr(JSON.stringify(song))})" class="profile-btn primary" style="flex:1;min-width:125px;">🎬 Use in Post/Reel</button>
-        <button type="button" onclick="useSongInNewStory(${escapeAttr(JSON.stringify(song))})" class="profile-btn" style="flex:1;min-width:120px;border-color:#00e676;color:#69f0ae;">📸 Use in Story</button>
+
+      <!-- Mini Player Bar -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--gold-line);margin-bottom:14px;">
+        <button type="button" id="audioPagePlayBtn" onclick="toggleAudioPagePlay(${songJsonAttr})" style="width:38px;height:38px;border-radius:50%;border:none;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;font-size:15px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">⏸</button>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:700;color:var(--cream);display:flex;align-items:center;gap:5px;">
+            <span class="ig-eq-bars" id="audioPageEq" style="color:#00e676;"><i></i><i></i><i></i></span>
+            <span id="audioPagePlayLbl">Playing audio preview…</span>
+          </div>
+          <div style="font-size:11px;color:var(--cream-dim);margin-top:2px;">Tap Play/Pause anytime · 15s clip</div>
+        </div>
       </div>
-      <div id="audioPageGrid" class="profile-grid" style="grid-template-columns:repeat(3,1fr);gap:6px;">
-        ${gridHtml}
+
+      <!-- Instagram-Style Action Buttons -->
+      <div style="display:flex;gap:10px;margin-bottom:18px;">
+        <button type="button" onclick="useSongInNewPost(${songJsonAttr})" style="flex:1;padding:11px 14px;border-radius:12px;border:none;background:linear-gradient(135deg,#7C5CFF,#E63950);color:#fff;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(124,92,255,0.35);">🎬 Use Audio</button>
+        <button type="button" onclick="useSongInNewStory(${songJsonAttr})" style="flex:1;padding:11px 14px;border-radius:12px;border:1.5px solid rgba(0,230,118,0.55);background:rgba(0,230,118,0.12);color:#69f0ae;font-size:13.5px;font-weight:800;cursor:pointer;">📸 Add to Story</button>
+      </div>
+
+      <div style="font-size:13px;font-weight:800;color:var(--cream-dim);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Posts &amp; Reels using this audio</div>
+      <div id="audioPageGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;width:100%;">
+        ${renderAudioGrid(matchedPosts)}
       </div>
     </div>
   `;
   document.body.appendChild(ov);
+  try { history.pushState({ modal: 'audioPageOverlay' }, '', location.pathname + location.search); } catch (e) {}
 
-  if (songId) {
+  if (songId || song.title) {
     try {
-      const res = await fetch('/api/songs/' + encodeURIComponent(songId) + '/posts');
+      const url = '/api/songs/' + encodeURIComponent(songId || 'title') + '/posts' + (song.title ? ('?title=' + encodeURIComponent(song.title)) : '');
+      const res = await fetch(url);
       if (res.ok) {
         const d = await res.json();
+        const serverPosts = Array.isArray(d.posts) ? d.posts : [];
+        if (serverPosts.length > matchedPosts.length) {
+          matchedPosts = serverPosts;
+          const gEl = document.getElementById('audioPageGrid');
+          if (gEl) gEl.innerHTML = renderAudioGrid(matchedPosts);
+        }
         const cntEl = document.getElementById('audioPageCountLine');
-        if (cntEl && typeof d.totalUses === 'number') {
-          cntEl.textContent = `Used in ${d.totalUses} posts & ${d.storiesCount || 0} active stories`;
+        if (cntEl) {
+          const total = Math.max(matchedPosts.length, Number(d.totalUses) || 0);
+          cntEl.textContent = `${total} reel${total === 1 ? '' : 's'} & post${total === 1 ? '' : 's'}`;
         }
       }
     } catch (e) {}
+  }
+}
+
+function toggleAudioPagePlay(song){
+  const btn = document.getElementById('audioPagePlayBtn');
+  const lbl = document.getElementById('audioPagePlayLbl');
+  const eq = document.getElementById('audioPageEq');
+  if (songAudio && !songAudio.paused) {
+    songAudio.pause();
+    if (btn) btn.textContent = '▶';
+    if (lbl) lbl.textContent = 'Paused';
+    if (eq) eq.style.visibility = 'hidden';
+  } else {
+    playSong(song);
+    if (btn) btn.textContent = '⏸';
+    if (lbl) lbl.textContent = 'Playing audio preview…';
+    if (eq) eq.style.visibility = 'visible';
   }
 }
 
