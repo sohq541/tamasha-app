@@ -2707,6 +2707,25 @@ app.post('/api/films/:id/comments', async (req, res) => {
     comment.mentions = findMentionedUsers(comment.text, await readUsers());
     f.comments.push(comment);
     await writeFilms(films);
+    if (/@ask\s*ai\b/i.test(comment.text)) {
+      const filmIdSnap = f.id;
+      const postCtx = `Post Title: "${f.title || ''}" | Type: ${f.type || 'video'} | Creator: @${f.ownerUsername || 'user'} | Views: ${f.views || 0} | Likes: ${f.likes || 0} | Description: "${(f.description || '').slice(0, 300)}"`;
+      generateInlineMentionReply(comment.text, postCtx).then(async aiText => {
+        if (!aiText) return;
+        const freshFilms = await readFilms();
+        const tf = freshFilms.find(x => x.id === filmIdSnap);
+        if (!tf) return;
+        if (!Array.isArray(tf.comments)) tf.comments = [];
+        tf.comments.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          userId: AI_ASSISTANT_ID,
+          name: 'Ask AI 🤖',
+          text: '@' + currentUser.username + ' ' + aiText.slice(0, 460),
+          createdAt: new Date().toISOString()
+        });
+        await writeFilms(freshFilms);
+      }).catch(() => {});
+    }
     if (checkSpamAndRecord(currentUser.id, comment.text)) {
       const reports = await readReports();
       const already = reports.some(r => r.reason === 'auto-spam' && r.status === 'pending' && r.targetOwnerId === currentUser.id
@@ -3910,7 +3929,9 @@ async function enrichMessage(m, directUrl, usersList) {
     replyTo: m.unsent ? null : (m.replyTo || null),
     reactions: m.reactions || {},
     poll: m.poll || null,
-    vanish: !!m.vanish
+    vanish: !!m.vanish,
+    recommendedPosts: Array.isArray(m.recommendedPosts) ? m.recommendedPosts : null,
+    aiSuggestions: Array.isArray(m.aiSuggestions) ? m.aiSuggestions : null
   };
   if (!m.unsent && m.mediaKey && (m.type === 'photo' || m.type === 'video' || m.type === 'voice')) {
     out.mediaUrl = await directUrl(m.mediaKey, m.storageProvider || 'gdrive');
@@ -4033,6 +4054,99 @@ async function resolveGroqModel() {
     if (pick) { cachedGroqModel = { id: pick, resolvedAt: Date.now() }; return pick; }
   } catch (err) { console.error('Model resolution failed:', err.message); }
   return 'llama-3.3-70b-versatile';
+}
+
+async function aiCreatorCoachContext(userId) {
+  if (!userId) return null;
+  try {
+    const [users, films] = await Promise.all([readUsers(), readFilms()]);
+    const me = users.find(u => u.id === userId);
+    if (!me) return null;
+    const followers = users.filter(u => (u.following || []).includes(me.id)).length;
+    const myFilms = films.filter(f => f.ownerId === me.id && !f.pendingReview);
+    const totalViews = myFilms.reduce((a, f) => a + (f.views || 0), 0);
+    const totalLikes = myFilms.reduce((a, f) => a + (f.likes || 0), 0);
+    const totalComments = myFilms.reduce((a, f) => a + ((f.comments || []).length), 0);
+    const top3 = myFilms.slice().sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3)).slice(0, 3);
+    const topStr = top3.map((f, i) => `${i + 1}. "${f.title}" (${f.type}, ${f.views || 0} views, ${f.likes || 0} likes)`).join('; ');
+    return `Creator: @${me.username} | Followers: ${followers} | Total Posts: ${myFilms.length} | Total Views: ${totalViews} | Total Likes: ${totalLikes} | Total Comments: ${totalComments}${topStr ? ' | Top Posts: ' + topStr : ''}`;
+  } catch (e) { return null; }
+}
+
+async function aiFindRecommendedPosts(query) {
+  try {
+    const q = String(query || '').toLowerCase();
+    if (!/(dikhao|recommend|suggest|trending|best|comedy|romantic|reel|short|video|film|photo|dekhna|show me|popular)/i.test(q)) return null;
+    const films = (await readFilms()).filter(f => !f.pendingReview && !(f.publishAt && new Date(f.publishAt).getTime() > Date.now()));
+    if (!films.length) return null;
+    const words = q.replace(/[#@]/g, '').split(/\s+/).filter(w => w.length >= 3 && !/^(dikhao|recommend|suggest|best|koi|achi|kuch|show|please|mujhe|video|reel|reels|short|shorts|photo|photos|trending|popular|dekhna|hai|hain)$/.test(w));
+    let pool = films;
+    if (/\b(reel|reels|short|shorts)\b/i.test(q)) {
+      const sh = pool.filter(f => f.type === 'short');
+      if (sh.length) pool = sh;
+    } else if (/\b(photo|photos|pic|pics)\b/i.test(q)) {
+      const ph = pool.filter(f => f.type === 'photo');
+      if (ph.length) pool = ph;
+    } else if (/\b(full video|film|movie)\b/i.test(q)) {
+      const fm = pool.filter(f => f.type === 'film');
+      if (fm.length) pool = fm;
+    }
+    if (words.length) {
+      const matched = pool.filter(f => {
+        const hay = [f.title, f.description, f.genre, f.ownerUsername, ...(f.hashtags || [])].join(' ').toLowerCase();
+        return words.some(w => hay.includes(w));
+      });
+      if (matched.length) pool = matched;
+    }
+    const top = pool.slice().sort((a, b) => ((b.views || 0) + (b.likes || 0) * 3) - ((a.views || 0) + (a.likes || 0) * 3)).slice(0, 4);
+    const directUrl = makeDirectUrlCache();
+    return await Promise.all(top.map(async f => {
+      const slide0 = Array.isArray(f.slides) && f.slides[0] ? f.slides[0] : null;
+      const posterKey = f.posterFile || (slide0 && slide0.mediaType === 'photo' ? slide0.key : null);
+      return {
+        id: f.id,
+        title: (f.title || 'Untitled').slice(0, 60),
+        type: f.type || 'film',
+        ownerId: f.ownerId || '',
+        ownerUsername: f.ownerUsername || 'user',
+        views: f.views || 0,
+        likes: f.likes || 0,
+        posterUrl: posterKey ? await directUrl(posterKey, f.storageProvider) : null
+      };
+    }));
+  } catch (e) { return null; }
+}
+
+function buildAiFollowUpSuggestions(userText) {
+  const q = String(userText || '').toLowerCase();
+  if (/grow|profile|views|followers|coach|reach|analytics|viral/i.test(q)) {
+    return ['🔥 Viral hashtags do', '🎬 Next reel idea batao', '⏰ Best time to post'];
+  }
+  if (/caption|hashtag|bio|title/i.test(q)) {
+    return ['✨ 3 aur captions likho', '🔥 Trending #tags do', '🎵 Matching song suggest karo'];
+  }
+  if (/reel|video|dikhao|recommend|trending|movie|film/i.test(q)) {
+    return ['⚡ Aur trending reels dikhao', '📈 Mera profile analyze karo', '✨ Viral caption likho'];
+  }
+  return ['🔍 Aur detail batao', '📈 Mera profile analyze karo', '🎬 Trending reels dikhao'];
+}
+
+async function generateInlineMentionReply(questionText, extraContext) {
+  if (!GROQ_API_KEY) return null;
+  const cleanQ = String(questionText || '').replace(/@ask\s*ai\b/gi, '').trim() || 'Is post ke baare me batao';
+  const msgs = [
+    { role: 'system', content: AI_SYSTEM_PROMPT + '\nKeep this inline @AskAI reply very crisp (2-4 short lines max, friendly Hinglish).' }
+  ];
+  if (extraContext) msgs.push({ role: 'system', content: extraContext });
+  msgs.push({ role: 'user', content: cleanQ });
+  try {
+    let { ok, data } = await callGroqChat('llama-3.1-8b-instant', msgs);
+    if (!ok) {
+      const fallbackModel = await resolveGroqModel();
+      ({ ok, data } = await callGroqChat(fallbackModel, msgs));
+    }
+    return (ok && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || null;
+  } catch (e) { return null; }
 }
 
 async function callGroqChat(model, messages) {
@@ -4258,10 +4372,17 @@ async function callAiAssistant(recentMessages, currentUserId) {
   if (!history.length) return "Hi! I’m Ask AI. You can ask me anything.";
 
   const latestUserText = history[history.length - 1].content;
-  const webData = await getLiveWebContext(latestUserText);
-  const siteData = await aiSiteContext(latestUserText);
+  const wantsCoach = /\b(grow|growth|profile|views|followers|analytics|coach|reach|viral|mera account|meri post|tips|kaise badhaye)\b/i.test(latestUserText);
+  const [webData, siteData, coachData] = await Promise.all([
+    getLiveWebContext(latestUserText),
+    aiSiteContext(latestUserText),
+    wantsCoach ? aiCreatorCoachContext(currentUserId) : Promise.resolve(null)
+  ]);
 
   const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }];
+  if (coachData) {
+    messages.push({ role: 'system', content: `[Personal Creator Coach Stats for this user — use these real numbers to give specific, practical growth advice]:\n${coachData}` });
+  }
   if (siteData) {
     messages.push({ role: 'system', content: `[Site Context] (app ke public posts ki details, media ki andar ki cheez nahi):\n${siteData}` });
   }
@@ -4274,8 +4395,14 @@ async function callAiAssistant(recentMessages, currentUserId) {
   messages.push(...history);
 
   try {
-    const model = await resolveGroqModel();
-    let { ok, data } = await callGroqChat(model, messages);
+    // Smart Fast-Model Routing: use ultra-fast 8B Instant for quick conversational/app-help queries without web search
+    const useFastModel = !webData && !wantsCoach && latestUserText.length <= 140 && history.length <= 8;
+    const primaryModel = useFastModel ? 'llama-3.1-8b-instant' : await resolveGroqModel();
+    let { ok, data } = await callGroqChat(primaryModel, messages);
+    if (!ok && useFastModel) {
+      const deepModel = await resolveGroqModel();
+      ({ ok, data } = await callGroqChat(deepModel, messages));
+    }
 
     if (!ok && /does not exist|decommissioned|not found/i.test((data.error && data.error.message) || '')) {
       // Cached model just went stale — force a fresh lookup and retry once.
@@ -4323,11 +4450,18 @@ async function triggerAiReply(conversationId, currentUserId){
   return gdWithLock('ai:' + conversationId, async () => {
   try {
     const messages = await readChatMessages(conversationId);
-    const replyText = await callAiAssistant(messages, currentUserId);
+    const lastUserMsg = messages.slice().reverse().find(m => m && !m.unsent && m.senderId !== AI_ASSISTANT_ID);
+    const lastUserText = (lastUserMsg && lastUserMsg.text) || '';
+    const [replyText, recPosts] = await Promise.all([
+      callAiAssistant(messages, currentUserId),
+      aiFindRecommendedPosts(lastUserText)
+    ]);
     const aiMsg = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       conversationId, senderId: AI_ASSISTANT_ID,
       type: 'text', text: replyText,
+      recommendedPosts: (recPosts && recPosts.length) ? recPosts : null,
+      aiSuggestions: buildAiFollowUpSuggestions(lastUserText),
       mediaKey: null, mediaType: null, storageProvider: null, duration: null,
       shortId: null, shortTitle: null, shortOwnerUsername: null,
       createdAt: new Date().toISOString(), editedAt: null,
@@ -4373,6 +4507,21 @@ app.post('/api/ai/viewing', (req, res) => {
   if (req.body && req.body.active) aiViewing.set(currentUser.id, Date.now());
   else aiViewing.delete(currentUser.id);
   res.json({ ok: true });
+});
+
+app.post('/api/ai/regenerate', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const convo = await ensureAiConversation(currentUser.id);
+    const msgs = await readChatMessages(convo.id);
+    if (msgs.length > 1 && msgs[msgs.length - 1].senderId === AI_ASSISTANT_ID) {
+      msgs.pop();
+      await writeChatMessages(convo.id, msgs);
+    }
+    triggerAiReply(convo.id, currentUser.id).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/ai/clear', async (req, res) => {
@@ -5145,6 +5294,34 @@ app.post('/api/conversations/:id/messages', (req, res, next) => {
         notify(uid, {
           type: 'message', fromUserId: req.currentUser.id, fromUsername: req.currentUser.username,
           conversationId: convo.id, message: label
+        }).catch(() => {});
+      }
+      if (convo.type === 'group' && newMessage.text && /@ask\s*ai\b/i.test(newMessage.text)) {
+        const gCid = convo.id;
+        const gTitle = convo.title || 'Group Chat';
+        generateInlineMentionReply(newMessage.text, `Group Chat: "${gTitle}" | Asked by @${req.currentUser.username}`).then(async aiText => {
+          if (!aiText) return;
+          const gMsgs = await readChatMessages(gCid);
+          const aiGroupMsg = {
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+            conversationId: gCid,
+            senderId: AI_ASSISTANT_ID,
+            type: 'text',
+            text: `🤖 **Ask AI** (reply to @${req.currentUser.username}):\n${aiText}`,
+            mediaKey: null, mediaType: null, storageProvider: null, duration: null,
+            shortId: null, shortTitle: null, shortOwnerUsername: null,
+            createdAt: new Date().toISOString(), editedAt: null,
+            deletedFor: [], unsent: false, readBy: [AI_ASSISTANT_ID]
+          };
+          gMsgs.push(aiGroupMsg);
+          await writeChatMessages(gCid, gMsgs);
+          const freshConvos = await readConversations();
+          const gc = freshConvos.find(x => x.id === gCid);
+          if (gc) {
+            gc.updatedAt = aiGroupMsg.createdAt;
+            gc.lastMessage = { senderId: AI_ASSISTANT_ID, preview: previewForMessage(aiGroupMsg), createdAt: aiGroupMsg.createdAt };
+            await writeConversations(freshConvos);
+          }
         }).catch(() => {});
       }
     } else {
