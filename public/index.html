@@ -1888,6 +1888,100 @@ body.yt-in-landscape-app{overflow:hidden !important;}
 .post-media-overlay-txt.style-neon { text-shadow: 0 0 10px currentColor, 0 0 22px currentColor; }
 .post-media-overlay-txt.style-bold { background: rgba(0,0,0,0.65); }
 .post-media-overlay-txt.style-typewriter { font-family: monospace; background: rgba(0,0,0,0.55); }
+
+/* ===== ASK AI UPGRADED UI (ACTION BAR, RECOMMENDED CARDS, FOLLOW-UP CHIPS) ===== */
+.ai-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+}
+.ai-act-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--cream);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ai-act-pill:hover {
+  border-color: var(--marigold);
+  background: rgba(124, 92, 255, 0.22);
+}
+.ai-rec-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 10px;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.ai-rec-strip::-webkit-scrollbar { display: none; }
+.ai-rec-card {
+  width: 118px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #120e24;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+}
+.ai-rec-thumb {
+  width: 118px;
+  height: 132px;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.ai-rec-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ai-rec-info {
+  padding: 6px 7px;
+}
+.ai-rec-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-rec-meta {
+  font-size: 10.5px;
+  color: var(--cream-dim);
+  margin-top: 2px;
+}
+.ai-followup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px 6px;
+}
+.ai-followup-chip {
+  background: rgba(124, 92, 255, 0.16);
+  border: 1px solid rgba(124, 92, 255, 0.45);
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
 </style>
 <script type="application/ld+json">
 {
@@ -6070,6 +6164,7 @@ async function askAiAboutPost(filmId){
   try {
     aiThinkingSince = Date.now();
     renderChatMessages();
+    startAiFastPoll();
     const msg = await sendShortMessage(chatConvoId, filmId, 'Is post ko dhyan se dekho aur explain karo ki isme kya hai aur kaun hai.');
     chatMessagesCache.push(msg);
     chatLastFetchAt = new Date().toISOString();
@@ -11541,6 +11636,8 @@ function renderChatMessages(){
   }
   if (chatOtherUser && chatOtherUser.id === 'ai-assistant' && chatMessagesCache.length <= 1) {
     html += '<div class="ai-quick">' + AI_QUICK.map(q => `<button type="button" onclick="sendAiQuick('${q}')">${q}</button>`).join('') + '</div>';
+  } else if (chatOtherUser && chatOtherUser.id === 'ai-assistant' && last && last.senderId === 'ai-assistant' && Array.isArray(last.aiSuggestions) && last.aiSuggestions.length && !aiThinkingSince) {
+    html += '<div class="ai-followup-row">' + last.aiSuggestions.map(q => `<button type="button" class="ai-followup-chip" onclick="sendAiQuick(${escapeAttr(JSON.stringify(q))})">${escapeHtml(q)}</button>`).join('') + '</div>';
   }
   el.innerHTML = html;
 }
@@ -11611,7 +11708,7 @@ function aiFormat(text){
 }
 
 // Quick questions for Ask AI (shown until the user writes something)
-const AI_QUICK = ['How do I upload?', 'How do I get a blue tick?', 'How do I turn off notifications?', 'How do I turn on dark mode?', 'Video won’t play, what should I do?', 'How do I schedule a post?'];
+const AI_QUICK = ['📈 Mera profile analyze karo', '🎬 Trending reels dikhao', '✨ Viral reel caption likho', 'How do I get a blue tick?', 'How do I upload?', 'How do I schedule a post?'];
 function sendAiQuick(q){
   const input = document.getElementById('chatTextInput');
   if (!input) return;
@@ -11647,7 +11744,29 @@ function renderChatBubble(m, mine, showStatus){
     : '';
 
   if (m.type === 'text' && m.senderId === 'ai-assistant') {
-    bubbleInner = `<div class="ai-card">${quoteHtml}${aiFormat(m.text || '')}</div>`;
+    const recHtml = (Array.isArray(m.recommendedPosts) && m.recommendedPosts.length)
+      ? `<div class="ai-rec-strip">${m.recommendedPosts.map(p => {
+          const openJs = p.type === 'short'
+            ? `openAiRecommendedPost('short','${escapeAttr(p.id)}','')`
+            : (p.type === 'photo' ? `openAiRecommendedPost('photo','${escapeAttr(p.id)}','${escapeAttr(p.ownerId || '')}')` : `openAiRecommendedPost('film','${escapeAttr(p.id)}','')`);
+          const icon = p.type === 'short' ? '⚡' : (p.type === 'photo' ? '🖼️' : '🎬');
+          return `<div class="ai-rec-card" onclick="event.stopPropagation();${openJs}">
+            <div class="ai-rec-thumb">${p.posterUrl ? `<img src="${escapeAttr(p.posterUrl)}" loading="lazy">` : icon}</div>
+            <div class="ai-rec-info">
+              <div class="ai-rec-title">${escapeHtml(p.title)}</div>
+              <div class="ai-rec-meta">@${escapeHtml(p.ownerUsername)} · ▶ ${p.views || 0}</div>
+            </div>
+          </div>`;
+        }).join('')}</div>`
+      : '';
+    const isLatestAi = !!(chatMessagesCache.length && chatMessagesCache[chatMessagesCache.length - 1].id === m.id && chatOtherUser && chatOtherUser.id === 'ai-assistant');
+    const plainTextAttr = escapeAttr(String(m.text || ''));
+    const actBar = `<div class="ai-card-actions">
+      <button type="button" class="ai-act-pill" onclick="event.stopPropagation();speakAiReply(this, ${escapeAttr(JSON.stringify(String(m.text || '')))})">🔊 Listen</button>
+      <button type="button" class="ai-act-pill" onclick="event.stopPropagation();copyAiReply(${escapeAttr(JSON.stringify(String(m.text || '')))})">📋 Copy</button>
+      ${isLatestAi && chatMessagesCache.length > 1 ? `<button type="button" class="ai-act-pill" onclick="event.stopPropagation();regenerateAiReply()">🔄 Regenerate</button>` : ''}
+    </div>`;
+    bubbleInner = `<div class="ai-card">${quoteHtml}${aiFormat(m.text || '')}${recHtml}${actBar}</div>`;
   } else if (m.type === 'poll' && m.poll) {
     const p = m.poll;
     const totalVotes = (p.options || []).reduce((acc, opt) => acc + (opt.votes ? opt.votes.length : 0), 0);
@@ -11833,7 +11952,7 @@ async function sendChatMessage(){
     if (!res.ok) throw new Error(data.error || 'Could not send');
     chatMessagesCache.push(data);
     chatLastFetchAt = new Date().toISOString();
-    if (chatOtherUser && chatOtherUser.id === 'ai-assistant') aiThinkingSince = Date.now();
+    if (chatOtherUser && chatOtherUser.id === 'ai-assistant') { aiThinkingSince = Date.now(); startAiFastPoll(); }
     renderChatMessages();
     scrollChatToBottom();
     textEl.value = '';
@@ -11996,7 +12115,7 @@ function stopVoiceRecording(discard){
       if (!res.ok) throw new Error(data.error || 'Could not send voice message');
       chatMessagesCache.push(data);
       chatLastFetchAt = new Date().toISOString();
-      if (chatOtherUser && chatOtherUser.id === 'ai-assistant') aiThinkingSince = Date.now();
+      if (chatOtherUser && chatOtherUser.id === 'ai-assistant') { aiThinkingSince = Date.now(); startAiFastPoll(); }
       clearChatReplyTarget();
       renderChatMessages();
       scrollChatToBottom();
@@ -15296,6 +15415,88 @@ function renderExploreGrid(){
       </div>
     </div>`;
   }).join('');
+}
+
+// ===================== ASK AI SPEED & FEATURE HELPERS =====================
+let aiFastPollTimer = null;
+function startAiFastPoll(){
+  if (aiFastPollTimer) { clearInterval(aiFastPollTimer); aiFastPollTimer = null; }
+  const startedAt = Date.now();
+  aiFastPollTimer = setInterval(async () => {
+    if (!chatConvoId || !chatOtherUser || chatOtherUser.id !== 'ai-assistant' || !aiThinkingSince || Date.now() - startedAt > 20000) {
+      clearInterval(aiFastPollTimer);
+      aiFastPollTimer = null;
+      return;
+    }
+    await pollChatMessages();
+  }, 650);
+}
+
+let aiSpeakingBtn = null;
+function speakAiReply(btn, text){
+  try {
+    if (!('speechSynthesis' in window)) { showToast('Voice read-aloud not supported on this device'); return; }
+    const clean = String(text || '').replace(/\*\*/g, '').replace(/https?:\/\/\S+/g, '').replace(/[#*_`]/g, '').trim();
+    if (!clean) return;
+    if (window.speechSynthesis.speaking && aiSpeakingBtn === btn) {
+      window.speechSynthesis.cancel();
+      if (btn) btn.textContent = '🔊 Listen';
+      aiSpeakingBtn = null;
+      return;
+    }
+    window.speechSynthesis.cancel();
+    if (aiSpeakingBtn) aiSpeakingBtn.textContent = '🔊 Listen';
+    const utt = new SpeechSynthesisUtterance(clean);
+    utt.lang = 'hi-IN';
+    utt.rate = 1.03;
+    aiSpeakingBtn = btn;
+    if (btn) btn.textContent = '⏹ Stop';
+    utt.onend = () => { if (btn) btn.textContent = '🔊 Listen'; aiSpeakingBtn = null; };
+    utt.onerror = () => { if (btn) btn.textContent = '🔊 Listen'; aiSpeakingBtn = null; };
+    window.speechSynthesis.speak(utt);
+  } catch (e) { showToast('Could not play voice'); }
+}
+
+function copyAiReply(text){
+  const clean = String(text || '').replace(/\*\*/g, '').trim();
+  if (!clean) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(clean).then(() => showToast('Copied to clipboard 📋')).catch(() => showToast('Copy failed'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = clean;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Copied to clipboard 📋'); } catch (e) {}
+    ta.remove();
+  }
+}
+
+async function regenerateAiReply(){
+  if (!chatConvoId || !chatOtherUser || chatOtherUser.id !== 'ai-assistant') return;
+  if (chatMessagesCache.length > 1 && chatMessagesCache[chatMessagesCache.length - 1].senderId === 'ai-assistant') {
+    chatMessagesCache.pop();
+  }
+  aiThinkingSince = Date.now();
+  renderChatMessages();
+  scrollChatToBottom();
+  try {
+    const res = await fetch('/api/ai/regenerate', { method: 'POST' });
+    if (res.ok) startAiFastPoll();
+    else { aiThinkingSince = 0; renderChatMessages(); showToast('Could not regenerate'); }
+  } catch (e) {
+    aiThinkingSince = 0;
+    renderChatMessages();
+    showToast('Network error');
+  }
+}
+
+function openAiRecommendedPost(type, id, ownerId){
+  closeChatConvo();
+  closeChatInbox();
+  if (type === 'short') openShortAt(id);
+  else if (type === 'photo') openProfilePhotoFeed(ownerId || '', id);
+  else playFilm(id);
 }
 </script>
 </body>
