@@ -4054,39 +4054,70 @@ COMMON PROBLEMS (inke solution do):
 - Blue tick nahi mil raha: criteria (10 followers, 150 views) check karo, ya UPI request bhejo.
 - Login nahi ho raha: password bhool gaye to Forgot Password use karo.
 
-Agar sawaal app se bahar ka ho (general knowledge, advice), to chhota sa best jawab do. Live news/score ke liye [Live Web Context] use karo, warna bolo ki pata nahi.`;
+Agar sawaal app se bahar ka ho (general knowledge, movies, box office, cricket, news, advice), to [Live Web Context] ke fresh facts aur figures use karke chhota, clear aur accurate Hinglish jawab do. Agar kisi figure me alag-alag reports hon to estimate/range saaf batao; agar sach me data na mile tabhi bolo ki confirm data nahi mila.`;
 
-// Only spend a Tavily search credit when the question actually looks time-sensitive.
-const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|trend|trending|viral|movie|film|release|box office|web series|webseries|ott|song|songs|hit|match|cricket|ipl|election|result|kal|aaj|abhi|mausam|taaza|khabar|samachar|naya|nayi|kitna hai|kya hai|2025|2026)\b/i;
+// Trigger live online search for current events, movies, box office, sports, prices, and factual lookups.
+const REALTIME_HINT = /\b(today|now|current|latest|recent|live|score|news|price|weather|stock|update|trend|trending|viral|movie|film|release|box office|worldwide|collection|gross|earning|budget|cast|trailer|review|web series|webseries|ott|song|songs|hit|match|cricket|ipl|winner|champion|election|result|rank|top|who is|kaun hai|kab|kal|aaj|abhi|mausam|taaza|khabar|samachar|naya|nayi|kitna|kya hai|2025|2026|2027)\b/i;
+
+async function freeWebFallbackSearch(query) {
+  const parts = [];
+  try {
+    const rssUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=en-IN&gl=IN&ceid=IN:en';
+    const r = await fetch(rssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (r.ok) {
+      const xml = await r.text();
+      const items = [...xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>[\s\S]*?<pubDate>([\s\S]*?)<\/pubDate>[\s\S]*?<\/item>/g)].slice(0, 5);
+      if (items.length) {
+        parts.push('Recent News Snippets:\n' + items.map(m => `- ${m[1].replace(/<[^>]+>/g, '').trim()} (${m[2].trim()})`).join('\n'));
+      }
+    }
+  } catch (e) {}
+  try {
+    const ddgUrl = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1';
+    const d = await fetch(ddgUrl);
+    if (d.ok) {
+      const dj = await d.json();
+      if (dj.AbstractText) parts.push('Summary: ' + dj.AbstractText);
+    }
+  } catch (e) {}
+  return parts.join('\n').trim() || null;
+}
 
 async function getLiveWebContext(query) {
-  if (!TAVILY_API_KEY || !REALTIME_HINT.test(query)) return null;
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${TAVILY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        query: query,
-        search_depth: 'basic',
-        include_answer: true,
-        max_results: 5
-      })
-    });
-    if (!res.ok) { console.error('Tavily API error:', await res.text()); return null; }
-    const data = await res.json();
-    let result = '';
-    if (data.answer) result += `Summary: ${data.answer}\n`;
-    if (data.results && data.results.length > 0) {
-      result += data.results.map(item => `- ${item.title}: ${item.content}`).join('\n');
+  if (!REALTIME_HINT.test(query)) return null;
+  const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  if (TAVILY_API_KEY) {
+    try {
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${TAVILY_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: query,
+          search_depth: 'basic',
+          include_answer: true,
+          max_results: 5
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        let result = `Current Date: ${todayStr}\n`;
+        if (data.answer) result += `Summary: ${data.answer}\n`;
+        if (data.results && data.results.length > 0) {
+          result += data.results.map(item => `- ${item.title}: ${item.content}`).join('\n');
+        }
+        if (result.trim().length > 30) return result.trim();
+      } else {
+        console.error('Tavily API error:', await res.text());
+      }
+    } catch (err) {
+      console.error('Tavily search error:', err.message);
     }
-    return result.trim() || null;
-  } catch (err) {
-    console.error('Tavily search error:', err.message);
-    return null;
   }
+  const fb = await freeWebFallbackSearch(query);
+  return fb ? `Current Date: ${todayStr}\n${fb}` : null;
 }
 
 let cachedGroqModel = { id: null, resolvedAt: 0 };
@@ -4134,8 +4165,12 @@ async function aiCreatorCoachContext(userId) {
 
 async function aiFindRecommendedPosts(query) {
   try {
-    const q = String(query || '').toLowerCase();
-    if (!/(dikhao|recommend|suggest|trending|best|comedy|romantic|reel|short|video|film|photo|dekhna|show me|popular)/i.test(q)) return null;
+    const q = String(query || '').toLowerCase().trim();
+    if (!q) return null;
+    // Never show random recommended posts when user is asking about a specific/attached media item or file utility
+    if (/\b(is|iss|ye|yeh|this|that|upar|pichl[ai])\s+(video|photo|reel|short|post|clip|pic|image)\b/i.test(q)) return null;
+    if (/\b(zip|rar|frame|frames|extract|download|convert|crop|trim|kaun\s+hai|naam\s+batao|explain|samjhao)\b/i.test(q)) return null;
+    if (!/(dikhao|recommend|suggest|show\s+me|dekhna\s+hai|batao\s+koi|koi\s+(achi|achhi|badhiya|mast|best|trending|popular|comedy|romantic|action|funny)|trending\s+(reel|reels|short|shorts|video|videos|post|posts|photo|photos)|best\s+(reel|reels|short|shorts|video|videos|film|films|movie|movies)|popular\s+(reel|reels|short|shorts|video|videos|post|posts))/i.test(q)) return null;
     const films = (await readFilms()).filter(f => !f.pendingReview && !(f.publishAt && new Date(f.publishAt).getTime() > Date.now()));
     if (!films.length) return null;
     const words = q.replace(/[#@]/g, '').split(/\s+/).filter(w => w.length >= 3 && !/^(dikhao|recommend|suggest|best|koi|achi|kuch|show|please|mujhe|video|reel|reels|short|shorts|photo|photos|trending|popular|dekhna|hai|hain)$/.test(w));
@@ -4238,7 +4273,37 @@ async function aiSiteContext(query) {
 }
 
 const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
-const GROQ_VISION_FALLBACK = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+let cachedGroqVisionModels = { ids: [], resolvedAt: 0 };
+async function resolveGroqVisionModels(forceRefresh) {
+  const TTL = 30 * 60 * 1000;
+  if (!forceRefresh && cachedGroqVisionModels.ids.length && Date.now() - cachedGroqVisionModels.resolvedAt < TTL) {
+    return cachedGroqVisionModels.ids;
+  }
+  const ordered = [];
+  const addUnique = (id) => { if (id && !ordered.includes(id)) ordered.push(id); };
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const activeIds = (json.data || []).filter(m => m.active !== false).map(m => m.id);
+      const visionIds = activeIds.filter(id => /(llama-4-scout|llama-4-maverick|vision|llava|pixtral|qwen.*vl)/i.test(id) && !/guard|whisper|tts/i.test(id));
+      if (process.env.GROQ_VISION_MODEL && activeIds.includes(process.env.GROQ_VISION_MODEL)) {
+        addUnique(process.env.GROQ_VISION_MODEL);
+      }
+      visionIds.filter(id => /llama-4-scout/i.test(id)).forEach(addUnique);
+      visionIds.filter(id => /llama-4-maverick/i.test(id)).forEach(addUnique);
+      visionIds.forEach(addUnique);
+    }
+  } catch (err) {
+    console.error('Vision model discovery failed:', err.message);
+  }
+  // Keep configured default as last-resort candidate if discovery returned empty
+  if (!ordered.length) addUnique(GROQ_VISION_MODEL);
+  cachedGroqVisionModels = { ids: ordered, resolvedAt: Date.now() };
+  return ordered;
+}
 function runFfmpegBin(args) {
   return new Promise((resolve, reject) => execFile(require('ffmpeg-static'), args, { timeout: 60000 }, err => err ? reject(err) : resolve()));
 }
@@ -4260,6 +4325,9 @@ function guessImageMime(buf, key) {
 // The user sent a photo or a video in the Ask AI chat: look at it and explain it (Hindi by default)
 async function answerWithMedia(msg) {
   const userText = String(msg.text || '').trim();
+  if (/\b(zip|rar|tar)\b/i.test(userText) && /\b(frame|frames|photo|photos|image|images|nikal|extract|download)\b/i.test(userText)) {
+    return 'Main chat me direct **.zip file** bana kar ya video ke saare frames extract karke download link nahi de sakta.\n\n**Aap kya kar sakte hain:**\n• Agar aapko is video ke kisi scene, person ya topic ke baare me jaanna hai to mujhse pooch sakte hain — main explain kar dunga.\n• Video se frames nikalne ke liye phone me **Video to Photo / Frame Grabber** app ya browser me free online *Video to JPG* tool use kar sakte hain.';
+  }
   const question = userText || 'Is photo/video ko dhyan se dekho aur detail me explain karo ki isme kya hai, kaun hai (agar mashhoor chehra/character/cheez hai to naam batao), aur kya ho raha hai.';
   const parts = [];
   let note = '';
@@ -4326,15 +4394,46 @@ async function answerWithMedia(msg) {
   if (!parts.length && !note) return 'Is media ko process nahi kar paaye. Kripya dobara bhejein.';
   const text = question + '\n\n' + (note ? note.trim() + '\n\n' : '') +
     'Jawab usi bhasha me do jisme user ne pucha hai (default Hinglish/Hindi). Simple shabdon me, chhote points me (**bold** headings ke saath) samjhao. Agar photo/video me koi mashhoor insaan (celebrity, actor, cricketer, public figure), character, brand, jagah ya cheez dikhe ya file/post ka naam ho, to uska naam zaroor batao.';
-  const messages = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
-  let r = await callGroqChat(GROQ_VISION_MODEL, messages);
-  if (!r.ok) {
-    // Fallback if model rejected system message or if primary vision model is unavailable
-    const userOnlyMessages = [{ role: 'user', content: [{ type: 'text', text: AI_SYSTEM_PROMPT + '\n\n' + text }, ...parts] }];
-    r = await callGroqChat(GROQ_VISION_MODEL, userOnlyMessages);
-    if (!r.ok) r = await callGroqChat(GROQ_VISION_FALLBACK, userOnlyMessages);
+  const visionModels = await resolveGroqVisionModels(false);
+  let r = { ok: false, data: null };
+  if (parts.length) {
+    for (const vModel of visionModels) {
+      const fullMsgs = [{ role: 'system', content: AI_SYSTEM_PROMPT }, { role: 'user', content: [{ type: 'text', text }, ...parts] }];
+      r = await callGroqChat(vModel, fullMsgs);
+      if (r.ok) break;
+      const errMsg = (r.data && r.data.error && r.data.error.message) || '';
+      if (/does not exist|decommissioned|not found|access/i.test(errMsg)) continue;
+      // Retry with fewer frames (in case of image count/payload size limit) and user-only prompt
+      const slimParts = parts.slice(0, 1);
+      const userOnlyMessages = [{ role: 'user', content: [{ type: 'text', text: AI_SYSTEM_PROMPT + '\n\n' + text }, ...slimParts] }];
+      r = await callGroqChat(vModel, userOnlyMessages);
+      if (r.ok) break;
+    }
+    // If cached vision list went stale, refresh once and retry
+    if (!r.ok) {
+      const freshModels = await resolveGroqVisionModels(true);
+      for (const vModel of freshModels) {
+        if (visionModels.includes(vModel)) continue;
+        const userOnlyMessages = [{ role: 'user', content: [{ type: 'text', text: AI_SYSTEM_PROMPT + '\n\n' + text }, ...parts.slice(0, 2)] }];
+        r = await callGroqChat(vModel, userOnlyMessages);
+        if (r.ok) break;
+      }
+    }
   }
-  if (!r.ok) return 'Media samajhne me problem aayi: ' + ((r.data && r.data.error && r.data.error.message) || 'unknown');
+  // Graceful text-model fallback using post metadata & Whisper audio transcript (never expose raw model-missing errors)
+  if (!r.ok) {
+    try {
+      const textModel = await resolveGroqModel();
+      const fallbackPrompt = note
+        ? `User ne ek ${msg.mediaType === 'photo' ? 'photo' : 'video'} share/upload kiya aur ye pucha: "${question}"\n\nAvailable details (post metadata / audio transcript):\n${note.trim()}\n\nNote: Visual frames abhi temporarily analyze nahi ho paaye, isliye available details ke basis par helpful Hinglish jawab do (agar visual details missing hon to politely mention karo).`
+        : `User ne ek ${msg.mediaType === 'photo' ? 'photo' : 'video'} bheja aur pucha: "${question}". Visual scan abhi temporarily unavailable hai. Politely Hinglish me batao aur bolo ki thodi der baad try karein ya text me pooch lein.`;
+      r = await callGroqChat(textModel, [
+        { role: 'system', content: AI_SYSTEM_PROMPT },
+        { role: 'user', content: fallbackPrompt }
+      ]);
+    } catch (e) {}
+  }
+  if (!r.ok) return 'Abhi is media ko scan karne me temporary problem aa rahi hai. Thodi der baad dobara try karein ya text me sawaal pooch lein.';
   return (r.data.choices && r.data.choices[0] && r.data.choices[0].message && r.data.choices[0].message.content) || 'Samajh nahi aaya, dobara pucho.';
 }
 
@@ -4511,15 +4610,17 @@ async function triggerAiReply(conversationId, currentUserId){
     const messages = await readChatMessages(conversationId);
     const lastUserMsg = messages.slice().reverse().find(m => m && !m.unsent && m.senderId !== AI_ASSISTANT_ID);
     const lastUserText = (lastUserMsg && lastUserMsg.text) || '';
+    const isMediaTurn = Boolean(lastUserMsg && (lastUserMsg.type === 'short' || lastUserMsg.mediaKey));
     const [replyText, recPosts] = await Promise.all([
       callAiAssistant(messages, currentUserId),
-      aiFindRecommendedPosts(lastUserText)
+      isMediaTurn ? Promise.resolve(null) : aiFindRecommendedPosts(lastUserText)
     ]);
+    const isErrorReply = /^(Media samajhne me|Abhi is media ko scan|Could not reply|Error:)/i.test(String(replyText || ''));
     const aiMsg = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       conversationId, senderId: AI_ASSISTANT_ID,
       type: 'text', text: replyText,
-      recommendedPosts: (recPosts && recPosts.length) ? recPosts : null,
+      recommendedPosts: (!isErrorReply && recPosts && recPosts.length) ? recPosts : null,
       aiSuggestions: buildAiFollowUpSuggestions(lastUserText),
       mediaKey: null, mediaType: null, storageProvider: null, duration: null,
       shortId: null, shortTitle: null, shortOwnerUsername: null,
