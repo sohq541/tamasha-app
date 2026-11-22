@@ -2187,6 +2187,11 @@ body.yt-in-landscape-app{overflow:hidden !important;}
           </div>
         </div>
 
+        <!-- Screen Lock Overlay (YouTube Style) -->
+        <div id="ytScreenLockOverlay" class="hidden" onclick="event.stopPropagation();flashYtUnlockBtn();" style="position:absolute;inset:0;z-index:25;display:flex;align-items:flex-end;justify-content:center;padding-bottom:22px;background:transparent;">
+          <button type="button" id="ytUnlockBtn" onclick="event.stopPropagation();toggleYtScreenLock(event);" style="background:rgba(15,12,28,0.88);color:#fff;border:1px solid rgba(255,255,255,0.28);border-radius:999px;padding:9px 18px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.55);">🔓 Tap to unlock screen</button>
+        </div>
+
         <!-- Custom YouTube HUD Overlay -->
         <div id="ytCustomHud">
           <!-- Top Bar -->
@@ -2222,6 +2227,14 @@ body.yt-in-landscape-app{overflow:hidden !important;}
 
           <!-- Settings Popover Menu -->
           <div id="ytSettingsPopover" class="hidden" onclick="event.stopPropagation()">
+            <div class="yt-set-item" onclick="openYtQualitySheet(event)">
+              <span>🎚️ Quality</span>
+              <b id="ytSetQualityVal" style="color:#ffd166;">Auto</b>
+            </div>
+            <div class="yt-set-item" onclick="toggleYtScreenLock(event)">
+              <span>🔒 Lock Screen</span>
+              <span style="opacity:0.75;">›</span>
+            </div>
             <div class="yt-set-item" onclick="cycleYtVideoZoom(event);updateYtSettingsLabels();">
               <span>🔍 Screen Zoom / Aspect</span>
               <b id="ytSetZoomVal" style="color:#5ce1e6;">Original</b>
@@ -7625,6 +7638,7 @@ function updateYtSettingsLabels(){
     lpEl.style.color = p.loop ? '#5ad19a' : 'rgba(255,255,255,0.65)';
   }
   syncYtAutoplayUi();
+  if (typeof updateYtQualityLabel === 'function') updateYtQualityLabel();
 }
 
 // 1. Left and Right arrow tap next/previous video (Strictly Full Videos only!)
@@ -15497,6 +15511,207 @@ function openAiRecommendedPost(type, id, ownerId){
   if (type === 'short') openShortAt(id);
   else if (type === 'photo') openProfilePhotoFeed(ownerId || '', id);
   else playFilm(id);
+}
+
+// ===================== YOUTUBE-STYLE VIDEO QUALITY & SCREEN LOCK =====================
+let ytQualityPref = (() => {
+  try { return localStorage.getItem('ytQualityPref') || 'auto'; } catch (e) { return 'auto'; }
+})();
+let ytCurrentStreamQuality = 'original'; // 'original' or 'saver'
+let ytScreenLocked = false;
+let ytUnlockHideTimer = null;
+
+function getNativeVideoResLabel(){
+  const p = document.getElementById('player');
+  const h = (p && p.videoHeight) ? p.videoHeight : 0;
+  if (h >= 1300) return '1440p';
+  if (h >= 950) return '1080p';
+  if (h >= 650) return '720p';
+  if (h >= 440) return '480p';
+  if (h > 0) return h + 'p';
+  return 'HD';
+}
+
+function updateYtQualityLabel(){
+  const el = document.getElementById('ytSetQualityVal');
+  if (!el) return;
+  const nativeRes = getNativeVideoResLabel();
+  if (ytQualityPref === 'saver' || ytCurrentStreamQuality === 'saver') {
+    el.textContent = 'Data saver (360p)';
+    el.style.color = '#69f0ae';
+  } else if (ytQualityPref === 'high') {
+    el.textContent = 'Higher quality (' + nativeRes + ')';
+    el.style.color = '#ffd166';
+  } else {
+    el.textContent = 'Auto (' + nativeRes + ')';
+    el.style.color = '#5ce1e6';
+  }
+}
+
+function closeYtQualitySheet(){
+  const el = document.getElementById('ytQualitySheet');
+  if (el) el.remove();
+}
+
+function openYtQualitySheet(ev, advancedMode){
+  if (ev) ev.stopPropagation();
+  try { closeYtSettingsPopover(); } catch (e) {}
+  closeYtQualitySheet();
+
+  const nativeRes = getNativeVideoResLabel();
+  const activeRes = ytCurrentStreamQuality === 'saver' ? '360p' : nativeRes;
+  const ov = document.createElement('div');
+  ov.id = 'ytQualitySheet';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1250;display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick = e => { if (e.target === ov) closeYtQualitySheet(); };
+
+  let bodyHtml = '';
+  if (!advancedMode) {
+    const row = (mode, title, sub, active) => `
+      <div onclick="applyYtQualityMode('${mode}')" style="display:flex;align-items:center;gap:14px;padding:13px 6px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <span style="width:22px;text-align:center;font-size:17px;color:${active ? '#00e676' : 'transparent'};font-weight:900;">✓</span>
+        <div style="flex:1;">
+          <div style="font-size:14.5px;font-weight:700;color:var(--cream);">${title}</div>
+          <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">${sub}</div>
+        </div>
+      </div>`;
+    bodyHtml = `
+      ${row('auto', 'Auto (recommended)', 'Adjusts to give you the best experience for your connection', ytQualityPref === 'auto')}
+      ${row('high', 'Higher picture quality (' + nativeRes + ')', 'Uses more data · Plays full original HD quality', ytQualityPref === 'high')}
+      ${row('saver', 'Data saver (360p)', 'Lower picture quality · Saves up to 70% mobile data', ytQualityPref === 'saver')}
+      <div onclick="openYtQualitySheet(null, true)" style="display:flex;align-items:center;gap:14px;padding:13px 6px;cursor:pointer;">
+        <span style="width:22px;"></span>
+        <div style="flex:1;">
+          <div style="font-size:14.5px;font-weight:700;color:var(--cream);">Advanced</div>
+          <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Select a specific resolution</div>
+        </div>
+        <span style="color:var(--cream-dim);font-size:18px;">›</span>
+      </div>`;
+  } else {
+    const p = document.getElementById('player');
+    const h = (p && p.videoHeight) ? p.videoHeight : 720;
+    const opts = [];
+    if (h >= 1300) opts.push({ res: '1440p', mode: 'high', tag: 'Original QHD' });
+    else if (h >= 950) opts.push({ res: '1080p', mode: 'high', tag: 'Original Full HD' });
+    else if (h >= 650) opts.push({ res: '720p', mode: 'high', tag: 'Original HD' });
+    else opts.push({ res: (h || 480) + 'p', mode: 'high', tag: 'Original' });
+    opts.push({ res: '360p', mode: 'saver', tag: 'Data Saver · Low Data' });
+
+    bodyHtml = opts.map(o => {
+      const isAct = (o.mode === 'saver' && ytCurrentStreamQuality === 'saver') || (o.mode === 'high' && ytCurrentStreamQuality !== 'saver');
+      return `<div onclick="applyYtQualityMode('${o.mode}')" style="display:flex;align-items:center;gap:14px;padding:14px 6px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <span style="width:22px;text-align:center;font-size:17px;color:${isAct ? '#00e676' : 'transparent'};font-weight:900;">✓</span>
+        <div style="font-size:15px;font-weight:700;color:var(--cream);flex:1;">${o.res} <span style="font-size:12px;color:var(--cream-dim);font-weight:500;margin-left:6px;">${o.tag}</span></div>
+      </div>`;
+    }).join('') + `<div style="padding:10px 6px 2px;font-size:11.5px;color:var(--cream-dim);">Available resolutions depend on the original uploaded video quality.</div>`;
+  }
+
+  ov.innerHTML = `
+    <div style="background:var(--panel);border-top:1px solid var(--gold-line);border-radius:22px 22px 0 0;padding:12px 18px 26px;width:100%;max-width:480px;color:var(--cream);box-sizing:border-box;box-shadow:0 -12px 36px rgba(0,0,0,0.75);">
+      <div style="width:40px;height:4px;border-radius:999px;background:rgba(255,255,255,0.22);margin:0 auto 14px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:800;color:var(--cream);">
+          ${advancedMode ? '<span onclick="openYtQualitySheet(null, false)" style="cursor:pointer;margin-right:10px;">←</span>' : ''}Quality for current video · <span style="color:var(--marigold);">${activeRes}</span>
+        </div>
+        <button type="button" onclick="closeYtQualitySheet()" style="background:none;border:none;color:var(--cream-dim);font-size:19px;cursor:pointer;">✕</button>
+      </div>
+      ${bodyHtml}
+    </div>
+  `;
+  document.body.appendChild(ov);
+  try { history.pushState({ modal: 'ytQualitySheet' }, '', location.pathname + location.search); } catch (e) {}
+}
+
+async function applyYtQualityMode(mode){
+  ytQualityPref = mode || 'auto';
+  try { localStorage.setItem('ytQualityPref', ytQualityPref); } catch (e) {}
+  closeYtQualitySheet();
+
+  const p = document.getElementById('player');
+  if (!p || !currentFilm || !currentFilm.videoUrl) return;
+
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const slowNet = !!(conn && (conn.saveData || /^(slow-2g|2g|3g)$/.test(conn.effectiveType || '')));
+  const wantSaver = (mode === 'saver') || (mode === 'auto' && slowNet);
+
+  if (!wantSaver) {
+    ytCurrentStreamQuality = 'original';
+    if (p.src !== currentFilm.videoUrl && !p.src.endsWith(currentFilm.videoUrl)) {
+      const t = p.currentTime || 0;
+      const wasPlaying = !p.paused;
+      p.src = currentFilm.videoUrl;
+      p.onloadedmetadata = () => {
+        try { p.currentTime = t; } catch (e) {}
+        if (wasPlaying) p.play().catch(() => {});
+        updateYtQualityLabel();
+      };
+    }
+    updateYtQualityLabel();
+    showToast('🎞️ Quality set to ' + (mode === 'high' ? 'Higher Picture Quality (' + getNativeVideoResLabel() + ')' : 'Auto (' + getNativeVideoResLabel() + ')'));
+    return;
+  }
+
+  // User wants Data Saver (360p)
+  const switchToLow = (lowUrl) => {
+    ytCurrentStreamQuality = 'saver';
+    const t = p.currentTime || 0;
+    const wasPlaying = !p.paused;
+    p.src = lowUrl;
+    p.onloadedmetadata = () => {
+      try { p.currentTime = t; } catch (e) {}
+      if (wasPlaying) p.play().catch(() => {});
+      updateYtQualityLabel();
+    };
+    updateYtQualityLabel();
+    showToast('📉 Data Saver (360p) active — saving mobile data!');
+  };
+
+  if (currentFilm.videoUrlLow) {
+    switchToLow(currentFilm.videoUrlLow);
+    return;
+  }
+
+  showToast('📉 Preparing 360p Data Saver stream…');
+  try {
+    const res = await fetch('/api/films/' + encodeURIComponent(currentFilm.id) + '/data-saver', { method: 'POST' });
+    const d = await res.json();
+    if (d && d.videoUrlLow) {
+      currentFilm.videoUrlLow = d.videoUrlLow;
+      switchToLow(d.videoUrlLow);
+    } else {
+      ytCurrentStreamQuality = 'original';
+      p.preload = 'metadata';
+      updateYtQualityLabel();
+      showToast('📉 Data Saver buffer active (original stream)');
+    }
+  } catch (e) {
+    ytCurrentStreamQuality = 'original';
+    updateYtQualityLabel();
+  }
+}
+
+function toggleYtScreenLock(ev){
+  if (ev) ev.stopPropagation();
+  try { closeYtSettingsPopover(); } catch (e) {}
+  ytScreenLocked = !ytScreenLocked;
+  const ov = document.getElementById('ytScreenLockOverlay');
+  const hud = document.getElementById('ytCustomHud');
+  if (ov) ov.classList.toggle('hidden', !ytScreenLocked);
+  if (hud) hud.style.opacity = ytScreenLocked ? '0' : '';
+  if (ytScreenLocked) {
+    flashYtUnlockBtn();
+    showToast('🔒 Screen locked');
+  } else {
+    showToast('🔓 Screen unlocked');
+  }
+}
+
+function flashYtUnlockBtn(){
+  const btn = document.getElementById('ytUnlockBtn');
+  if (!btn) return;
+  btn.style.opacity = '1';
+  clearTimeout(ytUnlockHideTimer);
+  ytUnlockHideTimer = setTimeout(() => { if (ytScreenLocked && btn) btn.style.opacity = '0.28'; }, 2600);
 }
 </script>
 </body>
