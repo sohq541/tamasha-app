@@ -2081,6 +2081,7 @@ app.get('/api/hashtags/:tag', async (req, res) => {
       id: f.id, title: f.title, type: f.type, ownerId: f.ownerId,
       posterUrl: f.posterFile ? await directUrl(f.posterFile, f.storageProvider) : null,
       videoUrl: f.type !== 'photo' && f.videoFile ? await directUrl(f.videoFile, f.storageProvider) : null,
+      videoUrlLow: f.type !== 'photo' && f.lowVideoFile ? await directUrl(f.lowVideoFile, f.storageProvider) : null,
       isCarousel: Array.isArray(f.slides) && f.slides.length > 1,
       views: f.views || 0, likes: f.likes || 0
     })));
@@ -2126,6 +2127,64 @@ app.get('/api/films/:id', async (req, res) => {
       isFollowing: !!(me && me.following && me.following.includes(f.ownerId))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- YouTube-Style Real Data Saver (360p) On-Demand Transcoder (Render 512MB RAM Safe) ----
+let dataSaverBusy = false;
+app.post('/api/films/:id/data-saver', async (req, res) => {
+  try {
+    const films = await readFilms();
+    const f = films.find(x => x.id === req.params.id);
+    if (!f || !f.videoFile || f.type === 'photo') return res.status(404).json({ error: 'Video not found' });
+    const directUrl = makeDirectUrlCache();
+    if (f.lowVideoFile) {
+      return res.json({ videoUrlLow: await directUrl(f.lowVideoFile, f.storageProvider), ready: true });
+    }
+    if (dataSaverBusy) {
+      return res.json({ videoUrlLow: null, busy: true, message: 'Another video is optimizing right now, using original stream.' });
+    }
+    dataSaverBusy = true;
+    const tmpBase = path.join(os.tmpdir(), 'ds-' + String(f.id).replace(/[^A-Za-z0-9]/g, '') + '-' + Date.now());
+    const inPath = tmpBase + (path.extname(String(f.videoFile)) || '.mp4');
+    const outPath = tmpBase + '-360p.mp4';
+    try {
+      const buf = await gdGetByKey(f.videoFile);
+      if (!buf || buf.length > 60 * 1024 * 1024) {
+        return res.json({ videoUrlLow: null, reason: 'file_too_large_for_free_ram' });
+      }
+      fs.writeFileSync(inPath, buf);
+      await runFfmpegBin([
+        '-y', '-i', inPath,
+        '-threads', '1',
+        '-vf', 'scale=-2:min(360\,ih)',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30',
+        '-c:a', 'aac', '-b:a', '64k',
+        '-movflags', '+faststart',
+        outPath
+      ]);
+      if (!fs.existsSync(outPath)) return res.json({ videoUrlLow: null, reason: 'encode_failed' });
+      const outBuf = fs.readFileSync(outPath);
+      if (outBuf.length >= buf.length * 0.92) {
+        return res.json({ videoUrlLow: null, reason: 'already_compact' });
+      }
+      const lowKey = `videos/low-${f.id}.mp4`;
+      await storePutBuffer(outBuf, lowKey, 'video/mp4');
+      const freshFilms = await readFilms();
+      const tf = freshFilms.find(x => x.id === f.id);
+      if (tf) {
+        tf.lowVideoFile = lowKey;
+        await writeFilms(freshFilms);
+      }
+      return res.json({ videoUrlLow: await directUrl(lowKey, 'r2'), ready: true, savedPct: Math.round((1 - outBuf.length / buf.length) * 100) });
+    } finally {
+      dataSaverBusy = false;
+      try { if (fs.existsSync(inPath)) fs.unlinkSync(inPath); } catch (e) {}
+      try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch (e) {}
+    }
+  } catch (err) {
+    dataSaverBusy = false;
+    res.json({ videoUrlLow: null, error: err.message });
+  }
 });
 
 app.get('/media/video/:id', async (req, res) => {
