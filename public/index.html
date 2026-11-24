@@ -734,6 +734,14 @@
   border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(6px);white-space:nowrap;
 }
 #ytZoomIndicatorPill.show{opacity:1;}
+.yt-buffer-spinner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;border:3.5px solid rgba(255,255,255,0.22);border-top-color:#ff4b6e;animation:ytSpin 0.75s linear infinite;z-index:18;pointer-events:none;display:none;}
+.yt-buffer-spinner.show{display:block;}
+@keyframes ytSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+.yt-slow-net-pill{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:rgba(15,12,28,0.9);color:#ffd166;border:1px solid rgba(255,209,102,0.45);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;z-index:22;cursor:pointer;display:none;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,0.45);}
+.yt-slow-net-pill.show{display:inline-flex;align-items:center;gap:6px;}
+.explore-tile{background:linear-gradient(145deg,#18142c,#0d0b18);}
+.explore-tile-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:rgba(255,255,255,0.35);pointer-events:none;z-index:0;}
+.explore-tile img,.explore-tile video{position:relative;z-index:1;}
 .yt-zoom-pill-btn{
   background:rgba(0,0,0,0.58);color:#fff;border:1px solid rgba(255,255,255,0.22);
   border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:700;cursor:pointer;
@@ -1982,6 +1990,239 @@ body.yt-in-landscape-app{overflow:hidden !important;}
   border-radius: 999px;
   cursor: pointer;
 }
+
+/* ===================== GLOBAL UI POLISH UPGRADE ===================== */
+header{
+  background:rgba(10,10,16,0.82) !important;
+  backdrop-filter:blur(18px) saturate(160%);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  border-bottom:1px solid rgba(255,255,255,0.07) !important;
+}
+html[data-theme="light"] header{
+  background:rgba(255,255,255,0.88) !important;
+  border-bottom:1px solid rgba(0,0,0,0.07) !important;
+}
+.tabs{
+  background:rgba(10,10,16,0.86) !important;
+  backdrop-filter:blur(20px) saturate(170%);
+  -webkit-backdrop-filter:blur(20px) saturate(170%);
+  border-top:1px solid rgba(255,255,255,0.08) !important;
+  box-shadow:0 -6px 24px rgba(0,0,0,0.28);
+}
+html[data-theme="light"] .tabs{
+  background:rgba(255,255,255,0.92) !important;
+  border-top:1px solid rgba(0,0,0,0.08) !important;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.06);
+}
+.tabs .tab-btn, .tabs button{
+  transition:transform 0.16s cubic-bezier(.22,1,.36,1), color 0.16s ease, opacity 0.16s ease;
+  position:relative;
+}
+.tabs .tab-btn:active, .tabs button:active{transform:scale(0.88);}
+.tabs .tab-btn.active::after, .tabs button.active::after{
+  content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);
+  width:18px;height:3px;border-radius:999px;
+  background:linear-gradient(90deg,#7C5CFF,#FF4B6E);
+}
+
+/* Home Feed Polish */
+.card{
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding-bottom:10px;
+}
+html[data-theme="light"] .card{border-bottom:1px solid rgba(0,0,0,0.07);}
+.feed-act-btn{
+  transition:transform 0.15s cubic-bezier(.22,1,.36,1), opacity 0.15s ease;
+}
+.feed-act-btn:active{transform:scale(0.88);}
+.carousel-auto-btn{
+  background:rgba(12,12,20,0.68) !important;
+  color:rgba(255,255,255,0.92) !important;
+  border:1px solid rgba(255,255,255,0.18) !important;
+  padding:4px 10px !important;
+  font-size:11px !important;
+  font-weight:700 !important;
+  letter-spacing:0.2px;
+  backdrop-filter:blur(10px) !important;
+  -webkit-backdrop-filter:blur(10px) !important;
+  box-shadow:0 2px 10px rgba(0,0,0,0.32);
+}
+.carousel-auto-btn.on{
+  border-color:rgba(124,92,255,0.65) !important;
+  color:#e2d9ff !important;
+}
+
+/* Full Video Page Polish */
+.yt-title{font-size:18px !important;font-weight:800 !important;letter-spacing:-0.2px;line-height:1.28 !important;}
+.yt-subline{font-size:12.5px !important;opacity:0.78;margin-top:4px !important;}
+.yt-desc-box{
+  background:rgba(255,255,255,0.05) !important;
+  border:1px solid rgba(255,255,255,0.09) !important;
+  border-radius:14px !important;
+  padding:12px 14px !important;
+  margin:10px 0 14px !important;
+  font-size:13px !important;
+  line-height:1.55 !important;
+}
+html[data-theme="light"] .yt-desc-box{
+  background:#f4f4f8 !important;
+  border-color:rgba(0,0,0,0.08) !important;
+}
+.yt-actions-scroll{gap:8px !important;padding:4px 0 10px !important;}
+.yt-actions-scroll .action-btn{
+  border-radius:999px !important;
+  padding:8px 15px !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+  background:rgba(255,255,255,0.08) !important;
+  border:1px solid rgba(255,255,255,0.11) !important;
+  transition:transform 0.14s ease, background 0.14s ease;
+}
+.yt-actions-scroll .action-btn:active{transform:scale(0.94);}
+html[data-theme="light"] .yt-actions-scroll .action-btn{
+  background:#f1f1f5 !important;
+  border-color:rgba(0,0,0,0.08) !important;
+}
+.yt-cmt-card{
+  background:rgba(255,255,255,0.06) !important;
+  border:1px solid rgba(255,255,255,0.09) !important;
+  border-radius:14px !important;
+  padding:12px 14px !important;
+  margin:10px 0 16px !important;
+  transition:background 0.15s ease;
+}
+.yt-cmt-card:active{background:rgba(255,255,255,0.1) !important;}
+html[data-theme="light"] .yt-cmt-card{
+  background:#f3f3f7 !important;
+  border-color:rgba(0,0,0,0.07) !important;
+}
+
+/* Sleek Autoplay Pill Switch */
+.ys-switch-label{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--cream-dim);cursor:pointer;user-select:none;}
+.ys-switch-input{position:absolute;opacity:0;width:0;height:0;}
+.ys-switch-track{
+  width:38px;height:22px;border-radius:999px;
+  background:rgba(255,255,255,0.18);position:relative;
+  transition:background 0.2s ease;display:inline-block;
+}
+html[data-theme="light"] .ys-switch-track{background:rgba(0,0,0,0.18);}
+.ys-switch-track::after{
+  content:'';position:absolute;top:2.5px;left:2.5px;
+  width:17px;height:17px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,0.35);
+  transition:transform 0.2s cubic-bezier(.22,1,.36,1);
+}
+.ys-switch-input:checked + .ys-switch-track{background:linear-gradient(135deg,#7C5CFF,#FF4B6E);}
+.ys-switch-input:checked + .ys-switch-track::after{transform:translateX(16px);}
+
+/* Shorts / Reels Polish */
+.short-item::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:42%;
+  background:linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 52%, transparent 100%);
+  pointer-events:none;z-index:1;
+}
+.short-actions, .short-info, .short-bottom{z-index:3 !important;}
+.short-actions button, .short-act-btn{
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55));
+  transition:transform 0.15s cubic-bezier(.22,1,.36,1);
+}
+.short-actions button:active, .short-act-btn:active{transform:scale(0.86);}
+
+/* Explore / Search Grid Polish */
+.explore-masonry-grid{
+  gap:4px !important;
+  padding:0 4px !important;
+}
+.explore-tile{
+  border-radius:10px !important;
+  transition:transform 0.16s ease;
+}
+.explore-tile:active{transform:scale(0.97);}
+.explore-tile-badge{
+  background:rgba(12,12,22,0.62) !important;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.14);
+  border-radius:8px !important;
+  padding:2px 7px !important;
+  font-size:10.5px !important;
+}
+.explore-tile-stats{
+  padding:20px 8px 6px !important;
+  background:linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.28) 65%, transparent 100%) !important;
+  font-size:10.5px !important;
+  letter-spacing:0.1px;
+}
+
+/* DM Inbox & Ask AI Chat Polish */
+.chat-inbox-row{
+  padding:11px 12px !important;
+  border-radius:14px !important;
+  margin:2px 4px;
+  transition:background 0.15s ease, transform 0.14s ease;
+}
+.chat-inbox-row:active{
+  background:rgba(255,255,255,0.08) !important;
+  transform:scale(0.99);
+}
+html[data-theme="light"] .chat-inbox-row:active{background:rgba(0,0,0,0.05) !important;}
+.chat-bubble.theirs{
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:18px 18px 18px 6px !important;
+}
+.chat-bubble.mine{
+  border-radius:18px 18px 6px 18px !important;
+  box-shadow:0 3px 12px rgba(124,92,255,0.22);
+}
+html[data-theme="light"] .chat-bubble.theirs{
+  border-color:rgba(0,0,0,0.07);
+}
+.ai-action-row button, .ai-followup-chip{
+  border-radius:999px !important;
+  transition:transform 0.14s ease, background 0.14s ease;
+}
+.ai-action-row button:active, .ai-followup-chip:active{transform:scale(0.93);}
+.chat-input-bar{
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border-top:1px solid rgba(255,255,255,0.08) !important;
+}
+html[data-theme="light"] .chat-input-bar{border-top:1px solid rgba(0,0,0,0.08) !important;}
+
+/* Profile Page Polish */
+.profile-btn{
+  border-radius:12px !important;
+  font-weight:700 !important;
+  transition:transform 0.14s ease, filter 0.14s ease;
+}
+.profile-btn:active{transform:scale(0.96);}
+.profile-tabs-row{
+  background:rgba(255,255,255,0.04);
+  padding:4px !important;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,0.07);
+  gap:4px !important;
+}
+html[data-theme="light"] .profile-tabs-row{
+  background:#f2f2f6;
+  border-color:rgba(0,0,0,0.06);
+}
+.profile-tabs-row button{
+  border-radius:10px !important;
+  transition:background 0.16s ease, color 0.16s ease, transform 0.14s ease;
+}
+.profile-tabs-row button:active{transform:scale(0.95);}
+
+/* Bottom Sheets & Modals Polish */
+.sheet{
+  border-radius:22px 22px 0 0 !important;
+  border-top:1px solid rgba(255,255,255,0.12) !important;
+  box-shadow:0 -12px 36px rgba(0,0,0,0.45);
+}
+html[data-theme="light"] .sheet{
+  border-top:1px solid rgba(0,0,0,0.08) !important;
+  box-shadow:0 -8px 28px rgba(0,0,0,0.12);
+}
 </style>
 <script type="application/ld+json">
 {
@@ -2177,6 +2418,8 @@ body.yt-in-landscape-app{overflow:hidden !important;}
         <!-- Optional CC Subtitles / Caption Banner & Zoom Indicator -->
         <div id="ytCcBanner" class="hidden"></div>
         <div id="ytZoomIndicatorPill">Original video size</div>
+        <div id="ytBufferSpinner" class="yt-buffer-spinner"></div>
+        <button type="button" id="ytSlowNetPill" class="yt-slow-net-pill" onclick="event.stopPropagation();applyYtQualityMode('saver')">⚡ Slow network? Switch to 360p</button>
 
         <!-- P2P Floating Mini-Player Top Bar -->
         <div id="p2pMiniControls">
@@ -5826,14 +6069,44 @@ async function openInsights(filmId){
 }
 function closeInsights(){ document.getElementById('insightsOverlay').classList.remove('open'); }
 
+function attachShortBufferSpinner(video){
+  if (!video || video.dataset.bufBound) return;
+  video.dataset.bufBound = '1';
+  const item = video.closest('.short-item');
+  if (!item) return;
+  let sp = item.querySelector('.yt-buffer-spinner');
+  if (!sp) {
+    sp = document.createElement('div');
+    sp.className = 'yt-buffer-spinner';
+    item.appendChild(sp);
+  }
+  const showSp = () => sp.classList.add('show');
+  const hideSp = () => sp.classList.remove('show');
+  video.addEventListener('waiting', showSp);
+  video.addEventListener('loadstart', () => { if (!video.readyState) showSp(); });
+  video.addEventListener('playing', hideSp);
+  video.addEventListener('canplay', hideSp);
+  video.addEventListener('pause', hideSp);
+  video.addEventListener('stalled', () => {
+    if (!video.paused && video.readyState < 3 && !video.dataset.retried) {
+      video.dataset.retried = '1';
+      const t = video.currentTime || 0;
+      const s = video.src;
+      if (s) { video.src = s; video.currentTime = t; video.play().catch(() => {}); }
+    }
+  });
+}
+
 function setupShortsObserver(){
   if (shortsObserver) shortsObserver.disconnect();
-  const videos = document.querySelectorAll('.short-item video');
+  const videos = Array.from(document.querySelectorAll('.short-item video'));
+  videos.forEach(attachShortBufferSpinner);
   shortsObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       const video = entry.target;
       const id = video.dataset.id;
       if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        video.preload = 'auto';
         if (!video.src && video.dataset.src) video.src = video.dataset.src;
         video.play().catch(() => {
           video.muted = true;
@@ -5845,15 +6118,24 @@ function setupShortsObserver(){
         if (sf && sf.song) playSong(sf.song, video); else stopSong();
         if (markViewed(id)) fetch('/api/films/' + id + '/view', { method: 'POST' }).catch(() => {});
         watchTimeStart(id);
-        // Preload the next Short in the background so swiping down has 0ms lag
-        const nextItem = video.closest('.short-item') && video.closest('.short-item').nextElementSibling;
-        const nextVid = nextItem && nextItem.querySelector ? nextItem.querySelector('video') : null;
-        if (nextVid && !nextVid.src && nextVid.dataset.src) {
-          nextVid.preload = 'metadata';
-          nextVid.src = nextVid.dataset.src;
+        // Preload next 2 Shorts with full buffer & release distant Shorts (>3 away) to free mobile RAM
+        const idx = videos.indexOf(video);
+        for (let offset = 1; offset <= 2; offset++) {
+          const nv = videos[idx + offset];
+          if (nv && nv.dataset.src) {
+            nv.preload = offset === 1 ? 'auto' : 'metadata';
+            if (!nv.src) nv.src = nv.dataset.src;
+          }
         }
+        videos.forEach((v, i) => {
+          if (Math.abs(i - idx) > 3 && v.src) {
+            try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
+          }
+        });
       } else {
         video.pause();
+        const sp = video.closest('.short-item') && video.closest('.short-item').querySelector('.yt-buffer-spinner');
+        if (sp) sp.classList.remove('show');
         watchTimeFlush(id);
       }
     });
@@ -6338,7 +6620,7 @@ function renderUpNext(cur){
   const reelsHtml = reels.length ? '<h3 class="up-h" style="margin:10px 0 10px;">⚡ Suggested Shorts</h3><div class="up-reels" style="margin-bottom:18px;">' +
     reels.map(r => `<div class="up-reel" onclick="closeModal();openShortAt('${r.id}')">${r.posterUrl ? `<img src="${r.posterUrl}" alt="" loading="lazy">` : (r.videoUrl ? `<video src="${escapeAttr(r.videoUrl)}" muted playsinline preload="metadata" style="width:118px;height:196px;object-fit:cover;border-radius:12px;background:#111;display:block;"></video>` : '<div class="up-ph">▶</div>')}<div class="up-reel-t">${escapeHtml(r.title)}</div></div>`).join('') + '</div>' : '';
 
-  const hdrHtml = films.length ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;"><span style="font-size:14px;font-weight:700;color:var(--cream);">Up next</span><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cream-dim);cursor:pointer;"><input type="checkbox" ${autoOn ? 'checked' : ''} onchange="localStorage.setItem('autoplayUpNext',this.checked?'1':'0')"> Autoplay</label></div>` : '';
+  const hdrHtml = films.length ? `<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 12px;"><span style="font-size:15px;font-weight:800;letter-spacing:0.2px;color:var(--cream);">Up next</span><label class="ys-switch-label"><span>Autoplay</span><input type="checkbox" class="ys-switch-input" ${autoOn ? 'checked' : ''} onchange="localStorage.setItem('autoplayUpNext',this.checked?'1':'0');if(typeof syncYtAutoplayUi==='function')syncYtAutoplayUi();"><span class="ys-switch-track"></span></label></div>` : '';
   box.innerHTML = hdrHtml + filmsHtml + reelsHtml;
 }
 
@@ -6350,6 +6632,23 @@ async function playFilm(id){
     }
   });
   if (currentFilm) watchTimeFlush(currentFilm.id);
+  const cachedFilm = (allFilms || []).find(x => x.id === id);
+  const playerElInit = document.getElementById('player');
+  const slowPill = document.getElementById('ytSlowNetPill');
+  if (slowPill) slowPill.classList.remove('show');
+  if (cachedFilm && cachedFilm.type === 'film' && cachedFilm.videoUrl && !(cachedFilm.slideUrls && cachedFilm.slideUrls.length > 1)) {
+    currentFilm = cachedFilm;
+    playerElInit.preload = 'auto';
+    if (playerElInit.src !== cachedFilm.videoUrl) {
+      playerElInit.src = cachedFilm.videoUrl;
+      playerElInit.playbackRate = 1;
+    }
+    document.getElementById('playerImg').style.display = 'none';
+    document.getElementById('playerCarousel').style.display = 'none';
+    playerElInit.style.display = 'block';
+    document.getElementById('overlay').classList.add('open');
+    playerElInit.play().catch(() => {});
+  }
   const res = await fetch('/api/films/' + id);
   const f = await res.json();
   if (!res.ok) { showToast(f.error || 'This content is no longer available'); return; }
@@ -6382,7 +6681,7 @@ async function playFilm(id){
       playerEl.style.display = 'none'; playerEl.src = ''; imgEl.style.display = 'block'; imgEl.src = f.posterUrl || '';
       if (fsBtn) fsBtn.style.display = 'none';
     } else {
-      imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.src = f.videoUrl; playerEl.playbackRate = 1;
+      imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.preload = 'auto'; if (playerEl.getAttribute('src') !== f.videoUrl && playerEl.src !== f.videoUrl) { playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
       if (fsBtn) fsBtn.style.display = 'block';
     }
   }
@@ -6394,6 +6693,26 @@ async function playFilm(id){
 
   if (!playerEl.dataset.watchListeners) {
     playerEl.dataset.watchListeners = '1';
+    let slowNetTimer = null;
+    const ytSpin = document.getElementById('ytBufferSpinner');
+    const ytSlow = document.getElementById('ytSlowNetPill');
+    playerEl.addEventListener('waiting', () => {
+      if (ytSpin) ytSpin.classList.add('show');
+      if (slowNetTimer) clearTimeout(slowNetTimer);
+      slowNetTimer = setTimeout(() => {
+        if (!playerEl.paused && playerEl.readyState < 3 && ytSlow && typeof ytQualityMode !== 'undefined' && ytQualityMode !== 'saver') {
+          ytSlow.classList.add('show');
+        }
+      }, 2600);
+    });
+    const clearBufUi = () => {
+      if (ytSpin) ytSpin.classList.remove('show');
+      if (ytSlow) ytSlow.classList.remove('show');
+      if (slowNetTimer) { clearTimeout(slowNetTimer); slowNetTimer = null; }
+    };
+    playerEl.addEventListener('playing', clearBufUi);
+    playerEl.addEventListener('canplay', clearBufUi);
+    playerEl.addEventListener('pause', () => { if (ytSpin) ytSpin.classList.remove('show'); });
     playerEl.addEventListener('play', () => { if (currentFilm) watchTimeStart(currentFilm.id); });
     playerEl.addEventListener('pause', () => { if (currentFilm) { watchTimeStop(currentFilm.id); saveVideoResume(currentFilm.id, playerEl.currentTime, playerEl.duration); } });
     playerEl.addEventListener('timeupdate', () => {
@@ -10580,15 +10899,29 @@ function setInboxFilter(f, btn){
 async function loadChatInbox(){
   loadNotesStrip();
   const el = document.getElementById('chatInboxList');
-  el.innerHTML = '<p class="comment-empty">Loading...</p>';
+  let hadCache = false;
+  try {
+    const raw = localStorage.getItem('ys_inbox_cache_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) {
+        allInboxConversations = parsed;
+        hadCache = true;
+        if (currentInboxFilter === 'discover') renderDiscoverChannels();
+        else renderFilteredInbox();
+      }
+    }
+  } catch (e) {}
+  if (!hadCache) el.innerHTML = '<p class="comment-empty">Loading...</p>';
   try {
     const res = await fetch('/api/conversations');
     const data = await res.json();
     allInboxConversations = data.conversations || [];
+    try { localStorage.setItem('ys_inbox_cache_v1', JSON.stringify(allInboxConversations.slice(0, 40))); } catch (e) {}
     if (currentInboxFilter === 'discover') renderDiscoverChannels();
     else renderFilteredInbox();
   } catch (e) {
-    el.innerHTML = '<p class="comment-empty">Couldn\'t load messages.</p>';
+    if (!hadCache) el.innerHTML = '<p class="comment-empty">Couldn\'t load messages.</p>';
   }
 }
 
@@ -10791,7 +11124,17 @@ async function openConvoById(convoId){
   document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = '<div class="chat-header-avatar-fallback">💬</div>';
   document.getElementById('chatConvoOnlineDot').classList.remove('on');
   document.getElementById('chatConvoTypingText').classList.add('hidden');
-  document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
+  let hadConvoCache = false;
+  try {
+    const cachedMsgs = JSON.parse(localStorage.getItem('ys_chat_cache_' + convoId) || 'null');
+    if (Array.isArray(cachedMsgs) && cachedMsgs.length) {
+      chatMessagesCache = cachedMsgs;
+      hadConvoCache = true;
+      renderChatMessages();
+      scrollChatToBottom();
+    }
+  } catch (e) {}
+  if (!hadConvoCache) document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
   document.getElementById('chatConvoOverlay').classList.add('open');
 
   try {
@@ -10836,6 +11179,7 @@ async function openConvoById(convoId){
     const msgRes = await fetch('/api/conversations/' + convoId + '/messages');
     const msgData = await msgRes.json();
     chatMessagesCache = msgData.messages || [];
+    try { localStorage.setItem('ys_chat_cache_' + convoId, JSON.stringify(chatMessagesCache.slice(-40))); } catch (e) {}
     chatLastFetchAt = new Date().toISOString();
     renderChatMessages();
     scrollChatToBottom();
@@ -11508,7 +11852,22 @@ async function openChatConvo(userId, usernameHint){
   document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(null, usernameHint, 'chat-header-avatar', 'chat-header-avatar-fallback');
   document.getElementById('chatConvoOnlineDot').classList.remove('on');
   document.getElementById('chatConvoTypingText').classList.add('hidden');
-  document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
+  const cachedInboxItem = (allInboxConversations || []).find(c => c.otherUser && c.otherUser.id === userId);
+  let hadUserChatCache = false;
+  if (cachedInboxItem) {
+    try {
+      const cachedMsgs = JSON.parse(localStorage.getItem('ys_chat_cache_' + cachedInboxItem.id) || 'null');
+      if (Array.isArray(cachedMsgs) && cachedMsgs.length) {
+        chatConvoId = cachedInboxItem.id;
+        chatOtherUser = cachedInboxItem.otherUser;
+        chatMessagesCache = cachedMsgs;
+        hadUserChatCache = true;
+        renderChatMessages();
+        scrollChatToBottom();
+      }
+    } catch (e) {}
+  }
+  if (!hadUserChatCache) document.getElementById('chatMessagesArea').innerHTML = '<p class="comment-empty">Loading...</p>';
   document.getElementById('chatConvoOverlay').classList.add('open');
 
   try {
@@ -11530,6 +11889,7 @@ async function openChatConvo(userId, usernameHint){
     }
     document.getElementById('chatConvoHeaderAvatarWrap').innerHTML = avatarOrFallback(data.otherUser.profileImage, data.otherUser.username, 'chat-header-avatar', 'chat-header-avatar-fallback');
     chatMessagesCache = data.messages || [];
+    try { localStorage.setItem('ys_chat_cache_' + data.id, JSON.stringify(chatMessagesCache.slice(-40))); } catch (e) {}
     chatLastFetchAt = new Date().toISOString();
     renderChatMessages();
     scrollChatToBottom();
@@ -15418,8 +15778,8 @@ function renderExploreGrid(){
     const mediaHtml = f.posterUrl
       ? `<img src="${escapeAttr(f.posterUrl)}" alt="${escapeAttr(f.title || '')}" loading="lazy" decoding="async">`
       : (f.videoUrl
-          ? `<video src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="metadata"></video>`
-          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px;">${badge}</div>`);
+          ? `<div class="explore-tile-ph">${badge}</div><video data-thumb-src="${escapeAttr(f.videoUrl)}#t=0.5" muted playsinline preload="none"></video>`
+          : `<div class="explore-tile-ph">${badge}</div>`);
     return `<div class="explore-tile ${isTall ? 'tall' : ''}" onclick="${clickAction}">
       ${mediaHtml}
       <span class="explore-tile-badge">${badge}</span>
@@ -15429,6 +15789,31 @@ function renderExploreGrid(){
       </div>
     </div>`;
   }).join('');
+  observeLazyVideoThumbs(grid);
+}
+
+let lazyThumbObserver = null;
+function observeLazyVideoThumbs(rootEl){
+  const vids = (rootEl || document).querySelectorAll('video[data-thumb-src]');
+  if (!vids.length) return;
+  if (!('IntersectionObserver' in window)) {
+    vids.forEach(v => { v.preload = 'metadata'; v.src = v.dataset.thumbSrc; v.removeAttribute('data-thumb-src'); });
+    return;
+  }
+  if (lazyThumbObserver) lazyThumbObserver.disconnect();
+  lazyThumbObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const v = entry.target;
+      if (v.dataset.thumbSrc) {
+        v.preload = 'metadata';
+        v.src = v.dataset.thumbSrc;
+        v.removeAttribute('data-thumb-src');
+      }
+      obs.unobserve(v);
+    });
+  }, { rootMargin: '180px 0px' });
+  vids.forEach(v => lazyThumbObserver.observe(v));
 }
 
 // ===================== ASK AI SPEED & FEATURE HELPERS =====================
