@@ -103,6 +103,19 @@ input.search,textarea.t,select.adm-select{background:var(--field);color:var(--cr
   .main{padding:14px 12px 70px !important;}
   #logoutBtn{display:inline-flex !important;}
 }
+
+/* Mobile & Polish Fixes */
+.tabs{scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.tabs::-webkit-scrollbar{display:none;}
+.btn,.tab{transition:transform .14s ease, opacity .14s ease, background .14s ease;}
+.btn:active,.tab:active{transform:scale(0.95);}
+.card{overflow-x:auto;}
+@media (max-width:600px){
+  .top h1{font-size:20px;}
+  .grid .stat{padding:14px;}
+  .grid .stat b{font-size:24px;}
+  .row1{gap:6px;}
+}
 </style>
 </head>
 <body>
@@ -156,6 +169,24 @@ input.search,textarea.t,select.adm-select{background:var(--field);color:var(--cr
 </div>
 
 <script>
+(function(){
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = async function(input, init){
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.startsWith('/api/admin/')) {
+      init = Object.assign({}, init || {});
+      const h = new Headers(init.headers || {});
+      if (!h.has('x-no-prompt')) h.set('x-no-prompt', '1');
+      init.headers = h;
+    }
+    const res = await _origFetch(input, init);
+    if (res.status === 401 && url.startsWith('/api/admin/') && !url.startsWith('/api/admin/login')) {
+      if (typeof showLogin === 'function') showLogin('Session expired. Please sign in again.');
+    }
+    return res;
+  };
+})();
+
 let D = null, R = [], H = [], tab = 'overview', q = '';
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme', t);

@@ -986,10 +986,13 @@ body.yt-in-landscape-app{overflow:hidden !important;}
 
 /* Settings Popover inside Player */
 #ytSettingsPopover{
-  position:absolute;top:46px;right:14px;z-index:30;width:250px;
-  background:rgba(24,24,24,0.96);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.14);
-  border-radius:14px;padding:8px 0;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,0.65);
+  position:absolute;top:48px;right:14px;z-index:70;width:256px;
+  max-height:calc(100% - 62px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:rgba(20,20,28,0.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,0.16);
+  border-radius:14px;padding:6px 0;color:#fff;box-shadow:0 14px 36px rgba(0,0,0,0.75);
 }
+#ytZoomToggleBtn,#playerFsBtn{display:none !important;}
 .yt-set-item{
   display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
   font-size:13px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);
@@ -6682,7 +6685,7 @@ async function playFilm(id){
       if (fsBtn) fsBtn.style.display = 'none';
     } else {
       imgEl.style.display = 'none'; imgEl.src = ''; playerEl.style.display = 'block'; playerEl.preload = 'auto'; if (playerEl.getAttribute('src') !== f.videoUrl && playerEl.src !== f.videoUrl) { playerEl.src = f.videoUrl; playerEl.playbackRate = 1; }
-      if (fsBtn) fsBtn.style.display = 'block';
+      if (fsBtn) fsBtn.style.display = 'none';
     }
   }
   const isVid = f.type !== 'photo' && !(f.slideUrls && f.slideUrls.length > 1);
@@ -7937,9 +7940,18 @@ function toggleYtCcCaptions(ev){
 function toggleYtSettingsPopover(ev){
   if (ev) ev.stopPropagation();
   const pop = document.getElementById('ytSettingsPopover');
+  const hud = document.getElementById('ytCustomHud');
   if (!pop) return;
   updateYtSettingsLabels();
+  const willOpen = pop.classList.contains('hidden');
   pop.classList.toggle('hidden');
+  if (willOpen) {
+    if (hud) hud.classList.remove('hud-hidden');
+    if (typeof ytHudTimer !== 'undefined' && ytHudTimer) { clearTimeout(ytHudTimer); ytHudTimer = null; }
+    pop.scrollTop = 0;
+  } else if (typeof showYtHudTemporarily === 'function') {
+    showYtHudTemporarily();
+  }
 }
 
 function closeYtSettingsPopover(){
@@ -12606,8 +12618,17 @@ async function openSendTo(shortId){
   bumpOverlayZ('sendToOverlay');
   document.getElementById('sendToOverlay').classList.add('open');
   const listEl = document.getElementById('sendToList');
-  listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
   if (!currentUser) { listEl.innerHTML = '<p class="comment-empty">Login required.</p>'; return; }
+  let hadSendCache = false;
+  try {
+    const cachedPeople = JSON.parse(localStorage.getItem('ys_sendto_cache_v1') || 'null');
+    if (Array.isArray(cachedPeople) && cachedPeople.length) {
+      sendToPeople = cachedPeople;
+      hadSendCache = true;
+      renderSendToGrid(sendToPeople);
+    }
+  } catch (e) {}
+  if (!hadSendCache) listEl.innerHTML = '<p class="comment-empty">Loading...</p>';
   try {
     const [convRes, followRes, followersRes] = await Promise.all([
       fetch('/api/conversations'),
@@ -12646,6 +12667,7 @@ async function openSendTo(shortId){
       listEl.innerHTML = '<div class="chat-empty">Follow someone or create a group/channel first so you can share posts.</div>';
       return;
     }
+    try { localStorage.setItem('ys_sendto_cache_v1', JSON.stringify(sendToPeople.slice(0, 50))); } catch (e) {}
     renderSendToGrid(sendToPeople);
   } catch (e) {
     listEl.innerHTML = '<p class="comment-empty">Couldn\'t load.</p>';
@@ -15945,9 +15967,12 @@ function openYtQualitySheet(ev, advancedMode){
 
   const nativeRes = getNativeVideoResLabel();
   const activeRes = ytCurrentStreamQuality === 'saver' ? '360p' : nativeRes;
+  const wrap = document.getElementById('playerMediaWrap');
+  const inLandscapeOrFs = !!(document.fullscreenElement || document.webkitFullscreenElement || (wrap && wrap.classList.contains('yt-landscape-mode')));
+  const host = (inLandscapeOrFs && wrap) ? wrap : (document.fullscreenElement || document.body);
   const ov = document.createElement('div');
   ov.id = 'ytQualitySheet';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1250;display:flex;align-items:flex-end;justify-content:center;';
+  ov.style.cssText = (host === wrap ? 'position:absolute;' : 'position:fixed;') + 'inset:0;background:rgba(0,0,0,0.74);z-index:1250;display:flex;align-items:flex-end;justify-content:center;padding:10px;box-sizing:border-box;';
   ov.onclick = e => { if (e.target === ov) closeYtQualitySheet(); };
 
   let bodyHtml = '';
@@ -16003,7 +16028,7 @@ function openYtQualitySheet(ev, advancedMode){
       ${bodyHtml}
     </div>
   `;
-  document.body.appendChild(ov);
+  host.appendChild(ov);
   try { history.pushState({ modal: 'ytQualitySheet' }, '', location.pathname + location.search); } catch (e) {}
 }
 
