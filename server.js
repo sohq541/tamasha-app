@@ -91,8 +91,8 @@ setInterval(() => {
 app.use('/api/', (req, res, next) => {
   const ip = (req.ip || req.socket.remoteAddress || 'unknown').replace(/^::ffff:/, '');
   const p = req.path || '';
-  const isAuthRoute = /^\/(login|signup|forgot-password)/.test(p);
-  const isChunkOrPing = p.startsWith('/upload/mp/') || p === '/me/heartbeat' || /\/typing$/.test(p);
+  const isAuthRoute = /^\/(login|signup|forgot-password|admin\/login)/.test(p);
+  const isChunkOrPing = p.startsWith('/upload/mp/') || p === '/me/heartbeat' || /\/typing$/.test(p) || (p.startsWith('/admin/') && !isAuthRoute);
   const isWrite = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
 
   let limit = 200;
@@ -4250,7 +4250,7 @@ async function callGroqChat(model, messages) {
       'Authorization': `Bearer ${GROQ_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ model, messages, max_tokens: 800 })
+    body: JSON.stringify({ model, messages, max_tokens: 1500 })
   });
   const data = await res.json();
   return { ok: res.ok, data };
