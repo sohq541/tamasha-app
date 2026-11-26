@@ -66,6 +66,67 @@ app.use((req, res, next) => {
   next();
 });
 
+// ===================== #10 IP BAN / SPAM BLOCKER & #9 ADMIN AUDIT LOG =====================
+let bannedIpsCache = { at: 0, list: [], set: new Set() };
+async function readBannedIps(force) {
+  if (!force && bannedIpsCache.at && Date.now() - bannedIpsCache.at < 60 * 1000) return bannedIpsCache.list;
+  const list = (await storeTryReadJSON('banned-ips.json').catch(() => [])) || [];
+  const clean = Array.isArray(list) ? list : [];
+  bannedIpsCache = { at: Date.now(), list: clean, set: new Set(clean.map(x => String(x && x.ip || '').trim()).filter(Boolean)) };
+  return clean;
+}
+async function writeBannedIps(list) {
+  const clean = Array.isArray(list) ? list.slice(-500) : [];
+  await storeWriteJSON('banned-ips.json', clean);
+  bannedIpsCache = { at: Date.now(), list: clean, set: new Set(clean.map(x => String(x && x.ip || '').trim()).filter(Boolean)) };
+}
+async function readAuditLog() {
+  const list = (await storeTryReadJSON('audit-log.json').catch(() => [])) || [];
+  return Array.isArray(list) ? list : [];
+}
+async function appendAuditLog(action, target, details, req) {
+  try {
+    const list = await readAuditLog();
+    list.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      action: String(action || 'admin_action').slice(0, 80),
+      target: String(target || '').slice(0, 120),
+      details: String(details || '').slice(0, 220),
+      ip: req ? getClientIp(req) : '',
+      createdAt: new Date().toISOString()
+    });
+    await storeWriteJSON('audit-log.json', list.slice(0, 500));
+  } catch (e) {}
+}
+
+// Block banned IPs on public /api/* (never blocks /api/admin/* so admin cannot lock themselves out)
+app.use('/api/', async (req, res, next) => {
+  try {
+    if (req.path && req.path.startsWith('/admin')) return next();
+    await readBannedIps(false);
+    const ip = getClientIp(req);
+    if (ip && bannedIpsCache.set.has(ip)) {
+      return res.status(403).json({ error: 'Access restricted: your IP address has been blocked by moderation.' });
+    }
+  } catch (e) {}
+  next();
+});
+
+// Auto-log every authenticated Admin POST/PUT/DELETE mutation into Audit Log (#9)
+app.use('/api/admin/', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.path !== '/login') {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        const bodySummary = req.body && typeof req.body === 'object'
+          ? Object.keys(req.body).filter(k => !/pass|token|secret/i.test(k)).slice(0, 5).map(k => `${k}=${String(req.body[k]).slice(0, 40)}`).join(', ')
+          : '';
+        appendAuditLog(`${req.method} /api/admin${req.path}`, req.params && req.params.id ? req.params.id : req.path, bodySummary, req);
+      }
+    });
+  }
+  next();
+});
+
 // ===================== TIERED API RATE LIMITER =====================
 const apiRateBuckets = new Map();
 function checkRateLimit(bucketKey, limit, windowMs) {
@@ -264,15 +325,33 @@ function deviceName(ua) {
   else if (/Safari\//.test(ua)) br = 'Safari';
   return `${os} · ${br}`;
 }
+function getClientIp(req) {
+  const xf = String((req && req.headers && req.headers['x-forwarded-for']) || '').split(',')[0].trim();
+  return (xf || (req && (req.ip || (req.socket && req.socket.remoteAddress))) || 'unknown').replace(/^::ffff:/, '');
+}
 async function startSession(req, user) {
   const sid = crypto.randomUUID();
   const users = await readUsers();
   const u = users.find(x => x.id === user.id);
+  const dev = deviceName(req.get('user-agent'));
+  const ip = getClientIp(req);
+  let isNewDevice = false;
   if (u) {
-    u.sessions = [...(u.sessions || []), { sid, device: deviceName(req.get('user-agent')), createdAt: new Date().toISOString() }].slice(-20);
+    const prevSessions = u.sessions || [];
+    isNewDevice = prevSessions.length > 0 && !prevSessions.some(s => s && s.device === dev);
+    u.lastIp = ip;
+    u.sessions = [...prevSessions, { sid, device: dev, ip, createdAt: new Date().toISOString() }].slice(-20);
     await writeUsers(users);
   }
   sessionIndex.set(sid, user.id);
+  if (isNewDevice && user && user.id) {
+    notify(user.id, {
+      type: 'security_alert',
+      fromUserId: 'system',
+      fromUsername: 'YouSeries Security',
+      message: `🔐 New login detected on ${dev} (IP: ${ip}). If this wasn't you, change your password in Settings.`
+    }).catch(() => {});
+  }
   return sid;
 }
 // keep(sid) === true means that session stays; everything else is logged out
@@ -621,10 +700,8 @@ app.get('/media/founder-avatar', async (req, res) => {
     const fu = users.find(u => (u.email || '').toLowerCase() === 'sohailp541@gmail.com')
       || users.find(u => (u.username || '').toLowerCase() === 'sohail_parvezofficial' || (u.username || '').toLowerCase().includes('sohail'));
     if (fu && fu.profileImage) {
-      if (fu.avatarStorageProvider === 'r2' && r2On()) {
-        const url = await r2SignedGetUrl(fu.profileImage);
-        if (url) return res.redirect(url);
-      }
+      const url = await storeUrl(fu.profileImage);
+      if (url) return res.redirect(302, url);
       return storeStream(fu.profileImage, req, res);
     }
     return res.sendFile(path.join(__dirname, 'public', 'icon-192.png'));
@@ -1285,7 +1362,7 @@ app.get('/api/me', async (req, res) => {
         const isFounder = (me.email || '').toLowerCase() === 'sohailp541@gmail.com';
         const extras = await getPlatformExtras();
         const isCotw = !!(extras.creatorOfWeek && extras.creatorOfWeek.userId === me.id);
-        u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null, bioLinks: Array.isArray(me.bioLinks) ? me.bioLinks : [], closeFriendsCount: Array.isArray(me.closeFriends) ? me.closeFriends.length : 0, isCreatorOfWeek: isCotw };
+        u = { ...u, verified: active, isAdmin: !!(me.isAdmin || isFounder), vipRing: me.vipRing || 'none', blueFree: !!me.blueFree, blueUntil: me.blueUntil || null, bioLinks: Array.isArray(me.bioLinks) ? me.bioLinks : [], closeFriendsCount: Array.isArray(me.closeFriends) ? me.closeFriends.length : 0, isCreatorOfWeek: isCotw, isPrivate: !!me.isPrivate, followRequestsCount: Array.isArray(me.followRequests) ? me.followRequests.length : 0 };
       }
     } catch (e) { /* keep the token data */ }
   }
@@ -1423,6 +1500,9 @@ app.get('/api/users/:id/public', async (req, res) => {
       pinnedFilmIds: Array.isArray(user.pinnedFilmIds) ? user.pinnedFilmIds : [],
       profileImage: user.profileImage ? await makeDirectUrlCache()(user.profileImage, user.avatarStorageProvider) : null,
       followersCount, followingCount, isFollowing,
+      isPrivate: !!user.isPrivate,
+      isRequested: !!(currentUser && Array.isArray(user.followRequests) && user.followRequests.includes(currentUser.id)),
+      canViewPosts: !user.isPrivate || (!!currentUser && currentUser.id === user.id) || isFollowing,
       showSensitiveContent: (user.showSensitiveContent !== false && !user.hideSensitiveContent),
       hideSensitiveContent: !(user.showSensitiveContent !== false && !user.hideSensitiveContent),
       online: isUserOnline(user),
@@ -1708,17 +1788,32 @@ app.post('/api/users/:id/follow', async (req, res) => {
     if (!me || !target) return res.status(404).json({ error: 'User not found' });
 
     if (!me.following) me.following = [];
+    if (!Array.isArray(target.followRequests)) target.followRequests = [];
     const idx = me.following.indexOf(target.id);
-    let nowFollowing;
+    let nowFollowing = false;
+    let requested = false;
     if (idx === -1) {
-      me.following.push(target.id); nowFollowing = true;
-      await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `@${me.username} started following you` });
+      if (target.isPrivate) {
+        const reqIdx = target.followRequests.indexOf(me.id);
+        if (reqIdx === -1) {
+          target.followRequests.push(me.id);
+          requested = true;
+          await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `🔒 @${me.username} requested to follow your private account` });
+        } else {
+          target.followRequests.splice(reqIdx, 1);
+          requested = false;
+        }
+      } else {
+        me.following.push(target.id); nowFollowing = true;
+        await notify(target.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `@${me.username} started following you` });
+      }
+    } else {
+      me.following.splice(idx, 1); nowFollowing = false;
     }
-    else { me.following.splice(idx, 1); nowFollowing = false; }
     await writeUsers(users);
 
     const followersCount = users.filter(u => u.following && u.following.includes(target.id)).length;
-    res.json({ following: nowFollowing, followersCount });
+    res.json({ following: nowFollowing, requested, followersCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6698,6 +6793,7 @@ app.get('/api/notes', async (req, res) => {
 
 // ---------------- Announcements ----------------
 async function readAnnouncements() { return (await storeTryReadJSON('announcements.json')) || []; }
+async function writeAnnouncements(list) { await storeWriteJSON('announcements.json', Array.isArray(list) ? list : []); }
 async function pushToAll(payload) {
   const subs = await storeTryReadJSON('push-subscriptions.json') || [];
   let changed = false;
@@ -7118,30 +7214,42 @@ app.post('/api/admin/broadcast-dm', requireAdmin, async (req, res) => {
       || users.find(u => (u.username || '').toLowerCase() === 'sohail_parvez')
       || { id: 'admin', username: 'YouSeries Official' };
     const recipients = users.filter(u => u.id !== sender.id && !u.suspended && (target === 'verified' ? !!u.verified : true));
-    const allMsgs = await readMessages();
+    const convos = await readConversations();
     const nowIso = new Date().toISOString();
     let sentCount = 0;
     for (const r of recipients) {
-      const cid = getConversationId(sender.id, r.id);
-      if (!Array.isArray(allMsgs[cid])) allMsgs[cid] = [];
-      allMsgs[cid].push({
+      const cid = conversationIdFor(sender.id, r.id);
+      let convo = convos.find(c => c.id === cid);
+      if (!convo) {
+        convo = { id: cid, participants: [sender.id, r.id], updatedAt: nowIso, lastMessage: null };
+        convos.push(convo);
+      }
+      const msgs = await readChatMessages(cid);
+      const newMsg = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        conversationId: cid,
         senderId: sender.id,
-        senderName: sender.username,
-        recipientId: r.id,
+        type: 'text',
         text: '📢 Official Broadcast: ' + message,
-        createdAt: nowIso,
-        read: false
-      });
+        mediaKey: null, mediaType: null, storageProvider: null, duration: null,
+        shortId: null, shortTitle: null, shortOwnerUsername: null,
+        createdAt: nowIso, editedAt: null,
+        deletedFor: [], unsent: false, readBy: [sender.id]
+      };
+      msgs.push(newMsg);
+      await writeChatMessages(cid, msgs);
+      convo.updatedAt = nowIso;
+      convo.lastMessage = { senderId: sender.id, preview: previewForMessage(newMsg), createdAt: nowIso };
       sentCount++;
       notify(r.id, {
         type: 'message',
         fromUserId: sender.id,
         fromUsername: sender.username,
+        conversationId: cid,
         message: `📢 Official message from @${sender.username}: "${message.slice(0, 60)}"`
       }).catch(() => {});
     }
-    await writeMessages(allMsgs);
+    await writeConversations(convos);
     res.json({ success: true, sentCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -7175,11 +7283,12 @@ app.post('/api/admin/featured-banner', requireAdmin, async (req, res) => {
 // ---- Feature #13: All Comments & Groups/Channels Monitor Tab ----
 app.get('/api/admin/comments-groups', requireAdmin, async (req, res) => {
   try {
-    const [films, groups, users] = await Promise.all([
+    const [films, allConvos, users] = await Promise.all([
       readFilms(),
-      readGroups().catch(() => []),
+      readConversations().catch(() => []),
       readUsers()
     ]);
+    const groups = (allConvos || []).filter(c => c && (c.type === 'group' || c.type === 'channel'));
     const allComments = [];
     films.forEach(f => {
       (f.comments || []).forEach(c => {
@@ -7208,8 +7317,8 @@ app.get('/api/admin/comments-groups', requireAdmin, async (req, res) => {
         isChannel: !!(g.isChannel || g.type === 'channel' || String(g.id || '').startsWith('ch_')),
         ownerId: g.ownerId || g.adminId,
         ownerUsername: (owner && owner.username) || g.ownerUsername || 'admin',
-        membersCount: Array.isArray(g.members) ? g.members.length : 0,
-        messagesCount: Array.isArray(g.messages) ? g.messages.length : 0,
+        membersCount: Array.isArray(g.participants) ? g.participants.length : (Array.isArray(g.members) ? g.members.length : 0),
+        messagesCount: Array.isArray(g.messages) ? g.messages.length : (g.lastMessage ? 1 : 0),
         createdAt: g.createdAt
       };
     });
@@ -7231,9 +7340,9 @@ app.post('/api/admin/comments/delete', requireAdmin, async (req, res) => {
 
 app.post('/api/admin/groups/:id/delete', requireAdmin, async (req, res) => {
   try {
-    const groups = await readGroups().catch(() => []);
-    const next = groups.filter(g => g.id !== req.params.id);
-    await writeGroups(next);
+    const convos = await readConversations().catch(() => []);
+    const next = convos.filter(c => c.id !== req.params.id);
+    await writeConversations(next);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -7287,7 +7396,7 @@ app.post('/api/admin/platform-settings', requireAdmin, async (req, res) => {
 app.post('/api/admin/storage/clean-orphans', requireAdmin, async (req, res) => {
   try {
     if (!r2Configured()) return res.status(400).json({ error: 'Cloudflare R2 is not configured' });
-    const [users, films, stories, highlights, songs, blueReqs, blueSet, helpdesk, messages] = await Promise.all([
+    const [users, films, stories, highlights, songs, blueReqs, blueSet, helpdesk, convos] = await Promise.all([
       readUsers().catch(() => []),
       readFilms().catch(() => []),
       readStories().catch(() => []),
@@ -7296,7 +7405,7 @@ app.post('/api/admin/storage/clean-orphans', requireAdmin, async (req, res) => {
       readBlueRequests().catch(() => []),
       readBlueSettings().catch(() => ({})),
       readHelpdesk().catch(() => []),
-      readMessages().catch(() => ({}))
+      readConversations().catch(() => [])
     ]);
     const activeKeys = new Set();
     const addK = k => { if (k && typeof k === 'string') activeKeys.add(k.replace(/^\/+/, '')); };
@@ -7312,9 +7421,13 @@ app.post('/api/admin/storage/clean-orphans', requireAdmin, async (req, res) => {
     blueReqs.forEach(r => addK(r && r.screenshotKey));
     if (blueSet && blueSet.qrKey) addK(blueSet.qrKey);
     helpdesk.forEach(t => addK(t && t.screenshotKey));
-    Object.values(messages || {}).forEach(arr => {
-      if (Array.isArray(arr)) arr.forEach(m => addK(m && m.mediaKey));
-    });
+    for (const c of (convos || [])) {
+      if (c && c.avatarKey) addK(c.avatarKey);
+      if (c && c.id) {
+        const cMsgs = await readChatMessages(c.id).catch(() => []);
+        cMsgs.forEach(m => addK(m && m.mediaKey));
+      }
+    }
 
     let token, deletedCount = 0, freedBytes = 0;
     const now = Date.now();
@@ -7363,6 +7476,113 @@ app.post('/api/admin/users/:id/gift-bluetick', requireAdmin, async (req, res) =>
       message: `🎁 Congratulations @${u.username}! You have been gifted an official Verified Blue Tick (✔) for ${durLabel}!`
     }).catch(() => {});
     res.json({ success: true, verified: true, duration: durLabel });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #3: Private Account Mode & Follow Requests ----
+app.post('/api/me/privacy', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    me.isPrivate = !!(req.body && req.body.isPrivate);
+    if (!me.isPrivate && Array.isArray(me.followRequests) && me.followRequests.length) {
+      // Auto-approve pending requests when switching back to public
+      for (const reqUid of me.followRequests) {
+        const requester = users.find(u => u.id === reqUid);
+        if (requester) {
+          if (!Array.isArray(requester.following)) requester.following = [];
+          if (!requester.following.includes(me.id)) requester.following.push(me.id);
+        }
+      }
+      me.followRequests = [];
+    }
+    await writeUsers(users);
+    res.json({ success: true, isPrivate: !!me.isPrivate });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/me/follow-requests', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    const reqIds = Array.isArray(me.followRequests) ? me.followRequests : [];
+    const directUrl = makeDirectUrlCache();
+    const requests = await Promise.all(reqIds.map(async uid => {
+      const u = users.find(x => x.id === uid);
+      if (!u) return null;
+      return {
+        id: u.id,
+        username: u.username,
+        verified: !!u.verified,
+        profileImage: u.profileImage ? await directUrl(u.profileImage, u.avatarStorageProvider) : null
+      };
+    }));
+    res.json({ requests: requests.filter(Boolean) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/me/follow-requests/:userId/decide', async (req, res) => {
+  try {
+    const currentUser = getUserFromReq(req);
+    if (!currentUser) return res.status(401).json({ error: 'Login required' });
+    const action = String((req.body && req.body.action) || '').toLowerCase();
+    if (!['accept', 'decline'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
+    const users = await readUsers();
+    const me = users.find(u => u.id === currentUser.id);
+    const requester = users.find(u => u.id === req.params.userId);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    me.followRequests = (Array.isArray(me.followRequests) ? me.followRequests : []).filter(id => id !== req.params.userId);
+    if (action === 'accept' && requester) {
+      if (!Array.isArray(requester.following)) requester.following = [];
+      if (!requester.following.includes(me.id)) requester.following.push(me.id);
+      await notify(requester.id, { type: 'follow', fromUserId: me.id, fromUsername: me.username, message: `✅ @${me.username} accepted your follow request!` });
+    }
+    await writeUsers(users);
+    res.json({ success: true, remaining: me.followRequests.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Feature #9: Admin Audit Log & #10: IP Ban / Spam Blocker ----
+app.get('/api/admin/audit-log', requireAdmin, async (req, res) => {
+  try {
+    const logs = await readAuditLog();
+    res.json({ logs: logs.slice(0, 120) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/banned-ips', requireAdmin, async (req, res) => {
+  try {
+    const list = await readBannedIps(true);
+    res.json({ bannedIps: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/banned-ips/add', requireAdmin, async (req, res) => {
+  try {
+    const ip = String((req.body && req.body.ip) || '').trim().slice(0, 64);
+    const reason = String((req.body && req.body.reason) || 'Spam / Abuse').trim().slice(0, 160);
+    if (!ip || ip.length < 4) return res.status(400).json({ error: 'Enter a valid IP address' });
+    const list = await readBannedIps(true);
+    if (!list.some(x => x.ip === ip)) {
+      list.unshift({ ip, reason, bannedAt: new Date().toISOString() });
+      await writeBannedIps(list);
+    }
+    res.json({ success: true, bannedIps: list });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/banned-ips/remove', requireAdmin, async (req, res) => {
+  try {
+    const ip = String((req.body && req.body.ip) || '').trim();
+    const list = (await readBannedIps(true)).filter(x => x.ip !== ip);
+    await writeBannedIps(list);
+    res.json({ success: true, bannedIps: list });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
