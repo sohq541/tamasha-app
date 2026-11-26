@@ -1441,9 +1441,30 @@ async function renderTools(){
       <div class="meta" id="backupRestoreStatus" style="margin-top:6px;"></div>
     </div>
     <div class="card">
+      <b>🛡️ IP Ban &amp; Spam Blocker</b>
+      <div class="meta">Block abusive or spammer IP addresses from accessing public APIs, signup, or login. Admin routes are never blocked.</div>
+      <div class="row1" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
+        <input type="text" class="search" id="banIpInput" placeholder="IP address (e.g. 103.21.45.12)" style="flex:1;min-width:160px;margin:0;">
+        <input type="text" class="search" id="banIpReason" placeholder="Reason (optional)" style="flex:1;min-width:140px;margin:0;">
+        <button class="btn btn-danger" onclick="addBannedIp()">🚫 Ban IP</button>
+      </div>
+      <div id="bannedIpsList" style="margin-top:10px;"><span class="meta">Loading banned IPs...</span></div>
+    </div>
+
+    <div class="card">
+      <div class="row1" style="justify-content:space-between;">
+        <b>📜 Admin Audit Log (Activity History)</b>
+        <button class="btn" onclick="loadAdminAuditLog()">↻ Refresh</button>
+      </div>
+      <div class="meta">Automatic record of admin actions (verifications, bans, deletions, settings changes).</div>
+      <div id="auditLogList" style="margin-top:10px;max-height:280px;overflow-y:auto;"><span class="meta">Loading audit log...</span></div>
+    </div>
+
+    <div class="card">
       <b>🚨 Report alert</b>
       <div class="meta">When a new report comes in, your account (email: your ALERT_EMAIL_TO) gets an in-app notification and a push. To get it by Gmail too, set it in Render: <b>RESEND_API_KEY</b> (SMTP is off on the free plan, so Resend is used.)</div>
     </div>`;
+    setTimeout(() => { loadBannedIpsList(); loadAdminAuditLog(); }, 30);
 }
 async function sendAnnouncement(){
   const text = document.getElementById('annText').value.trim();
@@ -2483,6 +2504,62 @@ async function cleanInactiveAccounts(cleanAllListed){
   } catch (e) {
     alert(e.message);
   }
+}
+
+async function loadBannedIpsList(){
+  const box = document.getElementById('bannedIpsList');
+  if (!box) return;
+  try {
+    const res = await fetch('/api/admin/banned-ips');
+    const d = await res.json();
+    const list = (d && d.bannedIps) || [];
+    if (!list.length) { box.innerHTML = '<span class="meta">No banned IPs yet.</span>'; return; }
+    box.innerHTML = list.map(x => `
+      <div class="ev" style="align-items:center;">
+        <div class="txt" style="flex:1;"><b>${esc(x.ip)}</b> — ${esc(x.reason || 'Spam')}<div class="when">${ago(x.bannedAt)}</div></div>
+        <button class="btn btn-ok" onclick="removeBannedIp('${esc(x.ip)}')">Unban</button>
+      </div>`).join('');
+  } catch (e) { box.innerHTML = '<span class="meta">Failed to load banned IPs.</span>'; }
+}
+async function addBannedIp(){
+  const ip = (document.getElementById('banIpInput').value || '').trim();
+  const reason = (document.getElementById('banIpReason').value || '').trim();
+  if (!ip) { alert('Enter an IP address'); return; }
+  try {
+    const res = await fetch('/api/admin/banned-ips/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip, reason }) });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    document.getElementById('banIpInput').value = '';
+    document.getElementById('banIpReason').value = '';
+    loadBannedIpsList();
+    loadAdminAuditLog();
+  } catch (e) { alert(e.message); }
+}
+async function removeBannedIp(ip){
+  try {
+    const res = await fetch('/api/admin/banned-ips/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
+    if (!res.ok) throw new Error('Failed');
+    loadBannedIpsList();
+    loadAdminAuditLog();
+  } catch (e) { alert(e.message); }
+}
+async function loadAdminAuditLog(){
+  const box = document.getElementById('auditLogList');
+  if (!box) return;
+  try {
+    const res = await fetch('/api/admin/audit-log');
+    const d = await res.json();
+    const logs = (d && d.logs) || [];
+    if (!logs.length) { box.innerHTML = '<span class="meta">No admin activity recorded yet.</span>'; return; }
+    box.innerHTML = logs.slice(0, 60).map(l => `
+      <div class="ev">
+        <div class="ic">🛡️</div>
+        <div class="txt" style="flex:1;">
+          <b>${esc(l.action)}</b> ${l.details ? `<span style="color:var(--cream-dim);">(${esc(l.details)})</span>` : ''}
+          <div class="when">${ago(l.createdAt)}${l.ip ? ' · IP: ' + esc(l.ip) : ''}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) { box.innerHTML = '<span class="meta">Failed to load audit log.</span>'; }
 }
 </script>
 </body>

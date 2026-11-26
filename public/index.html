@@ -3978,7 +3978,7 @@ async function renderOtherProfile(userId, usernameHint){
     ${renderProfileBioLinksHtml(pub.bioLinks, pub.website, pub.username)}
     ${renderCreatorMilestonesHtml(theirFilms, pub.followersCount || 0, !!pub.verified)}
     <div class="profile-btn-row">
-      <button class="profile-btn ${pub.isFollowing ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : 'Follow'}</button>
+      <button class="profile-btn ${(pub.isFollowing || pub.isRequested) ? '' : 'primary'}" id="followBtn" onclick="toggleFollow('${userId}')">${pub.isFollowing ? 'Following' : (pub.isRequested ? '⏳ Requested' : 'Follow')}</button>
       ${pub.isFollowing ? `<button class="profile-btn" onclick="chatReturnTarget={type:'profile',userId:'${userId}',username:'${escapeHtml(pub.username)}'};openChatConvo('${userId}','${escapeHtml(pub.username)}')">✉️ Message</button>` : ''}
       <button class="profile-btn" onclick="toggleUserCloseFriend('${escapeAttr(userId)}', this)" style="${pub.isCloseFriend ? 'border-color:#00e676;color:#69f0ae;background:rgba(0,230,118,0.12);' : ''}">${pub.isCloseFriend ? '⭐ Close Friend' : '☆ Close Friend'}</button>
       <button class="profile-btn" onclick="openProfileQr('${escapeAttr(userId)}','${escapeAttr(pub.username)}','${escapeAttr(pub.profileImage || '')}',${!!pub.verified})">Share</button>
@@ -3987,6 +3987,13 @@ async function renderOtherProfile(userId, usernameHint){
       <div style="min-width:0;"><div style="font-weight:700;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 ${escapeHtml(pub.channelTitle || (pub.username + ' channel'))}</div>
       <div class="meta" style="font-size:12px;">${pub.channelMembersCount || 0} subscribers</div></div>
       <span style="color:var(--cream-dim);font-size:18px;">›</span></div>` : ''}
+    ${pub.canViewPosts === false ? `
+      <div style="text-align:center;padding:34px 18px;margin-top:16px;border:1px solid var(--gold-line);border-radius:16px;background:rgba(255,255,255,0.03);">
+        <div style="font-size:34px;margin-bottom:8px;">🔒</div>
+        <div style="font-size:15.5px;font-weight:800;color:var(--cream);">This Account is Private</div>
+        <div style="font-size:12.5px;color:var(--cream-dim);margin-top:4px;">Follow @${escapeHtml(pub.username)} to see their videos, shorts, and photos.</div>
+      </div>
+    ` : `
     <div class="highlights-bar" id="otherHighlightsBar"></div>
     <div class="profile-tabs-row">
       <button class="tab-btn active" id="otherProfileTabVideos" onclick="switchOtherProfileGrid('videos')" style="flex:1;max-width:none;font-size:13px;">🎬 Videos (${theirLongVideos.length})</button>
@@ -4002,8 +4009,9 @@ async function renderOtherProfile(userId, usernameHint){
     <div class="profile-mygrid hidden" id="otherProfileGridPhotos">
       ${pinSort(theirPhotos, pub.pinnedFilmIds).map(f => gridItemHtml(f, `openProfilePhotoFeed('${userId}','${f.id}')`, (pub.pinnedFilmIds || []).includes(f.id))).join('') || '<p class="comment-empty">No photos yet.</p>'}
     </div>
+    `}
   `;
-  loadUserHighlights(userId, 'otherHighlightsBar', false);
+  if (pub.canViewPosts !== false) loadUserHighlights(userId, 'otherHighlightsBar', false);
 }
 
 function switchOtherProfileGrid(type){
@@ -4591,6 +4599,7 @@ async function toggleFollow(userId){
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed');
     syncFollowStateLocal(userId, data.following);
+    if (data.requested) showToast('🔒 Follow request sent');
     if (otherProfileUserId === userId) renderOtherProfile(userId);
     else renderProfile();
   } catch (err) {
@@ -4974,6 +4983,18 @@ function renderSettingsPrivacyMenu(){
       </label>
     </div>
     ${menuRow(document.documentElement.getAttribute('data-theme') === 'light' ? '🌙' : '☀️', document.documentElement.getAttribute('data-theme') === 'light' ? 'Dark mode (black background)' : 'White mode (white background)', 'toggleAppTheme()')}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--gold-line);">
+      <div style="max-width:78%;">
+        <div style="font-size:14.5px;font-weight:600;">🔒 Private Account</div>
+        <div style="font-size:12px;color:var(--cream-dim);margin-top:2px;">Only approved followers can see your posts and stories</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;">
+        <input type="checkbox" id="privateAccToggle" ${currentUser && currentUser.isPrivate ? 'checked' : ''} onchange="togglePrivateAccountSetting(this.checked)" style="opacity:0;width:0;height:0;">
+        <span id="privateAccTrack" style="position:absolute;inset:0;background:${currentUser && currentUser.isPrivate ? 'var(--marigold)' : 'rgba(255,255,255,0.15)'};border-radius:999px;transition:0.2s;pointer-events:none;"></span>
+        <span id="privateAccDot" style="position:absolute;top:3px;left:${currentUser && currentUser.isPrivate ? '21px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:0.2s;pointer-events:none;"></span>
+      </label>
+    </div>
+    ${menuRow('👤', 'Follow Requests' + (currentUser && currentUser.followRequestsCount ? ' (' + currentUser.followRequestsCount + ')' : ''), 'openFollowRequestsSheet()')}
     ${menuRow('🔔', 'Notifications', 'openNotifPrefs()')}
     ${menuRow('✔', 'Blue tick', 'openBlueTick()')}
     ${menuRow('🆘', 'Help Desk', 'renderHelpDesk()')}
@@ -6442,8 +6463,13 @@ async function toggleCommentLike(filmId, commentId, btn){
     btn.innerHTML = `<span>${data.liked ? '❤️' : '🤍'}</span> <span>${data.likesCount || ''}</span>`;
     const filmObj = allFilms.find(f => f.id === filmId) || (currentFilm && currentFilm.id === filmId ? currentFilm : null);
     if (filmObj && currentUser && filmObj.ownerId === currentUser.id) {
-      if (currentFilm && currentFilm.id === filmId) renderComments(filmObj.comments);
-      if (sheetFilmId === filmId) renderSheetComments(filmObj.comments);
+      if (currentFilm && currentFilm.id === filmId) {
+        renderCommentListInto('commentList', filmObj.comments, filmId);
+        updateYtCommentCard(filmObj);
+      }
+      if (currentShortId === filmId && document.getElementById('sheetOverlay').classList.contains('open')) {
+        renderCommentListInto('sheetCommentList', filmObj.comments, filmId);
+      }
     }
   } catch (e) {}
 }
@@ -11923,7 +11949,7 @@ function closeChatConvo(){
   window.chatVanishMode = false;
   window.chatStreakDays = 0;
   document.getElementById('chatConvoOverlay').classList.remove('open');
-  if (chatPollHandle) { clearInterval(chatPollHandle = null); }
+  if (chatPollHandle) { clearInterval(chatPollHandle); chatPollHandle = null; }
   stopVoiceRecording(true);
   if (activeChatVoiceAudio && !activeChatVoiceAudio.paused) {
     activeChatVoiceAudio.pause();
@@ -15262,12 +15288,15 @@ async function submitSuperThanks(filmId){
     }
     if (currentFilm && currentFilm.id === filmId) {
       currentFilm.comments = f ? f.comments : [...(currentFilm.comments || []), d];
-      renderComments(currentFilm.comments);
+      renderCommentListInto('commentList', currentFilm.comments, filmId);
+      updateYtCommentCard(currentFilm);
       if (typeof ytSidePanelOpen !== 'undefined' && ytSidePanelOpen && ytSidePanelMode === 'comments') {
         renderYtSidePanelContent('comments');
       }
     }
-    if (sheetFilmId === filmId && f) renderSheetComments(f.comments);
+    if (currentShortId === filmId && f && document.getElementById('sheetOverlay').classList.contains('open')) {
+      renderCommentListInto('sheetCommentList', f.comments, filmId);
+    }
     const sc = document.getElementById('short-comment-' + filmId);
     if (sc && f) sc.textContent = f.comments.length;
     showToast(tierMeta.emoji + ' Super Thanks posted!');
@@ -16123,6 +16152,124 @@ function flashYtUnlockBtn(){
   clearTimeout(ytUnlockHideTimer);
   ytUnlockHideTimer = setTimeout(() => { if (ytScreenLocked && btn) btn.style.opacity = '0.28'; }, 2600);
 }
+</script>
+
+<script>
+// ===================== #3 PRIVATE ACCOUNT & FOLLOW REQUESTS =====================
+async function togglePrivateAccountSetting(isPrivate){
+  const track = document.getElementById('privateAccTrack');
+  const dot = document.getElementById('privateAccDot');
+  if (track) track.style.background = isPrivate ? 'var(--marigold)' : 'rgba(255,255,255,0.15)';
+  if (dot) dot.style.left = isPrivate ? '21px' : '3px';
+  try {
+    const res = await fetch('/api/me/privacy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isPrivate: !!isPrivate })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not update privacy');
+    if (currentUser) currentUser.isPrivate = !!d.isPrivate;
+    showToast(d.isPrivate ? '🔒 Account is now Private' : '🌐 Account is now Public');
+  } catch (e) {
+    showToast(e.message || 'Failed to update privacy');
+    renderSettingsPrivacyMenu();
+  }
+}
+
+async function openFollowRequestsSheet(){
+  const existing = document.getElementById('followRequestsModal');
+  if (existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'followRequestsModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1300;display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `
+    <div style="width:100%;max-width:480px;background:var(--panel);border-top:1px solid var(--gold-line);border-radius:22px 22px 0 0;padding:18px 16px 26px;max-height:76vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:16px;font-weight:800;color:var(--cream);">👤 Follow Requests</div>
+        <button type="button" onclick="document.getElementById('followRequestsModal').remove()" style="background:none;border:none;color:var(--cream-dim);font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div id="followReqList"><p class="comment-empty">Loading...</p></div>
+    </div>`;
+  document.body.appendChild(ov);
+  try {
+    const res = await fetch('/api/me/follow-requests');
+    const d = await res.json();
+    const list = (d && d.requests) || [];
+    const box = document.getElementById('followReqList');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<p class="comment-empty">No pending follow requests.</p>';
+      return;
+    }
+    box.innerHTML = list.map(u => `
+      <div id="freq-${escapeAttr(u.id)}" style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,0.07);">
+        ${u.profileImage ? `<img src="${escapeAttr(u.profileImage)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">` : `<div style="width:40px;height:40px;border-radius:50%;background:var(--chip);display:flex;align-items:center;justify-content:center;font-weight:800;">${escapeHtml((u.username || '?')[0].toUpperCase())}</div>`}
+        <div style="flex:1;min-width:0;font-weight:700;color:var(--cream);">@${escapeHtml(u.username)}</div>
+        <button type="button" class="profile-btn primary" style="padding:6px 12px;font-size:12.5px;" onclick="decideFollowRequest('${escapeAttr(u.id)}','accept')">Confirm</button>
+        <button type="button" class="profile-btn" style="padding:6px 10px;font-size:12.5px;" onclick="decideFollowRequest('${escapeAttr(u.id)}','decline')">Delete</button>
+      </div>`).join('');
+  } catch (e) {
+    const box = document.getElementById('followReqList');
+    if (box) box.innerHTML = '<p class="comment-empty">Could not load requests.</p>';
+  }
+}
+
+async function decideFollowRequest(uid, action){
+  try {
+    const res = await fetch('/api/me/follow-requests/' + encodeURIComponent(uid) + '/decide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    const row = document.getElementById('freq-' + uid);
+    if (row) row.remove();
+    if (currentUser) currentUser.followRequestsCount = d.remaining || 0;
+    showToast(action === 'accept' ? '✅ Follow request approved' : 'Removed request');
+    const box = document.getElementById('followReqList');
+    if (box && !box.children.length) box.innerHTML = '<p class="comment-empty">No pending follow requests.</p>';
+  } catch (e) { showToast(e.message || 'Failed'); }
+}
+
+// ===================== #2 SUSPICIOUS LINK WARNING (PHISHING SHIELD) =====================
+document.addEventListener('click', function(e){
+  const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+  if (!a || a.dataset.safeBypass === '1') return;
+  const href = a.getAttribute('href') || '';
+  if (!/^https?:\/\//i.test(href)) return;
+  try {
+    const u = new URL(href);
+    const trustedHosts = [location.hostname, 'www.tamasha.qd.je', 'tamasha.qd.je', 'tamasha-app-it2l.onrender.com'];
+    if (trustedHosts.includes(u.hostname)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const old = document.getElementById('externalLinkWarnModal');
+    if (old) old.remove();
+    const ov = document.createElement('div');
+    ov.id = 'externalLinkWarnModal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:2000;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(6px);';
+    ov.onclick = ev => { if (ev.target === ov) ov.remove(); };
+    ov.innerHTML = `
+      <div style="width:100%;max-width:360px;background:var(--panel);border:1px solid var(--gold-line);border-radius:18px;padding:20px;box-shadow:0 18px 48px rgba(0,0,0,0.55);text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">🛡️</div>
+        <div style="font-size:16px;font-weight:800;color:var(--cream);">Leaving YouSeries</div>
+        <div style="font-size:12.5px;color:var(--cream-dim);margin-top:6px;line-height:1.45;">You are about to open an external website. Make sure you trust this link before entering any personal info:</div>
+        <div style="margin:12px 0;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);font-size:12px;color:#ffd166;word-break:break-all;font-weight:600;">${escapeHtml(u.href)}</div>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button type="button" class="profile-btn" style="flex:1;" onclick="document.getElementById('externalLinkWarnModal').remove()">Cancel</button>
+          <button type="button" class="profile-btn primary" style="flex:1;" id="extLinkProceedBtn">Continue ↗</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    document.getElementById('extLinkProceedBtn').onclick = () => {
+      ov.remove();
+      window.open(u.href, '_blank', 'noopener,noreferrer');
+    };
+  } catch (err) {}
+}, true);
 </script>
 </body>
 </html>
